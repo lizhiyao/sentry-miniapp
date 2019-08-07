@@ -1,0 +1,37 @@
+# dependencies
+node_modules/
+packages/*/package-lock.json
+
+# build and test
+build/
+packages/*/dist/
+packages/*/esm/
+coverage/
+scratch/
+*.pyc
+*.tsbuildinfo
+
+# logs
+yarn-error.log
+npm-debug.log
+lerna-debug.log
+local.log
+
+# ide
+.idea
+*.sublime-*
+
+# misc
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+.rpt2_cache
+
+docs
+lint-results.json
+
+# legacy
+!/packages/raven-js/dist
+tmp.js

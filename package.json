@@ -1,0 +1,16 @@
+{
+  "name": "sentry-miniapp",
+  "version": "0.0.1",
+  "description": "用于小程序平台的 Sentry SDK",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "sentry",
+    "weapp",
+    "miniapp"
+  ],
+  "author": "dancerlzy@gmail.com",
+  "license": "BSD-3-Clause"
+}
