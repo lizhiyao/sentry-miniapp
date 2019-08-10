@@ -1,0 +1,8 @@
+{
+  "extends": "./node_modules/@sentry/typescript/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "rootDir": "src",
+    "outDir": "dist"
+  }
+}

@@ -8,3 +8,4 @@
 - [sentry-javascript README 中文版](https://www.yuque.com/lizhiyao/dxy/zevhf1)
 - [Sentry 开发指南](https://www.yuque.com/lizhiyao/dxy/gc3b9r)
 - [sentry-javascript 源码阅读](https://www.yuque.com/lizhiyao/dxy/xn8e4m)
+- [Sentry TypeScript Configuration](https://github.com/getsentry/sentry-javascript/tree/master/packages/typescript)
