@@ -14,7 +14,8 @@
   "author": "dancerlzy@gmail.com",
   "license": "BSD-3-Clause",
   "devDependencies": {
-    "@sentry/typescript": "^5.3.0"
+    "@sentry/typescript": "^5.3.0",
+    "tslint": "^5.18.0"
   },
   "dependencies": {
     "@sentry/core": "^5.6.1",

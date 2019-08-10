@@ -1,8 +1,18 @@
 {
   "extends": "./node_modules/@sentry/typescript/tsconfig.json",
+  "include": [
+    "src/**/*",
+    "test/**/*"
+  ],
+  "exclude": [
+    "./examples"
+  ],
   "compilerOptions": {
+    // 用于解析非相对模块名称的基目录
     "baseUrl": ".",
+    // 仅用来控制输出的目录结构
     "rootDir": "src",
+    // 重定向输出目录
     "outDir": "dist"
   }
 }
