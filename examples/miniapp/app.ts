@@ -43,9 +43,11 @@ App<IMyApp>({
     // 测试代码执行报错
     throw new Error('this is a test error.')
   },
+  // 小程序发生脚本错误或 API 调用报错时触发
   onError(error: string) {
     console.log(error)
   },
+  // 小程序要打开的页面不存在时触发
   onPageNotFound() {
 
   },
