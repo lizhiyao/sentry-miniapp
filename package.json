@@ -4,7 +4,10 @@
   "description": "用于小程序平台的 Sentry SDK",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:dev": "webpack",
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "build -w --preserveWatchOutput"
   },
   "keywords": [
     "sentry",
@@ -15,11 +18,16 @@
   "license": "BSD-3-Clause",
   "devDependencies": {
     "@sentry/typescript": "^5.3.0",
-    "tslint": "^5.18.0"
+    "ts-loader": "^6.0.4",
+    "tslint": "^5.18.0",
+    "typescript": "^3.5.3",
+    "webpack": "^4.39.1",
+    "webpack-cli": "^3.3.6"
   },
   "dependencies": {
     "@sentry/core": "^5.6.1",
     "@sentry/types": "^5.6.1",
-    "@sentry/utils": "^5.6.1"
+    "@sentry/utils": "^5.6.1",
+    "tslib": "^1.10.0"
   }
 }

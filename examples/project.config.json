@@ -3,18 +3,50 @@
 	"packOptions": {
 		"ignore": []
 	},
-	"miniprogramRoot": "miniapp/",
-	"compileType": "miniprogram",
-	"libVersion": "2.4.0",
-	"projectname": "examples",
-	"scripts": {
-		"beforeCompile": "npm run tsc",
-		"beforePreview": "npm run tsc",
-		"beforeUpload": "npm run tsc"
+	"setting": {
+		"urlCheck": true,
+		"es6": true,
+		"postcss": true,
+		"minified": true,
+		"newFeature": true,
+		"coverView": true,
+		"autoAudits": false,
+		"checkInvalidKey": true,
+		"checkSiteMap": true,
+		"uploadWithSourceMap": true,
+		"babelSetting": {
+			"ignore": [],
+			"disablePlugins": [],
+			"outputPath": ""
+		},
+		"enhance": true
 	},
-	"setting": {},
+	"compileType": "miniprogram",
+	"libVersion": "2.8.0",
 	"appid": "wx5a8ef205c8e52b13",
+	"projectname": "examples",
+	"debugOptions": {
+		"hidedInDevtools": []
+	},
+	"isGameTourist": false,
 	"simulatorType": "wechat",
 	"simulatorPluginLibVersion": {},
-	"condition": {}
+	"condition": {
+		"search": {
+			"current": -1,
+			"list": []
+		},
+		"conversation": {
+			"current": -1,
+			"list": []
+		},
+		"game": {
+			"currentL": -1,
+			"list": []
+		},
+		"miniprogram": {
+			"current": -1,
+			"list": []
+		}
+	}
 }
