@@ -34,6 +34,4 @@ export {
 //   withScope,
 // } from '@sentry/core';
 
-export const name = 'test';
-export const age = 27;
 

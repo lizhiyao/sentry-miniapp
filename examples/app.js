@@ -3,6 +3,10 @@ import Sentry from './vendor/sentry-minapp.min'
 console.log(Sentry);
 console.log(Sentry.name);
 
+// Sentry.init({
+//   dsn: 'https://cafa852f9f9947b18b01346c0595d19d@sentry-f2e.dxy.net/102'
+// });
+
 App({
   globalData: {
     userInfo: null
