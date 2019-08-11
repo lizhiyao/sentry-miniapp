@@ -43,7 +43,7 @@ export interface MiniappOptions extends Options {
  * The Sentry Browser SDK Backend.
  * @hidden
  */
-export class BrowserBackend extends BaseBackend<MiniappOptions> {
+export class MiniappBackend extends BaseBackend<MiniappOptions> {
   /**
    * @inheritDoc
    */

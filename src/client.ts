@@ -2,7 +2,7 @@ import { API, BaseClient, Scope } from "@sentry/core";
 import { DsnLike, Event, EventHint } from "@sentry/types";
 import { getGlobalObject, logger, SyncPromise } from "@sentry/utils";
 
-import { BrowserBackend, MiniappOptions } from "./backend";
+import { MiniappBackend, MiniappOptions } from "./backend";
 import { SDK_NAME, SDK_VERSION } from "./version";
 
 /**
@@ -38,14 +38,14 @@ export interface ReportDialogOptions {
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
-export class BrowserClient extends BaseClient<BrowserBackend, MiniappOptions> {
+export class BrowserClient extends BaseClient<MiniappBackend, MiniappOptions> {
   /**
    * Creates a new Browser SDK instance.
    *
    * @param options Configuration options for this SDK.
    */
   public constructor(options: MiniappOptions = {}) {
-    super(BrowserBackend, options);
+    super(MiniappBackend, options);
   }
 
   /**
