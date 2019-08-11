@@ -7,7 +7,6 @@ import {
   isError,
   isErrorEvent,
   isPlainObject,
-  supportsFetch,
   SyncPromise
 } from "@sentry/utils";
 
@@ -17,7 +16,7 @@ import {
   prepareFramesForEvent
 } from "./parsers";
 import { _computeStackTrace } from "./tracekit";
-import { FetchTransport, XHRTransport } from "./transports";
+import { XHRTransport } from "./transports";
 
 /**
  * Configuration options for the Sentry Browser SDK.
@@ -61,9 +60,7 @@ export class BrowserBackend extends BaseBackend<BrowserOptions> {
     if (this._options.transport) {
       return new this._options.transport(transportOptions);
     }
-    if (supportsFetch()) {
-      return new FetchTransport(transportOptions);
-    }
+
     return new XHRTransport(transportOptions);
   }
 

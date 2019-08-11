@@ -18,6 +18,8 @@
   "license": "BSD-3-Clause",
   "devDependencies": {
     "@sentry/typescript": "^5.3.0",
+    "@types/node": "^12.7.1",
+    "miniprogram-api-typings": "^2.7.7-2",
     "ts-loader": "^6.0.4",
     "tslint": "^5.18.0",
     "typescript": "^3.5.3",

@@ -33,6 +33,10 @@ import { BaseTransport } from "./base";
 //   }
 // }
 
+declare const wx: {
+  request: Function;
+};
+
 /** `XHR` based transport */
 export class XHRTransport extends BaseTransport {
   /**

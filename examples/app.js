@@ -1,7 +1,6 @@
 import * as Sentry from "./vendor/sentry-minapp.min";
 
 console.log(Sentry);
-console.log(Sentry.name);
 
 App({
   globalData: {
@@ -46,10 +45,11 @@ App({
     });
 
     // 测试 onError
-    // throw new Error('this is a test error.');
+    throw new Error("this is a test error.");
   },
   onError(error) {
     console.warn(error);
+    Sentry.captureException(error);
   },
   onPageNotFound(res) {
     console.warn(res);
