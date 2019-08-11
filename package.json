@@ -1,6 +1,6 @@
 {
   "name": "sentry-miniapp",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "用于小程序平台的 Sentry SDK",
   "main": "index.js",
   "scripts": {
