@@ -47,7 +47,7 @@ export {
   wrap
 } from "./sdk";
 export { MiniappOptions } from "./backend";
-export { BrowserClient, ReportDialogOptions } from "./client";
+export { MiniappClient, ReportDialogOptions } from "./client";
 
 import * as Integrations from "./integrations";
 import * as Transports from "./transports";

@@ -6,7 +6,7 @@ import {
 import { getGlobalObject } from "@sentry/utils";
 
 import { MiniappOptions } from "./backend";
-import { BrowserClient, ReportDialogOptions } from "./client";
+import { MiniappClient, ReportDialogOptions } from "./client";
 import { wrap as internalWrap } from "./helpers";
 import {
   Breadcrumbs,
@@ -94,7 +94,7 @@ export function init(options: MiniappOptions = {}): void {
       options.release = window.SENTRY_RELEASE.id;
     }
   }
-  initAndBind(BrowserClient, options);
+  initAndBind(MiniappClient, options);
 }
 
 /**
@@ -106,7 +106,7 @@ export function showReportDialog(options: ReportDialogOptions = {}): void {
   if (!options.eventId) {
     options.eventId = getCurrentHub().lastEventId();
   }
-  const client = getCurrentHub().getClient<BrowserClient>();
+  const client = getCurrentHub().getClient<MiniappClient>();
   if (client) {
     client.showReportDialog(options);
   }
@@ -144,7 +144,7 @@ export function onLoad(callback: () => void): void {
  * @param timeout Maximum time in ms the client should wait.
  */
 export function flush(timeout?: number): Promise<boolean> {
-  const client = getCurrentHub().getClient<BrowserClient>();
+  const client = getCurrentHub().getClient<MiniappClient>();
   if (client) {
     return client.flush(timeout);
   }
@@ -158,7 +158,7 @@ export function flush(timeout?: number): Promise<boolean> {
  * @param timeout Maximum time in ms the client should wait.
  */
 export function close(timeout?: number): Promise<boolean> {
-  const client = getCurrentHub().getClient<BrowserClient>();
+  const client = getCurrentHub().getClient<MiniappClient>();
   if (client) {
     return client.close(timeout);
   }

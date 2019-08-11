@@ -19,7 +19,7 @@ import {
   supportsNativeFetch
 } from "@sentry/utils";
 
-import { BrowserClient } from "../client";
+import { MiniappClient } from "../client";
 import { breadcrumbEventHandler, keypressEventHandler, wrap } from "../helpers";
 
 const global = getGlobalObject<Window>();
@@ -271,7 +271,7 @@ export class Breadcrumbs implements Integration {
           method = args[1].method;
         }
 
-        const client = getCurrentHub().getClient<BrowserClient>();
+        const client = getCurrentHub().getClient<MiniappClient>();
         const dsn = client && client.getDsn();
         if (dsn) {
           const filterUrl = new API(dsn).getStoreEndpoint();
@@ -456,7 +456,7 @@ export class Breadcrumbs implements Integration {
             url: args[1]
           };
 
-          const client = getCurrentHub().getClient<BrowserClient>();
+          const client = getCurrentHub().getClient<MiniappClient>();
           const dsn = client && client.getDsn();
           if (dsn) {
             const filterUrl = new API(dsn).getStoreEndpoint();

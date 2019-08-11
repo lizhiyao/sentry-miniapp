@@ -38,7 +38,7 @@ export interface ReportDialogOptions {
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
-export class BrowserClient extends BaseClient<MiniappBackend, MiniappOptions> {
+export class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
   /**
    * Creates a new Browser SDK instance.
    *

@@ -21,7 +21,7 @@ import { XHRTransport } from "./transports";
 /**
  * Configuration options for the Sentry Miniapp SDK.
  * Sentry Miniapp SDK 的配置选项。
- * @see BrowserClient for more information.
+ * @see MiniappClient for more information.
  */
 export interface MiniappOptions extends Options {
   /**
