@@ -33,3 +33,5 @@ export {
   Span,
   withScope
 } from "@sentry/core";
+
+export { SDK_NAME, SDK_VERSION } from "./version";
