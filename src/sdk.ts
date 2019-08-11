@@ -89,14 +89,7 @@ export function init(options: MiniappOptions = {}): void {
   if (options.defaultIntegrations === undefined) {
     options.defaultIntegrations = defaultIntegrations;
   }
-  // tslint:disable-next-line: strict-comparisons
-  if (options.release === undefined) {
-    const window = getGlobalObject<Window>();
-    // This supports the variable that sentry-webpack-plugin injects
-    if (window.SENTRY_RELEASE && window.SENTRY_RELEASE.id) {
-      options.release = window.SENTRY_RELEASE.id;
-    }
-  }
+
   initAndBind(MiniappClient, options);
 }
 
