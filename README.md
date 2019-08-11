@@ -9,3 +9,4 @@
 - [Sentry 开发指南](https://www.yuque.com/lizhiyao/dxy/gc3b9r)
 - [sentry-javascript 源码阅读](https://www.yuque.com/lizhiyao/dxy/xn8e4m)
 - [Sentry TypeScript Configuration](https://github.com/getsentry/sentry-javascript/tree/master/packages/typescript)
+- [wx.request](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html)

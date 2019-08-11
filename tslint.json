@@ -1,3 +1,6 @@
 {
-  "extends": "@sentry/typescript/tslint"
+  "extends": "@sentry/typescript/tslint",
+  "rules": {
+    "object-literal-sort-keys": false
+  }
 }
