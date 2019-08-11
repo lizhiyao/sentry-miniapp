@@ -84,9 +84,12 @@ export const defaultIntegrations = [
  * @see {@link MiniappOptions} for documentation on configuration options.
  */
 export function init(options: MiniappOptions = {}): void {
+  // 如果将 options.defaultIntegrations 设置为 false，则不会添加默认集成，否则将在内部将其设置为建议的默认集成。
+  // tslint:disable-next-line: strict-comparisons
   if (options.defaultIntegrations === undefined) {
     options.defaultIntegrations = defaultIntegrations;
   }
+  // tslint:disable-next-line: strict-comparisons
   if (options.release === undefined) {
     const window = getGlobalObject<Window>();
     // This supports the variable that sentry-webpack-plugin injects
