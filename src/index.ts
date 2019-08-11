@@ -35,7 +35,6 @@ export {
 } from "@sentry/core";
 
 export { SDK_NAME, SDK_VERSION } from "./version";
-
 export {
   defaultIntegrations,
   forceLoad,
@@ -47,3 +46,10 @@ export {
   close,
   wrap
 } from "./sdk";
+export { BrowserOptions } from "./backend";
+export { BrowserClient, ReportDialogOptions } from "./client";
+
+import * as Integrations from "./integrations";
+import * as Transports from "./transports";
+
+export { Integrations, Transports };
