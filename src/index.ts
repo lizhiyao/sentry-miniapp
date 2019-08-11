@@ -10,8 +10,8 @@ export {
   Stacktrace,
   Status,
   Thread,
-  User,
-} from '@sentry/types';
+  User
+} from "@sentry/types";
 
 export {
   addGlobalEventProcessor,
@@ -31,12 +31,5 @@ export {
   setTags,
   setUser,
   Span,
-  withScope,
-} from '@sentry/core';
-
-
-
-
-
-
-
+  withScope
+} from "@sentry/core";
