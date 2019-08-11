@@ -5,7 +5,7 @@ import {
 } from "@sentry/core";
 import { getGlobalObject } from "@sentry/utils";
 
-import { BrowserOptions } from "./backend";
+import { MiniappOptions } from "./backend";
 import { BrowserClient, ReportDialogOptions } from "./client";
 import { wrap as internalWrap } from "./helpers";
 import {
@@ -81,9 +81,9 @@ export const defaultIntegrations = [
  * });
  * ```
  *
- * @see {@link BrowserOptions} for documentation on configuration options.
+ * @see {@link MiniappOptions} for documentation on configuration options.
  */
-export function init(options: BrowserOptions = {}): void {
+export function init(options: MiniappOptions = {}): void {
   if (options.defaultIntegrations === undefined) {
     options.defaultIntegrations = defaultIntegrations;
   }

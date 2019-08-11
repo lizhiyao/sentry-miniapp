@@ -19,10 +19,11 @@ import { _computeStackTrace } from "./tracekit";
 import { XHRTransport } from "./transports";
 
 /**
- * Configuration options for the Sentry Browser SDK.
+ * Configuration options for the Sentry Miniapp SDK.
+ * Sentry Miniapp SDK 的配置选项。
  * @see BrowserClient for more information.
  */
-export interface BrowserOptions extends Options {
+export interface MiniappOptions extends Options {
   /**
    * A pattern for error URLs which should not be sent to Sentry.
    * To whitelist certain errors instead, use {@link Options.whitelistUrls}.
@@ -42,7 +43,7 @@ export interface BrowserOptions extends Options {
  * The Sentry Browser SDK Backend.
  * @hidden
  */
-export class BrowserBackend extends BaseBackend<BrowserOptions> {
+export class BrowserBackend extends BaseBackend<MiniappOptions> {
   /**
    * @inheritDoc
    */
