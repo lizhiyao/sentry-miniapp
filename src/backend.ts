@@ -84,6 +84,7 @@ export class MiniappBackend extends BaseBackend<MiniappOptions> {
       event = eventFromStacktrace(_computeStackTrace(exception as Error));
       return SyncPromise.resolve(this._buildEvent(event, hint));
     }
+
     if (
       isDOMError(exception as DOMError) ||
       isDOMException(exception as DOMException)
@@ -107,11 +108,13 @@ export class MiniappBackend extends BaseBackend<MiniappOptions> {
         }
       );
     }
+
     if (isError(exception as Error)) {
       // we have a real Error object, do nothing
       event = eventFromStacktrace(_computeStackTrace(exception as Error));
       return SyncPromise.resolve(this._buildEvent(event, hint));
     }
+
     if (isPlainObject(exception as {}) && hint && hint.syntheticException) {
       // If it is plain Object, serialize it manually and extract options
       // This will allow us to group events based on top-level keys

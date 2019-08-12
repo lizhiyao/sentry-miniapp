@@ -33,14 +33,14 @@ export interface ReportDialogOptions {
 }
 
 /**
- * The Sentry Browser SDK Client.
+ * The Sentry Miniapp SDK Client.
  *
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
 export class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
   /**
-   * Creates a new Browser SDK instance.
+   * Creates a new Miniapp SDK instance.
    *
    * @param options Configuration options for this SDK.
    */
@@ -75,6 +75,7 @@ export class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
 
   /**
    * Show a report dialog to the user to send feedback to a specific event.
+   * 向用户显示报告对话框以将反馈发送到特定事件。---> 小程序上暂时用不到&不考虑。
    *
    * @param options Set individual options for the dialog
    */

@@ -3,7 +3,6 @@ import {
   initAndBind,
   Integrations as CoreIntegrations
 } from "@sentry/core";
-import { getGlobalObject } from "@sentry/utils";
 
 import { MiniappOptions } from "./backend";
 import { MiniappClient, ReportDialogOptions } from "./client";
