@@ -11,6 +11,7 @@ import {
   Breadcrumbs,
   GlobalHandlers,
   LinkedErrors,
+  System,
   TryCatch,
   UserAgent
 } from "./integrations";
@@ -22,7 +23,8 @@ export const defaultIntegrations = [
   new Breadcrumbs(),
   new GlobalHandlers(),
   new LinkedErrors(),
-  new UserAgent()
+  new UserAgent(),
+  new System()
 ];
 
 /**

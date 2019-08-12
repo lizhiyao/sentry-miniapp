@@ -63,7 +63,7 @@ export class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
       packages: [
         ...((event.sdk && event.sdk.packages) || []),
         {
-          name: "npm:@sentry/browser",
+          name: "npm:@sentry/miniapp",
           version: SDK_VERSION
         }
       ],
