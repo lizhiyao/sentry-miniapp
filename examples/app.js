@@ -1,6 +1,6 @@
 import * as Sentry from "./vendor/sentry-minapp.min";
 
-console.log(Sentry);
+// console.log(Sentry);
 
 App({
   globalData: {
@@ -45,8 +45,10 @@ App({
     });
 
     // 测试 onError
-    throw new Error("this is a test error.");
+    // throw new Error("this is a test error.");
+    // throw new Error("lalalalalala");
   }
+  // 不需要显示调用 Sentry.captureException(error)
   // onError(error) {
   //   console.warn(error);
   //   Sentry.captureException(error);

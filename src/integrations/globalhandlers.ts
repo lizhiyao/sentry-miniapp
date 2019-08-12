@@ -96,7 +96,7 @@ export class GlobalHandlers implements Integration {
     if (this._options.onError) {
       logger.log("Global Handler attached: onError");
       wx.onError((error: string) => {
-        captureException(error);
+        captureException(new Error(error));
       });
     }
 
