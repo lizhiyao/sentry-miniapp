@@ -46,12 +46,12 @@ App({
 
     // 测试 onError
     throw new Error("this is a test error.");
-  },
-  onError(error) {
-    console.warn(error);
-    Sentry.captureException(error);
-  },
-  onPageNotFound(res) {
-    console.warn(res);
   }
+  // onError(error) {
+  //   console.warn(error);
+  //   Sentry.captureException(error);
+  // },
+  // onPageNotFound(res) {
+  //   console.warn(res);
+  // }
 });

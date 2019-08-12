@@ -1,4 +1,4 @@
-import { getCurrentHub } from "@sentry/core";
+import { captureEvent, captureException, getCurrentHub } from "@sentry/core";
 import { Event, Integration, Severity } from "@sentry/types";
 import {
   addExceptionTypeValue,
@@ -20,10 +20,19 @@ import {
   StackTrace as TraceKitStackTrace
 } from "../tracekit";
 
+declare const wx: {
+  onError: Function;
+  onPageNotFound: Function;
+  onMemoryWarning: Function;
+};
+
 /** JSDoc */
 interface GlobalHandlersIntegrations {
   onerror: boolean;
   onunhandledrejection: boolean;
+  onError: boolean; // 监听小程序错误
+  onPageNotFound: boolean; // 监听页面不存在
+  onMemoryWarning: boolean; // 监听内存不足告警
 }
 
 /** Global handlers */
@@ -46,6 +55,9 @@ export class GlobalHandlers implements Integration {
     this._options = {
       onerror: true,
       onunhandledrejection: true,
+      onError: true,
+      onPageNotFound: true,
+      onMemoryWarning: true,
       ...options
     };
   }
@@ -79,6 +91,36 @@ export class GlobalHandlers implements Integration {
     if (this._options.onunhandledrejection) {
       logger.log("Global Handler attached: onunhandledrejection");
       _installGlobalUnhandledRejectionHandler();
+    }
+
+    if (this._options.onError) {
+      logger.log("Global Handler attached: onError");
+      wx.onError((error: string) => {
+        captureException(error);
+      });
+    }
+
+    if (this._options.onPageNotFound) {
+      logger.log("Global Handler attached: onPageNotFound");
+      wx.onPageNotFound((res: object) => {
+        captureEvent({
+          message: "页面无法找到",
+          extra: res
+        });
+      });
+    }
+
+    if (this._options.onMemoryWarning) {
+      logger.log("Global Handler attached: onMemoryWarning");
+
+      wx.onMemoryWarning(({ level }: { level: number }) => {
+        captureEvent({
+          message: "内存不足告警",
+          extra: {
+            level
+          }
+        });
+      });
     }
   }
 
