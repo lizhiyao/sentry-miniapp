@@ -1,6 +1,10 @@
 import * as Sentry from "./vendor/sentry-minapp.min";
 
 // console.log(Sentry);
+// 初始化 Sentry
+Sentry.init({
+  dsn: "https://cafa852f9f9947b18b01346c0595d19d@sentry-f2e.dxy.net/102"
+});
 
 App({
   globalData: {
@@ -37,11 +41,6 @@ App({
           });
         }
       }
-    });
-
-    // 初始化 Sentry
-    Sentry.init({
-      dsn: "https://cafa852f9f9947b18b01346c0595d19d@sentry-f2e.dxy.net/102"
     });
 
     // 测试 onError
