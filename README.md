@@ -11,20 +11,20 @@
 
 ## 功能特点
 
-- 基于 [sentry-javascript 最新的基础模块](https://www.yuque.com/lizhiyao/dxy/zevhf1#0GMCN) 封装
-- 遵守[官方统一的 API 设计文档](https://www.yuque.com/lizhiyao/dxy/gc3b9r#vQdTs)，使用方式和官方保持一致
-- 使用 [TypeScript](https://www.typescriptlang.org/) 进行编写
+- [x] 基于 [sentry-javascript 最新的基础模块](https://www.yuque.com/lizhiyao/dxy/zevhf1#0GMCN) 封装
+- [x] 遵守[官方统一的 API 设计文档](https://www.yuque.com/lizhiyao/dxy/gc3b9r#vQdTs)，使用方式和官方保持一致
+- [x] 使用 [TypeScript](https://www.typescriptlang.org/) 进行编写
 - [x] 包含 Sentry SDK（如：[@sentry/browser](https://github.com/getsentry/sentry-javascript/tree/master/packages/browser)）的所有基础功能
 - [x] 默认上报运行小程序的设备、操作系统、应用版本信息
-- [] 完善的代码测试
-- [] 支持支付宝小程序、字节跳动小程序
+- [ ] 完善的代码测试
+- [ ] 支持支付宝小程序、字节跳动小程序
 
 ## 用法
 
 支持两种使用方式：
 
 - 直接引用
-- 通过 npm 方式使用
+- 通过 npm 方式使用（推荐）
 
 ### 注意
 
