@@ -14,7 +14,7 @@ import {
   System,
   TryCatch,
   UserAgent
-} from "./integrations";
+} from "./integrations/index";
 
 export const defaultIntegrations = [
   new CoreIntegrations.InboundFilters(),

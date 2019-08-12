@@ -49,7 +49,7 @@ export {
 export { MiniappOptions } from "./backend";
 export { MiniappClient, ReportDialogOptions } from "./client";
 
-import * as Integrations from "./integrations";
-import * as Transports from "./transports";
+import * as Integrations from "./integrations/index";
+import * as Transports from "./transports/index";
 
 export { Integrations, Transports };

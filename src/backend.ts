@@ -16,7 +16,7 @@ import {
   prepareFramesForEvent
 } from "./parsers";
 import { _computeStackTrace } from "./tracekit";
-import { XHRTransport } from "./transports";
+import { XHRTransport } from "./transports/index";
 
 /**
  * Configuration options for the Sentry Miniapp SDK.
