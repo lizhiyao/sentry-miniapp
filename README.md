@@ -88,6 +88,16 @@
 
 ## 开发
 
+### 知识储备
+
+开发前请仔细阅读下面内容：
+
+- [sentry-javascript README 中文版](https://www.yuque.com/lizhiyao/dxy/zevhf1)
+- [Sentry 开发指南](https://www.yuque.com/lizhiyao/dxy/gc3b9r)
+- [sentry-javascript 源码阅读](https://www.yuque.com/lizhiyao/dxy/xn8e4m)
+
+### 相关命令
+
 ```bash
 # 构建供小程序直接引用的 sentry-minapp.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
 npm run build:dev
@@ -97,24 +107,27 @@ npm run build
 
 # 发布到 npm
 npm publish
-
 ```
 
-## 贡献
+## 效果图
 
-欢迎通过 `issue`、`pull request`等方式贡献 `sentry-miniapp`。
+![Dashboard](docs/screenshot/sentry-admin.png)
+![Error00](docs/screenshot/sentry-error-00.png)
+![Error01](docs/screenshot/sentry-error-01.png)
+![Error02](docs/screenshot/sentry-error-02.png)
 
 ## 参考资料
 
 - [sentry-javascript](https://github.com/getsentry/sentry-javascript)
 - [Sentry Getting Started](https://docs.sentry.io/error-reporting/quickstart/?platform=browsernpm)
 - [Sentry JavaScript SDKs](http://getsentry.github.io/sentry-javascript/)
-- [sentry-javascript README 中文版](https://www.yuque.com/lizhiyao/dxy/zevhf1)
-- [Sentry 开发指南](https://www.yuque.com/lizhiyao/dxy/gc3b9r)
-- [sentry-javascript 源码阅读](https://www.yuque.com/lizhiyao/dxy/xn8e4m)
 - [Sentry TypeScript Configuration](https://github.com/getsentry/sentry-javascript/tree/master/packages/typescript)
 - [wx.request](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html)
 - [shields.io](https://shields.io/)
+
+## 贡献
+
+欢迎通过 `issue`、`pull request`等方式贡献 `sentry-miniapp`。
 
 ## 联系作者
 

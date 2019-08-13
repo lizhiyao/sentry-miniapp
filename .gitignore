@@ -30,7 +30,6 @@ local.log
 
 .rpt2_cache
 
-docs
 lint-results.json
 
 # legacy
