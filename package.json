@@ -1,16 +1,18 @@
 {
   "name": "sentry-miniapp",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "用于小程序平台的 Sentry SDK",
   "repository": "git://github.com/lizhiyao/sentry-miniapp.git",
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "miniprogram": "dist",
   "main": "dist/index.js",
+  "module": "esm/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:dev": "webpack --config ./webpack.config.js",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "build:esm": "tsc -p tsconfig.esm.json"
   },
   "keywords": [
     "sentry",

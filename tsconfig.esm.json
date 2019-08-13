@@ -8,8 +8,8 @@
     "./examples"
   ],
   "compilerOptions": {
-    "outDir": "dist",
-    "module": "commonjs",
+    "outDir": "esm",
+    "module": "es6",
     "target": "es5"
   }
 }
