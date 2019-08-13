@@ -86,6 +86,12 @@
    });
    ```
 
+## 开发
+
+## 贡献
+
+欢迎通过 `issue`、`pull request`等方式贡献 `sentry-miniapp`。
+
 ## 参考资料
 
 - [sentry-javascript](https://github.com/getsentry/sentry-javascript)
@@ -97,10 +103,6 @@
 - [Sentry TypeScript Configuration](https://github.com/getsentry/sentry-javascript/tree/master/packages/typescript)
 - [wx.request](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html)
 - [shields.io](https://shields.io/)
-
-## 贡献
-
-欢迎通过 `issue`、`pull request`等方式贡献 `sentry-miniapp`。
 
 ## 联系作者
 

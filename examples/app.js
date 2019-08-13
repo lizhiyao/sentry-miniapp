@@ -3,7 +3,7 @@ import * as Sentry from "./vendor/sentry-minapp.min";
 // console.log(Sentry);
 // 初始化 Sentry
 Sentry.init({
-  dsn: "https://cafa852f9f9947b18b01346c0595d19d@sentry-f2e.dxy.net/102"
+  dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228"
 });
 
 App({
@@ -31,6 +31,28 @@ App({
             success: res => {
               // 可以将 res 发送给后台解码出 unionId
               this.globalData.userInfo = res.userInfo;
+              console.log(res.userInfo);
+              const {
+                nickName,
+                country,
+                province,
+                city,
+                avatarUrl
+              } = res.userInfo;
+
+              Sentry.setUser({
+                id: nickName
+              });
+              Sentry.setTag("country", country);
+              Sentry.setExtra("province", province);
+              Sentry.setExtras({
+                city,
+                avatarUrl
+              });
+              Sentry.captureException(
+                new Error("Good good stydy, day day up!")
+              );
+              Sentry.captureMessage("Hello, sentry-miniapp!");
 
               // 由于 getUserInfo 是网络请求，可能会在 Page.onLoad 之后才返回
               // 所以此处加入 callback 以防止这种情况
@@ -46,6 +68,7 @@ App({
     // 测试 onError
     // throw new Error("this is a test error.");
     // throw new Error("lalalalalala");
+    myUndefinedFunction();
   }
   // 不需要显示调用 Sentry.captureException(error)
   // onError(error) {
