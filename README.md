@@ -1,4 +1,4 @@
-# 小程序 Sentry SDK
+# Sentry 小程序 SDK
 
 ![npm version](https://img.shields.io/npm/v/sentry-miniapp)
 ![npm download](https://img.shields.io/npm/dm/sentry-miniapp)

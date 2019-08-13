@@ -7,7 +7,7 @@ module.exports = {
     filename: "sentry-minapp.min.js",
     library: "Sentry",
     libraryTarget: "commonjs2",
-    path: path.resolve(__dirname, "./examples/vendor")
+    path: path.resolve(__dirname, "./examples/weapp/vendor")
   },
   resolve: {
     extensions: [".tsx", ".ts", ".js"]
