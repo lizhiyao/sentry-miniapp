@@ -88,6 +88,18 @@
 
 ## 开发
 
+```bash
+# 构建供小程序直接引用的 sentry-minapp.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
+npm run build:dev
+
+# 构建用于发布到 npm 的 dist 资源
+npm run build
+
+# 发布到 npm
+npm publish
+
+```
+
 ## 贡献
 
 欢迎通过 `issue`、`pull request`等方式贡献 `sentry-miniapp`。
