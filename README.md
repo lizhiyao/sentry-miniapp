@@ -15,7 +15,7 @@
 - [x] 遵守[官方统一的 API 设计文档](https://www.yuque.com/lizhiyao/dxy/gc3b9r#vQdTs)，使用方式和官方保持一致
 - [x] 使用 [TypeScript](https://www.typescriptlang.org/) 进行编写
 - [x] 包含 Sentry SDK（如：[@sentry/browser](https://github.com/getsentry/sentry-javascript/tree/master/packages/browser)）的所有基础功能
-- [x] 支持 `ES6`、`CommonJS` 两种模块系统 ---> 支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用）
+- [x] 支持 `ES6`、`CommonJS` 两种模块系统 ---> 支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用
 - [x] 默认监听并上报小程序的 onError、onPageNotFound、onMemoryWarning 事件返回的信息
 - [x] 默认上报运行小程序的设备、操作系统、应用版本信息
 - [ ] 完善的代码测试
@@ -126,6 +126,7 @@ npm publish
 - [Sentry TypeScript Configuration](https://github.com/getsentry/sentry-javascript/tree/master/packages/typescript)
 - [wx.request](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html)
 - [shields.io](https://shields.io/)
+- [onError 不能捕获 unhandledrejection](https://developers.weixin.qq.com/community/develop/doc/00060cf6b6c5109f0237f51e156800?highLine=unhandledrejection)
 
 ## 贡献
 

@@ -10,7 +10,7 @@ App({
   globalData: {
     userInfo: null
   },
-  onLaunch: function() {
+  async onLaunch() {
     // 展示本地存储能力
     var logs = wx.getStorageSync("logs") || [];
     logs.unshift(Date.now());
@@ -22,6 +22,7 @@ App({
         // 发送 res.code 到后台换取 openId, sessionKey, unionId
       }
     });
+
     // 获取用户信息
     wx.getSetting({
       success: res => {
@@ -31,7 +32,7 @@ App({
             success: res => {
               // 可以将 res 发送给后台解码出 unionId
               this.globalData.userInfo = res.userInfo;
-              console.log(res.userInfo);
+              // console.log(res.userInfo);
               const {
                 nickName,
                 country,
@@ -49,10 +50,10 @@ App({
                 city,
                 avatarUrl
               });
-              Sentry.captureException(
-                new Error("Good good stydy, day day up!")
-              );
-              Sentry.captureMessage("Hello, sentry-miniapp!");
+              // Sentry.captureException(
+              //   new Error("Good good stydy, day day up!")
+              // );
+              // Sentry.captureMessage("Hello, sentry-miniapp!");
 
               // 由于 getUserInfo 是网络请求，可能会在 Page.onLoad 之后才返回
               // 所以此处加入 callback 以防止这种情况
@@ -68,13 +69,39 @@ App({
     // 测试 onError
     // throw new Error("this is a test error.");
     // throw new Error("lalalalalala");
-    myUndefinedFunction();
-  }
+    // myUndefinedFunction();
+
+    const ret = await new Promise((resolve) => {
+      setTimeout(() => {
+        resolve('awaitRet');
+      }, 2000);
+    });
+    console.log(ret);
+    myrUndefinedFunctionInAsyncFunction();
+
+    // try {
+    //   myrUndefinedFunctionInAsyncFunction();
+    // } catch (e) {
+    //   Sentry.captureException(e)
+    // }
+  },
+  onShow() {
+    new Promise((resovle, reject) => {
+      inPromiseFn();
+      resovle();
+    })
+    // .then((res) => {
+    //   console.log(res);
+    // }, (err) => {
+    //   console.log(err);
+    //   Sentry.captureException(err)
+    // });
+  },
   // 不需要显示调用 Sentry.captureException(error)
-  // onError(error) {
-  //   console.warn(error);
-  //   Sentry.captureException(error);
-  // },
+  onError(error) {
+    console.warn(error);
+    // Sentry.captureException(error);
+  },
   // onPageNotFound(res) {
   //   console.warn(res);
   // }

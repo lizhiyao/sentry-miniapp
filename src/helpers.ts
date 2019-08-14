@@ -32,6 +32,7 @@ export function ignoreNextOnError(): void {
 /**
  * Instruments the given function and sends an event to Sentry every time the
  * function throws an exception.
+ * 检测给定的函数，并在每次函数抛出异常时向 Sentry 发送事件。
  *
  * @param fn A function to wrap.
  * @returns The wrapped function.
@@ -67,7 +68,7 @@ export function wrap(
     return fn;
   }
 
-  const sentryWrapped: WrappedFunction = function(this: any): void {
+  const sentryWrapped: WrappedFunction = function (this: any): void {
     // tslint:disable-next-line:strict-type-predicates
     if (before && typeof before === "function") {
       before.apply(this, arguments);
@@ -132,7 +133,7 @@ export function wrap(
         sentryWrapped[property] = fn[property];
       }
     }
-  } catch (_oO) {} // tslint:disable-line:no-empty
+  } catch (_oO) { } // tslint:disable-line:no-empty
 
   fn.prototype = fn.prototype || {};
   sentryWrapped.prototype = fn.prototype;
