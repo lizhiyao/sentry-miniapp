@@ -1,4 +1,4 @@
-import { captureEvent, captureException, getCurrentHub } from "@sentry/core";
+import { captureException, captureMessage, getCurrentHub } from "@sentry/core";
 import { Event, Integration, Severity } from "@sentry/types";
 import {
   addExceptionTypeValue,
@@ -104,23 +104,14 @@ export class GlobalHandlers implements Integration {
     if (this._options.onPageNotFound) {
       logger.log("Global Handler attached: onPageNotFound");
       wx.onPageNotFound((res: object) => {
-        captureEvent({
-          message: "页面无法找到",
-          extra: res
-        });
+        captureMessage(`页面无法找到: ${JSON.stringify(res)}`);
       });
     }
 
     if (this._options.onMemoryWarning) {
       logger.log("Global Handler attached: onMemoryWarning");
-
       wx.onMemoryWarning(({ level }: { level: number }) => {
-        captureEvent({
-          message: "内存不足告警",
-          extra: {
-            level
-          }
-        });
+        captureMessage(`内存不足告警: ${level}`);
       });
     }
   }
