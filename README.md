@@ -58,6 +58,7 @@
    import * as Sentry from "sentry-miniapp";
 
    // init Sentry
+   // init options: https://github.com/getsentry/sentry-javascript/blob/master/packages/types/src/options.ts
    Sentry.init({
      dsn: "__DSN__"
      // ...
@@ -118,6 +119,12 @@ npm publish
 ![Error01](docs/screenshot/sentry-error-01.png)
 ![Error02](docs/screenshot/sentry-error-02.png)
 
+## 谁在使用 sentry-miniapp
+
+- 丁香医生微信小程序
+- 丁香医生医生端微信小程序
+- 丁香人才微信小程序
+
 ## 参考资料
 
 - [sentry-javascript](https://github.com/getsentry/sentry-javascript)
@@ -125,8 +132,15 @@ npm publish
 - [Sentry JavaScript SDKs](http://getsentry.github.io/sentry-javascript/)
 - [Sentry TypeScript Configuration](https://github.com/getsentry/sentry-javascript/tree/master/packages/typescript)
 - [wx.request](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html)
+- [小程序 App](https://developers.weixin.qq.com/miniprogram/dev/reference/api/App.html)
+- [wx.onError、App.onError疑惑及如何捕获Promise异常？](https://developers.weixin.qq.com/community/develop/doc/000c8cf5794770272709f38a756000)
 - [shields.io](https://shields.io/)
-- [onError 不能捕获 unhandledrejection](https://developers.weixin.qq.com/community/develop/doc/00060cf6b6c5109f0237f51e156800?highLine=unhandledrejection)
+
+## 其他小程序异常监控产品
+
+- [Fundebug](https://www.fundebug.com/)
+- [FrontJS](https://www.frontjs.com/home/tour)
+- [Bugout](https://bugout.testin.cn/)
 
 ## 贡献
 
