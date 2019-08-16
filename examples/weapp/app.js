@@ -66,26 +66,39 @@ App({
       }
     });
 
-    // 测试 onError
+    // 测试 异常是否可以上报
     // throw new Error("this is a test error.");
     // throw new Error("lalalalalala");
     // myUndefinedFunction();
 
+    // 测试 async 函数中异常是否可以被 onError 捕获 
     const ret = await new Promise((resolve) => {
       setTimeout(() => {
-        resolve('awaitRet');
+        resolve('this is await ret.');
       }, 2000);
     });
     console.log(ret);
-    myrUndefinedFunctionInAsyncFunction();
+    // myrUndefinedFunctionInAsyncFunction();
 
+    // 一种可以在 async 函数中进行主动上报异常的方式
     // try {
     //   myrUndefinedFunctionInAsyncFunction();
     // } catch (e) {
     //   Sentry.captureException(e)
     // }
+
+    // 测试 WX API 调用失败是否会上报
+    wx.getStorage({
+      success(res) {
+        console.log(res);
+      },
+      // fail(error) {
+      //   console.log('API 调用失败: ', error);
+      // }
+    })
   },
   onShow() {
+    // 测试 Promise 中异常是否可以上报
     new Promise((resovle, reject) => {
       inPromiseFn();
       resovle();
