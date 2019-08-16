@@ -102,6 +102,9 @@
 ### 相关命令
 
 ```bash
+# 根据 package.json 中的版本号更新 SDK 源码中的版本号
+npm run version
+
 # 构建供小程序直接引用的 sentry-minapp.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
 npm run build:dev
 
