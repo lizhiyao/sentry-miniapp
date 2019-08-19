@@ -1,13 +1,10 @@
-const path = require("path");
-
 module.exports = {
   mode: "production",
   entry: "./src/index.ts",
   output: {
     filename: "sentry-minapp.min.js",
     library: "Sentry",
-    libraryTarget: "commonjs2",
-    path: path.resolve(__dirname, "./examples/weapp/vendor")
+    libraryTarget: "commonjs2"
   },
   resolve: {
     extensions: [".tsx", ".ts", ".js"]
