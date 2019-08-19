@@ -54,7 +54,7 @@ export class GlobalHandlers implements Integration {
   /** JSDoc */
   public constructor(options?: GlobalHandlersIntegrations) {
     const client = getCurrentHub().getClient<MiniappClient>();
-    const platform = (client && client.getOptions().platform) || 'wx';
+    const platform = client && client.getOptions().platform;
     const wxOptions = {
       onError: true,
       onPageNotFound: true,
@@ -67,7 +67,8 @@ export class GlobalHandlers implements Integration {
       onError: false,
       onPageNotFound: false,
       onMemoryWarning: false,
-      ...(platform === 'wx') ? wxOptions : {},
+      // tslint:disable-next-line: strict-comparisons
+      ...(platform === undefined || platform === 'tt' || platform === 'my') ? {} : wxOptions,
       ...options
     };
   }

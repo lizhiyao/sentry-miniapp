@@ -17,26 +17,27 @@ declare const my: {
   request: Function;
 };
 
-let sdk = wx;
-const client = getCurrentHub().getClient<MiniappClient>();
-const platform = client && client.getOptions().platform;
-
-switch (platform) {
-  case 'tt':
-    sdk = tt;
-    break;
-  case 'my':
-    sdk = my;
-    break;
-  default:
-}
-
 /** `XHR` based transport */
 export class XHRTransport extends BaseTransport {
   /**
    * @inheritDoc
    */
   public sendEvent(event: Event): Promise<Response> {
+    let sdk = wx;
+    const client = getCurrentHub().getClient<MiniappClient>();
+    const platform = client && client.getOptions().platform;
+
+    console.log(client)
+
+    switch (platform) {
+      case 'tt':
+        sdk = tt;
+        break;
+      case 'my':
+        sdk = my;
+        break;
+      default:
+    }
     return this._buffer.add(
       new Promise<Response>((resolve, reject) => {
         // tslint:disable-next-line: no-unsafe-any

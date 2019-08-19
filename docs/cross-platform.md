@@ -1,8 +1,9 @@
 # 跨平台支持
 
-核心需要跨平台兼容的地方有两处：
+核心需要跨平台兼容的地方有：
 
 - transports
+- integrations/system
 - integrations/globalhanders
 
 ## transports
