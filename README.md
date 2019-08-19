@@ -18,8 +18,11 @@
 - [x] 支持 `ES6`、`CommonJS` 两种模块系统 ---> 支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用
 - [x] 默认监听并上报小程序的 onError、onPageNotFound、onMemoryWarning 事件返回的信息
 - [x] 默认上报运行小程序的设备、操作系统、应用版本信息
+- [ ] 支持字节跳动小程序
+- [ ] 支持支付宝小程序
+- [ ] 默认上报异常发生时的路由栈
 - [ ] 完善的代码测试
-- [ ] 支持支付宝小程序、字节跳动小程序
+
 
 ## 用法
 
@@ -111,6 +114,9 @@ npm run build:dev
 # 构建用于发布到 npm 的 dist 资源
 npm run build
 
+# 构建用于发布到 npm 的 esm 资源
+npm run build:esm
+
 # 发布到 npm
 npm publish
 ```
@@ -138,6 +144,8 @@ npm publish
 - [小程序 App](https://developers.weixin.qq.com/miniprogram/dev/reference/api/App.html)
 - [wx.onError、App.onError疑惑及如何捕获Promise异常？](https://developers.weixin.qq.com/community/develop/doc/000c8cf5794770272709f38a756000)
 - [shields.io](https://shields.io/)
+- [字节跳动小程序文档](https://developer.toutiao.com/docs/framework/)
+- [支付宝小程序文档](https://docs.alipay.com/mini/developer)
 
 ## 其他小程序异常监控产品
 

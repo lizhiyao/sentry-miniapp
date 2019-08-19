@@ -11,6 +11,7 @@ import {
   truncate
 } from "@sentry/utils";
 
+import { MiniappClient } from '../client';
 import { shouldIgnoreOnError } from "../helpers";
 import { eventFromStacktrace } from "../parsers";
 import {
@@ -30,9 +31,9 @@ declare const wx: {
 interface GlobalHandlersIntegrations {
   onerror: boolean;
   onunhandledrejection: boolean;
-  onError: boolean; // 监听小程序错误
-  onPageNotFound: boolean; // 监听页面不存在
-  onMemoryWarning: boolean; // 监听内存不足告警
+  onError?: boolean; // 监听小程序错误
+  onPageNotFound?: boolean; // 监听页面不存在
+  onMemoryWarning?: boolean; // 监听内存不足告警
 }
 
 /** Global handlers */
@@ -52,12 +53,21 @@ export class GlobalHandlers implements Integration {
 
   /** JSDoc */
   public constructor(options?: GlobalHandlersIntegrations) {
+    const client = getCurrentHub().getClient<MiniappClient>();
+    const platform = (client && client.getOptions().platform) || 'wx';
+    const wxOptions = {
+      onError: true,
+      onPageNotFound: true,
+      onMemoryWarning: true
+    }
+
     this._options = {
       onerror: true,
       onunhandledrejection: true,
-      onError: true,
-      onPageNotFound: true,
-      onMemoryWarning: true,
+      onError: false,
+      onPageNotFound: false,
+      onMemoryWarning: false,
+      ...(platform === 'wx') ? wxOptions : {},
       ...options
     };
   }
@@ -111,7 +121,18 @@ export class GlobalHandlers implements Integration {
     if (this._options.onMemoryWarning) {
       logger.log("Global Handler attached: onMemoryWarning");
       wx.onMemoryWarning(({ level }: { level: number }) => {
-        captureMessage(`内存不足告警: ${level}`);
+        let levelString = 'iOS 设备, 无 level 传入.';
+        switch (level) {
+          case 10:
+            levelString = 'Android 设备, level = TRIM_MEMORY_RUNNING_LOW';
+            break;
+          case 15:
+            levelString = 'Android 设备, level = TRIM_MEMORY_RUNNING_CRITICAL';
+            break;
+          default:
+            levelString = '未知情况';
+        }
+        captureMessage(`内存不足告警: ${levelString}`);
       });
     }
   }
