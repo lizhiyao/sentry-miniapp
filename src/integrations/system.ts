@@ -1,9 +1,7 @@
 import { addGlobalEventProcessor, getCurrentHub } from "@sentry/core";
 import { Event, Integration } from "@sentry/types";
 
-declare const wx: {
-  getSystemInfoSync: Function;
-};
+import { getSDK } from '../crossPlatform';
 
 /** UserAgent */
 export class System implements Integration {
@@ -24,10 +22,13 @@ export class System implements Integration {
     addGlobalEventProcessor((event: Event) => {
       if (getCurrentHub().getIntegration(System)) {
         try {
-          const systemInfo = wx.getSystemInfoSync();
+          const sdk = getSDK();
+          const systemInfo = sdk.getSystemInfoSync();
           const {
-            SDKVersion,
-            batteryLevel,
+            SDKVersion = '0.0.0',
+            batteryLevel, // 微信小程序
+            currentBattery, // 支付宝小程序
+            battery, // 字节跳动小程序
             brand,
             language,
             model,
@@ -39,7 +40,10 @@ export class System implements Integration {
             system,
             version,
             windowHeight,
-            windowWidth
+            windowWidth,
+            wifiSignal, // 字节跳动小程序
+            app, // 支付宝小程序 
+            appName // 字节跳动小程序
           } = systemInfo;
           const [systemName, systemVersion] = system.split(" ");
 
@@ -49,7 +53,7 @@ export class System implements Integration {
               ...event.contexts,
               device: {
                 brand,
-                battery_level: batteryLevel,
+                battery_level: batteryLevel || currentBattery || battery,
                 model,
                 screen_dpi: pixelRatio
               },
@@ -66,7 +70,9 @@ export class System implements Integration {
                 statusBarHeight,
                 version,
                 windowHeight,
-                windowWidth
+                windowWidth,
+                wifiSignal,
+                app: app || appName || 'wechat'
               }
             }
           };

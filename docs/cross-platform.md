@@ -14,6 +14,12 @@ request
 - [字节跳动小程序 tt.request()](https://developer.toutiao.com/docs/api/request.html#request)
 - [支付宝小程序 my.request()](https://docs.alipay.com/mini/api/owycmh)
 
+## integrations/system
+
+- [微信小程序 wx.getSystemInfoSync()](https://developers.weixin.qq.com/miniprogram/dev/api/base/system/system-info/wx.getSystemInfo.html)
+- [字节跳动小程序 tt.getSystemInfoSync()](https://developer.toutiao.com/docs/game/system/system-info/tt.getSystemInfoSync.html)
+- [支付宝小程序 my.getSystemInfoSync()](https://docs.alipay.com/mini/api/system-info)
+
 ## integrations/globalhanders
 
 错误监听函数
@@ -43,6 +49,7 @@ request
 
 | | 微信 | 字节跳动 | 支付宝 |
 | -- | -- | -- | -- |
+| getSystemInfoSync | ✔️| ✔️| ✔️|
 | request | ✔️| ✔️| ✔️|
 | App.onError | ✔️| ✔️| ✔️|
 | App.onPageNotFound | ✔️| ✔️| × |

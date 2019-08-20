@@ -11,7 +11,7 @@ import {
   truncate
 } from "@sentry/utils";
 
-import { MiniappClient } from '../client';
+import { getSDK } from '../crossPlatform';
 import { shouldIgnoreOnError } from "../helpers";
 import { eventFromStacktrace } from "../parsers";
 import {
@@ -21,11 +21,8 @@ import {
   StackTrace as TraceKitStackTrace
 } from "../tracekit";
 
-declare const wx: {
-  onError: Function;
-  onPageNotFound: Function;
-  onMemoryWarning: Function;
-};
+
+const sdk = getSDK();
 
 /** JSDoc */
 interface GlobalHandlersIntegrations {
@@ -53,22 +50,9 @@ export class GlobalHandlers implements Integration {
 
   /** JSDoc */
   public constructor(options?: GlobalHandlersIntegrations) {
-    const client = getCurrentHub().getClient<MiniappClient>();
-    const platform = client && client.getOptions().platform;
-    const wxOptions = {
-      onError: true,
-      onPageNotFound: true,
-      onMemoryWarning: true
-    }
-
     this._options = {
       onerror: true,
       onunhandledrejection: true,
-      onError: false,
-      onPageNotFound: false,
-      onMemoryWarning: false,
-      // tslint:disable-next-line: strict-comparisons
-      ...(platform === undefined || platform === 'tt' || platform === 'my') ? {} : wxOptions,
       ...options
     };
   }
@@ -104,24 +88,24 @@ export class GlobalHandlers implements Integration {
       _installGlobalUnhandledRejectionHandler();
     }
 
-    if (this._options.onError) {
+    if (sdk.onError) {
       logger.log("Global Handler attached: onError");
-      wx.onError((error: string) => {
+      sdk.onError((error: string) => {
         console.info('sentry-miniapp', error);
         captureException(new Error(error));
       });
     }
 
-    if (this._options.onPageNotFound) {
+    if (sdk.onPageNotFound) {
       logger.log("Global Handler attached: onPageNotFound");
-      wx.onPageNotFound((res: object) => {
+      sdk.onPageNotFound((res: object) => {
         captureMessage(`页面无法找到: ${JSON.stringify(res)}`);
       });
     }
 
-    if (this._options.onMemoryWarning) {
+    if (sdk.onMemoryWarning) {
       logger.log("Global Handler attached: onMemoryWarning");
-      wx.onMemoryWarning(({ level }: { level: number }) => {
+      sdk.onMemoryWarning(({ level }: { level: number }) => {
         let levelString = 'iOS 设备, 无 level 传入.';
         switch (level) {
           case 10:

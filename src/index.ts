@@ -1,14 +1,3 @@
-// import { getGlobalObject } from "@sentry/utils";
-
-// let window = getGlobalObject() as { [key: string]: any };
-// // tslint:disable-next-line: strict-type-predicates
-// if (typeof window === 'undefined') {
-//   // eslint-disable-next-line
-//   window = {
-
-//   };
-// }
-
 export {
   Breadcrumb,
   Request,
