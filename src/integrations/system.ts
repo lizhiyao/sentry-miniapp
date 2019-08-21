@@ -58,8 +58,8 @@ export class System implements Integration {
                 screen_dpi: pixelRatio
               },
               os: {
-                name: systemName,
-                version: systemVersion
+                name: systemName || system,
+                version: systemVersion || system
               },
               extra: {
                 SDKVersion,
