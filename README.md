@@ -18,11 +18,14 @@
 - [x] 支持 `ES6`、`CommonJS` 两种模块系统 ---> 支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用
 - [x] 默认监听并上报小程序的 onError、onPageNotFound、onMemoryWarning 事件返回的信息
 - [x] 默认上报运行小程序的设备、操作系统、应用版本信息
-- [ ] 支持字节跳动小程序
-- [ ] 支持支付宝小程序
+- [x] 支持字节跳动小程序
+- [x] 支持支付宝小程序
 - [ ] 默认上报异常发生时的路由栈
 - [ ] 完善的代码测试
 
+## 已知问题
+
+- 由于各家小程序的 `App.onError()` 无法自动捕获 `Promise` 的异常，所以对于应用中的异步异常，需要应用开发者手动上报（问题解决中）
 
 ## 用法
 
@@ -39,9 +42,10 @@
 
 ### 直接引用
 
-1. 下载 [sentry-minapp.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/vendor/sentry-minapp.min.js)
-2. 参照 `/examples` 中方式，将 `sentry-minapp.min.js` 放入项目的合适目录中，比如放入 `vendor` 文件夹
+1. 微信小程序下载 [sentry-minapp.wx.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/weapp/vendor/sentry-minapp.wx.min.js)；字节跳动小程序下载 [sentry-minapp.tt.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ttapp/vendor/sentry-minapp.tt.min.js)；支付宝小程序下载 [sentry-minapp.my.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/myapp/vendor/sentry-minapp.my.min.js)
+2. 参照 `/examples` 中各项目使用方式，将 `sentry-minapp.xx.min.js` 放入项目的合适目录中，比如放入 `vendor` 文件夹
 3. 参照 `/examples/app.js` 代码，进行 `Sentry` 的初始化
+4. 对于提供了微信、字节跳动小程序 `sentry-miniapp` 会自动上报 `xx.onError()` 捕获的异常，对于支付宝小程序需要应用开发者在 `App.onError()` 中主动进行异常上报。详情可见 `/docs/cross-platform.md`。
 
 ### npm 方式
 
@@ -108,7 +112,7 @@
 # 根据 package.json 中的版本号更新 SDK 源码中的版本号
 npm run version
 
-# 构建供小程序直接引用的 sentry-minapp.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
+# 构建供小程序直接引用的 sentry-minapp.xx.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
 npm run build:dev
 
 # 构建用于发布到 npm 的 dist 资源

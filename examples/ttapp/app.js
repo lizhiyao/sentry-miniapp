@@ -1,4 +1,4 @@
-import * as Sentry from "./vendor/sentry-minapp.min";
+import * as Sentry from "./vendor/sentry-minapp.tt.min";
 
 console.log(Sentry);
 // 初始化 Sentry
@@ -27,12 +27,12 @@ App({
     const ret = new Promise((resolve) => {
       myrUndefinedFunctionInAsyncFunction();
     })
-    // .then((res) => {
-    //   console.log(res);
-    // }, (error) => {
-    //   console.log(error);
-    //   Sentry.captureException(error);
-    // })
+      .then((res) => {
+        console.log(res);
+      }, (error) => {
+        console.log(error);
+        Sentry.captureException(error);
+      })
   },
   onError(error) {
     console.warn('onError', error);
