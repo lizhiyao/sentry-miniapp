@@ -1,6 +1,6 @@
 {
   "name": "sentry-miniapp",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "用于小程序平台的 Sentry SDK",
   "repository": "git://github.com/lizhiyao/sentry-miniapp.git",
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
@@ -21,7 +21,12 @@
   "keywords": [
     "sentry",
     "weapp",
-    "miniapp"
+    "miniapp",
+    "Sentry 小程序 SDK",
+    "小程序异常监控",
+    "微信小程序",
+    "支付宝小程序",
+    "字节跳动小程序"
   ],
   "author": "dancerlzy@gmail.com",
   "license": "BSD-3-Clause",
