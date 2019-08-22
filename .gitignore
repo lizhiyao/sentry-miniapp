@@ -4,6 +4,7 @@ packages/*/package-lock.json
 
 # build and test
 dist/
+esm/
 build/
 packages/*/dist/
 packages/*/esm/
@@ -30,7 +31,6 @@ local.log
 
 .rpt2_cache
 
-docs
 lint-results.json
 
 # legacy
