@@ -15,7 +15,7 @@ module.exports = {
     extensions: [".tsx", ".ts", ".js"]
   },
   plugins: [
-    new webpack.HotModuleReplacementPlugin(),
+    // new webpack.HotModuleReplacementPlugin(),
     new webpack.NamedModulesPlugin(),
     new WebpackDevServerOutput({
       path: './examples/weapp/vendor',
@@ -35,5 +35,6 @@ module.exports = {
     hot: true, // Tell the dev-server we're using HMR
     contentBase: path.resolve(__dirname, 'examples'),
     publicPath: '/'
-  }
+  },
+  devtool: 'source-map'
 };
