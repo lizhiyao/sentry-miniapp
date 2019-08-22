@@ -1,3 +1,8 @@
+// const HtmlWebpackPlugin = require('html-webpack-plugin');
+  // const CleanWebpackPlugin = require('clean-webpack-plugin');
+const webpack = require('webpack');
+const path = require('path')
+const WebpackDevServerOutput = require('webpack-dev-server-output');
 module.exports = {
   mode: "production",
   entry: "./src/index.ts",
@@ -9,6 +14,14 @@ module.exports = {
   resolve: {
     extensions: [".tsx", ".ts", ".js"]
   },
+  plugins: [
+    new webpack.HotModuleReplacementPlugin(),
+    new webpack.NamedModulesPlugin(),
+    new WebpackDevServerOutput({
+      path: './examples/weapp/vendor',
+      isDel: true
+    })
+  ],
   module: {
     rules: [
       {
@@ -17,5 +30,10 @@ module.exports = {
         exclude: /node_modules/
       }
     ]
+  },
+  devServer: {
+    hot: true, // Tell the dev-server we're using HMR
+    contentBase: path.resolve(__dirname, 'examples'),
+    publicPath: '/'
   }
 };

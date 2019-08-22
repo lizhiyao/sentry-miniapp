@@ -5,12 +5,13 @@
 	},
 	"setting": {
 		"urlCheck": false,
-		"es6": true,
+		"es6": false,
 		"enhance": true,
 		"postcss": true,
 		"minified": true,
 		"newFeature": true,
 		"coverView": true,
+		"nodeModules": true,
 		"autoAudits": false,
 		"checkInvalidKey": true,
 		"checkSiteMap": true,
@@ -23,7 +24,7 @@
 	},
 	"compileType": "miniprogram",
 	"libVersion": "2.8.0",
-	"appid": "wx5a8ef205c8e52b13",
+	"appid": "wx14a9d11f48fc826c",
 	"projectname": "sentry-miniapp-test",
 	"debugOptions": {
 		"hidedInDevtools": []
