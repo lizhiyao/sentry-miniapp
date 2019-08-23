@@ -11,7 +11,7 @@
 		"minified": true,
 		"newFeature": true,
 		"coverView": true,
-		"nodeModules": false,
+		"nodeModules": true,
 		"autoAudits": false,
 		"checkInvalidKey": true,
 		"checkSiteMap": true,

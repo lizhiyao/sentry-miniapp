@@ -1,4 +1,3 @@
-console.log('sdf323s32323f')
 export {
   Breadcrumb,
   Request,
