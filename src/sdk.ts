@@ -90,7 +90,6 @@ export function init(options: MiniappOptions = {}): void {
   if (options.defaultIntegrations === undefined) {
     options.defaultIntegrations = defaultIntegrations;
   }
-
   initAndBind(MiniappClient, options);
 }
 
