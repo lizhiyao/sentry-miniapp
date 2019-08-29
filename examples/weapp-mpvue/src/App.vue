@@ -1,4 +1,10 @@
 <script>
+import * as Sentry from "sentry-miniapp";
+
+Sentry.init({
+  dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228"
+});
+
 export default {
   created() {
     // 调用API从本地缓存中获取数据
@@ -24,8 +30,10 @@ export default {
       mpvue.setStorageSync('logs', logs)
     }
 
+    Sentry.captureException(new Error('captureException mpvue error.'));
+
     // throw new Error('test mpvue.')
-    test()
+    // test()
   },
   log() {
     console.log(`log at:${Date.now()}`)

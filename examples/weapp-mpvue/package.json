@@ -23,7 +23,8 @@
     "build": "node build/build.js wx"
   },
   "dependencies": {
-    "mpvue": "^2.0.0"
+    "mpvue": "^2.0.0",
+    "sentry-miniapp": "^0.8.6"
   },
   "devDependencies": {
     "babel-core": "^6.22.1",
