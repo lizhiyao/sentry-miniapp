@@ -49,6 +49,8 @@
 
 ### npm 方式
 
+注意：目前字节跳动小程序不支持 npm 方式。
+
 1. 安装依赖
 
    ```bash
@@ -137,6 +139,8 @@ npm publish
 - 丁香医生微信小程序
 - 丁香医生医生端微信小程序
 - 丁香人才微信小程序
+- 丁香医生支付宝小程序
+- 丁香医生字节跳动小程序
 
 ## 参考资料
 
@@ -150,6 +154,7 @@ npm publish
 - [shields.io](https://shields.io/)
 - [字节跳动小程序文档](https://developer.toutiao.com/docs/framework/)
 - [支付宝小程序文档](https://docs.alipay.com/mini/developer)
+- [tt.onError 的疑问](http://forum.microapp.bytedance.com/topic/2806/tt-onerror-%E7%96%91%E9%97%AE)
 
 ## 其他小程序异常监控产品
 
@@ -169,4 +174,4 @@ npm publish
 
 ### 微信交流群
 
-![微信交流群二维码](docs/sentry-miniapp-qrcode.png)
+![微信交流群二维码](docs/sentry-miniapp-qrcode.jpeg)
