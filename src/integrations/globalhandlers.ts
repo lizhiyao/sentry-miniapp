@@ -10,7 +10,7 @@ import {
   normalizeToSize,
   truncate
 } from "@sentry/utils";
-
+import { configureScope } from '../index'
 import { getSDK } from '../crossPlatform';
 import { shouldIgnoreOnError } from "../helpers";
 import { eventFromStacktrace } from "../parsers";
@@ -20,7 +20,6 @@ import {
   _subscribe,
   StackTrace as TraceKitStackTrace
 } from "../tracekit";
-
 
 const sdk = getSDK();
 
@@ -32,7 +31,10 @@ interface GlobalHandlersIntegrations {
   onPageNotFound?: boolean; // 监听页面不存在
   onMemoryWarning?: boolean; // 监听内存不足告警
 }
-
+interface StackInfo {
+  route: string;
+  options: any
+}
 /** Global handlers */
 export class GlobalHandlers implements Integration {
   /**
@@ -50,18 +52,52 @@ export class GlobalHandlers implements Integration {
 
   /** JSDoc */
   public constructor(options?: GlobalHandlersIntegrations) {
+    console.log('GlobalHandlers')
     this._options = {
       onerror: true,
       onunhandledrejection: true,
       ...options
     };
+    console.log(this._options)
+  }
+  /**
+   * 在发请求前，加上一些额外数据
+   * 比如，路由信息，路由参数
+   */
+  public getRouterConfig(): void {
+    configureScope(scope => {
+      const stackInfo:Array<StackInfo> = []
+      if(getCurrentPages) {
+        // wx.getCurrentPages，不清楚其他小程序是否也有这个api，麻烦志遥兄调研
+        const pages = getCurrentPages()
+        // app Lanuch
+        if(!pages || !pages.length) {
+          stackInfo.push({
+            route: 'onLaunch',
+            options: {}
+          })
+        } else {
+          pages.forEach(page => {
+            const { route, options } = page
+            stackInfo.push({
+              route,
+              options
+            })
+          })
+        }
+      }
+      scope.setExtra("ROUTE_INFO", stackInfo);
+    });
   }
   /**
    * @inheritDoc
    */
   public setupOnce(): void {
     Error.stackTraceLimit = 50;
-
+    console.log('setUpOnce')
+    console.log(this._options)
+    console.log(sdk)
+    console.log(sdk.onError)
     _subscribe((stack: TraceKitStackTrace, _: boolean, error: any) => {
       if (shouldIgnoreOnError()) {
         return;
@@ -87,11 +123,12 @@ export class GlobalHandlers implements Integration {
       logger.log("Global Handler attached: onunhandledrejection");
       _installGlobalUnhandledRejectionHandler();
     }
-
+    console.log('微信sdk')
+    console.log(sdk.onError)
     if (sdk.onError) {
       logger.log("Global Handler attached: onError");
       sdk.onError((error: string) => {
-        console.info('sentry-miniapp', error);
+        this.getRouterConfig()
         captureException(new Error(error));
       });
     }
