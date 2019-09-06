@@ -77,7 +77,7 @@ App({
         resolve('this is await ret.');
       }, 2000);
     });
-    console.log(ret);
+    // console.log(ret);
     // myrUndefinedFunctionInAsyncFunction();
 
     // 一种可以在 async 函数中进行主动上报异常的方式
@@ -88,19 +88,19 @@ App({
     // }
 
     // 测试 WX API 调用失败是否会上报
-    wx.getStorage({
-      success(res) {
-        console.log(res);
-      },
-      // fail(error) {
-      //   console.log('API 调用失败: ', error);
-      // }
-    })
+    // wx.getStorage({
+    //   success(res) {
+    //     console.log(res);
+    //   },
+    //   // fail(error) {
+    //   //   console.log('API 调用失败: ', error);
+    //   // }
+    // })
   },
   onShow() {
     // 测试 Promise 中异常是否可以上报
     new Promise((resovle, reject) => {
-      inPromiseFn();
+      // inPromiseFn();
       resovle();
     })
     // .then((res) => {
