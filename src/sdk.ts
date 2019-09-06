@@ -28,17 +28,15 @@ export const defaultIntegrations = [
 ];
 
 /**
- * The Sentry Browser SDK Client.
+ * The Sentry Miniapp SDK Client.
  *
  * To use this SDK, call the {@link init} function as early as possible when
- * loading the web page. To set context information or send manual events, use
+ * launching the app. To set context information or send manual events, use
  * the provided methods.
  *
  * @example
- *
  * ```
- *
- * import { init } from '@sentry/browser';
+ * import { init } from '@sentry/miniapp';
  *
  * init({
  *   dsn: '__DSN__',
@@ -48,8 +46,8 @@ export const defaultIntegrations = [
  *
  * @example
  * ```
- *
- * import { configureScope } from '@sentry/browser';
+ * import { configureScope } from '@sentry/miniapp';
+ * 
  * configureScope((scope: Scope) => {
  *   scope.setExtra({ battery: 0.7 });
  *   scope.setTag({ user_mode: 'admin' });
@@ -59,8 +57,8 @@ export const defaultIntegrations = [
  *
  * @example
  * ```
- *
- * import { addBreadcrumb } from '@sentry/browser';
+ * import { addBreadcrumb } from '@sentry/miniapp';
+ * 
  * addBreadcrumb({
  *   message: 'My Breadcrumb',
  *   // ...
@@ -68,10 +66,9 @@ export const defaultIntegrations = [
  * ```
  *
  * @example
- *
  * ```
- *
- * import * as Sentry from '@sentry/browser';
+ * import * as Sentry from '@sentry/miniapp';
+ * 
  * Sentry.captureMessage('Hello, world!');
  * Sentry.captureException(new Error('Good bye'));
  * Sentry.captureEvent({
@@ -95,6 +92,7 @@ export function init(options: MiniappOptions = {}): void {
 
 /**
  * Present the user with a report dialog.
+ * 向用户显示报告对话框。小程序上暂时不考虑实现该功能。
  *
  * @param options Everything is optional, we try to fetch all info need from the global scope.
  */
@@ -109,7 +107,7 @@ export function showReportDialog(options: ReportDialogOptions = {}): void {
 }
 
 /**
- * This is the getter for lastEventId.
+ * This is the getter for lastEventId. 获取 lastEventId。
  *
  * @returns The last event id of a captured event.
  */
@@ -118,24 +116,9 @@ export function lastEventId(): string | undefined {
 }
 
 /**
- * This function is here to be API compatible with the loader.
- * @hidden
- */
-export function forceLoad(): void {
-  // Noop
-}
-
-/**
- * This function is here to be API compatible with the loader.
- * @hidden
- */
-export function onLoad(callback: () => void): void {
-  callback();
-}
-
-/**
  * A promise that resolves when all current events have been sent.
  * If you provide a timeout and the queue takes longer to drain the promise returns false.
+ * 在发送所有当前事件时会变为 resolved 状态的 promise。如果提供了一个超时时间并且队列需要更长时间来消耗，则 promise 将返回 false。
  *
  * @param timeout Maximum time in ms the client should wait.
  */

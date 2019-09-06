@@ -12,7 +12,6 @@ export class XHRTransport extends BaseTransport {
    */
   public sendEvent(event: Event): Promise<Response> {
     const sdk = getSDK();
-    console.log(sdk)
 
     return this._buffer.add(
       new Promise<Response>((resolve, reject) => {
