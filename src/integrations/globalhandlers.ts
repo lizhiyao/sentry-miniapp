@@ -115,7 +115,7 @@ export class GlobalHandlers implements Integration {
             levelString = 'Android 设备, level = TRIM_MEMORY_RUNNING_CRITICAL';
             break;
           default:
-            levelString = '未知情况';
+            return;
         }
         captureMessage(`内存不足告警: ${levelString}`);
       });
