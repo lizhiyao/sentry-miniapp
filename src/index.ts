@@ -37,10 +37,8 @@ export {
 export { SDK_NAME, SDK_VERSION } from "./version";
 export {
   defaultIntegrations,
-  forceLoad,
   init,
   lastEventId,
-  onLoad,
   showReportDialog,
   flush,
   close,

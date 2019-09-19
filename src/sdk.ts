@@ -146,6 +146,8 @@ export function close(timeout?: number): Promise<boolean> {
 
 /**
  * Wrap code within a try/catch block so the SDK is able to capture errors.
+ * 在 try / catch 块中包装代码，以便 SDK 能够捕获错误。
+ * 实际上是 ./helpers 文件中 warp 方法的进一步封装。
  *
  * @param fn A function to wrap.
  *
