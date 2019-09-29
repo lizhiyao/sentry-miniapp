@@ -28,9 +28,9 @@ const sdk = getSDK();
 interface GlobalHandlersIntegrations {
   onerror: boolean;
   onunhandledrejection: boolean;
-  onError?: boolean; // 监听小程序错误
-  onPageNotFound?: boolean; // 监听页面不存在
-  onMemoryWarning?: boolean; // 监听内存不足告警
+  // onError?: boolean; // 监听小程序错误
+  // onPageNotFound?: boolean; // 监听页面不存在
+  // onMemoryWarning?: boolean; // 监听内存不足告警
 }
 
 /** Global handlers */

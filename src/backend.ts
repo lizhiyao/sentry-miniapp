@@ -37,14 +37,6 @@ export interface MiniappOptions extends Options {
    * By default, all errors will be sent.
    */
   whitelistUrls?: Array<string | RegExp>;
-
-  /**
-   * 设置 sentry-miniapp 被应用到的平台，可设置的值如下：
-   * wx 微信小程序，默认值
-   * tt 字节跳动小程序
-   * my 支付宝小程序 
-   */
-  platform?: string;
 }
 
 /**
