@@ -1,16 +1,10 @@
-import { addGlobalEventProcessor, getCurrentHub } from "@sentry/core";
-import {
-  Event,
-  EventHint,
-  Exception,
-  ExtendedError,
-  Integration
-} from "@sentry/types";
+import { addGlobalEventProcessor, getCurrentHub } from '@sentry/core';
+import { Event, EventHint, Exception, ExtendedError, Integration } from '@sentry/types';
 
-import { exceptionFromStacktrace } from "../parsers";
-import { _computeStackTrace } from "../tracekit";
+import { exceptionFromStacktrace } from '../parsers';
+import { computeStackTrace } from '../tracekit';
 
-const DEFAULT_KEY = "cause";
+const DEFAULT_KEY = 'cause';
 const DEFAULT_LIMIT = 5;
 
 /** Adds SDK info to an event. */
@@ -23,7 +17,7 @@ export class LinkedErrors implements Integration {
   /**
    * @inheritDoc
    */
-  public static id: string = "LinkedErrors";
+  public static id: string = 'LinkedErrors';
 
   /**
    * @inheritDoc
@@ -60,12 +54,7 @@ export class LinkedErrors implements Integration {
    * @inheritDoc
    */
   private _handler(event: Event, hint?: EventHint): Event | null {
-    if (
-      !event.exception ||
-      !event.exception.values ||
-      !hint ||
-      !(hint.originalException instanceof Error)
-    ) {
+    if (!event.exception || !event.exception.values || !hint || !(hint.originalException instanceof Error)) {
       return event;
     }
     const linkedErrors = this._walkErrorTree(hint.originalException, this._key);
@@ -76,15 +65,11 @@ export class LinkedErrors implements Integration {
   /**
    * @inheritDoc
    */
-  private _walkErrorTree(
-    error: ExtendedError,
-    key: string,
-    stack: Exception[] = []
-  ): Exception[] {
+  private _walkErrorTree(error: ExtendedError, key: string, stack: Exception[] = []): Exception[] {
     if (!(error[key] instanceof Error) || stack.length + 1 >= this._limit) {
       return stack;
     }
-    const stacktrace = _computeStackTrace(error[key]);
+    const stacktrace = computeStackTrace(error[key]);
     const exception = exceptionFromStacktrace(stacktrace);
     return this._walkErrorTree(error[key], key, [exception, ...stack]);
   }

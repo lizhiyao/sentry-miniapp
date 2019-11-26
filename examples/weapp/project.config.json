@@ -24,7 +24,7 @@
 	},
 	"compileType": "miniprogram",
 	"libVersion": "2.8.0",
-	"appid": "wx14a9d11f48fc826c",
+	"appid": "wx5a8ef205c8e52b13",
 	"projectname": "sentry-miniapp-test",
 	"debugOptions": {
 		"hidedInDevtools": []

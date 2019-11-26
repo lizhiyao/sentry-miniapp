@@ -10,7 +10,7 @@ export class XHRTransport extends BaseTransport {
   /**
    * @inheritDoc
    */
-  public sendEvent(event: Event): Promise<Response> {
+  public sendEvent(event: Event): PromiseLike<Response> {
     const sdk = getSDK();
 
     return this._buffer.add(

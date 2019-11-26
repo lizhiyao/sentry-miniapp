@@ -1,8 +1,5 @@
-import {
-  getCurrentHub,
-  initAndBind,
-  Integrations as CoreIntegrations
-} from "@sentry/core";
+import { getCurrentHub, initAndBind, Integrations as CoreIntegrations } from "@sentry/core";
+import { SyncPromise } from '@sentry/utils';
 
 import { MiniappOptions } from "./backend";
 import { MiniappClient, ReportDialogOptions } from "./client";
@@ -122,12 +119,12 @@ export function lastEventId(): string | undefined {
  *
  * @param timeout Maximum time in ms the client should wait.
  */
-export function flush(timeout?: number): Promise<boolean> {
+export function flush(timeout?: number): PromiseLike<boolean> {
   const client = getCurrentHub().getClient<MiniappClient>();
   if (client) {
     return client.flush(timeout);
   }
-  return Promise.reject(false);
+  return SyncPromise.reject(false);
 }
 
 /**
@@ -136,12 +133,12 @@ export function flush(timeout?: number): Promise<boolean> {
  *
  * @param timeout Maximum time in ms the client should wait.
  */
-export function close(timeout?: number): Promise<boolean> {
+export function close(timeout?: number): PromiseLike<boolean> {
   const client = getCurrentHub().getClient<MiniappClient>();
   if (client) {
     return client.close(timeout);
   }
-  return Promise.reject(false);
+  return SyncPromise.reject(false);
 }
 
 /**

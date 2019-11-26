@@ -117,6 +117,15 @@ npm run version
 # 构建供小程序直接引用的 sentry-minapp.xx.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
 npm run build:dev
 
+# 构建供微信小程序直接引用的 sentry-minapp.wx.min.js
+npm run build:wx
+
+# 构建供支付宝小程序直接引用的 sentry-minapp.my.min.js
+npm run build:my
+
+# 构建供字节跳动小程序直接引用的 sentry-minapp.tt.min.js
+npm run build:tt
+
 # 构建用于发布到 npm 的 dist 资源
 npm run build
 
