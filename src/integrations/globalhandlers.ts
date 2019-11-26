@@ -76,22 +76,23 @@ export class GlobalHandlers implements Integration {
       this._installGlobalOnUnhandledRejectionHandler();
     }
 
-    if (sdk.onError) {
+    if (!!sdk.onError) {
       logger.log("Global Handler attached: onError");
       sdk.onError((error: string) => {
+        // console.log(error)
         console.info('sentry-miniapp', error);
         captureException(new Error(error));
       });
     }
 
-    if (sdk.onPageNotFound) {
+    if (!!sdk.onPageNotFound) {
       logger.log("Global Handler attached: onPageNotFound");
       sdk.onPageNotFound((res: object) => {
         captureMessage(`页面无法找到: ${JSON.stringify(res)}`);
       });
     }
 
-    if (sdk.onMemoryWarning) {
+    if (!!sdk.onMemoryWarning) {
       logger.log("Global Handler attached: onMemoryWarning");
       sdk.onMemoryWarning(({ level }: { level: number }) => {
         let levelString = 'iOS 设备, 没有告警级别 level 传入.';

@@ -6,11 +6,15 @@ Sentry.init({
   dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228"
 });
 
+// wx.onError((error) => {
+//   console.log('112', error);
+// });
+
 App({
   globalData: {
     userInfo: null
   },
-  async onLaunch() {
+  onLaunch() {
     // 展示本地存储能力
     var logs = wx.getStorageSync("logs") || [];
     logs.unshift(Date.now());
@@ -66,17 +70,19 @@ App({
       }
     });
 
+    // Sentry.captureException(new Error('test'));
+
     // 测试 异常是否可以上报
-    // throw new Error("this is a test error.");
+    throw new Error("this is a test error.");
     // throw new Error("lalalalalala");
     // myUndefinedFunction();
 
     // 测试 async 函数中异常是否可以被 onError 捕获 
-    const ret = await new Promise((resolve) => {
-      setTimeout(() => {
-        resolve('this is await ret.');
-      }, 2000);
-    });
+    // const ret = await new Promise((resolve) => {
+    //   setTimeout(() => {
+    //     resolve('this is await ret.');
+    //   }, 2000);
+    // });
     // console.log(ret);
     // myrUndefinedFunctionInAsyncFunction();
 
@@ -112,7 +118,7 @@ App({
   },
   // 不需要显示调用 Sentry.captureException(error)
   onError(error) {
-    console.warn(error);
+    // console.warn(error);
     // Sentry.captureException(error);
   },
   // onPageNotFound(res) {
