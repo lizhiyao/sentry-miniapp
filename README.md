@@ -104,9 +104,9 @@
 
 开发前请仔细阅读下面内容：
 
-- [sentry-javascript README 中文版](https://www.yuque.com/lizhiyao/dxy/zevhf1)
-- [Sentry 开发指南](https://www.yuque.com/lizhiyao/dxy/gc3b9r)
-- [sentry-javascript 源码阅读](https://www.yuque.com/lizhiyao/dxy/xn8e4m)
+- [sentry-javascript README 中文版](https://www.yuque.com/lizhiyao/f2e/zevhf1)
+- [Sentry 开发指南](https://www.yuque.com/lizhiyao/f2e/gc3b9r)
+- [sentry-javascript 源码阅读](https://www.yuque.com/lizhiyao/f2e/xn8e4m)
 
 ### 相关命令
 
