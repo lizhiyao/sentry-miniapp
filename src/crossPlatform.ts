@@ -1,6 +1,7 @@
 declare const wx: any;
 declare const my: any;
 declare const tt: any;
+declare const dd: any;
 
 /**
  * 小程序平台 SDK 接口
@@ -33,6 +34,10 @@ const getSDK = () => {
   } else if (typeof tt === 'object') {  // 字节跳动平台
     // tslint:disable-next-line: no-unsafe-any
     sdk = tt;
+  } else if (typeof dd === 'object') { // 钉钉平台
+    // tslint:disable-next-line: no-unsafe-any
+    sdk = dd;
+    sdk.request = dd.httpRequest;
   } else {
     throw new Error('sentry-miniapp 暂不支持此平台');
   }
