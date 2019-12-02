@@ -14,6 +14,7 @@
     "build:wx": "webpack --config ./webpack.config.wx.js",
     "build:my": "webpack --config ./webpack.config.my.js",
     "build:tt": "webpack --config ./webpack.config.tt.js",
+    "build:dd": "webpack --config ./webpack.config.dd.js",
     "watch": "webpack --watch --config ./webpack.config.wx.js",
     "build": "tsc -p tsconfig.json",
     "build:esm": "tsc -p tsconfig.esm.json",
@@ -46,7 +47,7 @@
     "tslint": "^5.18.0",
     "typescript": "^3.5.3",
     "webpack": "^4.39.1",
-    "webpack-cli": "^3.3.6",
+    "webpack-cli": "^3.3.10",
     "webpack-merge": "^4.2.1"
   },
   "dependencies": {

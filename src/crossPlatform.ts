@@ -1,12 +1,14 @@
 declare const wx: any;
 declare const my: any;
 declare const tt: any;
+declare const dd: any;
 
 /**
  * 小程序平台 SDK 接口
  */
 interface SDK {
   request: Function;
+  httpRequest?: Function; // 针对钉钉小程序
   getSystemInfoSync: Function;
   onError?: Function;
   onPageNotFound?: Function;
@@ -21,6 +23,8 @@ const getSDK = () => {
     // tslint:disable-next-line: no-empty
     request: () => { },
     // tslint:disable-next-line: no-empty
+    httpRequest: () => { },
+    // tslint:disable-next-line: no-empty
     getSystemInfoSync: () => { }
   };
 
@@ -33,10 +37,12 @@ const getSDK = () => {
   } else if (typeof tt === 'object') {  // 字节跳动平台
     // tslint:disable-next-line: no-unsafe-any
     sdk = tt;
+  } else if (typeof dd === 'object') { // 钉钉平台
+    // tslint:disable-next-line: no-unsafe-any
+    sdk = dd;
   } else {
     throw new Error('sentry-miniapp 暂不支持此平台');
   }
-
   return sdk;
 }
 
