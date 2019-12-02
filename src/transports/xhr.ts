@@ -12,12 +12,12 @@ export class XHRTransport extends BaseTransport {
    */
   public sendEvent(event: Event): PromiseLike<Response> {
     const sdk = getSDK();
-    const Request = sdk.request || sdk.httpRequest;
+    const request = sdk.request || sdk.httpRequest;
 
     return this._buffer.add(
       new Promise<Response>((resolve, reject) => {
         // tslint:disable-next-line: no-unsafe-any
-        Request({
+        request({
           url: this.url,
           method: "POST",
           data: JSON.stringify(event),
