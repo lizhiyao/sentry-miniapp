@@ -8,6 +8,7 @@ declare const dd: any;
  */
 interface SDK {
   request: Function;
+  httpRequest?: Function; // 针对钉钉小程序
   getSystemInfoSync: Function;
   onError?: Function;
   onPageNotFound?: Function;
@@ -21,6 +22,8 @@ const getSDK = () => {
   let sdk: SDK = {
     // tslint:disable-next-line: no-empty
     request: () => { },
+    // tslint:disable-next-line: no-empty
+    httpRequest: () => { },
     // tslint:disable-next-line: no-empty
     getSystemInfoSync: () => { }
   };
@@ -37,11 +40,9 @@ const getSDK = () => {
   } else if (typeof dd === 'object') { // 钉钉平台
     // tslint:disable-next-line: no-unsafe-any
     sdk = dd;
-    sdk.request = dd.httpRequest;
   } else {
     throw new Error('sentry-miniapp 暂不支持此平台');
   }
-
   return sdk;
 }
 
