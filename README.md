@@ -109,6 +109,14 @@
 - [Sentry 开发指南](https://www.yuque.com/lizhiyao/f2e/gc3b9r)
 - [sentry-javascript 源码阅读](https://www.yuque.com/lizhiyao/f2e/xn8e4m)
 
+#### sentry-core 设计图
+
+![Dashboard](docs/sentry-core.png)
+
+#### sentry-miniapp 设计图
+
+![Dashboard](docs/sentry-miniapp.png)
+
 ### 相关命令
 
 ```bash
@@ -160,7 +168,7 @@ npm publish
 - [Sentry TypeScript Configuration](https://github.com/getsentry/sentry-javascript/tree/master/packages/typescript)
 - [wx.request](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html)
 - [小程序 App](https://developers.weixin.qq.com/miniprogram/dev/reference/api/App.html)
-- [wx.onError、App.onError疑惑及如何捕获Promise异常？](https://developers.weixin.qq.com/community/develop/doc/000c8cf5794770272709f38a756000)
+- [wx.onError、App.onError 疑惑及如何捕获 Promise 异常？](https://developers.weixin.qq.com/community/develop/doc/000c8cf5794770272709f38a756000)
 - [shields.io](https://shields.io/)
 - [字节跳动小程序文档](https://developer.toutiao.com/docs/framework/)
 - [支付宝小程序文档](https://docs.alipay.com/mini/developer)
