@@ -43,7 +43,7 @@
 
 ### 直接引用
 
-1. 微信小程序下载 [sentry-minapp.wx.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/weapp/vendor/sentry-minapp.wx.min.js)；字节跳动小程序下载 [sentry-minapp.tt.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ttapp/vendor/sentry-minapp.tt.min.js)；支付宝小程序下载 [sentry-minapp.my.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/myapp/vendor/sentry-minapp.my.min.js)
+1. 微信小程序下载 [sentry-minapp.wx.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/weapp/vendor/sentry-minapp.wx.min.js)；字节跳动小程序下载 [sentry-minapp.tt.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ttapp/vendor/sentry-minapp.tt.min.js)；支付宝小程序下载 [sentry-minapp.my.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/myapp/vendor/sentry-minapp.my.min.js)，钉钉小程序下载[sentry-minapp.dd.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ddapp/vendor/sentry-minapp.dd.min.js)
 2. 参照 `/examples` 中各项目使用方式，将 `sentry-minapp.xx.min.js` 放入项目的合适目录中，比如放入 `vendor` 文件夹
 3. 参照 `/examples/app.js` 代码，进行 `Sentry` 的初始化
 4. 对于提供了微信、字节跳动小程序 `sentry-miniapp` 会自动上报 `xx.onError()` 捕获的异常，对于支付宝小程序需要应用开发者在 `App.onError()` 中主动进行异常上报。详情可见 `/docs/cross-platform.md`。
@@ -131,6 +131,9 @@ npm run build:wx
 
 # 构建供支付宝小程序直接引用的 sentry-minapp.my.min.js
 npm run build:my
+
+# 构建供钉钉小程序直接引用的 sentry-minapp.dd.min.js
+npm run build:dd
 
 # 构建供字节跳动小程序直接引用的 sentry-minapp.tt.min.js
 npm run build:tt
