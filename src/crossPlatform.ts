@@ -16,6 +16,11 @@ interface SDK {
 }
 
 /**
+ * 小程序平台 接口
+ */
+type Platform = 'wechat' | 'alipay' | 'bytedance' | 'dingtalk' | 'unknown';
+
+/**
  * 获取跨平台的 SDK
  */
 const getSDK = () => {
@@ -46,6 +51,26 @@ const getSDK = () => {
   return sdk;
 }
 
+/**
+ * 获取平台名称
+ */
+const getPlatformName = () => {
+  let platform: Platform = 'unknown';
+
+  if (typeof wx === 'object') {
+    platform = 'wechat';
+  } else if (typeof my === 'object') {
+    platform = 'alipay';
+  } else if (typeof tt === 'object') {
+    platform = 'bytedance';
+  } else if (typeof dd === 'object') {
+    platform = 'dingtalk';
+  }
+
+  return platform;
+}
+
 export {
-  getSDK
+  getSDK,
+  getPlatformName,
 };

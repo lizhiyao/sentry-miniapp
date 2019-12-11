@@ -1,7 +1,7 @@
 import { addGlobalEventProcessor, getCurrentHub } from "@sentry/core";
 import { Event, Integration } from "@sentry/types";
 
-import { getSDK } from '../crossPlatform';
+import { getSDK, getPlatformName } from '../crossPlatform';
 
 /** UserAgent */
 export class System implements Integration {
@@ -23,6 +23,7 @@ export class System implements Integration {
       if (getCurrentHub().getIntegration(System)) {
         try {
           const sdk = getSDK();
+          const platformName = getPlatformName();
           const systemInfo = sdk.getSystemInfoSync();
           const {
             SDKVersion = '0.0.0',
@@ -76,7 +77,7 @@ export class System implements Integration {
                 wifiSignal,
                 fontSizeSetting,
                 storage,
-                app: app || appName || 'wechat'
+                app: app || appName || platformName
               }
             }
           };
