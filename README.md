@@ -113,6 +113,10 @@
 
 ![Dashboard](docs/sentry-core.png)
 
+#### sentry-hub 设计图
+
+![Dashboard](docs/sentry-hub.png)
+
 #### sentry-miniapp 设计图
 
 ![Dashboard](docs/sentry-miniapp.png)
