@@ -1,9 +1,13 @@
 import * as Sentry from "./vendor/sentry-minapp.wx.min";
+const {
+  Integrations: { GlobalHandlers }
+} = Sentry;
 
-// console.log(Sentry);
+console.log(Sentry, GlobalHandlers);
 // 初始化 Sentry
 Sentry.init({
-  dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228"
+  dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228",
+  integrations: [new GlobalHandlers({ onerror: true })]
 });
 
 // wx.onError((error) => {
