@@ -1,7 +1,7 @@
 import { addGlobalEventProcessor, getCurrentHub } from "@sentry/core";
 import { Event, Integration } from "@sentry/types";
 
-import { getSDK } from '../crossPlatform';
+import { getSDK, getAppName } from '../crossPlatform';
 
 /** UserAgent */
 export class System implements Integration {
@@ -76,7 +76,7 @@ export class System implements Integration {
                 wifiSignal,
                 fontSizeSetting,
                 storage,
-                app: app || appName || 'wechat'
+                app: app || appName || getAppName(),
               }
             }
           };
