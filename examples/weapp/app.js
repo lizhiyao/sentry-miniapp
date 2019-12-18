@@ -1,9 +1,13 @@
 import * as Sentry from "./vendor/sentry-minapp.wx.min";
+const {
+  Integrations: { GlobalHandlers }
+} = Sentry;
 
-// console.log(Sentry);
+console.log(Sentry, GlobalHandlers);
 // 初始化 Sentry
 Sentry.init({
-  dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228"
+  dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228",
+  integrations: [new GlobalHandlers({ onerror: true })]
 });
 
 // wx.onError((error) => {
@@ -77,7 +81,7 @@ App({
     // throw new Error("lalalalalala");
     // myUndefinedFunction();
 
-    // 测试 async 函数中异常是否可以被 onError 捕获 
+    // 测试 async 函数中异常是否可以被 onError 捕获
     // const ret = await new Promise((resolve) => {
     //   setTimeout(() => {
     //     resolve('this is await ret.');
@@ -108,7 +112,7 @@ App({
     new Promise((resovle, reject) => {
       // inPromiseFn();
       resovle();
-    })
+    });
     // .then((res) => {
     //   console.log(res);
     // }, (err) => {
@@ -120,7 +124,7 @@ App({
   onError(error) {
     // console.warn(error);
     // Sentry.captureException(error);
-  },
+  }
   // onPageNotFound(res) {
   //   console.warn(res);
   // }
