@@ -100,26 +100,26 @@ export class GlobalHandlers implements Integration {
 
     if (!!sdk.onMemoryWarning) {
       logger.log("Global Handler attached: onMemoryWarning");
-      sdk.onMemoryWarning(({ level }: { level: number }) => {
-        let levelString = "iOS 设备, 没有告警级别 level 传入.";
+      sdk.onMemoryWarning(({ level = -1 }: { level: number }) => {
+        let levelMessage = "没有获取到告警级别信息";
+
         switch (level) {
+          case 5:
+            levelMessage = "TRIM_MEMORY_RUNNING_MODERATE";
+            break;
           case 10:
-            levelString =
-              "Android 设备, 告警级别 level = TRIM_MEMORY_RUNNING_LOW";
+            levelMessage = "TRIM_MEMORY_RUNNING_LOW";
             break;
           case 15:
-            levelString =
-              "Android 设备, 告警级别 level = TRIM_MEMORY_RUNNING_CRITICAL";
+            levelMessage = "TRIM_MEMORY_RUNNING_CRITICAL";
             break;
           default:
             return;
         }
-        currentHub.captureMessage(`内存不足告警`, Severity.Info, {
-          data: {
-            level,
-            levelString
-          }
-        });
+
+        currentHub.setTag("memory-warning", String(level));
+        currentHub.setExtra("message", levelMessage);
+        currentHub.captureMessage(`内存不足告警`);
       });
     }
   }
