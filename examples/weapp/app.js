@@ -3,7 +3,7 @@ const {
   Integrations: { GlobalHandlers }
 } = Sentry;
 
-console.log(Sentry, GlobalHandlers);
+// console.log(Sentry, GlobalHandlers);
 // 初始化 Sentry
 Sentry.init({
   dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228",
@@ -77,7 +77,7 @@ App({
     // Sentry.captureException(new Error('test'));
 
     // 测试 异常是否可以上报
-    throw new Error("this is a test error.");
+    // throw new Error("this is a test error.");
     // throw new Error("lalalalalala");
     // myUndefinedFunction();
 

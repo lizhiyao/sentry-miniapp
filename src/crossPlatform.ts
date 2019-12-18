@@ -18,60 +18,64 @@ interface SDK {
 /**
  * 小程序平台 接口
  */
-type AppName = 'wechat' | 'alipay' | 'bytedance' | 'dingtalk' | 'unknown';
+type AppName = "wechat" | "alipay" | "bytedance" | "dingtalk" | "unknown";
 
 /**
  * 获取跨平台的 SDK
  */
 const getSDK = () => {
-  let sdk: SDK = {
+  let currentSdk: SDK = {
     // tslint:disable-next-line: no-empty
-    request: () => { },
+    request: () => {},
     // tslint:disable-next-line: no-empty
-    httpRequest: () => { },
+    httpRequest: () => {},
     // tslint:disable-next-line: no-empty
-    getSystemInfoSync: () => { }
+    getSystemInfoSync: () => {}
   };
 
-  if (typeof wx === 'object') {  // 微信平台
+  if (typeof wx === "object") {
+    // 微信平台
     // tslint:disable-next-line: no-unsafe-any
-    sdk = wx;
-  } else if (typeof my === 'object') {  // 支付宝平台
+    currentSdk = wx;
+  } else if (typeof my === "object") {
+    // 支付宝平台
     // tslint:disable-next-line: no-unsafe-any
-    sdk = my;
-  } else if (typeof tt === 'object') {  // 字节跳动平台
+    currentSdk = my;
+  } else if (typeof tt === "object") {
+    // 字节跳动平台
     // tslint:disable-next-line: no-unsafe-any
-    sdk = tt;
-  } else if (typeof dd === 'object') { // 钉钉平台
+    currentSdk = tt;
+  } else if (typeof dd === "object") {
+    // 钉钉平台
     // tslint:disable-next-line: no-unsafe-any
-    sdk = dd;
+    currentSdk = dd;
   } else {
-    throw new Error('sentry-miniapp 暂不支持此平台');
+    throw new Error("sentry-miniapp 暂不支持此平台");
   }
-  return sdk;
-}
+
+  return currentSdk;
+};
 
 /**
  * 获取平台名称
  */
 const getAppName = () => {
-  let appName: AppName = 'unknown';
+  let currentAppName: AppName = "unknown";
 
-  if (typeof wx === 'object') {
-    appName = 'wechat';
-  } else if (typeof my === 'object') {
-    appName = 'alipay';
-  } else if (typeof tt === 'object') {
-    appName = 'bytedance';
-  } else if (typeof dd === 'object') {
-    appName = 'dingtalk';
+  if (typeof wx === "object") {
+    currentAppName = "wechat";
+  } else if (typeof my === "object") {
+    currentAppName = "alipay";
+  } else if (typeof tt === "object") {
+    currentAppName = "bytedance";
+  } else if (typeof dd === "object") {
+    currentAppName = "dingtalk";
   }
 
-  return appName;
-}
-
-
-export {
-  getSDK,
-  getAppName
+  return currentAppName;
 };
+
+const sdk = getSDK();
+const appName = getAppName();
+
+export { sdk, appName };

@@ -5,6 +5,7 @@
 - transports
 - integrations/system
 - integrations/globalhanders
+- integrations/router
 
 ## transports
 
@@ -48,18 +49,26 @@ request
 - [微信小程序 wx.onMemoryWarning(function callback)](https://developers.weixin.qq.com/miniprogram/dev/api/device/performance/wx.onMemoryWarning.html)
 - [字节跳动小程序 暂不支持](https://developer.toutiao.com/docs/game/performance/onMemoryWarning.html)
 - [支付宝小程序 my.onMemoryWarning()](https://docs.alipay.com/mini/api/hszexr)
-- [钉钉小程序 暂不支持]()
+- 钉钉小程序 暂不支持
+
+## integrations/router
+
+- [微信小程序 PageObject[] getCurrentPages()](https://developers.weixin.qq.com/miniprogram/dev/reference/api/getCurrentPages.html)
+- [字节跳动小程序 getCurrentPages()](https://developer.toutiao.com/dev/cn/mini-app/develop/framework/logic-layer/page-path)
+- [支付宝小程序 getCurrentPages()](https://docs.alipay.com/mini/framework/getcurrentpages)
+- [钉钉小程序 getCurrentPages()](https://ding-doc.dingtalk.com/doc#/dev/framework-page)
 
 ## 总结
 
-| | 微信 | 字节跳动 | 支付宝 | 钉钉 |
-| -- | -- | -- | -- | -- |
-| getSystemInfoSync | ✔️| ✔️| ✔️| ✔️ |
-| request | ✔️| ✔️| ✔️| ✔️ (httpRequest) |
-| App.onError | ✔️| ✔️| ✔️| ✔️ |
-| App.onPageNotFound | ✔️| ✔️| × | × |
-| onError | ✔️| ✔️| × | × |
-| onPageNotFound | ✔️| × | × | × |
-| onMemoryWarning | ✔️| × | ✔️| × |
+|                    | 微信 | 字节跳动 | 支付宝 | 钉钉             |
+| ------------------ | ---- | -------- | ------ | ---------------- |
+| getSystemInfoSync  | ✔️   | ✔️       | ✔️     | ✔️               |
+| request            | ✔️   | ✔️       | ✔️     | ✔️ (httpRequest) |
+| App.onError        | ✔️   | ✔️       | ✔️     | ✔️               |
+| App.onPageNotFound | ✔️   | ✔️       | ×      | ×                |
+| onError            | ✔️   | ✔️       | ×      | ×                |
+| onPageNotFound     | ✔️   | ×        | ×      | ×                |
+| onMemoryWarning    | ✔️   | ×        | ✔️     | ×                |
+| getCurrentPages    | ✔️   | ✔️       | ✔️     | ✔️               |
 
 由于字节跳动小程序和支付宝小程序对调用 API 监听异常的支持度不一致，所以决定对提供了 `xx.onError` 监听异常的平台支持默认监听方式上报异常，其他平台均需要在在实际项目中使用 `App.onError()` 主动上报异常。

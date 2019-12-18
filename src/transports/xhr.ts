@@ -1,9 +1,8 @@
 import { Event, Response, Status } from "@sentry/types";
 
-import { getSDK } from '../crossPlatform';
+import { sdk } from "../crossPlatform";
 
 import { BaseTransport } from "./base";
-
 
 /** `XHR` based transport */
 export class XHRTransport extends BaseTransport {
@@ -11,7 +10,6 @@ export class XHRTransport extends BaseTransport {
    * @inheritDoc
    */
   public sendEvent(event: Event): PromiseLike<Response> {
-    const sdk = getSDK();
     const request = sdk.request || sdk.httpRequest;
 
     return this._buffer.add(

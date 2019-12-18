@@ -2,9 +2,7 @@ import { getCurrentHub } from "@sentry/core";
 import { Integration } from "@sentry/types";
 import { logger } from "@sentry/utils";
 
-import { getSDK } from "../crossPlatform";
-
-const sdk = getSDK();
+import { sdk } from "../crossPlatform";
 
 /** JSDoc */
 interface GlobalHandlersIntegrations {

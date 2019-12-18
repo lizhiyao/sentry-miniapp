@@ -1,5 +1,9 @@
-import { getCurrentHub, initAndBind, Integrations as CoreIntegrations } from "@sentry/core";
-import { SyncPromise } from '@sentry/utils';
+import {
+  getCurrentHub,
+  initAndBind,
+  Integrations as CoreIntegrations
+} from "@sentry/core";
+import { SyncPromise } from "@sentry/utils";
 
 import { MiniappOptions } from "./backend";
 import { MiniappClient, ReportDialogOptions } from "./client";
@@ -8,6 +12,7 @@ import {
   Breadcrumbs,
   GlobalHandlers,
   LinkedErrors,
+  Router,
   System,
   TryCatch,
   UserAgent
@@ -21,7 +26,8 @@ export const defaultIntegrations = [
   new GlobalHandlers(),
   new LinkedErrors(),
   new UserAgent(),
-  new System()
+  new System(),
+  new Router()
 ];
 
 /**
@@ -44,7 +50,7 @@ export const defaultIntegrations = [
  * @example
  * ```
  * import { configureScope } from '@sentry/miniapp';
- * 
+ *
  * configureScope((scope: Scope) => {
  *   scope.setExtra({ battery: 0.7 });
  *   scope.setTag({ user_mode: 'admin' });
@@ -55,7 +61,7 @@ export const defaultIntegrations = [
  * @example
  * ```
  * import { addBreadcrumb } from '@sentry/miniapp';
- * 
+ *
  * addBreadcrumb({
  *   message: 'My Breadcrumb',
  *   // ...
@@ -65,7 +71,7 @@ export const defaultIntegrations = [
  * @example
  * ```
  * import * as Sentry from '@sentry/miniapp';
- * 
+ *
  * Sentry.captureMessage('Hello, world!');
  * Sentry.captureException(new Error('Good bye'));
  * Sentry.captureEvent({

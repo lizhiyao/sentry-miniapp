@@ -1,7 +1,7 @@
 import { addGlobalEventProcessor, getCurrentHub } from "@sentry/core";
 import { Event, Integration } from "@sentry/types";
 
-import { getSDK, getAppName } from '../crossPlatform';
+import { appName as currentAppName, sdk } from "../crossPlatform";
 
 /** UserAgent */
 export class System implements Integration {
@@ -22,10 +22,9 @@ export class System implements Integration {
     addGlobalEventProcessor((event: Event) => {
       if (getCurrentHub().getIntegration(System)) {
         try {
-          const sdk = getSDK();
           const systemInfo = sdk.getSystemInfoSync();
           const {
-            SDKVersion = '0.0.0',
+            SDKVersion = "0.0.0",
             batteryLevel, // 微信小程序
             currentBattery, // 支付宝小程序、 钉钉小程序
             battery, // 字节跳动小程序
@@ -45,7 +44,7 @@ export class System implements Integration {
             app, // 支付宝小程序
             appName, // 字节跳动小程序
             storage, // 支付宝小程序、 钉钉小程序
-            fontSizeSetting, // 支付宝小程序、 钉钉小程序、微信小程序
+            fontSizeSetting // 支付宝小程序、 钉钉小程序、微信小程序
           } = systemInfo;
           const [systemName, systemVersion] = system.split(" ");
 
@@ -76,7 +75,7 @@ export class System implements Integration {
                 wifiSignal,
                 fontSizeSetting,
                 storage,
-                app: app || appName || getAppName(),
+                app: app || appName || currentAppName
               }
             }
           };
