@@ -73,11 +73,11 @@ App({
     // Sentry.captureException(new Error('test'));
 
     // 测试 异常是否可以上报
-    throw new Error("this is a test error.");
+    // throw new Error("this is a test error.");
     // throw new Error("lalalalalala");
     // myUndefinedFunction();
 
-    // 测试 async 函数中异常是否可以被 onError 捕获 
+    // 测试 async 函数中异常是否可以被 onError 捕获
     // const ret = await new Promise((resolve) => {
     //   setTimeout(() => {
     //     resolve('this is await ret.');
@@ -108,7 +108,7 @@ App({
     new Promise((resovle, reject) => {
       // inPromiseFn();
       resovle();
-    })
+    });
     // .then((res) => {
     //   console.log(res);
     // }, (err) => {
@@ -120,7 +120,7 @@ App({
   onError(error) {
     // console.warn(error);
     // Sentry.captureException(error);
-  },
+  }
   // onPageNotFound(res) {
   //   console.warn(res);
   // }

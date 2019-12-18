@@ -4,6 +4,8 @@ import { getGlobalObject } from "@sentry/utils";
 
 const global = getGlobalObject<Window>();
 
+// console.log("global", global);
+
 /** UserAgent */
 export class UserAgent implements Integration {
   /**
@@ -21,6 +23,7 @@ export class UserAgent implements Integration {
    */
   public setupOnce(): void {
     addGlobalEventProcessor((event: Event) => {
+      // console.log(event);
       if (getCurrentHub().getIntegration(UserAgent)) {
         if (!global.navigator || !global.location) {
           return event;
