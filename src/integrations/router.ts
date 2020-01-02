@@ -32,6 +32,7 @@ export class Router implements Integration {
           return {
             ...event,
             extra: {
+              ...event.extra,
               routers
             }
           };

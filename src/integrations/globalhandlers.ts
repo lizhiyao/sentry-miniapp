@@ -107,7 +107,7 @@ export class GlobalHandlers implements Integration {
         const url = res.path.split("?")[0];
 
         currentHub.setTag("pagenotfound", url);
-        currentHub.setExtra("messaage", JSON.stringify(res));
+        currentHub.setExtra("message", JSON.stringify(res));
         currentHub.captureMessage(`页面无法找到: ${url}`);
       });
 
