@@ -200,3 +200,7 @@ npm publish
 ### 微信交流群
 
 ![微信交流群二维码](docs/sentry-miniapp-qrcode.jpeg)
+
+PS. 由于微信群二维码有时效性限制，想入群的同学还可以加作者微信，由作者邀请入群
+
+![作者微信二维码](docs/zhiyao-qrcode.jpeg)

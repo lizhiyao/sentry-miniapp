@@ -70,5 +70,6 @@ request
 | onPageNotFound     | ✔️   | ×        | ×      | ×                |
 | onMemoryWarning    | ✔️   | ×        | ✔️     | ×                |
 | getCurrentPages    | ✔️   | ✔️       | ✔️     | ✔️               |
+| getNetworkType     | √    |          |        |                  |
 
 由于字节跳动小程序和支付宝小程序对调用 API 监听异常的支持度不一致，所以决定对提供了 `xx.onError` 监听异常的平台支持默认监听方式上报异常，其他平台均需要在在实际项目中使用 `App.onError()` 主动上报异常。
