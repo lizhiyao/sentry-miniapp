@@ -1,4 +1,4 @@
-import * as Sentry from "./vendor/sentry-minapp.wx.min";
+import * as Sentry from "./vendor/sentry-miniapp.wx.min";
 const {
   Integrations: { GlobalHandlers }
 } = Sentry;

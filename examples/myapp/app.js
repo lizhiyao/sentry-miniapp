@@ -1,18 +1,18 @@
-import * as Sentry from "./vendor/sentry-minapp.my.min";
+import * as Sentry from "./vendor/sentry-miniapp.my.min";
 
 console.log(Sentry);
 // 初始化 Sentry
 Sentry.init({
-  platform: 'my',
-  dsn: 'https://9d8f4b56ae4f4a48bc1e0974d7642a87@sentry.io/1534850'
+  platform: "my",
+  dsn: "https://9d8f4b56ae4f4a48bc1e0974d7642a87@sentry.io/1534850"
 });
 
 App({
   onLaunch(options) {
     // 第一次打开
     // options.query == {number:1}
-    console.info('app.js', my);
-    console.info('App onLaunch');
+    console.info("app.js", my);
+    console.info("App onLaunch");
 
     // 测试非异步代码执行异常
     // myUndefinedFunction();
@@ -34,7 +34,7 @@ App({
     myrUndefinedFunctionInAsyncFunction();
   },
   onError(error) {
-    console.warn('onError', error);
+    console.warn("onError", error);
     Sentry.captureException(error);
   }
 });

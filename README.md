@@ -21,6 +21,7 @@
 - [x] 支持字节跳动小程序
 - [x] 支持支付宝小程序
 - [x] 支持钉钉小程序
+- [x] 支持在 [Taro](https://taro.aotu.io/) 等第三方小程序框架中使用
 - [x] 默认上报异常发生时的路由栈
 - [ ] 完善的代码测试
 
@@ -43,8 +44,8 @@
 
 ### 直接引用
 
-1. 微信小程序下载 [sentry-minapp.wx.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/weapp/vendor/sentry-minapp.wx.min.js)；字节跳动小程序下载 [sentry-minapp.tt.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ttapp/vendor/sentry-minapp.tt.min.js)；支付宝小程序下载 [sentry-minapp.my.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/myapp/vendor/sentry-minapp.my.min.js)，钉钉小程序下载[sentry-minapp.dd.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ddapp/vendor/sentry-minapp.dd.min.js)
-2. 参照 `/examples` 中各项目使用方式，将 `sentry-minapp.xx.min.js` 放入项目的合适目录中，比如放入 `vendor` 文件夹
+1. 微信小程序下载 [sentry-miniapp.wx.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/weapp/vendor/sentry-miniapp.wx.min.js)；字节跳动小程序下载 [sentry-miniapp.tt.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ttapp/vendor/sentry-miniapp.tt.min.js)；支付宝小程序下载 [sentry-miniapp.my.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/myapp/vendor/sentry-miniapp.my.min.js)，钉钉小程序下载[sentry-miniapp.dd.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ddapp/vendor/sentry-miniapp.dd.min.js)
+2. 参照 `/examples` 中各项目使用方式，将 `sentry-miniapp.xx.min.js` 放入项目的合适目录中，比如放入 `vendor` 文件夹
 3. 参照 `/examples/app.js` 代码，进行 `Sentry` 的初始化
 4. 对于提供了微信、字节跳动小程序 `sentry-miniapp` 会自动上报 `xx.onError()` 捕获的异常，对于支付宝小程序需要应用开发者在 `App.onError()` 中主动进行异常上报。详情可见 `/docs/cross-platform.md`。
 
@@ -127,19 +128,19 @@
 # 根据 package.json 中的版本号更新 SDK 源码中的版本号
 npm run version
 
-# 构建供小程序直接引用的 sentry-minapp.xx.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
+# 构建供小程序直接引用的 sentry-miniapp.xx.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
 npm run build:dev
 
-# 构建供微信小程序直接引用的 sentry-minapp.wx.min.js
+# 构建供微信小程序直接引用的 sentry-miniapp.wx.min.js
 npm run build:wx
 
-# 构建供支付宝小程序直接引用的 sentry-minapp.my.min.js
+# 构建供支付宝小程序直接引用的 sentry-miniapp.my.min.js
 npm run build:my
 
-# 构建供钉钉小程序直接引用的 sentry-minapp.dd.min.js
+# 构建供钉钉小程序直接引用的 sentry-miniapp.dd.min.js
 npm run build:dd
 
-# 构建供字节跳动小程序直接引用的 sentry-minapp.tt.min.js
+# 构建供字节跳动小程序直接引用的 sentry-miniapp.tt.min.js
 npm run build:tt
 
 # 构建用于发布到 npm 的 dist 资源
