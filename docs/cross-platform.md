@@ -35,6 +35,10 @@ request
 - [钉钉小程序 App.onError(msg)](https://ding-doc.dingtalk.com/doc#/dev/framework-app)
 - 支付宝小程序不支持 my.onError(function callback)
 
+监听未处理的 Promise 拒绝事件
+
+- [微信小程序 wx.onUnhandledRejection(function callback)](https://developers.weixin.qq.com/miniprogram/dev/reference/api/App.html#onUnhandledRejection-Object-object)
+
 页面不存在监听函数
 
 - [微信小程序 App.onPageNotFound(Object object)](https://developers.weixin.qq.com/miniprogram/dev/reference/api/App.html)
@@ -60,16 +64,15 @@ request
 
 ## 总结
 
-|                    | 微信 | 字节跳动 | 支付宝 | 钉钉             |
-| ------------------ | ---- | -------- | ------ | ---------------- |
-| getSystemInfoSync  | ✔️   | ✔️       | ✔️     | ✔️               |
-| request            | ✔️   | ✔️       | ✔️     | ✔️ (httpRequest) |
-| App.onError        | ✔️   | ✔️       | ✔️     | ✔️               |
-| App.onPageNotFound | ✔️   | ✔️       | ×      | ×                |
-| onError            | ✔️   | ✔️       | ×      | ×                |
-| onPageNotFound     | ✔️   | ×        | ×      | ×                |
-| onMemoryWarning    | ✔️   | ×        | ✔️     | ×                |
-| getCurrentPages    | ✔️   | ✔️       | ✔️     | ✔️               |
-| getNetworkType     | √    |          |        |                  |
-
-由于字节跳动小程序和支付宝小程序对调用 API 监听异常的支持度不一致，所以决定对提供了 `xx.onError` 监听异常的平台支持默认监听方式上报异常，其他平台均需要在在实际项目中使用 `App.onError()` 主动上报异常。
+|                      | 微信 | 字节跳动 | 支付宝 | 钉钉            |
+| -------------------- | ---- | -------- | ------ | --------------- |
+| getSystemInfoSync    | √    | √        | √      | √               |
+| request              | √    | √        | √      | √ (httpRequest) |
+| App.onError          | √    | √        | √      | √               |
+| App.onPageNotFound   | √    | √        | ×      | ×               |
+| onError              | √    | √        | ×      | ×               |
+| onUnhandledRejection | √    | 待确认   | 待确认 | 待确认          |
+| onPageNotFound       | √    | ×        | ×      | ×               |
+| onMemoryWarning      | √    | ×        | √      | ×               |
+| getCurrentPages      | √    | √        | √      | √               |
+| getNetworkType       | √    | 待确认   | 待确认 | 待确认          |

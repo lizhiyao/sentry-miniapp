@@ -11,6 +11,7 @@ interface SDK {
   httpRequest?: Function; // 针对钉钉小程序
   getSystemInfoSync: Function;
   onError?: Function;
+  onUnhandledRejection?: Function;
   onPageNotFound?: Function;
   onMemoryWarning?: Function;
 }

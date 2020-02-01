@@ -16,7 +16,7 @@
 - [x] 使用 [TypeScript](https://www.typescriptlang.org/) 进行编写
 - [x] 包含 Sentry SDK（如：[@sentry/browser](https://github.com/getsentry/sentry-javascript/tree/master/packages/browser)）的所有基础功能
 - [x] 支持 `ES6`、`CommonJS` 两种模块系统 ---> 支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用
-- [x] 默认监听并上报小程序的 onError、onPageNotFound、onMemoryWarning 事件返回的信息
+- [x] 默认监听并上报小程序的 onError、onUnhandledRejection、onPageNotFound、onMemoryWarning 事件返回的信息（各事件支持程度与对应各小程序官方保持一致）
 - [x] 默认上报运行小程序的设备、操作系统、应用版本信息
 - [x] 支持字节跳动小程序
 - [x] 支持支付宝小程序
@@ -24,10 +24,6 @@
 - [x] 支持在 [Taro](https://taro.aotu.io/) 等第三方小程序框架中使用
 - [x] 默认上报异常发生时的路由栈
 - [ ] 完善的代码测试
-
-## 已知问题
-
-- 由于各家小程序的 `App.onError()` 无法自动捕获 `Promise` 的异常，所以对于应用中的异步异常，需要应用开发者手动上报（问题解决中）
 
 ## 用法
 
@@ -162,11 +158,20 @@ npm publish
 
 ## 谁在使用 sentry-miniapp
 
-- 丁香医生微信小程序
-- 丁香医生医生端微信小程序
-- 丁香人才微信小程序
-- 丁香医生支付宝小程序
-- 丁香医生字节跳动小程序
+### 微信小程序
+
+- 丁香医生
+- 丁香医生医生端
+- 丁香人才
+- 丁香家
+
+### 支付宝小程序
+
+- 丁香医生
+
+### 字节跳动小程序
+
+- 丁香医生
 
 ## 参考资料
 
@@ -202,6 +207,6 @@ npm publish
 
 ![微信交流群二维码](docs/sentry-miniapp-qrcode.jpeg)
 
-PS. 由于微信群二维码有时效性限制，想入群的同学还可以加作者微信，由作者邀请入群
+PS. 由于微信群二维码有时效性限制，想入群的同学还可以加作者微信（添加时请备注 sentry-miniapp），由作者邀请入群
 
 ![作者微信二维码](docs/zhiyao-qrcode.jpeg)
