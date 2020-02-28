@@ -75,7 +75,7 @@ App({
     });
 
     const systemInfo = wx.getSystemInfoSync();
-    console.log(systemInfo);
+    // console.log(systemInfo);
 
     // Sentry.captureException(new Error('test'));
 

@@ -15,7 +15,7 @@
 - [x] 遵守[官方统一的 API 设计文档](https://www.yuque.com/lizhiyao/dxy/gc3b9r#vQdTs)，使用方式和官方保持一致
 - [x] 使用 [TypeScript](https://www.typescriptlang.org/) 进行编写
 - [x] 包含 Sentry SDK（如：[@sentry/browser](https://github.com/getsentry/sentry-javascript/tree/master/packages/browser)）的所有基础功能
-- [x] 支持 `ES6`、`CommonJS` 两种模块系统 ---> 支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用
+- [x] 支持 `ES6`、`CommonJS` 两种模块系统（支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用）
 - [x] 默认监听并上报小程序的 onError、onUnhandledRejection、onPageNotFound、onMemoryWarning 事件返回的信息（各事件支持程度与对应各小程序官方保持一致）
 - [x] 默认上报运行小程序的设备、操作系统、应用版本信息
 - [x] 支持字节跳动小程序
@@ -205,8 +205,8 @@ npm publish
 
 ### 微信交流群
 
-![微信交流群二维码](docs/sentry-miniapp-qrcode.jpeg)
-
 PS. 由于微信群二维码有时效性限制，想入群的同学还可以加作者微信（添加时请备注 sentry-miniapp），由作者邀请入群
 
-![作者微信二维码](docs/zhiyao-qrcode.jpeg)
+<img src="docs/sentry-miniapp-qrcode.jpeg" alt="微信交流群二维码" width="300" height="400" />
+
+<img src="docs/zhiyao-qrcode.jpeg" alt="作者微信二维码" width="300" height="300" />
