@@ -77,7 +77,7 @@ App({
     const systemInfo = wx.getSystemInfoSync();
     // console.log(systemInfo);
 
-    // Sentry.captureException(new Error('test'));
+    // Sentry.captureException(new Error("test"));
 
     // 测试 异常是否可以上报
     // throw new Error("this is a test 4G error.");
