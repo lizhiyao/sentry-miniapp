@@ -27,10 +27,10 @@ jobs:
         with:
           node-version: "12.x"
       - run: npm install
-      - run: tar -zcf ../${ARTIFACT_NAME} *
+      - run: tar -zcf ../${GITHUB_ACTOR} *
       - uses: actions/upload-artifact@v1
         with:
-          name: ${ARTIFACT_NAME}
+          name: ${GITHUB_ACTOR}
           path: ..
   # 更新版本号
   # version:
