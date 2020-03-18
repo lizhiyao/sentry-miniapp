@@ -1,4 +1,5 @@
 # https://help.github.com/cn/actions/reference/workflow-syntax-for-github-actions
+# https://help.github.com/cn/actions/configuring-and-managing-workflows/using-environment-variables
 name: Sentry Miniapp Workflow
 
 on:
@@ -12,43 +13,60 @@ on:
       - "examples/**"
       - "README.md"
 
+env:
+  PROJECT_NAME: sentry-miniapp
+  ARTIFACT_NAME: ${PROJECT_NAME}.${GITHUB_SHA:0:8}
+
 jobs:
+  # 安装依赖
+  install:
+    name: install-dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: "12.x"
+      - run: npm install
+      - uses: actions/upload-artifact@v1
+        with:
+          name: ${ARTIFACT_NAME}
+          path: .
   # 更新版本号
-  version:
-    name: update-version
-    runs-on: ubuntu-latest
-    steps:
-      - name: use update version script
-        run: npm run version
+  # version:
+  #   name: update-version
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions/setup-node@v1
+  #       with:
+  #         node-version: "12.x"
+  #     - run: npm run version
   # 构建用于直接引用的压缩资源
-  build-min:
-    name: build-min
-    needs: version
-    runs-on: ubuntu-latest
-    steps:
-      - name: build min file
-        run: npm run build:min
+  # build-min:
+  #   name: build-min
+  #   needs: version
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - run: npm run build:min
   # 构建 commonjs 版本
-  build:
-    name: build commonjs module
-    needs: version
-    runs-on: ubuntu-latest
-    steps:
-      - name: run build script
-        run: npm run build:min
+  # build:
+  #   name: build commonjs module
+  #   needs: version
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - run: npm run build:min
   # 构建 es6 module 版本
-  build-esm:
-    name: build esm module
-    needs: version
-    runs-on: ubuntu-latest
-    steps:
-      - name: run build:min script
-        run: npm run build:esm
+  # build-esm:
+  #   name: build esm module
+  #   needs: version
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - run: npm run build:esm
   # 发布到 npm
-  publish:
-    needs: [build, build-esm]
-    name: publish-to-npm
-    runs-on: ubuntu-latest
-    steps:
-      - name: publish sentry miniapp to npm
-        run: echo 'publish'
+  # publish:
+  #   name: publish-to-npm
+  #   needs: [build, build-esm]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - run: echo 'publish'
