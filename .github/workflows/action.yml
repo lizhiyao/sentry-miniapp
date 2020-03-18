@@ -15,7 +15,7 @@ on:
 
 env:
   PROJECT_NAME: sentry-miniapp
-  ARTIFACT_NAME: ${PROJECT_NAME}.${GITHUB_SHA:0:8}.tgz
+  ARTIFACT_NAME: ${{ PROJECT_NAME }}.${{ GITHUB_SHA:0:8 }}.tgz
 
 jobs:
   # 安装依赖
@@ -28,10 +28,10 @@ jobs:
         with:
           node-version: "12.x"
       - run: npm install
-      - run: tar -zcf ../${ARTIFACT_NAME} *
+      - tar -zcf ../${{ ARTIFACT_NAME }} *
       - uses: actions/upload-artifact@v1
         with:
-          name: ${ARTIFACT_NAME}
+          name: ${{ ARTIFACT_NAME }}
           path: ..
   # 更新版本号
   # version:
