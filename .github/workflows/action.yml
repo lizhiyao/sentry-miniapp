@@ -14,8 +14,7 @@ on:
       - "README.md"
 
 env:
-  PROJECT_NAME: sentry-miniapp
-  ARTIFACT_NAME: ${{ PROJECT_NAME }}.${{ GITHUB_SHA:0:8 }}.tgz
+  ARTIFACT_NAME: ${{ GITHUB_ACTOR }}.${{ GITHUB_SHA:0:8 }}.tgz
 
 jobs:
   # 安装依赖
