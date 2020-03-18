@@ -10,7 +10,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build:dev": "npm-run-all --parallel build:wx build:my build:tt build:dd",
+    "build:min": "npm-run-all --parallel build:wx build:my build:tt build:dd",
     "build:wx": "webpack --config ./webpack.config.wx.js",
     "build:my": "webpack --config ./webpack.config.my.js",
     "build:tt": "webpack --config ./webpack.config.tt.js",

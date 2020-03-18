@@ -1,0 +1,54 @@
+# https://help.github.com/cn/actions/reference/workflow-syntax-for-github-actions
+name: Sentry Miniapp Workflow
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+    paths-ignore:
+      - ".vscode/**"
+      - "docs/**"
+      - "examples/**"
+      - "README.md"
+
+jobs:
+  # 更新版本号
+  version:
+    name: update-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: use update version script
+        run: npm run version
+  # 构建用于直接引用的压缩资源
+  build-min:
+    name: build-min
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: build min file
+        run: npm run build:min
+  # 构建 commonjs 版本
+  build:
+    name: build commonjs module
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: run build script
+        run: npm run build:min
+  # 构建 es6 module 版本
+  build-esm:
+    name: build esm module
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: run build:min script
+        run: npm run build:esm
+  # 发布到 npm
+  publish:
+    needs: [build, build-esm]
+    name: publish-to-npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: publish sentry miniapp to npm
+        run: echo 'publish'
