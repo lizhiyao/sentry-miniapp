@@ -13,35 +13,41 @@ on:
       - "examples/**"
       - "README.md"
 
-env:
-  ARTIFACT_NAME: ${GITHUB_ACTOR}.${GITHUB_SHA:0:8}.tgz
+# env:
+#   ARTIFACT_NAME: ${GITHUB_ACTOR}.${GITHUB_SHA:0:8}.tgz
 
 jobs:
-  # 安装依赖
+  # 安装依赖、更新版本号、构建用于直接引用的压缩资源
   install:
     name: install-dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@master
       - uses: actions/setup-node@v1
         with:
           node-version: "12.x"
       - run: npm install
-      - run: tar -zcf ../${GITHUB_ACTOR} *
-      - uses: actions/upload-artifact@v1
+      - run: npm run version
+      - run: npm run build:min
+      - name: publish new version to GitHub
+        id: create_release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
         with:
-          name: ${GITHUB_ACTOR}
-          path: ..
-  # 更新版本号
-  # version:
-  #   name: update-version
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - uses: actions/setup-node@v1
-  #       with:
-  #         node-version: "12.x"
-  #     - run: npm run version
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Changes in this Release
+            - First Change
+            - Second Change
+          draft: false
+          prerelease: false
+      # - run: tar -zcf ../sentry-miniapp.tgz *
+      # - uses: actions/upload-artifact@v1
+      #   with:
+      #     name: sentry-miniapp.tgz
+      #     path: ..
   # 构建用于直接引用的压缩资源
   # build-min:
   #   name: build-min
