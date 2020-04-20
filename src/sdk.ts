@@ -91,6 +91,10 @@ export function init(options: MiniappOptions = {}): void {
   if (options.defaultIntegrations === undefined) {
     options.defaultIntegrations = defaultIntegrations;
   }
+
+  // https://github.com/lizhiyao/sentry-miniapp/issues/23
+  options.normalizeDepth = options.normalizeDepth || 5;
+
   initAndBind(MiniappClient, options);
 }
 
