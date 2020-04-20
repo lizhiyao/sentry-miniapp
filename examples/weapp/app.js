@@ -1,6 +1,6 @@
 import * as Sentry from "./vendor/sentry-miniapp.wx.min";
 const {
-  Integrations: { GlobalHandlers }
+  Integrations: { GlobalHandlers },
 } = Sentry;
 
 // console.log(Sentry, GlobalHandlers);
@@ -15,7 +15,7 @@ Sentry.init({
 
 App({
   globalData: {
-    userInfo: null
+    userInfo: null,
   },
   onLaunch() {
     // 展示本地存储能力
@@ -25,18 +25,18 @@ App({
 
     // 登录
     wx.login({
-      success: res => {
+      success: (res) => {
         // 发送 res.code 到后台换取 openId, sessionKey, unionId
-      }
+      },
     });
 
     // 获取用户信息
     wx.getSetting({
-      success: res => {
+      success: (res) => {
         if (res.authSetting["scope.userInfo"]) {
           // 已经授权，可以直接调用 getUserInfo 获取头像昵称，不会弹框
           wx.getUserInfo({
-            success: res => {
+            success: (res) => {
               // 可以将 res 发送给后台解码出 unionId
               this.globalData.userInfo = res.userInfo;
               // console.log(res.userInfo);
@@ -45,17 +45,17 @@ App({
                 country,
                 province,
                 city,
-                avatarUrl
+                avatarUrl,
               } = res.userInfo;
 
               Sentry.setUser({
-                id: nickName
+                id: nickName,
               });
               Sentry.setTag("country", country);
               Sentry.setExtra("province", province);
               Sentry.setExtras({
                 city,
-                avatarUrl
+                avatarUrl,
               });
               // Sentry.captureException(
               //   new Error("Good good stydy, day day up!")
@@ -67,16 +67,16 @@ App({
               if (this.userInfoReadyCallback) {
                 this.userInfoReadyCallback(res);
               }
-            }
+            },
           });
         }
-      }
+      },
     });
 
     const systemInfo = wx.getSystemInfoSync();
     // console.log(systemInfo);
 
-    Sentry.captureException(new Error("test"));
+    // Sentry.captureException(new Error("test"));
 
     // 测试 异常是否可以上报
     // throw new Error("this is a test 4G error.");
@@ -126,7 +126,7 @@ App({
   onError(error) {
     // console.warn(error);
     // Sentry.captureException(error);
-  }
+  },
   // onPageNotFound(res) {
   //   console.warn(res);
   // }

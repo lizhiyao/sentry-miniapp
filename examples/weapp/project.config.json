@@ -62,6 +62,13 @@
 					"pathName": "pages/logs/index",
 					"query": "name=apple",
 					"scene": null
+				},
+				{
+					"id": -1,
+					"name": "pages/index/index",
+					"pathName": "pages/index/index",
+					"query": "name=test&sex=1",
+					"scene": null
 				}
 			]
 		}
