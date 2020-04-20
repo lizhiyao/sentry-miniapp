@@ -16,7 +16,6 @@ import {
   Router,
   System,
   TryCatch,
-  UserAgent,
 } from "./integrations/index";
 
 export const defaultIntegrations = [
@@ -26,7 +25,7 @@ export const defaultIntegrations = [
   new Breadcrumbs(),
   new GlobalHandlers(),
   new LinkedErrors(),
-  new UserAgent(),
+
   new System(),
   new Router(),
   new IgnoreMpcrawlerErrors(),
