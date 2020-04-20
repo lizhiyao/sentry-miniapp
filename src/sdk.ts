@@ -1,7 +1,7 @@
 import {
   getCurrentHub,
   initAndBind,
-  Integrations as CoreIntegrations
+  Integrations as CoreIntegrations,
 } from "@sentry/core";
 import { SyncPromise } from "@sentry/utils";
 
@@ -11,11 +11,12 @@ import { wrap as internalWrap } from "./helpers";
 import {
   Breadcrumbs,
   GlobalHandlers,
+  IgnoreMpcrawlerErrors,
   LinkedErrors,
   Router,
   System,
   TryCatch,
-  UserAgent
+  UserAgent,
 } from "./integrations/index";
 
 export const defaultIntegrations = [
@@ -27,7 +28,8 @@ export const defaultIntegrations = [
   new LinkedErrors(),
   new UserAgent(),
   new System(),
-  new Router()
+  new Router(),
+  new IgnoreMpcrawlerErrors(),
 ];
 
 /**

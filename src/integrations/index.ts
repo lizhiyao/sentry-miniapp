@@ -6,3 +6,4 @@ export { UserAgent } from "./useragent";
 
 export { System } from "./system";
 export { Router } from "./router";
+export { IgnoreMpcrawlerErrors } from "./ignoreMpcrawlerErrors";

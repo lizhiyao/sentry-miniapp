@@ -14,6 +14,7 @@ interface SDK {
   onUnhandledRejection?: Function;
   onPageNotFound?: Function;
   onMemoryWarning?: Function;
+  getLaunchOptionsSync?: Function;
 }
 
 /**
@@ -31,7 +32,7 @@ const getSDK = () => {
     // tslint:disable-next-line: no-empty
     httpRequest: () => {},
     // tslint:disable-next-line: no-empty
-    getSystemInfoSync: () => {}
+    getSystemInfoSync: () => {},
   };
 
   if (typeof wx === "object") {

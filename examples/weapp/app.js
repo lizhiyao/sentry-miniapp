@@ -7,7 +7,6 @@ const {
 // 初始化 Sentry
 Sentry.init({
   dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228",
-  integrations: [new GlobalHandlers({ onerror: true })]
 });
 
 // wx.onError((error) => {
@@ -77,7 +76,7 @@ App({
     const systemInfo = wx.getSystemInfoSync();
     // console.log(systemInfo);
 
-    // Sentry.captureException(new Error("test"));
+    Sentry.captureException(new Error("test"));
 
     // 测试 异常是否可以上报
     // throw new Error("this is a test 4G error.");
