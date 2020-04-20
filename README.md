@@ -67,12 +67,12 @@
    // init Sentry
    // init options: https://github.com/getsentry/sentry-javascript/blob/master/packages/types/src/options.ts
    Sentry.init({
-     dsn: "__DSN__"
+     dsn: "__DSN__",
      // ...
    });
 
    // Set user information, as well as tags and further extras
-   Sentry.configureScope(scope => {
+   Sentry.configureScope((scope) => {
      scope.setExtra("battery", 0.7);
      scope.setTag("user_mode", "admin");
      scope.setUser({ id: "4711" });
@@ -81,7 +81,7 @@
 
    // Add a breadcrumb for future events
    Sentry.addBreadcrumb({
-     message: "My Breadcrumb"
+     message: "My Breadcrumb",
      // ...
    });
 
@@ -92,7 +92,7 @@
      message: "Manual",
      stacktrace: [
        // ...
-     ]
+     ],
    });
    ```
 
@@ -125,7 +125,7 @@
 npm run version
 
 # 构建供小程序直接引用的 sentry-miniapp.xx.min.js；在本地可直接使用开发者工具打开 examples 下具体项目进行调试
-npm run build:dev
+npm run build:dist
 
 # 构建供微信小程序直接引用的 sentry-miniapp.wx.min.js
 npm run build:wx
