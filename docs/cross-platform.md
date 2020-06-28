@@ -15,6 +15,7 @@ request
 - [字节跳动小程序 tt.request()](https://developer.toutiao.com/docs/api/request.html#request)
 - [支付宝小程序 my.request()](https://docs.alipay.com/mini/api/owycmh)
 - [钉钉小程序 dd.httpRequest()](https://ding-doc.dingtalk.com/doc#/dev/httprequest)
+- [QQ 小程序 qq.request()](https://q.qq.com/wiki/develop/game/API/network/request.html)
 
 ## integrations/system
 
@@ -22,6 +23,7 @@ request
 - [字节跳动小程序 tt.getSystemInfoSync()](https://developer.toutiao.com/docs/game/system/system-info/tt.getSystemInfoSync.html)
 - [支付宝小程序 my.getSystemInfoSync()](https://docs.alipay.com/mini/api/system-info)
 - [钉钉小程序 my.getSystemInfoSync()](https://ding-doc.dingtalk.com/doc#/dev/system-info)
+- [QQ 小程序 qq.getSystemInfoSync()](https://q.qq.com/wiki/develop/game/API/basic/system.html#qq-getsysteminfosync)
 
 ## integrations/globalhanders
 
@@ -34,6 +36,7 @@ request
 - [支付宝小程序 App.onError(msg)](https://docs.alipay.com/mini/framework/app)
 - [钉钉小程序 App.onError(msg)](https://ding-doc.dingtalk.com/doc#/dev/framework-app)
 - 支付宝小程序不支持 my.onError(function callback)
+- [QQ 小程序 qq.onError()](https://q.qq.com/wiki/develop/game/API/basic/miniprogram.html#qq-onerror)
 
 监听未处理的 Promise 拒绝事件
 
@@ -47,6 +50,7 @@ request
 - 字节跳动小程序不支持 tt.onPageNotFound()
 - 支付宝小程序两种方式均不支持
 - 钉钉小程序两种方式均不支持
+- [QQ 小程序 qq.onPageNotFound()](https://q.qq.com/wiki/develop/miniprogram/API/basic/miniAPP.html#qq-onpagenotfound)
 
 监听内存不足的告警事件
 
@@ -54,6 +58,7 @@ request
 - [字节跳动小程序 暂不支持](https://developer.toutiao.com/docs/game/performance/onMemoryWarning.html)
 - [支付宝小程序 my.onMemoryWarning()](https://docs.alipay.com/mini/api/hszexr)
 - 钉钉小程序 暂不支持
+- [QQ 小程序 qq.onMemoryWarning()](https://q.qq.com/wiki/develop/miniprogram/API/equipment/ibeacon_memory.html#qq-onmemorywarning-function-callback)
 
 ## integrations/router
 
@@ -61,18 +66,19 @@ request
 - [字节跳动小程序 getCurrentPages()](https://developer.toutiao.com/dev/cn/mini-app/develop/framework/logic-layer/page-path)
 - [支付宝小程序 getCurrentPages()](https://docs.alipay.com/mini/framework/getcurrentpages)
 - [钉钉小程序 getCurrentPages()](https://ding-doc.dingtalk.com/doc#/dev/framework-page)
+- [QQ 小程序 getCurrentPages()](https://q.qq.com/wiki/develop/miniprogram/frame/logic/logic_page_route.html#getcurrentpages)
 
 ## 总结
 
-|                      | 微信 | 字节跳动 | 支付宝 | 钉钉            |
-| -------------------- | ---- | -------- | ------ | --------------- |
-| getSystemInfoSync    | √    | √        | √      | √               |
-| request              | √    | √        | √      | √ (httpRequest) |
-| App.onError          | √    | √        | √      | √               |
-| App.onPageNotFound   | √    | √        | ×      | ×               |
-| onError              | √    | √        | ×      | ×               |
-| onUnhandledRejection | √    | 待确认   | 待确认 | 待确认          |
-| onPageNotFound       | √    | ×        | ×      | ×               |
-| onMemoryWarning      | √    | ×        | √      | ×               |
-| getCurrentPages      | √    | √        | √      | √               |
-| getNetworkType       | √    | 待确认   | 待确认 | 待确认          |
+|                      | 微信 | 字节跳动 | 支付宝 | 钉钉            | QQ  |
+| -------------------- | ---- | -------- | ------ | --------------- | --- |
+| getSystemInfoSync    | √    | √        | √      | √               | √   |
+| request              | √    | √        | √      | √ (httpRequest) | √   |
+| App.onError          | √    | √        | √      | √               | √   |
+| App.onPageNotFound   | √    | √        | ×      | ×               | √   |
+| onError              | √    | √        | ×      | ×               | √   |
+| onUnhandledRejection | √    | 待确认   | 待确认 | 待确认          | x   |
+| onPageNotFound       | √    | ×        | ×      | ×               | √   |
+| onMemoryWarning      | √    | ×        | √      | ×               | √   |
+| getCurrentPages      | √    | √        | √      | √               | √   |
+| getNetworkType       | √    | 待确认   | 待确认 | 待确认          | √   |
