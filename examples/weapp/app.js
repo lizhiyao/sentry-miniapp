@@ -111,10 +111,10 @@ App({
   },
   onShow() {
     // 测试 Promise 中异常是否可以上报
-    new Promise((resovle, reject) => {
-      // inPromiseFn();
-      resovle();
-    });
+    // new Promise((resovle, reject) => {
+    //   inPromiseFn();
+    //   resovle();
+    // });
     // .then((res) => {
     //   console.log(res);
     // }, (err) => {
@@ -124,7 +124,7 @@ App({
   },
   // 不需要显示调用 Sentry.captureException(error)
   onError(error) {
-    // console.warn(error);
+    console.warn(error);
     // Sentry.captureException(error);
   },
   // onPageNotFound(res) {

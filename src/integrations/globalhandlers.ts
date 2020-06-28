@@ -46,7 +46,7 @@ export class GlobalHandlers implements Integration {
       onunhandledrejection: true,
       onpagenotfound: true,
       onmemorywarning: true,
-      ...options
+      ...options,
     };
   }
   /**
@@ -86,8 +86,8 @@ export class GlobalHandlers implements Integration {
       const currentHub = getCurrentHub();
 
       sdk.onError((error: string) => {
-        console.info("sentry-miniapp", error);
-        currentHub.captureException(error);
+        // console.info("sentry-miniapp", error);
+        currentHub.captureException(new Error(error));
       });
     }
 
@@ -110,8 +110,8 @@ export class GlobalHandlers implements Integration {
 
       sdk.onUnhandledRejection(
         ({ reason, promise }: OnUnhandledRejectionRes) => {
-          currentHub.captureException(reason, {
-            data: promise
+          currentHub.captureException(new Error(reason), {
+            data: promise,
           });
         }
       );
