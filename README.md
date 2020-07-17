@@ -18,6 +18,8 @@
 - [x] 支持 `ES6`、`CommonJS` 两种模块系统（支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用）
 - [x] 默认监听并上报小程序的 onError、onUnhandledRejection、onPageNotFound、onMemoryWarning 事件返回的信息（各事件支持程度与对应各小程序官方保持一致）
 - [x] 默认上报运行小程序的设备、操作系统、应用版本信息
+- [x] 支持微信小程序
+- [x] 支持微信小游戏
 - [x] 支持字节跳动小程序
 - [x] 支持支付宝小程序
 - [x] 支持钉钉小程序
@@ -35,12 +37,12 @@
 ### 注意
 
 1. 无论选择哪种使用方式，都需要开启「微信开发者工具 - 设置 - 项目设置 - 增强编译」功能
-2. 使用前需要确保有可用的 `Sentry Service`，比如：使用 [官方 Sentry Service](https://sentry.io/welcome/) 服务 或[自己搭建 Sentry Service](https://docs.sentry.io/server/)
+2. 使用前需要确保有可用的 `Sentry Service`，比如：使用 [官方 Sentry Service](https://sentry.io/welcome/) 服务 或[自己搭建 Sentry Service](https://docs.sentry.io/server/)。如果想直接将异常信息上报到 <https://sentry.io/>，由于其没有备案，可以先将异常信息上报给自己已备案域名下的服务端接口，由服务端进行请求转发。
 3. 在小程序管理后台配置 `Sentry Service` 对应的 `request` 合法域名
 
 ### 直接引用
 
-1. 微信小程序下载 [sentry-miniapp.wx.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/weapp/vendor/sentry-miniapp.wx.min.js)；字节跳动小程序下载 [sentry-miniapp.tt.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ttapp/vendor/sentry-miniapp.tt.min.js)；支付宝小程序下载 [sentry-miniapp.my.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/myapp/vendor/sentry-miniapp.my.min.js)，钉钉小程序下载[sentry-miniapp.dd.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ddapp/vendor/sentry-miniapp.dd.min.js)
+1. 微信小程序和微信小游戏下载 [sentry-miniapp.wx.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/weapp/vendor/sentry-miniapp.wx.min.js)；字节跳动小程序下载 [sentry-miniapp.tt.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ttapp/vendor/sentry-miniapp.tt.min.js)；支付宝小程序下载 [sentry-miniapp.my.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/myapp/vendor/sentry-miniapp.my.min.js)，钉钉小程序下载 [sentry-miniapp.dd.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ddapp/vendor/sentry-miniapp.dd.min.js)
 2. 参照 `/examples` 中各项目使用方式，将 `sentry-miniapp.xx.min.js` 放入项目的合适目录中，比如放入 `vendor` 文件夹
 3. 参照 `/examples/app.js` 代码，进行 `Sentry` 的初始化
 4. 对于提供了微信、字节跳动小程序 `sentry-miniapp` 会自动上报 `xx.onError()` 捕获的异常，对于支付宝小程序需要应用开发者在 `App.onError()` 中主动进行异常上报。详情可见 `/docs/cross-platform.md`。

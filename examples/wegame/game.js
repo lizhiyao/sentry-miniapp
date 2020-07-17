@@ -13,4 +13,4 @@ new Main();
 
 Sentry.captureException("123");
 
-throw new Error("wegame test");
+// throw new Error("wegame test");
