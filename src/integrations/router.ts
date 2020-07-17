@@ -21,23 +21,25 @@ export class Router implements Integration {
   public setupOnce(): void {
     addGlobalEventProcessor((event: Event) => {
       if (getCurrentHub().getIntegration(Router)) {
-        try {
-          const routers = getCurrentPages().map(
-            (route: { route: string; options: object }) => ({
-              route: route.route,
-              options: route.options
-            })
-          );
+        if (getCurrentPages) {
+          try {
+            const routers = getCurrentPages().map(
+              (route: { route: string; options: object }) => ({
+                route: route.route,
+                options: route.options,
+              })
+            );
 
-          return {
-            ...event,
-            extra: {
-              ...event.extra,
-              routers
-            }
-          };
-        } catch (e) {
-          console.warn(`sentry-miniapp get router info fail: ${e}`);
+            return {
+              ...event,
+              extra: {
+                ...event.extra,
+                routers,
+              },
+            };
+          } catch (e) {
+            console.warn(`sentry-miniapp get router info fail: ${e}`);
+          }
         }
       }
 

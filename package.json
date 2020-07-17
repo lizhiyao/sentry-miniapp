@@ -12,11 +12,12 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:dist": "npm-run-all --parallel build:wx build:my build:tt build:dd build:qq",
     "build:wx": "webpack --config ./webpack.config.wx.js",
+    "build:wxgame": "webpack --config ./webpack.config.wxgame.js",
     "build:my": "webpack --config ./webpack.config.my.js",
     "build:tt": "webpack --config ./webpack.config.tt.js",
     "build:dd": "webpack --config ./webpack.config.dd.js",
     "build:qq": "webpack --config ./webpack.config.qq.js",
-    "build:watch": "webpack --watch --config ./webpack.config.wx.js",
+    "build:watch": "webpack --watch --config ./webpack.config.wxgame.js",
     "build": "tsc -p tsconfig.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "version": "node ./scripts/versionbump.js src/version.ts"
