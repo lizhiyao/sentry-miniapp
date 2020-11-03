@@ -9,7 +9,6 @@ import { MiniappOptions } from "./backend";
 import { MiniappClient, ReportDialogOptions } from "./client";
 import { wrap as internalWrap } from "./helpers";
 import {
-  Breadcrumbs,
   GlobalHandlers,
   IgnoreMpcrawlerErrors,
   LinkedErrors,
@@ -22,7 +21,6 @@ export const defaultIntegrations = [
   new CoreIntegrations.InboundFilters(),
   new CoreIntegrations.FunctionToString(),
   new TryCatch(),
-  new Breadcrumbs(),
   new GlobalHandlers(),
   new LinkedErrors(),
 

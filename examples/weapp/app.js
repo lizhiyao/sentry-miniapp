@@ -72,7 +72,7 @@ App({
     // 测试 异常是否可以上报
     // throw new Error("this is a test 4G error.");
     // throw new Error("lalalalalala");
-    // myUndefinedFunction();
+    myUndefinedFunction();
 
     // 测试 async 函数中异常是否可以被 onError 捕获
     // const ret = await new Promise((resolve) => {
