@@ -1,6 +1,6 @@
 {
   "name": "sentry-miniapp",
-  "version": "0.9.8",
+  "version": "0.10.0",
   "description": "用于小程序/小游戏平台的 Sentry SDK",
   "repository": "git://github.com/lizhiyao/sentry-miniapp.git",
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",

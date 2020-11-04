@@ -13,6 +13,7 @@
     "linkederrors",
     "myapp",
     "pagenotfound",
+    "submatch",
     "tracekit",
     "trycatch",
     "ttapp",
@@ -20,6 +21,7 @@
     "wechat",
     "wegame",
     "wifi",
+    "winjs",
     "wxgame"
   ]
 }
