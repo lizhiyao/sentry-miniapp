@@ -39,7 +39,7 @@ export interface StackTrace {
 }
 
 // global reference to slice
-const UNKNOWN_FUNCTION = '?';
+const UNKNOWN_FUNCTION = "?";
 
 // Chromium based browsers: Chrome, Brave, new Opera, new Edge
 const chrome = /^\s*at (?:(.*?) ?\()?((?:file|https?|blob|chrome-extension|native|eval|webpack|<anonymous>|[-a-z]+:|\/).*?)(?::(\d+))?(?::(\d+))?\)?\s*$/i;
@@ -50,9 +50,11 @@ const gecko = /^\s*(.*?)(?:\((.*?)\))?(?:^|@)?((?:file|https?|blob|chrome|webpac
 const winjs = /^\s*at (?:((?:\[object object\])?.+) )?\(?((?:file|ms-appx|https?|webpack|blob):.*?):(\d+)(?::(\d+))?\)?\s*$/i;
 const geckoEval = /(\S+) line (\d+)(?: > eval line \d+)* > eval/i;
 const chromeEval = /\((\S*)(?::(\d+))(?::(\d+))\)/;
+const miniapp = /^\s*at (\w.*) \((\w*.js):(\d*):(\d*)/i;
 
 /** JSDoc */
 export function computeStackTrace(ex: any): StackTrace {
+  // console.log('computeStackTrace', ex)
   // tslint:disable:no-unsafe-any
 
   let stack = null;
@@ -64,6 +66,7 @@ export function computeStackTrace(ex: any): StackTrace {
     // property first!!
     stack = computeStackTraceFromStacktraceProp(ex);
     if (stack) {
+      // console.log('computeStackTraceFromStacktraceProp', stack, popSize, popFrames(stack, popSize))
       return popFrames(stack, popSize);
     }
   } catch (e) {
@@ -73,6 +76,7 @@ export function computeStackTrace(ex: any): StackTrace {
   try {
     stack = computeStackTraceFromStackProp(ex);
     if (stack) {
+      // console.log('computeStackTraceFromStackProp', stack, popSize, popFrames(stack, popSize))
       return popFrames(stack, popSize);
     }
   } catch (e) {
@@ -96,16 +100,18 @@ function computeStackTraceFromStackProp(ex: any): StackTrace | null {
   }
 
   const stack = [];
-  const lines = ex.stack.split('\n');
+  const lines = ex.stack.split("\n");
   let isEval;
   let submatch;
   let parts;
   let element;
+  // console.log('lines', lines)
 
   for (let i = 0; i < lines.length; ++i) {
+    // console.log(lines[i], chrome.exec(lines[i]), winjs.exec(lines[i]), gecko.exec(lines[i]))
     if ((parts = chrome.exec(lines[i]))) {
-      const isNative = parts[2] && parts[2].indexOf('native') === 0; // start of line
-      isEval = parts[2] && parts[2].indexOf('eval') === 0; // start of line
+      const isNative = parts[2] && parts[2].indexOf("native") === 0; // start of line
+      isEval = parts[2] && parts[2].indexOf("eval") === 0; // start of line
       if (isEval && (submatch = chromeEval.exec(parts[2]))) {
         // throw out eval line/column and use top-most line/column number
         parts[2] = submatch[1]; // url
@@ -128,13 +134,13 @@ function computeStackTraceFromStackProp(ex: any): StackTrace | null {
         column: parts[4] ? +parts[4] : null,
       };
     } else if ((parts = gecko.exec(lines[i]))) {
-      isEval = parts[3] && parts[3].indexOf(' > eval') > -1;
+      isEval = parts[3] && parts[3].indexOf(" > eval") > -1;
       if (isEval && (submatch = geckoEval.exec(parts[3]))) {
         // throw out eval line/column and use top-most line number
         parts[1] = parts[1] || `eval`;
         parts[3] = submatch[1];
         parts[4] = submatch[2];
-        parts[5] = ''; // no column when eval
+        parts[5] = ""; // no column when eval
       } else if (i === 0 && !parts[5] && ex.columnNumber !== void 0) {
         // FireFox uses this awesome columnNumber property for its top frame
         // Also note, Firefox's column number is 0-based and everything else expects 1-based,
@@ -145,9 +151,17 @@ function computeStackTraceFromStackProp(ex: any): StackTrace | null {
       element = {
         url: parts[3],
         func: parts[1] || UNKNOWN_FUNCTION,
-        args: parts[2] ? parts[2].split(',') : [],
+        args: parts[2] ? parts[2].split(",") : [],
         line: parts[4] ? +parts[4] : null,
         column: parts[5] ? +parts[5] : null,
+      };
+    } else if ((parts = miniapp.exec(lines[i]))) {
+      element = {
+        url: parts[2],
+        func: parts[1] || UNKNOWN_FUNCTION,
+        args: [],
+        line: parts[3] ? +parts[3] : null,
+        column: parts[4] ? +parts[4] : null,
       };
     } else {
       continue;
@@ -182,7 +196,7 @@ function computeStackTraceFromStacktraceProp(ex: any): StackTrace | null {
   const stacktrace = ex.stacktrace;
   const opera10Regex = / line (\d+).*script (?:in )?(\S+)(?:: in function (\S+))?$/i;
   const opera11Regex = / line (\d+), column (\d+)\s*(?:in (?:<anonymous function: ([^>]+)>|([^\)]+))\((.*)\))? in (.*):\s*$/i;
-  const lines = stacktrace.split('\n');
+  const lines = stacktrace.split("\n");
   const stack = [];
   let parts;
 
@@ -201,7 +215,7 @@ function computeStackTraceFromStacktraceProp(ex: any): StackTrace | null {
       element = {
         url: parts[6],
         func: parts[3] || parts[4],
-        args: parts[5] ? parts[5].split(',') : [],
+        args: parts[5] ? parts[5].split(",") : [],
         line: +parts[1],
         column: +parts[2],
       };
@@ -245,10 +259,11 @@ function popFrames(stacktrace: StackTrace, popSize: number): StackTrace {
  */
 function extractMessage(ex: any): string {
   const message = ex && ex.message;
+  // console.log('message',message)
   if (!message) {
-    return 'No error message';
+    return "No error message";
   }
-  if (message.error && typeof message.error.message === 'string') {
+  if (message.error && typeof message.error.message === "string") {
     return message.error.message;
   }
   return message;

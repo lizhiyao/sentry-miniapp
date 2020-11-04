@@ -3,7 +3,7 @@ import { extractExceptionKeysForMessage, isEvent, normalizeToSize } from '@sentr
 
 import { computeStackTrace, StackFrame as TraceKitStackFrame, StackTrace as TraceKitStackTrace } from './tracekit';
 
-const STACKTRACE_LIMIT = 50;
+const STACKTRACE_LIMIT = 100;
 
 /**
  * This function creates an exception from an TraceKitStackTrace
@@ -39,8 +39,7 @@ export function eventFromPlainObject(exception: {}, syntheticException?: Error, 
       values: [
         {
           type: isEvent(exception) ? exception.constructor.name : rejection ? 'UnhandledRejection' : 'Error',
-          value: `Non-Error ${
-            rejection ? 'promise rejection' : 'exception'
+          value: `Non-Error ${rejection ? 'promise rejection' : 'exception'
             } captured with keys: ${extractExceptionKeysForMessage(exception)}`,
         },
       ],
