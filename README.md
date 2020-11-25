@@ -23,6 +23,7 @@
 - [x] 支持字节跳动小程序
 - [x] 支持支付宝小程序
 - [x] 支持钉钉小程序
+- [x] 支持百度小程序
 - [x] 支持在 [Taro](https://taro.aotu.io/) 等第三方小程序框架中使用
 - [x] 默认上报异常发生时的路由栈
 - [ ] 完善的代码测试
@@ -140,6 +141,9 @@ npm run build:dd
 
 # 构建供字节跳动小程序直接引用的 sentry-miniapp.tt.min.js
 npm run build:tt
+
+# 构建供百度小程序直接引用的 sentry-miniapp.swan.min.js
+npm run build:swan
 
 # 构建用于发布到 npm 的 dist 资源
 npm run build
