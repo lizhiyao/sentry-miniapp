@@ -4,6 +4,7 @@ declare const tt: any; // 字节跳动小程序
 declare const dd: any; // 钉钉小程序
 declare const qq: any; // QQ 小程序、QQ 小游戏
 declare const swan: any; // 百度小程序
+declare const uni: any; // uniapp
 
 /**
  * 小程序平台 SDK 接口
@@ -35,6 +36,7 @@ type AppName =
  * 获取跨平台的 SDK
  */
 const getSDK = () => {
+ 
   let currentSdk: SDK = {
     // tslint:disable-next-line: no-empty
     request: () => {},
@@ -62,8 +64,18 @@ const getSDK = () => {
   } else if (typeof swan === "object") {
     // tslint:disable-next-line: no-unsafe-any
     currentSdk = swan;
+  } else if (typeof uni === "object") {
+    // tslint:disable-next-line: no-unsafe-any
+    currentSdk = uni;
   } else {
-    throw new Error("sentry-miniapp 暂不支持此平台");
+    try {
+      // 如果已经有Taro依赖，就使用Taro对象
+      // tslint:disable-next-line: no-implicit-dependencies
+      // tslint:disable-next-line: no-unsafe-any
+      currentSdk = require('@tarojs/taro');
+    } catch(e) {
+      throw new Error("sentry-miniapp 暂不支持此平台");
+    }
   }
 
   return currentSdk;
