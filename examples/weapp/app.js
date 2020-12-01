@@ -68,9 +68,10 @@ App({
     // console.log(systemInfo);
 
     // Sentry.captureException(new Error("test"));
+    // Sentry.captureException(new Error({ errMsg: "test" }));
+    // Sentry.captureException(new Error(JSON.stringify({ errMsg: "test" })));
 
     // 测试 异常是否可以上报
-    // throw new Error("this is a test 4G error.");
     // throw new Error("lalalalalala");
     // myUndefinedFunction();
 
@@ -95,10 +96,22 @@ App({
     //   success(res) {
     //     console.log(res);
     //   },
-    //   // fail(error) {
-    //   //   console.log('API 调用失败: ', error);
-    //   // }
-    // })
+    //   fail(error) {
+    //     console.log("API 调用失败: ", error);
+    //   },
+    // });
+
+    // wx.showToast({
+    //   content: "test",
+    //   fail(err) {
+    //     console.log(err);
+    //   },
+    // });
+    // wx.chooseImage({
+    //   fail(err) {
+    //     console.log(err);
+    //   },
+    // });
 
     // throw new Error(`TypeError: Cannot read property 'd' of undefined
     // at UserInfo (index.js:1069:8)
@@ -137,10 +150,10 @@ App({
   },
   onShow() {
     // 测试 Promise 中异常是否可以上报
-    // new Promise((resovle, reject) => {
-    //   inPromiseFn();
-    //   resovle();
-    // });
+    new Promise((resovle, reject) => {
+      inPromiseFn();
+      resovle();
+    });
     // .then((res) => {
     //   console.log(res);
     // }, (err) => {
@@ -150,7 +163,7 @@ App({
   },
   // 不需要显示调用 Sentry.captureException(error)
   onError(error) {
-    // console.warn(error);
+    console.warn(error);
     // Sentry.captureException(error);
   },
   // onPageNotFound(res) {

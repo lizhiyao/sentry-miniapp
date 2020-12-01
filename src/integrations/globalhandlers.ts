@@ -85,9 +85,11 @@ export class GlobalHandlers implements Integration {
     if (!!sdk.onError) {
       const currentHub = getCurrentHub();
 
-      sdk.onError((error: string) => {
+      // https://developers.weixin.qq.com/miniprogram/dev/api/base/app/app-event/wx.onError.html
+      sdk.onError((err: string | object) => {
         // console.info("sentry-miniapp", error);
-        currentHub.captureException(new Error(error));
+        const error = typeof err === 'string' ? new Error(err) : err
+        currentHub.captureException(error);
       });
     }
 
@@ -104,13 +106,17 @@ export class GlobalHandlers implements Integration {
       const currentHub = getCurrentHub();
       /** JSDoc */
       interface OnUnhandledRejectionRes {
-        reason: string;
+        reason: string | object;
         promise: Promise<any>;
       }
 
+      // https://developers.weixin.qq.com/miniprogram/dev/api/base/app/app-event/wx.onUnhandledRejection.html
       sdk.onUnhandledRejection(
         ({ reason, promise }: OnUnhandledRejectionRes) => {
-          currentHub.captureException(new Error(reason), {
+          // console.log(reason, typeof reason, promise)
+          // 为什么官方文档上说 reason 是 string 类型，但是实际返回的确实 object 类型
+          const error = typeof reason === 'string' ? new Error(reason) : reason
+          currentHub.captureException(error, {
             data: promise,
           });
         }
