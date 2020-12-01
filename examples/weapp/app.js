@@ -150,10 +150,10 @@ App({
   },
   onShow() {
     // 测试 Promise 中异常是否可以上报
-    new Promise((resovle, reject) => {
-      inPromiseFn();
-      resovle();
-    });
+    // new Promise((resovle, reject) => {
+    //   inPromiseFn();
+    //   resovle();
+    // });
     // .then((res) => {
     //   console.log(res);
     // }, (err) => {
