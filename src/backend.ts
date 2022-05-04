@@ -1,6 +1,6 @@
 import { BaseBackend } from "@sentry/core";
 import { Event, EventHint, Options, Severity, Transport } from "@sentry/types";
-import { addExceptionMechanism, SyncPromise } from '@sentry/utils';
+import { addExceptionMechanism, resolvedSyncPromise } from '@sentry/utils';
 
 import { eventFromString, eventFromUnknownInput } from './eventbuilder';
 import { XHRTransport } from "./transports/index";
@@ -68,7 +68,7 @@ export class MiniappBackend extends BaseBackend<MiniappOptions> {
     if (hint && hint.event_id) {
       event.event_id = hint.event_id;
     }
-    return SyncPromise.resolve(event);
+    return resolvedSyncPromise(event);
   }
   /**
    * @inheritDoc
@@ -82,6 +82,6 @@ export class MiniappBackend extends BaseBackend<MiniappOptions> {
     if (hint && hint.event_id) {
       event.event_id = hint.event_id;
     }
-    return SyncPromise.resolve(event);
+    return resolvedSyncPromise(event);
   }
 }
