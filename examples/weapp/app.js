@@ -69,7 +69,7 @@ App({
 
     // Sentry.captureException(new Error("test"));
     // Sentry.captureException(new Error({ errMsg: "test" }));
-    // Sentry.captureException(new Error(JSON.stringify({ errMsg: "test" })));
+    Sentry.captureException(new Error(JSON.stringify({ errMsg: "test" })));
 
     // 测试 异常是否可以上报
     // throw new Error("lalalalalala");
