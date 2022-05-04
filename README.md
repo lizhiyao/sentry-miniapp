@@ -152,7 +152,7 @@ npm run build
 npm run build:esm
 
 # 发布到 npm
-npm publish
+npm publish --registry=https://registry.npmjs.org/
 ```
 
 ## 效果图
