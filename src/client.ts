@@ -1,6 +1,5 @@
-import { API, BaseClient, Scope } from "@sentry/core";
+import { BaseClient, Scope } from "@sentry/core";
 import { DsnLike, Event, EventHint } from "@sentry/types";
-import { getGlobalObject, logger } from "@sentry/utils";
 
 import { MiniappBackend, MiniappOptions } from "./backend";
 import { SDK_NAME, SDK_VERSION } from "./version";
@@ -77,38 +76,6 @@ export class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
    */
   public showReportDialog(options: ReportDialogOptions = {}): void {
     // doesn't work without a document (React Native)
-    const document = getGlobalObject<Window>().document;
-    if (!document) {
-      return;
-    }
-
-    if (!this._isEnabled()) {
-      logger.error(
-        "Trying to call showReportDialog with Sentry Client is disabled"
-      );
-      return;
-    }
-
-    const dsn = options.dsn || this.getDsn();
-
-    if (!options.eventId) {
-      logger.error("Missing `eventId` option in showReportDialog call");
-      return;
-    }
-
-    if (!dsn) {
-      logger.error("Missing `Dsn` option in showReportDialog call");
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = new API(dsn).getReportDialogEndpoint(options);
-
-    if (options.onLoad) {
-      script.onload = options.onLoad;
-    }
-
-    (document.head || document.body).appendChild(script);
+    console.log('sentry-miniapp 暂未实现该方法', options);
   }
 }

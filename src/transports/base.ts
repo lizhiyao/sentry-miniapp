@@ -1,6 +1,6 @@
 import { API } from "@sentry/core";
 import { Event, Response, Transport, TransportOptions } from "@sentry/types";
-import { PromiseBuffer, SentryError } from "@sentry/utils";
+import { makePromiseBuffer, PromiseBuffer, SentryError } from "@sentry/utils";
 
 /** Base Transport class implementation */
 export abstract class BaseTransport implements Transport {
@@ -10,7 +10,7 @@ export abstract class BaseTransport implements Transport {
   public url: string;
 
   /** A simple buffer holding all requests. */
-  protected readonly _buffer: PromiseBuffer<Response> = new PromiseBuffer(30);
+  protected readonly _buffer: PromiseBuffer<Response> = makePromiseBuffer(30);
 
   public constructor(public options: TransportOptions) {
     this.url = new API(this.options.dsn).getStoreEndpointWithUrlEncodedAuth();

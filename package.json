@@ -59,9 +59,9 @@
     "webpack-merge": "^4.2.1"
   },
   "dependencies": {
-    "@sentry/core": "5.15.4",
-    "@sentry/types": "5.15.4",
-    "@sentry/utils": "5.15.4",
+    "@sentry/core": "6.19.7",
+    "@sentry/types": "6.19.7",
+    "@sentry/utils": "6.19.7",
     "tslib": "^1.10.0"
   }
 }
