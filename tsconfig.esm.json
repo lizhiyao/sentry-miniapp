@@ -1,5 +1,5 @@
 {
-  "extends": "./node_modules/@sentry/typescript/tsconfig.json",
+  "extends": "@sentry-internal/typescript/tsconfig.json",
   "include": [
     "src/**/*",
     "test/**/*"

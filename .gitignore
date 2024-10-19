@@ -16,6 +16,7 @@ scratch/
 # logs
 yarn-error.log
 npm-debug.log
+npminstall-debug.log
 lerna-debug.log
 local.log
 

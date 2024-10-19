@@ -1,5 +1,5 @@
 {
-  "extends": "./node_modules/@sentry/typescript/tsconfig.json",
+  // "extends": "@sentry-internal/typescript/tsconfig.json",
   "include": [
     "src/**/*",
     "test/**/*"
@@ -8,9 +8,29 @@
     "./examples"
   ],
   "compilerOptions": {
-    "outDir": "dist",
-    "module": "commonjs",
+    "alwaysStrict": false,
+    "declaration": true,
+    "declarationMap": true,
+    "downlevelIteration": true,
+    "importHelpers": true,
+    "inlineSources": true,
+    "isolatedModules": true,
+    "lib": [
+      "ES2018"
+    ],
+    "moduleResolution": "node",
+    "noErrorTruncation": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "preserveWatchOutput": true,
+    "sourceMap": true,
+    "strict": true,
+    "strictBindCallApply": false,
     "target": "es5",
-    "sourceMap": true
+    "noUncheckedIndexedAccess": true,
+    "outDir": "dist",
+    "module": "commonjs"
   }
 }
