@@ -1,4 +1,4 @@
-export {
+export type {
   Breadcrumb,
   BreadcrumbHint,
   Request,
@@ -45,8 +45,8 @@ export {
   close,
   wrap
 } from "./sdk";
-export { MiniappOptions } from "./backend";
-export { MiniappClient, ReportDialogOptions } from "./client";
+export { type MiniappOptions } from "./backend";
+export { MiniappClient, type ReportDialogOptions } from "./client";
 
 import * as Integrations from "./integrations/index";
 import * as Transports from "./transports/index";

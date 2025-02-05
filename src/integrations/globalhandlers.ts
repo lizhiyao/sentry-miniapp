@@ -17,13 +17,11 @@ export class GlobalHandlers implements Integration {
   /**
    * @inheritDoc
    */
-  public name: string = GlobalHandlers.id;
-
+  public static id: string = "GlobalHandlers";
   /**
    * @inheritDoc
    */
-  public static id: string = "GlobalHandlers";
-
+  public name: string = GlobalHandlers.id;
   /** JSDoc */
   private readonly _options: GlobalHandlersIntegrations;
 

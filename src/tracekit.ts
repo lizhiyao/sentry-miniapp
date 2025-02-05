@@ -50,14 +50,15 @@ const gecko = /^\s*(.*?)(?:\((.*?)\))?(?:^|@)?((?:file|https?|blob|chrome|webpac
 const winjs = /^\s*at (?:((?:\[object object\])?.+) )?\(?((?:file|ms-appx|https?|webpack|blob):.*?):(\d+)(?::(\d+))?\)?\s*$/i;
 const geckoEval = /(\S+) line (\d+)(?: > eval line \d+)* > eval/i;
 const chromeEval = /\((\S*)(?::(\d+))(?::(\d+))\)/;
-const miniapp = /^\s*at (\w.*) \((\w*.js):(\d*):(\d*)/i;
+// const miniapp = /^\s*at (\w.*) \((\w*.js):(\d*):(\d*)/i;
+const miniapp = /^\s*at (.*?) ?\((\S*):(\d+):(\d+)\)/i;
 
 /** JSDoc */
 export function computeStackTrace(ex: any): StackTrace {
   // console.log('computeStackTrace', ex)
   // tslint:disable:no-unsafe-any
 
-  let stack = null;
+  let stack: any = null;
   const popSize: number = ex && ex.framesToPop;
 
   try {
@@ -99,7 +100,7 @@ function computeStackTraceFromStackProp(ex: any): StackTrace | null {
     return null;
   }
 
-  const stack = [];
+  const stack: any[] = [];
   const lines = ex.stack.split("\n");
   let isEval;
   let submatch;
@@ -146,7 +147,7 @@ function computeStackTraceFromStackProp(ex: any): StackTrace | null {
         // Also note, Firefox's column number is 0-based and everything else expects 1-based,
         // so adding 1
         // NOTE: this hack doesn't work if top-most frame is eval
-        stack[0].column = (ex.columnNumber as number) + 1;
+        (stack[0] as any).column = (ex.columnNumber as number) + 1;
       }
       element = {
         url: parts[3],

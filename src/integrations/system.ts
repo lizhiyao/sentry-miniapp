@@ -8,13 +8,11 @@ export class System implements Integration {
   /**
    * @inheritDoc
    */
-  public name: string = System.id;
-
+  public static id: string = "System";
   /**
    * @inheritDoc
    */
-  public static id: string = "System";
-
+  public name: string = System.id;
   /**
    * @inheritDoc
    */

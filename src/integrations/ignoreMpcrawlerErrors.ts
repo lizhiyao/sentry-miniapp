@@ -12,13 +12,11 @@ export class IgnoreMpcrawlerErrors implements Integration {
   /**
    * @inheritDoc
    */
-  public name: string = IgnoreMpcrawlerErrors.id;
-
+  public static id: string = "IgnoreMpcrawlerErrors";
   /**
    * @inheritDoc
    */
-  public static id: string = "IgnoreMpcrawlerErrors";
-
+  public name: string = IgnoreMpcrawlerErrors.id;
   /**
    * @inheritDoc
    */

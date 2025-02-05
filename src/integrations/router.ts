@@ -13,13 +13,11 @@ export class Router implements Integration {
   /**
    * @inheritDoc
    */
-  public name: string = Router.id;
-
+  public static id: string = "Router";
   /**
    * @inheritDoc
    */
-  public static id: string = "Router";
-
+  public name: string = Router.id;
   /** JSDoc */
   private readonly _options: RouterIntegrations;
 

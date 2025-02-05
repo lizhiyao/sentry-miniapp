@@ -8,18 +8,20 @@ export class TryCatch implements Integration {
   /** JSDoc */
   private _ignoreOnError: number = 0;
 
+   /**
+   * @inheritDoc
+   */
+   public static id: string = "TryCatch";
+
   /**
    * @inheritDoc
    */
   public name: string = TryCatch.id;
 
-  /**
-   * @inheritDoc
-   */
-  public static id: string = "TryCatch";
+ 
 
   /** JSDoc */
-  private _wrapTimeFunction(original: () => void): () => number {
+  private _wrapTimeFunction(original: (...args: any) => any): () => number {
     return function(this: any, ...args: any[]): number {
       const originalCallback = args[0];
       args[0] = wrap(originalCallback, {
@@ -65,7 +67,7 @@ export class TryCatch implements Integration {
     }
 
     fill(proto, "addEventListener", function(
-      original: () => void
+      original: (...args: any) => any
     ): (
       eventName: string,
       fn: EventListenerObject,
@@ -100,7 +102,6 @@ export class TryCatch implements Integration {
         } catch (err) {
           // can sometimes get 'Permission denied to access property "handle Event'
         }
-
         return original.call(
           this,
           eventName,
@@ -121,7 +122,7 @@ export class TryCatch implements Integration {
     });
 
     fill(proto, "removeEventListener", function(
-      original: () => void
+      original: (...args: any) => any
     ): (
       this: any,
       eventName: string,

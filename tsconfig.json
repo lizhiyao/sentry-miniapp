@@ -1,11 +1,42 @@
 {
-  "extends": "./node_modules/@sentry/typescript/tsconfig.json",
-  "include": ["src/**/*", "test/**/*"],
-  "exclude": ["./examples"],
   "compilerOptions": {
-    "outDir": "dist",
-    "module": "commonjs",
-    "target": "es5",
-    "sourceMap": true
-  }
+    "target": "ES5",
+    "module": "ESNext",
+    "lib": [
+      "es6",
+      "dom"
+    ],
+    "strict": true,
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowSyntheticDefaultImports": true,
+    "experimentalDecorators": true,
+    "moduleResolution": "node",
+    "noImplicitAny": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "strictNullChecks": true,
+    "baseUrl": ".",
+    "types": [
+      "node"
+    ],
+  },
+  "compileOnSave": false,
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.js",
+  ],
+  "exclude": [
+    "dist/**/*",
+    "node_modules/**/*",
+    "**/dist/**/*",
+    "**/node_modules/**/*"
+  ]
 }
