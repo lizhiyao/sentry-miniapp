@@ -203,7 +203,7 @@ function computeStackTraceFromStacktraceProp(ex: any): StackTrace | null {
 
   for (let line = 0; line < lines.length; line += 2) {
     // tslint:disable:no-conditional-assignment
-    let element = null;
+    let element: any = null;
     if ((parts = opera10Regex.exec(lines[line]))) {
       element = {
         url: parts[2],
@@ -211,7 +211,7 @@ function computeStackTraceFromStacktraceProp(ex: any): StackTrace | null {
         args: [],
         line: +parts[1],
         column: null,
-      };
+      } as any;
     } else if ((parts = opera11Regex.exec(lines[line]))) {
       element = {
         url: parts[6],
@@ -219,14 +219,14 @@ function computeStackTraceFromStacktraceProp(ex: any): StackTrace | null {
         args: parts[5] ? parts[5].split(",") : [],
         line: +parts[1],
         column: +parts[2],
-      };
+      } as any;
     }
 
     if (element) {
       if (!element.func && element.line) {
         element.func = UNKNOWN_FUNCTION;
       }
-      stack.push(element);
+      (stack as any[]).push(element);
     }
   }
 

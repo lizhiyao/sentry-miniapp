@@ -31,7 +31,7 @@ export function eventFromUnknownInput(
     event = eventFromStacktrace(computeStackTrace(exception as Error));
     return event;
   }
-  if (isDOMError(exception as DOMError) || isDOMException(exception as DOMException)) {
+  if (isDOMError(exception as any) || isDOMException(exception as DOMException)) {
     // If it is a DOMError or DOMException (which are legacy APIs, but still supported in some browsers)
     // then we just extract the name and message, as they don't provide anything else
     // https://developer.mozilla.org/en-US/docs/Web/API/DOMError
@@ -95,7 +95,7 @@ export function eventFromString(
   if (options.attachStacktrace && syntheticException) {
     const stacktrace = computeStackTrace(syntheticException);
     const frames = prepareFramesForEvent(stacktrace.stack);
-    event.stacktrace = {
+    (event as any).stacktrace = {
       frames,
     };
   }

@@ -1,19 +1,20 @@
-export type {
-  Breadcrumb,
-  BreadcrumbHint,
-  Request,
-  SdkInfo,
-  Event,
-  EventHint,
-  EventStatus,
-  Exception,
-  Response,
+export {
+  type Breadcrumb,
+  type BreadcrumbHint,
+  type Request,
+  type SdkInfo,
+  type Event,
+  type EventHint,
+  type EventStatus,
+  type Exception,
+  type Response,
   Severity,
-  StackFrame,
-  Stacktrace,
-  Thread,
-  User,
+  type StackFrame,
+  type Stacktrace,
+  type Thread,
+  type User,
 } from "@sentry/types";
+
 
 export {
   addGlobalEventProcessor,
@@ -32,7 +33,7 @@ export {
   setTag,
   setTags,
   setUser,
-  withScope
+  withScope,
 } from "@sentry/core";
 
 export { SDK_NAME, SDK_VERSION } from "./version";

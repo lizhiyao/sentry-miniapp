@@ -11,7 +11,6 @@
     "checkJs": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
@@ -30,8 +29,8 @@
   },
   "compileOnSave": false,
   "include": [
-    "src/**/*.ts",
-    "src/**/*.js",
+    "*.ts",
+    "**/*.ts",
   ],
   "exclude": [
     "dist/**/*",
