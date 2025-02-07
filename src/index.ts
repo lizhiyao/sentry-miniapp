@@ -33,6 +33,7 @@ export {
   setTag,
   setTags,
   setUser,
+  startTransaction,
   withScope,
 } from "@sentry/core";
 
