@@ -17,6 +17,8 @@ import {
   TryCatch,
 } from "./integrations/index";
 
+import { MiniAppTracing } from './tracing';
+
 export const defaultIntegrations = [
   new CoreIntegrations.InboundFilters(),
   new CoreIntegrations.FunctionToString(),
@@ -27,6 +29,8 @@ export const defaultIntegrations = [
   new System(),
   new Router(),
   new IgnoreMpcrawlerErrors(),
+
+  new MiniAppTracing(),
 ];
 
 /**

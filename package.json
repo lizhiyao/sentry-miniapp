@@ -20,8 +20,8 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "unbuild",
-    "prepack": "unbuild",
+    "build": "npx tsup",
+    "prepack": "npx tsup",
     "version": "node ./scripts/versionbump.js src/version.ts"
   },
   "keywords": [
