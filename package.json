@@ -18,9 +18,9 @@
     "微信小程序"
   ],
   "author": "dancerlzy@gmail.com",
-  "license": "BSD-3-Clause",
+  "license": "MIT",
   "engines": {
-    "node": ">=8"
+    "node": ">=18"
   },
   "devDependencies": {},
   "dependencies": {}
