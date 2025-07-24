@@ -20,7 +20,6 @@ export default defineConfig([
     entry: [
       './src/index.ts', // 确保这个路径指向你的源码入口
     ],
-    outDir: "/Users/zhangjunqing/hopegoo/hopegoo-weapp-main/src/utils/sentry-miniapp/",
     // dts: true,
     // sourcemap: true,
     // watch: !!argv.watch,
