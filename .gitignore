@@ -3,7 +3,7 @@ node_modules/
 packages/*/package-lock.json
 
 # build and test
-dist/
+# dist/
 esm/
 build/
 packages/*/dist/

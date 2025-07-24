@@ -29,11 +29,50 @@
 - [x] 支持在 [Taro](https://taro.aotu.io/) 等第三方小程序框架中使用
 - [x] 默认上报异常发生时的路由栈
 
+## 用法
+
+将dist产物拷贝到项目中（如 /sentry-miniapp/index.js），在 app.js 中引用并初始化 Sentry，根据实际需求设置上报到 Sentry 的元信息
+
+```ts
+import * as Sentry from "@/sentry-miniapp/index.js";
+
+// init Sentry
+// init options: https://github.com/getsentry/sentry-javascript/blob/master/packages/types/src/options.ts
+Sentry.init({
+  dsn: "__DSN__",
+  // ...
+});
+
+// Set user information, as well as tags and further extras
+Sentry.configureScope((scope) => {
+  scope.setExtra("battery", 0.7);
+  scope.setTag("user_mode", "admin");
+  scope.setUser({ id: "4711" });
+  // scope.clear();
+});
+
+// Add a breadcrumb for future events
+Sentry.addBreadcrumb({
+  message: "My Breadcrumb",
+  // ...
+});
+
+// Capture exceptions, messages or manual events
+Sentry.captureException(new Error("Good bye"));
+Sentry.captureMessage("Hello, world!");
+Sentry.captureEvent({
+  message: "Manual",
+  stacktrace: [
+    // ...
+  ],
+});
+
+```
 
 
 ## 鸣谢
 
-项目基于https://github.com/lizhiyao/sentry-miniapp基础上升级，主要做了如下工作：
+项目基于[sentry-miniapp](https://github.com/lizhiyao/sentry-miniapp) 基础上优化，主要做了如下工作:
 
 1. **fix:**  微信小程序异常信息栈的解析
 2. **chore:** 升级 sentry 核心依赖至 6.19.7

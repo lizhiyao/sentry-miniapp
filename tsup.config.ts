@@ -25,7 +25,7 @@ export default defineConfig([
     // watch: !!argv.watch,
     clean: true,
     treeshake: true,
-    // minify: argv.watch ? false : "terser",
+    minify: argv.watch ? false : "terser",
     target: "esnext",
     noExternal: [/^@sentry\//],
     format: [/* "cjs",  */"esm"],
