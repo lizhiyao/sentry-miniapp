@@ -20,7 +20,7 @@ export default defineConfig([
     entry: [
       './src/index.ts', // 确保这个路径指向你的源码入口
     ],
-    // dts: true,
+    dts: true,
     // sourcemap: true,
     // watch: !!argv.watch,
     clean: true,

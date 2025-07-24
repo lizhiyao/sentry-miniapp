@@ -35,7 +35,7 @@ export class MiniAppTracing implements Integration {
       true,
       {}, // for use in the tracesSampler
     );
-    idleTransaction.registerBeforeFinishCallback((transaction, endTimestamp) => {
+    idleTransaction.registerBeforeFinishCallback((_transaction, _endTimestamp) => {
     });
 
     idleTransaction.setTag('idleTimeout', idleTimeout);
