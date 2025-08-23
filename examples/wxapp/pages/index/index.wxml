@@ -1,34 +1,79 @@
 <!--index.wxml-->
 <view class="container">
+  <!-- 顶部装饰背景 -->
+  <view class="bg-decoration"></view>
+  
+  <!-- 头部区域 -->
   <view class="header">
-    <text class="title">Sentry 小程序 SDK 示例</text>
-    <text class="subtitle">演示错误监控和性能追踪功能</text>
+    <text class="title">Sentry 小程序 SDK</text>
+    <text class="subtitle">实时错误监控 · 性能追踪 · 数据分析</text>
   </view>
 
-  <view class="user-info">
-    <block wx:if="{{hasUserInfo}}">
-      <image class="userinfo-avatar" src="{{userInfo.avatarUrl}}" mode="cover"></image>
-      <text class="userinfo-nickname">{{userInfo.nickName}}</text>
-    </block>
-    <block wx:else>
-      <button wx:if="{{canIUseGetUserProfile}}" bindtap="getUserProfile" class="btn"> 获取头像昵称 </button>
-      <button wx:else open-type="getUserInfo" bindgetuserinfo="getUserInfo" class="btn"> 获取头像昵称 </button>
-    </block>
-  </view>
 
-  <view class="test-section">
-    <text class="section-title">功能测试</text>
+
+  <!-- 统计数据区域 -->
+  <view class="stats-section">
+    <view class="stats-header">
+      <text class="stats-title">📊 使用统计</text>
+      <text class="stats-desc">npm 包下载数据 & GitHub 数据</text>
+    </view>
     
-    <button bindtap="testRequest" class="test-btn">测试网络请求</button>
-    <button bindtap="testException" class="test-btn">测试异常捕获</button>
-    <button bindtap="testMessage" class="test-btn">测试消息上报</button>
-    <button bindtap="testAsyncError" class="test-btn">测试异步错误</button>
+    <view class="stats-grid">
+      <view class="stat-item">
+        <view class="stat-icon">📦</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.totalDownloads || '--'}}</text>
+          <text class="stat-label">总下载量</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">📅</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.lastMonthDownloads || '--'}}</text>
+          <text class="stat-label">本月下载</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">🔥</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.lastDayDownloads || '--'}}</text>
+          <text class="stat-label">今日下载</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">⭐</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.githubStars || '--'}}</text>
+          <text class="stat-label">GitHub Stars</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">🍴</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.githubForks || '--'}}</text>
+          <text class="stat-label">GitHub Forks</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">📈</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.version || 'v1.0.0'}}</text>
+          <text class="stat-label">当前版本</text>
+        </view>
+      </view>
+    </view>
+    
+    <view class="stats-footer">
+      <text class="stats-update">数据更新时间: {{stats.lastUpdate || '加载中...'}}</text>
+    </view>
   </view>
 
-  <view class="info-section">
-    <text class="info-title">使用说明</text>
-    <text class="info-text">1. 点击按钮测试各种功能</text>
-    <text class="info-text">2. 错误和事件会自动上报到 Sentry</text>
-    <text class="info-text">3. 查看开发者工具控制台输出</text>
-  </view>
+
+
+
 </view>

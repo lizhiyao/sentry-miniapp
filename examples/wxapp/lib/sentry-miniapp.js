@@ -4497,6 +4497,62 @@ class MiniappClient extends BaseClient {
       console.warn("sentry-miniapp: showModal is not available in current miniapp platform", options);
     }
   }
+  /**
+   * Capture user feedback and send it to Sentry.
+   * 捕获用户反馈并发送到 Sentry
+   *
+   * @param feedback User feedback object
+   * @returns Event ID
+   */
+  captureUserFeedback(feedback) {
+    const envelope = this._createUserFeedbackEnvelope(feedback);
+    this.sendEnvelope(envelope);
+    return feedback.event_id;
+  }
+  /**
+   * Capture feedback using the new feedback API.
+   * 使用新的反馈 API 捕获反馈
+   *
+   * @param params Feedback parameters
+   * @returns Event ID
+   */
+  captureFeedback(params) {
+    const feedbackEvent = {
+      contexts: {
+        feedback: {
+          contact_email: params.email,
+          name: params.name,
+          message: params.message,
+          url: params.url,
+          source: params.source,
+          associated_event_id: params.associatedEventId
+        }
+      },
+      type: "feedback",
+      level: "info",
+      tags: params.tags || {}
+    };
+    const scope = getCurrentScope();
+    return scope.captureEvent(feedbackEvent);
+  }
+  /**
+   * Create user feedback envelope
+   * 创建用户反馈信封
+   */
+  _createUserFeedbackEnvelope(feedback) {
+    const headers = {
+      event_id: feedback.event_id,
+      sent_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const item = {
+      type: "user_report",
+      data: feedback
+    };
+    return {
+      headers,
+      items: [item]
+    };
+  }
 }
 const _GlobalHandlers = class _GlobalHandlers {
   /** JSDoc */
@@ -4795,17 +4851,81 @@ function getFunctionName(fn) {
   }
 }
 const _Breadcrumbs = class _Breadcrumbs {
+  // 字符串压缩缓存
   /**
    * @inheritDoc
    */
   constructor(options) {
     this.name = _Breadcrumbs.id;
+    this._lastBreadcrumbs = /* @__PURE__ */ new Map();
+    this._stringCache = /* @__PURE__ */ new Map();
     this._options = __spreadValues({
       console: true,
       navigation: true,
       request: true,
-      userInteraction: true
+      userInteraction: true,
+      maxDataSize: 512
     }, options);
+  }
+  /**
+   * 过滤面包屑，避免重复和无用的面包屑
+   */
+  /**
+   * 压缩面包屑数据中的重复字符串
+   */
+  _compressBreadcrumbData(breadcrumb) {
+    var _a;
+    const compressed = __spreadValues({}, breadcrumb);
+    if ((_a = compressed.data) == null ? void 0 : _a.url) {
+      const url = compressed.data.url;
+      const urlParts = url.split("/");
+      if (urlParts.length > 3) {
+        const domain = urlParts.slice(0, 3).join("/");
+        const path = urlParts.slice(3).join("/");
+        const domainMap = {
+          "https://api.npmjs.org": "npm",
+          "https://img.shields.io": "shields",
+          "https://registry.npmjs.org": "reg"
+        };
+        const shortDomain = domainMap[domain] || domain;
+        compressed.data.url = path ? `${shortDomain}/${path}` : shortDomain;
+      }
+    }
+    if (compressed.message) {
+      compressed.message = compressed.message.replace(/https?:\/\/[^\s]+/g, "[URL]").replace(/\b\d{3}\b/g, (match) => {
+        const statusMap = {
+          "200": "OK",
+          "404": "NF",
+          "500": "ERR"
+        };
+        return statusMap[match] || match;
+      });
+    }
+    return compressed;
+  }
+  _shouldFilterBreadcrumb(breadcrumb) {
+    const { category, message, data } = breadcrumb;
+    const now = Date.now();
+    const key = `${category}:${message}`;
+    const lastBreadcrumb = this._lastBreadcrumbs.get(key);
+    if (lastBreadcrumb && now - lastBreadcrumb.timestamp < 1e3) {
+      if (category === "http" || category === "navigation") {
+        const dataStr = JSON.stringify(data);
+        const lastDataStr = JSON.stringify(lastBreadcrumb.data);
+        if (dataStr === lastDataStr) {
+          return true;
+        }
+      } else {
+        return true;
+      }
+    }
+    this._lastBreadcrumbs.set(key, { timestamp: now, data });
+    for (const [cacheKey, cache] of this._lastBreadcrumbs.entries()) {
+      if (now - cache.timestamp > 1e4) {
+        this._lastBreadcrumbs.delete(cacheKey);
+      }
+    }
+    return false;
   }
   /**
    * @inheritDoc
@@ -4839,25 +4959,33 @@ const _Breadcrumbs = class _Breadcrumbs {
         originalConsoleMethod.apply(global2.console, args);
         setTimeout(() => {
           try {
-            const message = args && args.length > 0 ? args.map(
-              (arg) => typeof arg === "string" ? arg : typeof arg === "object" ? JSON.stringify(arg) : String(arg)
-            ).join(" ") : `[${level}]`;
-            addBreadcrumb(
-              {
-                category: "console",
-                data: {
-                  arguments: args,
-                  logger: "console"
-                },
-                level: level === "warn" ? "warning" : level === "error" ? "error" : "info",
-                message,
-                timestamp: Date.now() / 1e3
-              },
-              {
-                input: args,
-                level
+            let message;
+            if (level === "assert") {
+              if (args[0] === false) {
+                message = `Assertion failed: ${args.slice(1).map(
+                  (arg) => typeof arg === "string" ? arg : typeof arg === "object" ? JSON.stringify(arg) : String(arg)
+                ).join(" ") || "console.assert"}`;
+              } else {
+                return;
               }
-            );
+            } else {
+              message = args && args.length > 0 ? args.map(
+                (arg) => typeof arg === "string" ? arg : typeof arg === "object" ? JSON.stringify(arg) : String(arg)
+              ).join(" ") : `[${level}]`;
+            }
+            const maxMessageLength = this._options.maxDataSize || 512;
+            if (message.length > maxMessageLength) {
+              message = message.substring(0, maxMessageLength - 3) + "...";
+            }
+            const breadcrumb = {
+              category: "console",
+              level: level === "warn" ? "warning" : level === "error" ? "error" : level === "assert" ? "error" : "info",
+              message
+            };
+            if (!this._shouldFilterBreadcrumb(breadcrumb)) {
+              const compressedBreadcrumb = this._compressBreadcrumbData(breadcrumb);
+              addBreadcrumb(compressedBreadcrumb);
+            }
           } catch (e) {
           }
         }, 0);
@@ -4868,30 +4996,44 @@ const _Breadcrumbs = class _Breadcrumbs {
   _instrumentNavigation() {
     const global2 = globalThis;
     if (global2.getCurrentPages) {
-      const originalGetCurrentPages = global2.getCurrentPages;
       let lastPagePath = "";
-      setInterval(() => {
+      let checkCount = 0;
+      const maxChecks = 60;
+      const checkPageChange = () => {
         try {
-          const pages = originalGetCurrentPages();
+          const pages = global2.getCurrentPages();
           if (pages && pages.length > 0) {
             const currentPage = pages[pages.length - 1];
             const currentPath = currentPage.route || currentPage.__route__ || "";
             if (currentPath && currentPath !== lastPagePath) {
-              addBreadcrumb({
-                category: "navigation",
-                data: {
-                  from: lastPagePath,
-                  to: currentPath
-                },
-                message: `Navigation to ${currentPath}`,
-                type: "navigation"
-              });
+              if (lastPagePath) {
+                const breadcrumb = {
+                  category: "navigation",
+                  data: {
+                    from: lastPagePath.split("/").pop() || lastPagePath,
+                    // 只保留页面名称
+                    to: currentPath.split("/").pop() || currentPath
+                    // 只保留页面名称
+                  },
+                  message: `→ ${currentPath.split("/").pop() || currentPath}`
+                  // 简化message
+                };
+                if (!this._shouldFilterBreadcrumb(breadcrumb)) {
+                  addBreadcrumb(breadcrumb);
+                }
+              }
               lastPagePath = currentPath;
+              checkCount = 0;
+            } else {
+              checkCount++;
             }
           }
         } catch (e) {
         }
-      }, 1e3);
+        const nextInterval = checkCount > maxChecks ? 5e3 : 2e3;
+        setTimeout(checkPageChange, nextInterval);
+      };
+      setTimeout(checkPageChange, 1e3);
     }
   }
   /** JSDoc */
@@ -4900,60 +5042,60 @@ const _Breadcrumbs = class _Breadcrumbs {
       return;
     }
     const originalRequest = sdk().request;
+    this._options.maxDataSize || 512;
+    const self2 = this;
     sdk().request = function(options) {
-      const startTime = Date.now();
-      addBreadcrumb({
-        category: "http",
-        data: {
-          method: options.method || "GET",
-          url: options.url,
-          data: options.data
-        },
-        message: `${options.method || "GET"} ${options.url}`,
-        type: "http"
-      });
+      const method = options.method || "GET";
+      const url = options.url;
+      if (url && (url.includes("sentry.io") || url.includes("sentry_key"))) {
+        return originalRequest.call(this, options);
+      }
       const originalSuccess = options.success;
       const originalFail = options.fail;
-      const originalComplete = options.complete;
       options.success = function(res) {
-        const duration = Date.now() - startTime;
-        addBreadcrumb({
+        const statusCode = res.statusCode || res.status || 200;
+        const breadcrumb = {
           category: "http",
           data: {
-            method: options.method || "GET",
-            url: options.url,
-            status_code: res.statusCode,
-            duration
+            method,
+            url: url.replace(/`/g, ""),
+            // 移除URL中的反引号
+            status_code: statusCode
           },
-          message: `${options.method || "GET"} ${options.url} [${res.statusCode}]`,
+          message: `${method} [${statusCode}]`,
+          // 简化message，避免重复URL
           type: "http",
-          level: res.statusCode >= 400 ? "error" : "info"
-        });
+          level: statusCode >= 400 ? "error" : "info"
+        };
+        if (!self2._shouldFilterBreadcrumb(breadcrumb)) {
+          const compressedBreadcrumb = self2._compressBreadcrumbData(breadcrumb);
+          addBreadcrumb(compressedBreadcrumb);
+        }
         if (originalSuccess) {
           originalSuccess.call(this, res);
         }
       };
-      options.fail = function(err) {
-        const duration = Date.now() - startTime;
-        addBreadcrumb({
+      options.fail = function(error2) {
+        const breadcrumb = {
           category: "http",
           data: {
-            method: options.method || "GET",
-            url: options.url,
-            error: err.errMsg || err.message,
-            duration
+            method,
+            url: url.replace(/`/g, ""),
+            // 移除URL中的反引号
+            error: (error2 == null ? void 0 : error2.message) || "Request failed"
+            // 简化错误信息
           },
-          message: `${options.method || "GET"} ${options.url} failed`,
+          message: `${method} failed`,
+          // 简化message，避免重复URL
           type: "http",
           level: "error"
-        });
-        if (originalFail) {
-          originalFail.call(this, err);
+        };
+        if (!self2._shouldFilterBreadcrumb(breadcrumb)) {
+          const compressedBreadcrumb = self2._compressBreadcrumbData(breadcrumb);
+          addBreadcrumb(compressedBreadcrumb);
         }
-      };
-      options.complete = function(res) {
-        if (originalComplete) {
-          originalComplete.call(this, res);
+        if (originalFail) {
+          originalFail.call(this, error2);
         }
       };
       return originalRequest.call(this, options);
@@ -4964,11 +5106,15 @@ const _Breadcrumbs = class _Breadcrumbs {
     const global2 = globalThis;
     if (global2.wx && global2.wx.onTouchStart) {
       global2.wx.onTouchStart(() => {
-        addBreadcrumb({
+        const breadcrumb = {
           category: "ui",
           message: "Touch interaction",
           type: "user"
-        });
+        };
+        if (!this._shouldFilterBreadcrumb(breadcrumb)) {
+          const compressedBreadcrumb = this._compressBreadcrumbData(breadcrumb);
+          addBreadcrumb(compressedBreadcrumb);
+        }
       });
     }
   }
@@ -5614,6 +5760,24 @@ function wrap(fn) {
     });
   });
 }
+function captureUserFeedback(feedback) {
+  const client = getCurrentScope().getClient();
+  if (client) {
+    return client.captureUserFeedback(feedback);
+  } else {
+    console.warn("sentry-miniapp: No client available for captureUserFeedback");
+    return feedback.event_id;
+  }
+}
+function captureFeedback(params) {
+  const client = getCurrentScope().getClient();
+  if (client) {
+    return client.captureFeedback(params);
+  } else {
+    console.warn("sentry-miniapp: No client available for captureFeedback");
+    return "";
+  }
+}
 ensurePolyfills();
 exports.Integrations = index;
 exports.MiniappClient = MiniappClient;
@@ -5624,7 +5788,9 @@ exports.addBreadcrumb = addBreadcrumb;
 exports.addEventProcessor = addEventProcessor;
 exports.captureEvent = captureEvent;
 exports.captureException = captureException;
+exports.captureFeedback = captureFeedback;
 exports.captureMessage = captureMessage;
+exports.captureUserFeedback = captureUserFeedback;
 exports.close = close;
 exports.defaultIntegrations = defaultIntegrations;
 exports.flush = flush;

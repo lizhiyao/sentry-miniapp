@@ -52,8 +52,8 @@ export {
 
 // Export SDK specific exports
 export { SDK_NAME, SDK_VERSION } from './version';
-export { init, showReportDialog, wrap } from './sdk';
-export type { MiniappOptions } from './types';
+export { init, showReportDialog, wrap, captureUserFeedback, captureFeedback } from './sdk';
+export type { MiniappOptions, UserFeedback, SendFeedbackParams } from './types';
 export { MiniappClient } from './client';
 export * as Integrations from './integrations/index';
 export * as Transports from './transports/index';

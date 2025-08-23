@@ -95,3 +95,31 @@ export interface ReportDialogOptions {
   /** Callback after reportDialog showed up */
   onLoad?(): void;
 }
+
+/**
+ * User feedback object for crash reports
+ */
+export interface UserFeedback {
+  event_id: string;
+  email?: string;
+  name: string;
+  comments: string;
+}
+
+/**
+ * Parameters for sending user feedback
+ */
+export interface SendFeedbackParams {
+  message: string;
+  name?: string;
+  email?: string;
+  url?: string;
+  source?: string;
+  associatedEventId?: string;
+  /**
+   * Set an object that will be merged sent as tags data with the event.
+   */
+  tags?: {
+    [key: string]: string | number | boolean;
+  };
+}

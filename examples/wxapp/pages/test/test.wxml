@@ -1,0 +1,135 @@
+<!--test.wxml-->
+<view class="container">
+  <!-- 顶部装饰背景 -->
+  <view class="bg-decoration"></view>
+  
+  <!-- 用户信息区域 - 右上角 -->
+  <view class="user-info-corner" wx:if="{{hasUserInfo}}">
+    <image class="corner-avatar" src="{{userInfo.avatarUrl}}" mode="cover"></image>
+    <text class="corner-nickname">{{userInfo.nickName}}</text>
+  </view>
+
+  <!-- 头部区域 -->
+  <view class="header">
+    <text class="title">功能测试</text>
+    <text class="subtitle">体验 Sentry SDK 的各种功能</text>
+  </view>
+
+  <!-- 登录提示区域 -->
+  <view class="login-card" wx:if="{{!hasUserInfo}}">
+    <view class="login-prompt">
+      <view class="login-icon">🔐</view>
+      <text class="login-text">请先登录以体验 SDK 功能</text>
+      <button wx:if="{{canIUseGetUserProfile}}" bindtap="getUserProfile" class="login-btn">
+        <text class="btn-text">获取头像昵称</text>
+      </button>
+      <button wx:else open-type="getUserInfo" bindgetuserinfo="getUserInfo" class="login-btn">
+        <text class="btn-text">获取头像昵称</text>
+      </button>
+    </view>
+  </view>
+
+  <!-- 功能测试区域 -->
+  <view class="test-section">
+    <view class="section-header">
+      <text class="section-title">🧪 功能模块</text>
+      <text class="section-desc">点击按钮测试不同的 SDK 功能</text>
+    </view>
+    
+    <view class="test-grid">
+      <button bindtap="testRequest" class="test-btn network {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">🌐</view>
+        <text class="btn-title">网络请求</text>
+        <text class="btn-desc">测试 HTTP 请求监控</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
+      
+      <button bindtap="testException" class="test-btn exception {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">⚠️</view>
+        <text class="btn-title">异常捕获</text>
+        <text class="btn-desc">测试错误自动捕获</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
+      
+      <button bindtap="testMessage" class="test-btn message {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">📝</view>
+        <text class="btn-title">消息上报</text>
+        <text class="btn-desc">测试自定义事件</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
+      
+      <button bindtap="testAsyncError" class="test-btn async {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">⏱️</view>
+        <text class="btn-title">异步错误</text>
+        <text class="btn-desc">测试异步异常处理</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
+      
+      <button bindtap="testUserFeedback" class="test-btn feedback {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">💬</view>
+        <text class="btn-title">用户反馈</text>
+        <text class="btn-desc">测试反馈功能</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
+      
+      <button bindtap="testCaptureFeedback" class="test-btn capture-feedback {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">📝</view>
+        <text class="btn-title">新反馈API</text>
+        <text class="btn-desc">测试captureFeedback</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
+    </view>
+  </view>
+
+  <!-- 测试结果区域 -->
+  <view class="results-section" wx:if="{{testResults.length > 0}}">
+    <view class="section-header">
+      <text class="section-title">📊 测试结果</text>
+      <button class="clear-btn" bindtap="clearResults">清空</button>
+    </view>
+    
+    <view class="results-list">
+      <view class="result-item" wx:for="{{testResults}}" wx:key="index">
+        <view class="result-header">
+          <text class="result-type">{{item.type}}</text>
+          <text class="result-status {{item.status === '成功' ? 'success' : 'error'}}">{{item.status}}</text>
+        </view>
+        <text class="result-detail">{{item.detail}}</text>
+        <text class="result-time">{{item.timestamp}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 使用指南 -->
+  <view class="guide-section">
+    <view class="guide-header">
+      <text class="guide-title">📖 使用指南</text>
+    </view>
+    
+    <view class="guide-steps">
+      <view class="step-item">
+        <view class="step-number">1</view>
+        <view class="step-content">
+          <text class="step-title">点击测试按钮</text>
+          <text class="step-desc">选择想要测试的功能模块</text>
+        </view>
+      </view>
+      
+      <view class="step-item">
+        <view class="step-number">2</view>
+        <view class="step-content">
+          <text class="step-title">查看测试结果</text>
+          <text class="step-desc">在下方结果区域查看执行状态</text>
+        </view>
+      </view>
+      
+      <view class="step-item">
+        <view class="step-number">3</view>
+        <view class="step-content">
+          <text class="step-title">Sentry 后台</text>
+          <text class="step-desc">登录 Sentry 查看上报的数据</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
