@@ -31,6 +31,7 @@ export type {
 // Export core functions from @sentry/core
 export {
   addEventProcessor,
+  addIntegration,
   captureException,
   captureEvent,
   captureMessage,
@@ -48,6 +49,7 @@ export {
   flush,
   close,
   lastEventId,
+  isEnabled,
 } from '@sentry/core';
 
 // Export SDK specific exports
