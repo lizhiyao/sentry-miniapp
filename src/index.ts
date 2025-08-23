@@ -50,6 +50,10 @@ export {
   close,
   lastEventId,
   isEnabled,
+  // Session management APIs
+  startSession,
+  endSession,
+  captureSession,
 } from '@sentry/core';
 
 // Export SDK specific exports
@@ -59,6 +63,9 @@ export type { MiniappOptions, SendFeedbackParams } from './types';
 export { MiniappClient } from './client';
 export * as Integrations from './integrations/index';
 export * as Transports from './transports/index';
+
+// Export Session utility functions from @sentry/core
+export { makeSession, closeSession, updateSession } from '@sentry/core';
 
 // Export default integrations
 export { defaultIntegrations, getDefaultIntegrations } from './sdk';
