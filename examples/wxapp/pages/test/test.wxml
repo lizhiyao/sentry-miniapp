@@ -68,14 +68,14 @@
       <button bindtap="testUserFeedback" class="test-btn feedback {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
         <view class="btn-icon">💬</view>
         <text class="btn-title">用户反馈</text>
-        <text class="btn-desc">测试反馈功能</text>
+        <text class="btn-desc">测试错误关联反馈</text>
         <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
       </button>
       
       <button bindtap="testCaptureFeedback" class="test-btn capture-feedback {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
         <view class="btn-icon">📝</view>
-        <text class="btn-title">新反馈API</text>
-        <text class="btn-desc">测试captureFeedback</text>
+        <text class="btn-title">独立反馈</text>
+        <text class="btn-desc">测试独立用户反馈</text>
         <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
       </button>
     </view>
