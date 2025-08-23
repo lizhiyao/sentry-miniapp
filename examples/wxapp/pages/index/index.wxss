@@ -1,0 +1,116 @@
+/**index.wxss**/
+.container {
+  padding: 40rpx;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 60rpx;
+}
+
+.title {
+  display: block;
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+}
+
+.subtitle {
+  display: block;
+  font-size: 28rpx;
+  color: #666;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 60rpx;
+  padding: 40rpx;
+  background-color: #fff;
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.1);
+}
+
+.userinfo-avatar {
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: 50%;
+  margin-bottom: 20rpx;
+}
+
+.userinfo-nickname {
+  font-size: 32rpx;
+  color: #333;
+}
+
+.btn {
+  background-color: #07c160;
+  color: white;
+  border-radius: 10rpx;
+  padding: 20rpx 40rpx;
+  font-size: 28rpx;
+}
+
+.test-section {
+  margin-bottom: 60rpx;
+}
+
+.section-title {
+  display: block;
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 30rpx;
+  text-align: center;
+}
+
+.test-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 20rpx;
+  background-color: #1989fa;
+  color: white;
+  border-radius: 10rpx;
+  padding: 25rpx;
+  font-size: 28rpx;
+  text-align: center;
+}
+
+.test-btn:last-child {
+  margin-bottom: 0;
+}
+
+.test-btn:active {
+  background-color: #0570d9;
+}
+
+.info-section {
+  background-color: #fff;
+  padding: 40rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.1);
+}
+
+.info-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+}
+
+.info-text {
+  display: block;
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 10rpx;
+}
+
+.info-text:last-child {
+  margin-bottom: 0;
+}

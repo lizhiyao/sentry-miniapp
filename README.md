@@ -1,4 +1,4 @@
-# Sentry 小程序 SDK
+# Sentry Miniapp SDK
 
 ![npm version](https://img.shields.io/npm/v/sentry-miniapp)
 ![npm download](https://img.shields.io/npm/dm/sentry-miniapp)
@@ -7,7 +7,104 @@
 ![github watchers](https://img.shields.io/github/watchers/lizhiyao/sentry-miniapp?style=social)
 ![github license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
 
-用于小程序平台的 Sentry SDK
+基于 `@sentry/core` 9.38.0 的微信小程序异常监控 SDK。
+
+## 特性
+
+- 🚀 基于最新的 Sentry JavaScript SDK 9.x 版本
+- 📱 支持微信小程序、支付宝小程序、字节跳动小程序等多平台
+- 🔍 自动捕获 JavaScript 异常和未处理的 Promise 拒绝
+- 🍞 自动记录面包屑（用户操作、网络请求、页面导航等）
+- 📊 收集系统信息和设备信息
+- 🎯 支持自定义错误过滤和数据处理
+- 💪 TypeScript 支持
+
+## 安装
+
+```bash
+npm install sentry-miniapp
+```
+
+## 快速开始
+
+### 1. 初始化 SDK
+
+在小程序的 `app.js` 或 `app.ts` 中初始化 Sentry：
+
+```javascript
+import * as Sentry from 'sentry-miniapp';
+
+// 在 App() 之前初始化
+Sentry.init({
+  dsn: 'YOUR_SENTRY_DSN_HERE',
+  environment: 'production', // 或 'development'
+  debug: false, // 开发环境可设置为 true
+  
+  // 小程序特有配置
+  platform: 'wechat', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'baidu'
+  enableSystemInfo: true, // 是否收集系统信息
+  enableUserInteractionBreadcrumbs: true, // 是否记录用户交互面包屑
+  enableConsoleBreadcrumbs: true, // 是否记录控制台日志面包屑
+  enableNavigationBreadcrumbs: true, // 是否记录导航面包屑
+  
+  // 采样率配置
+  sampleRate: 1.0, // 错误采样率
+  
+  // 过滤配置
+  beforeSend(event) {
+    // 可以在这里过滤或修改事件
+    return event;
+  },
+});
+
+App({
+  // 你的小程序配置
+});
+```
+
+### 2. 手动捕获异常
+
+```javascript
+import * as Sentry from 'sentry-miniapp';
+
+// 捕获异常
+try {
+  // 可能出错的代码
+  throw new Error('Something went wrong!');
+} catch (error) {
+  Sentry.captureException(error);
+}
+
+// 捕获消息
+Sentry.captureMessage('用户执行了某个操作', 'info');
+
+// 添加面包屑
+Sentry.addBreadcrumb({
+  message: '用户点击了按钮',
+  category: 'ui',
+  level: 'info',
+  data: {
+    buttonId: 'submit-btn'
+  }
+});
+
+// 设置用户信息
+Sentry.setUser({
+  id: '12345',
+  username: 'john_doe',
+  email: 'john@example.com'
+});
+
+// 设置标签
+Sentry.setTag('page', 'home');
+
+// 设置上下文
+Sentry.setContext('character', {
+  name: 'Mighty Fighter',
+  age: 19,
+  attack_type: 'melee'
+});
+```
 
 ## 功能特点
 

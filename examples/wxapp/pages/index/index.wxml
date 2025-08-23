@@ -1,0 +1,34 @@
+<!--index.wxml-->
+<view class="container">
+  <view class="header">
+    <text class="title">Sentry 小程序 SDK 示例</text>
+    <text class="subtitle">演示错误监控和性能追踪功能</text>
+  </view>
+
+  <view class="user-info">
+    <block wx:if="{{hasUserInfo}}">
+      <image class="userinfo-avatar" src="{{userInfo.avatarUrl}}" mode="cover"></image>
+      <text class="userinfo-nickname">{{userInfo.nickName}}</text>
+    </block>
+    <block wx:else>
+      <button wx:if="{{canIUseGetUserProfile}}" bindtap="getUserProfile" class="btn"> 获取头像昵称 </button>
+      <button wx:else open-type="getUserInfo" bindgetuserinfo="getUserInfo" class="btn"> 获取头像昵称 </button>
+    </block>
+  </view>
+
+  <view class="test-section">
+    <text class="section-title">功能测试</text>
+    
+    <button bindtap="testRequest" class="test-btn">测试网络请求</button>
+    <button bindtap="testException" class="test-btn">测试异常捕获</button>
+    <button bindtap="testMessage" class="test-btn">测试消息上报</button>
+    <button bindtap="testAsyncError" class="test-btn">测试异步错误</button>
+  </view>
+
+  <view class="info-section">
+    <text class="info-title">使用说明</text>
+    <text class="info-text">1. 点击按钮测试各种功能</text>
+    <text class="info-text">2. 错误和事件会自动上报到 Sentry</text>
+    <text class="info-text">3. 查看开发者工具控制台输出</text>
+  </view>
+</view>

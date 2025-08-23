@@ -4,7 +4,15 @@
   "description": "用于小程序平台的 Sentry SDK",
   "repository": "git://github.com/lizhiyao/sentry-miniapp.git",
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
-  "scripts": {},
+  "scripts": {
+    "build": "vite build",
+    "build:miniapp": "vite build --mode miniapp",
+    "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types",
+    "dev": "vite build --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "jest",
+    "prepublishOnly": "npm run build"
+  },
   "keywords": [
     "sentry",
     "weapp",
@@ -22,6 +30,34 @@
   "engines": {
     "node": ">=18"
   },
-  "devDependencies": {},
-  "dependencies": {}
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/sentry-miniapp.esm.js",
+      "require": "./dist/sentry-miniapp.cjs.js"
+    }
+  },
+  "files": [
+    "dist",
+    "lib"
+  ],
+  "devDependencies": {
+    "@jest/globals": "^30.0.4",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.19.11",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "dependencies": {
+    "@sentry/core": "9.38.0"
+  }
 }
