@@ -13,7 +13,7 @@ import type {
 } from '@sentry/core';
 
 import { sdk, appName, getSystemInfo } from './crossPlatform';
-import type { MiniappOptions, ReportDialogOptions, UserFeedback, SendFeedbackParams } from './types';
+import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
 
@@ -154,18 +154,7 @@ export class MiniappClient extends BaseClient<any> {
     }
   }
 
-  /**
-   * Capture user feedback and send it to Sentry.
-   * 捕获用户反馈并发送到 Sentry
-   *
-   * @param feedback User feedback object
-   * @returns Event ID
-   */
-  public captureUserFeedback(feedback: UserFeedback): string {
-    const envelope = this._createUserFeedbackEnvelope(feedback);
-    this.sendEnvelope(envelope);
-    return feedback.event_id;
-  }
+
 
   /**
    * Capture feedback using the new feedback API.
@@ -195,24 +184,5 @@ export class MiniappClient extends BaseClient<any> {
     return scope.captureEvent(feedbackEvent);
   }
 
-  /**
-   * Create user feedback envelope
-   * 创建用户反馈信封
-   */
-  private _createUserFeedbackEnvelope(feedback: UserFeedback): any {
-    const headers = {
-      event_id: feedback.event_id,
-      sent_at: new Date().toISOString(),
-    };
 
-    const item = {
-      type: 'user_report',
-      data: feedback,
-    };
-
-    return {
-      headers,
-      items: [item],
-    };
-  }
 }

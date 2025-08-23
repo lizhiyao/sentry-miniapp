@@ -13,12 +13,11 @@ import { appName, getSystemInfo, isMiniappEnvironment } from './crossPlatform';
 import {
   GlobalHandlers,
   TryCatch,
-  Breadcrumbs,
   LinkedErrors,
   HttpContext,
   Dedupe,
 } from './integrations/index';
-import type { MiniappOptions, ReportDialogOptions, UserFeedback, SendFeedbackParams } from './types';
+import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
 /**
  * Default integrations for the miniapp SDK
@@ -29,7 +28,6 @@ export const defaultIntegrations: Integration[] = [
   new Dedupe(),
   new GlobalHandlers(),
   new TryCatch(),
-  new Breadcrumbs(),
   new LinkedErrors(),
 ];
 
@@ -146,22 +144,7 @@ export function wrap<T extends (...args: any[]) => any>(fn: T): T {
   }) as T;
 }
 
-/**
- * Capture user feedback and send it to Sentry.
- * 捕获用户反馈并发送到 Sentry
- *
- * @param feedback User feedback object
- * @returns Event ID
- */
-export function captureUserFeedback(feedback: UserFeedback): string {
-  const client = getCurrentScope().getClient() as MiniappClient | undefined;
-  if (client) {
-    return client.captureUserFeedback(feedback);
-  } else {
-    console.warn('sentry-miniapp: No client available for captureUserFeedback');
-    return feedback.event_id;
-  }
-}
+
 
 /**
  * Capture feedback using the new feedback API.

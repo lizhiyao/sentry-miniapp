@@ -96,15 +96,7 @@ export interface ReportDialogOptions {
   onLoad?(): void;
 }
 
-/**
- * User feedback object for crash reports
- */
-export interface UserFeedback {
-  event_id: string;
-  email?: string;
-  name: string;
-  comments: string;
-}
+
 
 /**
  * Parameters for sending user feedback

@@ -233,7 +233,7 @@ Page({
 
   // 添加测试结果}),
 
-  // 测试用户反馈功能
+  // 测试用户反馈功能（使用新的 captureFeedback API）
   testUserFeedback: Sentry.wrap(function () {
     if (!this.checkUserLogin()) return;
 
@@ -251,12 +251,19 @@ Page({
       success: function(res) {
         if (res.confirm) {
           try {
-            // 使用传统的 captureUserFeedback API
-            const feedbackId = Sentry.captureUserFeedback({
-              event_id: eventId,
+            // 使用新的 captureFeedback API，关联错误事件
+            const feedbackId = Sentry.captureFeedback({
+              message: '这是一个测试反馈，用于验证 captureFeedback 功能是否正常工作。',
               name: self.data.userInfo.nickName || '测试用户',
               email: 'test@example.com',
-              comments: '这是一个测试反馈，用于验证 captureUserFeedback 功能是否正常工作。'
+              url: 'pages/test/test',
+              source: 'error_feedback_test',
+              associatedEventId: eventId,
+              tags: {
+                category: 'error_feedback',
+                test_mode: true,
+                platform: 'wechat'
+              }
             });
             
             self.addTestResult('用户反馈', '成功', `反馈已发送，事件ID: ${feedbackId}`);

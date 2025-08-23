@@ -1,45 +1,10 @@
-# captureUserFeedback 用户反馈功能
+# captureFeedback 用户反馈功能
 
 ## 概述
 
-`sentry-miniapp` 现在支持用户反馈功能，允许用户向 Sentry 发送反馈信息。我们提供了两种 API：
-
-1. **传统的 `captureUserFeedback`** - 与特定错误事件关联的用户反馈
-2. **新的 `captureFeedback`** - 更灵活的反馈 API，支持更多参数
+`sentry-miniapp` 支持用户反馈功能，允许用户向 Sentry 发送反馈信息。我们提供了灵活的 `captureFeedback` API，支持多种反馈场景。
 
 ## API 参考
-
-### captureUserFeedback(feedback)
-
-捕获与特定错误事件关联的用户反馈。
-
-**参数：**
-
-```typescript
-interface UserFeedback {
-  event_id: string;    // 关联的错误事件 ID
-  email?: string;      // 用户邮箱（可选）
-  name: string;        // 用户姓名
-  comments: string;    // 用户评论
-}
-```
-
-**返回值：** `string` - 事件 ID
-
-**示例：**
-
-```javascript
-// 首先捕获一个异常
-const eventId = Sentry.captureException(new Error('支付失败'));
-
-// 然后捕获用户反馈
-Sentry.captureUserFeedback({
-  event_id: eventId,
-  name: '张三',
-  email: 'zhangsan@example.com',
-  comments: '点击支付按钮后页面卡住了，无法完成支付。'
-});
-```
 
 ### captureFeedback(params)
 
@@ -101,6 +66,19 @@ Sentry.captureFeedback({
   associatedEventId: errorEventId,
   tags: {
     category: 'network',
+    severity: 'high'
+  }
+});
+
+// 错误后的用户反馈（替代传统的 captureUserFeedback）
+const eventId = Sentry.captureException(new Error('支付失败'));
+Sentry.captureFeedback({
+  message: '点击支付按钮后页面卡住了，无法完成支付。',
+  name: '张三',
+  email: 'zhangsan@example.com',
+  associatedEventId: eventId,
+  tags: {
+    category: 'payment_error',
     severity: 'high'
   }
 });
@@ -177,15 +155,21 @@ Page({
     }
     
     if (eventId) {
-      // 使用传统 API
-      Sentry.captureUserFeedback({
-        event_id: eventId,
+      // 关联错误事件的反馈
+      Sentry.captureFeedback({
+        message: comments,
         name: name,
         email: email,
-        comments: comments
+        url: this.route,
+        source: 'error_feedback',
+        associatedEventId: eventId,
+        tags: {
+          platform: 'wechat',
+          category: 'error_related'
+        }
       });
     } else {
-      // 使用新 API
+      // 独立的用户反馈
       Sentry.captureFeedback({
         message: comments,
         name: name,
@@ -278,7 +262,7 @@ Page({
 反馈发送成功后，可以在 Sentry 控制台的以下位置查看：
 
 1. **Issues 页面**：与错误事件关联的反馈会显示在对应的 Issue 详情中
-2. **User Feedback 页面**：所有用户反馈的汇总视图
-3. **Events 页面**：新的 `captureFeedback` API 创建的反馈事件
+2. **Events 页面**：`captureFeedback` API 创建的反馈事件
+3. **User Feedback 页面**：所有用户反馈的汇总视图
 
 通过这些反馈信息，开发团队可以更好地了解用户遇到的问题，优化产品体验。
