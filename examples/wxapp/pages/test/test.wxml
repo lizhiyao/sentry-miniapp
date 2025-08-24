@@ -78,6 +78,20 @@
         <text class="btn-desc">测试独立用户反馈</text>
         <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
       </button>
+      
+      <button bindtap="testPagePerformance" class="test-btn performance {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">⚡</view>
+        <text class="btn-title">页面性能</text>
+        <text class="btn-desc">测试页面操作性能追踪</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
+      
+      <button bindtap="testNetworkPerformance" class="test-btn network-performance {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">📊</view>
+        <text class="btn-title">网络性能</text>
+        <text class="btn-desc">测试网络请求性能追踪</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
     </view>
   </view>
 

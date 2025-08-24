@@ -656,6 +656,266 @@ Page({
     });
   }),
 
+  // 页面性能追踪测试
+  testPagePerformance: Sentry.wrap(function () {
+    if (!this.checkUserLogin()) return;
+
+    console.log('测试页面性能追踪');
+
+    // 记录测试开始
+    Sentry.addBreadcrumb({
+      message: '开始页面性能追踪测试',
+      category: 'test',
+      level: 'info'
+    });
+
+    const testStartTime = Date.now();
+
+    // 使用 Sentry 的 startSpan API 追踪页面操作性能
+    Sentry.startSpan({
+      name: '测试页面操作性能',
+      op: 'ui.action',
+      description: '模拟用户在测试页面的操作流程'
+    }, (span) => {
+      // 设置操作相关的标签
+      span.setAttributes({
+        'page.name': 'test',
+        'action.type': 'user_interaction',
+        'test.category': 'performance'
+      });
+
+      // 模拟页面渲染过程
+      const renderStartTime = Date.now();
+      
+      // 模拟数据处理
+      setTimeout(() => {
+        const renderDuration = Date.now() - renderStartTime;
+        
+        // 添加渲染耗时测量
+        span.setAttributes({
+          'page.render_time': renderDuration
+        });
+        
+        // 模拟用户交互
+        const interactionStartTime = Date.now();
+        
+        setTimeout(() => {
+          const interactionDuration = Date.now() - interactionStartTime;
+          const totalDuration = Date.now() - testStartTime;
+          
+          // 添加交互耗时测量
+          span.setAttributes({
+            'user.interaction_time': interactionDuration,
+            'total.operation_time': totalDuration
+          });
+          
+          console.log(`[性能追踪] 页面操作完成，总耗时: ${totalDuration}ms`);
+          
+          // 构造性能测试结果数据
+          const performanceData = {
+            event_type: 'performance_test',
+            timestamp: new Date().toISOString(),
+            performance: {
+              render_time: renderDuration,
+              interaction_time: interactionDuration,
+              total_time: totalDuration,
+              measurements: {
+                'page.render_time': { value: renderDuration, unit: 'millisecond' },
+                'user.interaction_time': { value: interactionDuration, unit: 'millisecond' },
+                'total.operation_time': { value: totalDuration, unit: 'millisecond' }
+              }
+            },
+            user: this.data.userInfo,
+            tags: {
+              page: 'test',
+              test_type: 'performance',
+              action_type: 'user_interaction'
+            },
+            breadcrumbs: [
+              {
+                message: '开始页面性能追踪测试',
+                category: 'test',
+                level: 'info',
+                timestamp: new Date().toISOString()
+              },
+              {
+                message: `页面性能追踪完成，总耗时${totalDuration}ms`,
+                category: 'performance',
+                level: 'info',
+                data: {
+                  renderTime: renderDuration,
+                  interactionTime: interactionDuration,
+                  totalTime: totalDuration
+                },
+                timestamp: new Date().toISOString()
+              }
+            ],
+            environment: 'development',
+            platform: 'javascript'
+          };
+          
+          this.addTestResult('页面性能追踪', '成功', `总耗时: ${totalDuration}ms (渲染: ${renderDuration}ms, 交互: ${interactionDuration}ms)`, performanceData);
+          
+          // 记录性能测试完成的面包屑
+          Sentry.addBreadcrumb({
+            message: `页面性能追踪测试完成，总耗时${totalDuration}ms`,
+            category: 'performance',
+            level: 'info',
+            data: {
+              renderTime: renderDuration,
+              interactionTime: interactionDuration,
+              totalTime: totalDuration
+            }
+          });
+        }, 50); // 模拟50ms的用户交互时间
+      }, 100); // 模拟100ms的页面渲染时间
+    });
+  }),
+
+  // 网络请求性能追踪测试
+  testNetworkPerformance: Sentry.wrap(function () {
+    if (!this.checkUserLogin()) return;
+
+    console.log('测试网络请求性能追踪');
+
+    // 记录测试开始
+    Sentry.addBreadcrumb({
+      message: '开始网络请求性能追踪测试',
+      category: 'test',
+      level: 'info'
+    });
+
+    const testApiUrl = 'https://httpbin.org/delay/1'; // 模拟1秒延迟的API
+
+    // 使用 Sentry 的 startSpan API 追踪网络请求性能
+    Sentry.startSpan({
+      name: '测试API请求性能',
+      op: 'http.client',
+      description: '追踪测试API请求的完整性能指标'
+    }, (span) => {
+      const requestStartTime = Date.now();
+      
+      // 设置请求相关标签
+      span.setAttributes({
+        'http.method': 'GET',
+        'http.url': testApiUrl,
+        'api.type': 'performance_test',
+        'test.category': 'network_performance'
+      });
+      
+      console.log('[性能追踪] 开始网络请求性能测试');
+      
+      wx.request({
+        url: testApiUrl,
+        method: 'GET',
+        timeout: 10000, // 10秒超时
+        success: (res) => {
+          const requestDuration = Date.now() - requestStartTime;
+          
+          // 记录请求耗时和状态
+          const responseSize = JSON.stringify(res.data).length;
+          span.setAttributes({
+            'http.request_time': requestDuration,
+            'http.status_code': res.statusCode,
+            'request.success': true,
+            'http.response_size': responseSize
+          });
+          
+          console.log(`[性能追踪] 网络请求完成，耗时: ${requestDuration}ms，响应大小: ${responseSize} bytes`);
+          
+          // 构造网络性能测试结果数据
+          const networkPerformanceData = {
+            event_type: 'network_performance_test',
+            timestamp: new Date().toISOString(),
+            network: {
+              request_time: requestDuration,
+              response_size: responseSize,
+              status_code: res.statusCode,
+              url: testApiUrl,
+              method: 'GET',
+              measurements: {
+                'http.request_time': { value: requestDuration, unit: 'millisecond' },
+                'http.response_size': { value: responseSize, unit: 'byte' }
+              }
+            },
+            user: this.data.userInfo,
+            tags: {
+              page: 'test',
+              test_type: 'network_performance',
+              http_method: 'GET',
+              api_type: 'performance_test'
+            },
+            breadcrumbs: [
+              {
+                message: '开始网络请求性能追踪测试',
+                category: 'test',
+                level: 'info',
+                timestamp: new Date().toISOString()
+              },
+              {
+                message: `网络请求性能测试完成，耗时${requestDuration}ms`,
+                category: 'http',
+                level: 'info',
+                data: {
+                  url: testApiUrl,
+                  status: res.statusCode,
+                  duration: requestDuration,
+                  responseSize: responseSize
+                },
+                timestamp: new Date().toISOString()
+              }
+            ],
+            environment: 'development',
+            platform: 'javascript'
+          };
+          
+          this.addTestResult('网络性能追踪', '成功', `请求耗时: ${requestDuration}ms，响应大小: ${responseSize} bytes`, networkPerformanceData);
+          
+          // 记录网络性能测试完成的面包屑
+          Sentry.addBreadcrumb({
+            message: `网络请求性能测试完成，耗时${requestDuration}ms`,
+            category: 'http',
+            level: 'info',
+            data: {
+              url: testApiUrl,
+              status: res.statusCode,
+              duration: requestDuration,
+              responseSize: responseSize
+            }
+          });
+        },
+        fail: (err) => {
+          const requestDuration = Date.now() - requestStartTime;
+          
+          span.setAttributes({
+            'http.request_time': requestDuration,
+            'request.success': false,
+            'error.message': err.errMsg || 'Unknown error'
+          });
+          
+          console.log(`[性能追踪] 网络请求失败，耗时: ${requestDuration}ms`, err);
+          
+          this.addTestResult('网络性能追踪', '失败', `请求失败: ${err.errMsg}，耗时: ${requestDuration}ms`);
+          
+          // 记录失败的网络请求
+          Sentry.addBreadcrumb({
+            message: `网络请求性能测试失败，耗时${requestDuration}ms`,
+            category: 'http',
+            level: 'error',
+            data: {
+              url: testApiUrl,
+              error: err.errMsg,
+              duration: requestDuration
+            }
+          });
+          
+          // 捕获网络请求错误
+          Sentry.captureException(new Error(`网络性能测试失败: ${err.errMsg}`));
+        }
+      });
+    });
+  }),
+
   addTestResult: function (testType, status, detail, sentryRequestData) {
     const result = {
       type: testType,

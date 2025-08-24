@@ -19,6 +19,7 @@ Sentry.init({
 
   // 采样率配置
   sampleRate: 1.0,
+  tracesSampleRate: 1.0, // 启用性能追踪，100% 采样
 
   // 限制事件大小以避免 400 错误
   beforeSend(event) {

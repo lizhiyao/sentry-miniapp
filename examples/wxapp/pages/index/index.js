@@ -88,9 +88,57 @@ Page({
       level: 'info',
     });
 
+    // 页面加载性能追踪演示
+    this.trackPageLoadPerformance();
+
     // 检查缓存并加载统计数据
     this.loadStatsWithCache();
   }),
+
+  // 页面加载性能追踪演示
+  trackPageLoadPerformance: function () {
+    const pageLoadStartTime = Date.now();
+    
+    // 使用 Sentry 的 startSpan API 追踪页面加载性能
+    Sentry.startSpan({ 
+      name: '首页加载性能', 
+      op: 'pageload',
+      description: '追踪首页完整加载时间'
+    }, (span) => {
+      // 模拟页面初始化过程
+      const initStartTime = Date.now();
+      
+      // 设置页面加载相关的标签
+      span.setAttributes({
+        'page.name': 'index',
+        'page.type': 'home'
+      });
+      
+      // 模拟数据初始化
+      setTimeout(() => {
+        const initEndTime = Date.now();
+        const initDuration = initEndTime - initStartTime;
+        
+        // 添加初始化耗时测量
+        span.setAttributes({
+          'page.init_time': initDuration
+        });
+        
+        console.log(`[性能追踪] 页面初始化耗时: ${initDuration}ms`);
+        
+        // 记录页面加载完成的面包屑
+        Sentry.addBreadcrumb({
+          message: `首页加载完成，耗时 ${Date.now() - pageLoadStartTime}ms`,
+          category: 'performance',
+          level: 'info',
+          data: {
+            loadTime: Date.now() - pageLoadStartTime,
+            initTime: initDuration
+          }
+        });
+      }, 100); // 模拟100ms的初始化时间
+    });
+  },
 
   // 智能加载统计数据（优先使用缓存）
   loadStatsWithCache: function () {
@@ -146,14 +194,7 @@ Page({
     });
   }),
 
-  // 获取用户信息
-
-
-
-
-
-
-  // 加载 npm 包统计数据
+  // 加载 NPM 统计数据（带网络请求性能追踪演示）
   loadNpmStats: Sentry.wrap(function () {
     const packageName = 'sentry-miniapp';
     const self = this;
@@ -194,24 +235,88 @@ Page({
       }
     };
 
-    // 获取今日下载量
-    wx.request({
-      url: `https://api.npmjs.org/downloads/point/last-day/${packageName}`,
-      method: 'GET',
-      success: function (res) {
-        if (res.statusCode === 200 && res.data) {
-          const formattedData = self.formatNumber(res.data.downloads);
-          statsData.lastDayDownloads = formattedData;
-          self.setData({
-            'stats.lastDayDownloads': formattedData
+    // 网络请求性能追踪演示 - 获取今日下载量
+    Sentry.startSpan({
+      name: 'NPM API - 今日下载量',
+      op: 'http.client',
+      description: '获取 sentry-miniapp 今日下载量'
+    }, (span) => {
+      const requestStartTime = Date.now();
+      
+      // 设置请求相关标签
+      span.setAttributes({
+        'http.method': 'GET',
+        'http.url': `https://api.npmjs.org/downloads/point/last-day/${packageName}`,
+        'api.type': 'npm_daily_downloads'
+      });
+      
+      console.log('[性能追踪] 开始获取今日下载量');
+      
+      wx.request({
+        url: `https://api.npmjs.org/downloads/point/last-day/${packageName}`,
+        method: 'GET',
+        success: function (res) {
+          const requestDuration = Date.now() - requestStartTime;
+          
+          // 记录请求耗时
+          span.setAttributes({
+            'http.request_time': requestDuration,
+            'http.status_code': res.statusCode
           });
+          
+          console.log(`[性能追踪] 今日下载量请求完成，耗时: ${requestDuration}ms`);
+          
+          if (res.statusCode === 200 && res.data) {
+            const formattedData = self.formatNumber(res.data.downloads);
+            statsData.lastDayDownloads = formattedData;
+            self.setData({
+              'stats.lastDayDownloads': formattedData
+            });
+            span.setAttributes({ 'request.success': true });
+          } else {
+            span.setAttributes({ 'request.success': false });
+          }
+          
+          // 记录网络请求面包屑
+          Sentry.addBreadcrumb({
+            message: `NPM今日下载量请求完成，耗时${requestDuration}ms`,
+            category: 'http',
+            level: 'info',
+            data: {
+              url: `https://api.npmjs.org/downloads/point/last-day/${packageName}`,
+              status: res.statusCode,
+              duration: requestDuration
+            }
+          });
+          
+          checkAndCache();
+        },
+        fail: function (err) {
+          const requestDuration = Date.now() - requestStartTime;
+          
+          span.setAttributes({
+            'http.request_time': requestDuration,
+            'request.success': false,
+            'error.message': err.errMsg || 'Unknown error'
+          });
+          
+          console.log(`[性能追踪] 今日下载量请求失败，耗时: ${requestDuration}ms`, err);
+          
+          // 记录失败的网络请求
+          Sentry.addBreadcrumb({
+            message: `NPM今日下载量请求失败，耗时${requestDuration}ms`,
+            category: 'http',
+            level: 'error',
+            data: {
+              url: `https://api.npmjs.org/downloads/point/last-day/${packageName}`,
+              error: err.errMsg,
+              duration: requestDuration
+            }
+          });
+          
+          checkAndCache();
         }
-        checkAndCache();
-      },
-      fail: function (err) {
-        console.log('获取今日下载量失败:', err);
-        checkAndCache();
-      }
+      });
     });
 
     // 获取本月下载量
@@ -243,10 +348,12 @@ Page({
           // 计算总下载量
           const totalDownloads = res.data.downloads.reduce((sum, day) => sum + day.downloads, 0);
           const formattedData = self.formatNumber(totalDownloads);
+          statsData.totalDownloads = formattedData;
           self.setData({
             'stats.totalDownloads': formattedData
           });
         }
+        checkAndCache();
       },
       fail: function (err) {
         console.log('获取总下载量失败，尝试使用过去一年数据:', err);
@@ -257,13 +364,16 @@ Page({
           success: function (res) {
             if (res.statusCode === 200 && res.data) {
               const formattedData = self.formatNumber(res.data.downloads) + '+';
+              statsData.totalDownloads = formattedData;
               self.setData({
                 'stats.totalDownloads': formattedData
               });
             }
+            checkAndCache();
           },
           fail: function (err) {
             console.log('获取过去一年下载量也失败:', err);
+            checkAndCache();
           }
         });
       }
@@ -325,7 +435,7 @@ Page({
     console.log('缓存无效，重新获取GitHub数据');
     const githubData = {};
     let requestCount = 0;
-    const totalRequests = 2;
+    const totalRequests = 1;
 
     // 请求完成后缓存数据
     const checkAndCache = () => {
@@ -337,176 +447,118 @@ Page({
       }
     };
 
-    // 使用 GitHub 徽章 API 获取数据（无需认证，限制更宽松）
-    // 方法1：尝试使用 shields.io 的 endpoint API
-
-    // 获取 Stars 数据
-    wx.request({
-      url: `https://img.shields.io/github/stars/${repoOwner}/${repoName}`,
-      method: 'GET',
-      header: {
-        'Accept': 'application/json'
-      },
-      success: function (res) {
-        console.log('GitHub Stars API 响应:', res);
-        if (res.statusCode === 200) {
-          let starsData = '--';
-          // 如果返回JSON格式
-          if (res.data && res.data.message) {
-            starsData = res.data.message;
-          }
-          // 如果返回SVG，尝试解析
-          else if (typeof res.data === 'string') {
-            const match = res.data.match(/>(\d+[k]?)</i);
-            if (match && match[1]) {
-              starsData = match[1];
-            } else {
-              // 备用方案：直接调用GitHub API（可能会遇到限流）
-              self.loadGithubStarsDirectly(githubData);
-              checkAndCache();
-              return;
-            }
-          } else {
-            self.loadGithubStarsDirectly(githubData);
-            checkAndCache();
-            return;
-          }
-
-          githubData.githubStars = starsData;
-          self.setData({
-            'stats.githubStars': starsData
+    // 网络请求性能追踪演示 - 获取 GitHub 仓库信息
+    Sentry.startSpan({
+      name: 'GitHub API - 仓库信息',
+      op: 'http.client',
+      description: '获取 sentry-miniapp GitHub 仓库信息'
+    }, (span) => {
+      const requestStartTime = Date.now();
+      
+      // 设置请求相关标签
+      span.setAttributes({
+        'http.method': 'GET',
+        'http.url': `https://api.github.com/repos/${repoOwner}/${repoName}`,
+        'api.type': 'github_repo_info'
+      });
+      
+      console.log('[性能追踪] 开始获取 GitHub 仓库信息');
+      
+      wx.request({
+        url: `https://api.github.com/repos/${repoOwner}/${repoName}`,
+        method: 'GET',
+        success: function (res) {
+          const requestDuration = Date.now() - requestStartTime;
+          
+          // 记录请求耗时
+          span.setAttributes({
+            'http.request_time': requestDuration,
+            'http.status_code': res.statusCode
           });
-        } else {
-          self.loadGithubStarsDirectly(githubData);
-        }
-        checkAndCache();
-      },
-      fail: function (err) {
-        console.log('获取 GitHub Stars 数据失败:', err);
-        self.loadGithubStarsDirectly(githubData);
-        checkAndCache();
-      }
-    });
-
-    // 获取 Forks 数据
-    wx.request({
-      url: `https://img.shields.io/github/forks/${repoOwner}/${repoName}`,
-      method: 'GET',
-      header: {
-        'Accept': 'application/json'
-      },
-      success: function (res) {
-        console.log('GitHub Forks API 响应:', res);
-        if (res.statusCode === 200) {
-          let forksData = '--';
-          if (res.data && res.data.message) {
-            forksData = res.data.message;
-          }
-          else if (typeof res.data === 'string') {
-            const match = res.data.match(/>(\d+[k]?)</i);
-            if (match && match[1]) {
-              forksData = match[1];
-            } else {
-              self.loadGithubForksDirectly(githubData);
-              checkAndCache();
-              return;
-            }
+          
+          console.log(`[性能追踪] GitHub 仓库信息请求完成，耗时: ${requestDuration}ms`);
+          
+          if (res.statusCode === 200 && res.data) {
+            const starsValue = self.formatNumber(res.data.stargazers_count);
+            const forksValue = self.formatNumber(res.data.forks_count);
+            
+            githubData.githubStars = starsValue;
+            githubData.githubForks = forksValue;
+            
+            self.setData({
+              'stats.githubStars': starsValue,
+              'stats.githubForks': forksValue
+            });
+            
+            span.setAttributes({
+              'request.success': true,
+              'repo.stars': res.data.stargazers_count,
+              'repo.forks': res.data.forks_count
+            });
           } else {
-            self.loadGithubForksDirectly(githubData);
-            checkAndCache();
-            return;
+            // 使用默认值
+            githubData.githubStars = '50+';
+            githubData.githubForks = '10+';
+            
+            self.setData({
+              'stats.githubStars': '50+',
+              'stats.githubForks': '10+'
+            });
+            
+            span.setAttributes({ 'request.success': false });
           }
-
-          githubData.githubForks = forksData;
-          self.setData({
-            'stats.githubForks': forksData
+          
+          // 记录网络请求面包屑
+          Sentry.addBreadcrumb({
+            message: `GitHub仓库信息请求完成，耗时${requestDuration}ms`,
+            category: 'http',
+            level: 'info',
+            data: {
+              url: `https://api.github.com/repos/${repoOwner}/${repoName}`,
+              status: res.statusCode,
+              duration: requestDuration
+            }
           });
-        } else {
-          self.loadGithubForksDirectly(githubData);
+          
+          checkAndCache();
+        },
+        fail: function (err) {
+          const requestDuration = Date.now() - requestStartTime;
+          
+          span.setAttributes({
+            'http.request_time': requestDuration,
+            'request.success': false,
+            'error.message': err.errMsg || 'Unknown error'
+          });
+          
+          console.log(`[性能追踪] GitHub 仓库信息请求失败，耗时: ${requestDuration}ms`, err);
+          
+          // 使用默认值
+          githubData.githubStars = '50+';
+          githubData.githubForks = '10+';
+          
+          self.setData({
+            'stats.githubStars': '50+',
+            'stats.githubForks': '10+'
+          });
+          
+          // 记录失败的网络请求
+          Sentry.addBreadcrumb({
+            message: `GitHub仓库信息请求失败，耗时${requestDuration}ms`,
+            category: 'http',
+            level: 'error',
+            data: {
+              url: `https://api.github.com/repos/${repoOwner}/${repoName}`,
+              error: err.errMsg,
+              duration: requestDuration
+            }
+          });
+          
+          checkAndCache();
         }
-        checkAndCache();
-      },
-      fail: function (err) {
-        console.log('获取 GitHub Forks 数据失败:', err);
-        self.loadGithubForksDirectly(githubData);
-        checkAndCache();
-      }
+      });
     });
   }),
-
-  // 备用方案：直接调用GitHub API获取Stars
-  loadGithubStarsDirectly: function (githubData) {
-    const self = this;
-    wx.request({
-      url: 'https://api.github.com/repos/lizhiyao/sentry-miniapp',
-      method: 'GET',
-      success: function (res) {
-        let starsValue = '50+';
-        if (res.statusCode === 200 && res.data) {
-          starsValue = self.formatNumber(res.data.stargazers_count);
-        }
-
-        // 更新页面数据
-        self.setData({
-          'stats.githubStars': starsValue
-        });
-
-        // 更新缓存数据对象
-        if (githubData) {
-          githubData.githubStars = starsValue;
-        }
-      },
-      fail: function (err) {
-        console.log('GitHub API 调用失败:', err);
-        const fallbackValue = '50+';
-        self.setData({
-          'stats.githubStars': fallbackValue
-        });
-
-        // 更新缓存数据对象
-        if (githubData) {
-          githubData.githubStars = fallbackValue;
-        }
-      }
-    });
-  },
-
-  // 备用方案：直接调用GitHub API获取Forks
-  loadGithubForksDirectly: function (githubData) {
-    const self = this;
-    wx.request({
-      url: 'https://api.github.com/repos/lizhiyao/sentry-miniapp',
-      method: 'GET',
-      success: function (res) {
-        let forksValue = '10+';
-        if (res.statusCode === 200 && res.data) {
-          forksValue = self.formatNumber(res.data.forks_count);
-        }
-
-        // 更新页面数据
-        self.setData({
-          'stats.githubForks': forksValue
-        });
-
-        // 更新缓存数据对象
-        if (githubData) {
-          githubData.githubForks = forksValue;
-        }
-      },
-      fail: function (err) {
-        console.log('GitHub API 调用失败:', err);
-        const fallbackValue = '10+';
-        self.setData({
-          'stats.githubForks': fallbackValue
-        });
-
-        // 更新缓存数据对象
-        if (githubData) {
-          githubData.githubForks = fallbackValue;
-        }
-      }
-    });
-  },
 
   // 格式化数字显示
   formatNumber: function (num) {

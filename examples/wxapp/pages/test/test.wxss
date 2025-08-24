@@ -987,6 +987,24 @@
     inset 0 1rpx 0 rgba(255, 255, 255, 0.4);
 }
 
+.test-btn.performance {
+  background: linear-gradient(135deg, 
+    rgba(255, 193, 7, 0.25) 0%, 
+    rgba(255, 152, 0, 0.2) 100%);
+  box-shadow: 
+    0 15rpx 40rpx rgba(255, 193, 7, 0.2),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.4);
+}
+
+.test-btn.network-performance {
+  background: linear-gradient(135deg, 
+    rgba(156, 39, 176, 0.25) 0%, 
+    rgba(123, 31, 162, 0.2) 100%);
+  box-shadow: 
+    0 15rpx 40rpx rgba(156, 39, 176, 0.2),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.4);
+}
+
 .test-btn.disabled {
   opacity: 0.5;
   background: linear-gradient(135deg, 
@@ -1088,6 +1106,20 @@
   box-shadow: 
     0 25rpx 60rpx rgba(168, 85, 247, 0.4),
     0 0 40rpx rgba(168, 85, 247, 0.3),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.5);
+}
+
+.test-btn.performance:hover:not(.disabled) {
+  box-shadow: 
+    0 25rpx 60rpx rgba(255, 193, 7, 0.4),
+    0 0 40rpx rgba(255, 193, 7, 0.3),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.5);
+}
+
+.test-btn.network-performance:hover:not(.disabled) {
+  box-shadow: 
+    0 25rpx 60rpx rgba(156, 39, 176, 0.4),
+    0 0 40rpx rgba(156, 39, 176, 0.3),
     inset 0 1rpx 0 rgba(255, 255, 255, 0.5);
 }
 
