@@ -49,22 +49,7 @@
 
 ### 重要提示
 
-如果你在使用过程中遇到模块依赖错误（如 `module '@sentry/core' is not defined`），这通常是因为小程序版本的文件需要重新生成。请按以下步骤操作：
-
-1. 克隆项目源码：
-   ```bash
-   git clone https://github.com/lizhiyao/sentry-miniapp.git
-   cd sentry-miniapp
-   ```
-
-2. 安装依赖并重新构建小程序版本：
-   ```bash
-   npm install
-   npm run build:miniapp
-   ```
-
-3. 使用生成的文件：
-   构建完成后，可以在 `examples/wxapp/lib/sentry-miniapp.js` 找到适用于小程序的完整版本文件，该文件已内联所有依赖，可以直接在小程序中使用。
+项目仓库中`examples/wxapp/lib/sentry-miniapp.js` 文件，也可以可以直接复制到小程序中使用。
 
 ## 快速开始
 
