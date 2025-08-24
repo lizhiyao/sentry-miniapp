@@ -247,7 +247,7 @@ function ensurePolyfills() {
 ensurePolyfills();
 const DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
 const GLOBAL_OBJ = globalThis;
-const SDK_VERSION$1 = "9.38.0";
+const SDK_VERSION$1 = "10.5.0";
 function getMainCarrier() {
   getSentryCarrier(GLOBAL_OBJ);
   return GLOBAL_OBJ;
@@ -290,7 +290,7 @@ function enable() {
 function disable() {
   _getLoggerSettings().enabled = false;
 }
-function isEnabled() {
+function isEnabled$1() {
   return _getLoggerSettings().enabled;
 }
 function log(...args) {
@@ -306,7 +306,7 @@ function _maybeLog(level, ...args) {
   if (!DEBUG_BUILD) {
     return;
   }
-  if (isEnabled()) {
+  if (isEnabled$1()) {
     consoleSandbox(() => {
       GLOBAL_OBJ.console[level](`${PREFIX}[${level}]:`, ...args);
     });
@@ -324,7 +324,7 @@ const debug = {
   /** Disable logging. */
   disable,
   /** Check if logging is enabled. */
-  isEnabled,
+  isEnabled: isEnabled$1,
   /** Log a message. */
   log,
   /** Log a warning. */
@@ -376,6 +376,9 @@ function isEvent(wat) {
 function isElement(wat) {
   return typeof Element !== "undefined" && isInstanceOf$1(wat, Element);
 }
+function isRegExp(wat) {
+  return isBuiltin(wat, "RegExp");
+}
 function isThenable(wat) {
   return Boolean((wat == null ? void 0 : wat.then) && typeof wat.then === "function");
 }
@@ -385,7 +388,7 @@ function isSyntheticEvent(wat) {
 function isInstanceOf$1(wat, base) {
   try {
     return wat instanceof base;
-  } catch (_e) {
+  } catch (e) {
     return false;
   }
 }
@@ -419,7 +422,7 @@ function htmlTreeAsString(elem, options = {}) {
       currentElem = currentElem.parentNode;
     }
     return out.reverse().join(separator);
-  } catch (_oO) {
+  } catch (e) {
     return "<unknown>";
   }
 }
@@ -472,6 +475,18 @@ function truncate(str, max = 0) {
   }
   return str.length <= max ? str : `${str.slice(0, max)}...`;
 }
+function isMatchingPattern(value, pattern, requireExactStringMatch = false) {
+  if (!isString(value)) {
+    return false;
+  }
+  if (isRegExp(pattern)) {
+    return pattern.test(value);
+  }
+  if (isString(pattern)) {
+    return requireExactStringMatch ? value === pattern : value.includes(pattern);
+  }
+  return false;
+}
 function addNonEnumerableProperty(obj, name, value) {
   try {
     Object.defineProperty(obj, name, {
@@ -480,7 +495,7 @@ function addNonEnumerableProperty(obj, name, value) {
       writable: true,
       configurable: true
     });
-  } catch (o_O) {
+  } catch (e) {
     DEBUG_BUILD && debug.log(`Failed to add non-enumerable property "${name}" to object`, obj);
   }
 }
@@ -508,7 +523,7 @@ function convertToPlainObject(value) {
 function serializeEventTarget(target) {
   try {
     return isElement(target) ? htmlTreeAsString(target) : Object.prototype.toString.call(target);
-  } catch (_oO) {
+  } catch (e) {
     return "<unknown>";
   }
 }
@@ -542,7 +557,7 @@ function uuid4(crypto = getCrypto()) {
         return typedArray[0];
       };
     }
-  } catch (_) {
+  } catch (e) {
   }
   return ("10000000100040008000" + 1e11).replace(
     /[018]/g,
@@ -575,7 +590,7 @@ function checkOrSetAlreadyCaught(exception) {
   }
   try {
     addNonEnumerableProperty(exception, "__sentry_captured__", true);
-  } catch (err) {
+  } catch (e) {
   }
   return false;
 }
@@ -603,6 +618,24 @@ let _cachedTimestampInSeconds;
 function timestampInSeconds() {
   const func = _cachedTimestampInSeconds != null ? _cachedTimestampInSeconds : _cachedTimestampInSeconds = createUnixTimestampInSecondsFunc();
   return func();
+}
+function makeSession(context) {
+  const startingTime = timestampInSeconds();
+  const session = {
+    sid: uuid4(),
+    init: true,
+    timestamp: startingTime,
+    started: startingTime,
+    duration: 0,
+    status: "ok",
+    errors: 0,
+    ignoreDuration: false,
+    toJSON: () => sessionToJSON(session)
+  };
+  if (context) {
+    updateSession(session, context);
+  }
+  return session;
 }
 function updateSession(session, context = {}) {
   if (context.user) {
@@ -658,6 +691,35 @@ function updateSession(session, context = {}) {
   if (context.status) {
     session.status = context.status;
   }
+}
+function closeSession(session, status) {
+  let context = {};
+  if (status) {
+    context = { status };
+  } else if (session.status === "ok") {
+    context = { status: "exited" };
+  }
+  updateSession(session, context);
+}
+function sessionToJSON(session) {
+  return {
+    sid: `${session.sid}`,
+    init: session.init,
+    // Make sure that sec is converted to ms for date constructor
+    started: new Date(session.started * 1e3).toISOString(),
+    timestamp: new Date(session.timestamp * 1e3).toISOString(),
+    status: session.status,
+    errors: session.errors,
+    did: typeof session.did === "number" || typeof session.did === "string" ? `${session.did}` : void 0,
+    duration: session.duration,
+    abnormal_mechanism: session.abnormal_mechanism,
+    attrs: {
+      release: session.release,
+      environment: session.environment,
+      ip_address: session.ipAddress,
+      user_agent: session.userAgent
+    }
+  };
 }
 function merge(initialObj, mergeObj, levels = 2) {
   if (!mergeObj || typeof mergeObj !== "object" || levels <= 0) {
@@ -1394,6 +1456,102 @@ function baggageHeaderToObject(baggageHeader) {
     return acc;
   }, {});
 }
+const ORG_ID_REGEX = /^o(\d+)\./;
+const DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)([\w.-]+)(?::(\d+))?\/(.+)/;
+function isValidProtocol(protocol) {
+  return protocol === "http" || protocol === "https";
+}
+function dsnToString(dsn, withPassword = false) {
+  const { host, path, pass, port, projectId, protocol, publicKey } = dsn;
+  return `${protocol}://${publicKey}${withPassword && pass ? `:${pass}` : ""}@${host}${port ? `:${port}` : ""}/${path ? `${path}/` : path}${projectId}`;
+}
+function dsnFromString(str) {
+  const match = DSN_REGEX.exec(str);
+  if (!match) {
+    consoleSandbox(() => {
+      console.error(`Invalid Sentry Dsn: ${str}`);
+    });
+    return void 0;
+  }
+  const [protocol, publicKey, pass = "", host = "", port = "", lastPath = ""] = match.slice(1);
+  let path = "";
+  let projectId = lastPath;
+  const split = projectId.split("/");
+  if (split.length > 1) {
+    path = split.slice(0, -1).join("/");
+    projectId = split.pop();
+  }
+  if (projectId) {
+    const projectMatch = projectId.match(/^\d+/);
+    if (projectMatch) {
+      projectId = projectMatch[0];
+    }
+  }
+  return dsnFromComponents({ host, pass, path, projectId, port, protocol, publicKey });
+}
+function dsnFromComponents(components) {
+  return {
+    protocol: components.protocol,
+    publicKey: components.publicKey || "",
+    pass: components.pass || "",
+    host: components.host,
+    port: components.port || "",
+    path: components.path || "",
+    projectId: components.projectId
+  };
+}
+function validateDsn(dsn) {
+  if (!DEBUG_BUILD) {
+    return true;
+  }
+  const { port, projectId, protocol } = dsn;
+  const requiredComponents = ["protocol", "publicKey", "host", "projectId"];
+  const hasMissingRequiredComponent = requiredComponents.find((component) => {
+    if (!dsn[component]) {
+      debug.error(`Invalid Sentry Dsn: ${component} missing`);
+      return true;
+    }
+    return false;
+  });
+  if (hasMissingRequiredComponent) {
+    return false;
+  }
+  if (!projectId.match(/^\d+$/)) {
+    debug.error(`Invalid Sentry Dsn: Invalid projectId ${projectId}`);
+    return false;
+  }
+  if (!isValidProtocol(protocol)) {
+    debug.error(`Invalid Sentry Dsn: Invalid protocol ${protocol}`);
+    return false;
+  }
+  if (port && isNaN(parseInt(port, 10))) {
+    debug.error(`Invalid Sentry Dsn: Invalid port ${port}`);
+    return false;
+  }
+  return true;
+}
+function extractOrgIdFromDsnHost(host) {
+  const match = host.match(ORG_ID_REGEX);
+  return match == null ? void 0 : match[1];
+}
+function extractOrgIdFromClient(client) {
+  const options = client.getOptions();
+  const { host } = client.getDsn() || {};
+  let org_id;
+  if (options.orgId) {
+    org_id = String(options.orgId);
+  } else if (host) {
+    org_id = extractOrgIdFromDsnHost(host);
+  }
+  return org_id;
+}
+function makeDsn(from) {
+  const components = typeof from === "string" ? dsnFromString(from) : dsnFromComponents(from);
+  if (!components || !validateDsn(components)) {
+    return void 0;
+  }
+  return components;
+}
 function parseSampleRate(sampleRate) {
   if (typeof sampleRate === "boolean") {
     return Number(sampleRate);
@@ -1564,91 +1722,6 @@ function hasSpansEnabled(maybeOptions) {
   (options.tracesSampleRate != null || !!options.tracesSampler);
 }
 const DEFAULT_ENVIRONMENT = "production";
-const ORG_ID_REGEX = /^o(\d+)\./;
-const DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)([\w.-]+)(?::(\d+))?\/(.+)/;
-function isValidProtocol(protocol) {
-  return protocol === "http" || protocol === "https";
-}
-function dsnToString(dsn, withPassword = false) {
-  const { host, path, pass, port, projectId, protocol, publicKey } = dsn;
-  return `${protocol}://${publicKey}${withPassword && pass ? `:${pass}` : ""}@${host}${port ? `:${port}` : ""}/${path ? `${path}/` : path}${projectId}`;
-}
-function dsnFromString(str) {
-  const match = DSN_REGEX.exec(str);
-  if (!match) {
-    consoleSandbox(() => {
-      console.error(`Invalid Sentry Dsn: ${str}`);
-    });
-    return void 0;
-  }
-  const [protocol, publicKey, pass = "", host = "", port = "", lastPath = ""] = match.slice(1);
-  let path = "";
-  let projectId = lastPath;
-  const split = projectId.split("/");
-  if (split.length > 1) {
-    path = split.slice(0, -1).join("/");
-    projectId = split.pop();
-  }
-  if (projectId) {
-    const projectMatch = projectId.match(/^\d+/);
-    if (projectMatch) {
-      projectId = projectMatch[0];
-    }
-  }
-  return dsnFromComponents({ host, pass, path, projectId, port, protocol, publicKey });
-}
-function dsnFromComponents(components) {
-  return {
-    protocol: components.protocol,
-    publicKey: components.publicKey || "",
-    pass: components.pass || "",
-    host: components.host,
-    port: components.port || "",
-    path: components.path || "",
-    projectId: components.projectId
-  };
-}
-function validateDsn(dsn) {
-  if (!DEBUG_BUILD) {
-    return true;
-  }
-  const { port, projectId, protocol } = dsn;
-  const requiredComponents = ["protocol", "publicKey", "host", "projectId"];
-  const hasMissingRequiredComponent = requiredComponents.find((component) => {
-    if (!dsn[component]) {
-      debug.error(`Invalid Sentry Dsn: ${component} missing`);
-      return true;
-    }
-    return false;
-  });
-  if (hasMissingRequiredComponent) {
-    return false;
-  }
-  if (!projectId.match(/^\d+$/)) {
-    debug.error(`Invalid Sentry Dsn: Invalid projectId ${projectId}`);
-    return false;
-  }
-  if (!isValidProtocol(protocol)) {
-    debug.error(`Invalid Sentry Dsn: Invalid protocol ${protocol}`);
-    return false;
-  }
-  if (port && isNaN(parseInt(port, 10))) {
-    debug.error(`Invalid Sentry Dsn: Invalid port ${port}`);
-    return false;
-  }
-  return true;
-}
-function extractOrgIdFromDsnHost(host) {
-  const match = host.match(ORG_ID_REGEX);
-  return match == null ? void 0 : match[1];
-}
-function makeDsn(from) {
-  const components = typeof from === "string" ? dsnFromString(from) : dsnFromComponents(from);
-  if (!components || !validateDsn(components)) {
-    return void 0;
-  }
-  return components;
-}
 const FROZEN_DSC_FIELD = "_frozenDsc";
 function freezeDscOnSpan(span, dsc) {
   const spanWithMaybeDsc = span;
@@ -1656,19 +1729,13 @@ function freezeDscOnSpan(span, dsc) {
 }
 function getDynamicSamplingContextFromClient(trace_id, client) {
   const options = client.getOptions();
-  const { publicKey: public_key, host } = client.getDsn() || {};
-  let org_id;
-  if (options.orgId) {
-    org_id = String(options.orgId);
-  } else if (host) {
-    org_id = extractOrgIdFromDsnHost(host);
-  }
+  const { publicKey: public_key } = client.getDsn() || {};
   const dsc = {
     environment: options.environment || DEFAULT_ENVIRONMENT,
     release: options.release,
     public_key,
     trace_id,
-    org_id
+    org_id: extractOrgIdFromClient(client)
   };
   client.emit("createDsc", dsc);
   return dsc;
@@ -1736,7 +1803,6 @@ class SentryNonRecordingSpan {
     };
   }
   /** @inheritdoc */
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   end(_timestamp) {
   }
   /** @inheritdoc */
@@ -1781,119 +1847,6 @@ class SentryNonRecordingSpan {
   recordException(_exception, _time) {
   }
 }
-function handleCallbackErrors(fn, onError, onFinally = () => {
-}) {
-  let maybePromiseResult;
-  try {
-    maybePromiseResult = fn();
-  } catch (e) {
-    onError(e);
-    onFinally();
-    throw e;
-  }
-  return maybeHandlePromiseRejection(maybePromiseResult, onError, onFinally);
-}
-function maybeHandlePromiseRejection(value, onError, onFinally) {
-  if (isThenable(value)) {
-    return value.then(
-      (res) => {
-        onFinally();
-        return res;
-      },
-      (e) => {
-        onError(e);
-        onFinally();
-        throw e;
-      }
-    );
-  }
-  onFinally();
-  return value;
-}
-function logSpanStart(span) {
-  if (!DEBUG_BUILD) return;
-  const { description = "< unknown name >", op = "< unknown op >", parent_span_id: parentSpanId } = spanToJSON(span);
-  const { spanId } = span.spanContext();
-  const sampled = spanIsSampled(span);
-  const rootSpan = getRootSpan(span);
-  const isRootSpan = rootSpan === span;
-  const header = `[Tracing] Starting ${sampled ? "sampled" : "unsampled"} ${isRootSpan ? "root " : ""}span`;
-  const infoParts = [`op: ${op}`, `name: ${description}`, `ID: ${spanId}`];
-  if (parentSpanId) {
-    infoParts.push(`parent ID: ${parentSpanId}`);
-  }
-  if (!isRootSpan) {
-    const { op: op2, description: description2 } = spanToJSON(rootSpan);
-    infoParts.push(`root ID: ${rootSpan.spanContext().spanId}`);
-    if (op2) {
-      infoParts.push(`root op: ${op2}`);
-    }
-    if (description2) {
-      infoParts.push(`root description: ${description2}`);
-    }
-  }
-  debug.log(`${header}
-  ${infoParts.join("\n  ")}`);
-}
-function logSpanEnd(span) {
-  if (!DEBUG_BUILD) return;
-  const { description = "< unknown name >", op = "< unknown op >" } = spanToJSON(span);
-  const { spanId } = span.spanContext();
-  const rootSpan = getRootSpan(span);
-  const isRootSpan = rootSpan === span;
-  const msg = `[Tracing] Finishing "${op}" ${isRootSpan ? "root " : ""}span "${description}" with ID ${spanId}`;
-  debug.log(msg);
-}
-function sampleSpan(options, samplingContext, sampleRand) {
-  if (!hasSpansEnabled(options)) {
-    return [false];
-  }
-  let localSampleRateWasApplied = void 0;
-  let sampleRate;
-  if (typeof options.tracesSampler === "function") {
-    sampleRate = options.tracesSampler(__spreadProps(__spreadValues({}, samplingContext), {
-      inheritOrSampleWith: (fallbackSampleRate) => {
-        if (typeof samplingContext.parentSampleRate === "number") {
-          return samplingContext.parentSampleRate;
-        }
-        if (typeof samplingContext.parentSampled === "boolean") {
-          return Number(samplingContext.parentSampled);
-        }
-        return fallbackSampleRate;
-      }
-    }));
-    localSampleRateWasApplied = true;
-  } else if (samplingContext.parentSampled !== void 0) {
-    sampleRate = samplingContext.parentSampled;
-  } else if (typeof options.tracesSampleRate !== "undefined") {
-    sampleRate = options.tracesSampleRate;
-    localSampleRateWasApplied = true;
-  }
-  const parsedSampleRate = parseSampleRate(sampleRate);
-  if (parsedSampleRate === void 0) {
-    DEBUG_BUILD && debug.warn(
-      `[Tracing] Discarding root span because of invalid sample rate. Sample rate must be a boolean or a number between 0 and 1. Got ${JSON.stringify(
-        sampleRate
-      )} of type ${JSON.stringify(typeof sampleRate)}.`
-    );
-    return [false];
-  }
-  if (!parsedSampleRate) {
-    DEBUG_BUILD && debug.log(
-      `[Tracing] Discarding transaction because ${typeof options.tracesSampler === "function" ? "tracesSampler returned 0 or false" : "a negative sampling decision was inherited or tracesSampleRate is set to 0"}`
-    );
-    return [false, parsedSampleRate, localSampleRateWasApplied];
-  }
-  const shouldSample = sampleRand < parsedSampleRate;
-  if (!shouldSample) {
-    DEBUG_BUILD && debug.log(
-      `[Tracing] Discarding transaction because it's not included in the random sample (sampling rate = ${Number(
-        sampleRate
-      )})`
-    );
-  }
-  return [shouldSample, parsedSampleRate, localSampleRateWasApplied];
-}
 function normalize(input, depth = 100, maxProperties = Infinity) {
   try {
     return visit("", input, depth, maxProperties);
@@ -1926,7 +1879,7 @@ function visit(key, value, depth = Infinity, maxProperties = Infinity, memo = me
     try {
       const jsonValue = valueWithToJSON.toJSON();
       return visit("", jsonValue, remainingDepth - 1, maxProperties, memo);
-    } catch (err) {
+    } catch (e) {
     }
   }
   const normalized = Array.isArray(value) ? [] : {};
@@ -2127,15 +2080,56 @@ function createEventEnvelopeHeaders(event, sdkInfo, tunnel, dsn) {
     trace: dynamicSamplingContext
   });
 }
-function enhanceEventWithSdkInfo(event, sdkInfo) {
-  if (!sdkInfo) {
+function shouldIgnoreSpan(span, ignoreSpans) {
+  if (!(ignoreSpans == null ? void 0 : ignoreSpans.length) || !span.description) {
+    return false;
+  }
+  for (const pattern of ignoreSpans) {
+    if (isStringOrRegExp(pattern)) {
+      if (isMatchingPattern(span.description, pattern)) {
+        return true;
+      }
+      continue;
+    }
+    if (!pattern.name && !pattern.op) {
+      continue;
+    }
+    const nameMatches = pattern.name ? isMatchingPattern(span.description, pattern.name) : true;
+    const opMatches = pattern.op ? span.op && isMatchingPattern(span.op, pattern.op) : true;
+    if (nameMatches && opMatches) {
+      return true;
+    }
+  }
+  return false;
+}
+function reparentChildSpans(spans, dropSpan) {
+  const droppedSpanParentId = dropSpan.parent_span_id;
+  const droppedSpanId = dropSpan.span_id;
+  if (!droppedSpanParentId) {
+    return;
+  }
+  for (const span of spans) {
+    if (span.parent_span_id === droppedSpanId) {
+      span.parent_span_id = droppedSpanParentId;
+    }
+  }
+}
+function isStringOrRegExp(value) {
+  return typeof value === "string" || value instanceof RegExp;
+}
+function _enhanceEventWithSdkInfo(event, newSdkInfo) {
+  var _a, _b, _c, _d;
+  if (!newSdkInfo) {
     return event;
   }
-  event.sdk = event.sdk || {};
-  event.sdk.name = event.sdk.name || sdkInfo.name;
-  event.sdk.version = event.sdk.version || sdkInfo.version;
-  event.sdk.integrations = [...event.sdk.integrations || [], ...sdkInfo.integrations || []];
-  event.sdk.packages = [...event.sdk.packages || [], ...sdkInfo.packages || []];
+  const eventSdkInfo = event.sdk || {};
+  event.sdk = __spreadProps(__spreadValues({}, eventSdkInfo), {
+    name: eventSdkInfo.name || newSdkInfo.name,
+    version: eventSdkInfo.version || newSdkInfo.version,
+    integrations: [...((_a = event.sdk) == null ? void 0 : _a.integrations) || [], ...newSdkInfo.integrations || []],
+    packages: [...((_b = event.sdk) == null ? void 0 : _b.packages) || [], ...newSdkInfo.packages || []],
+    settings: ((_c = event.sdk) == null ? void 0 : _c.settings) || newSdkInfo.settings ? __spreadValues(__spreadValues({}, (_d = event.sdk) == null ? void 0 : _d.settings), newSdkInfo.settings) : void 0
+  });
   return event;
 }
 function createSessionEnvelope(session, dsn, metadata, tunnel) {
@@ -2149,7 +2143,7 @@ function createSessionEnvelope(session, dsn, metadata, tunnel) {
 function createEventEnvelope(event, dsn, metadata, tunnel) {
   const sdkInfo = getSdkMetadataForEnvelopeHeader(metadata);
   const eventType = event.type && event.type !== "replay_event" ? event.type : "event";
-  enhanceEventWithSdkInfo(event, metadata == null ? void 0 : metadata.sdk);
+  _enhanceEventWithSdkInfo(event, metadata == null ? void 0 : metadata.sdk);
   const envelopeHeaders = createEventEnvelopeHeaders(event, sdkInfo, tunnel, dsn);
   delete event.sdkProcessingMetadata;
   const eventItem = [{ type: eventType }, event];
@@ -2165,7 +2159,12 @@ function createSpanEnvelope(spans, client) {
   const headers = __spreadValues(__spreadValues({
     sent_at: (/* @__PURE__ */ new Date()).toISOString()
   }, dscHasRequiredProps(dsc) && { trace: dsc }), !!tunnel && dsn && { dsn: dsnToString(dsn) });
-  const beforeSendSpan = client == null ? void 0 : client.getOptions().beforeSendSpan;
+  const { beforeSendSpan, ignoreSpans } = (client == null ? void 0 : client.getOptions()) || {};
+  const filteredSpans = (ignoreSpans == null ? void 0 : ignoreSpans.length) ? spans.filter((span) => !shouldIgnoreSpan(spanToJSON(span), ignoreSpans)) : spans;
+  const droppedSpans = spans.length - filteredSpans.length;
+  if (droppedSpans) {
+    client == null ? void 0 : client.recordDroppedEvent("before_send", "span", droppedSpans);
+  }
   const convertToSpanJSON = beforeSendSpan ? (span) => {
     const spanJson = spanToJSON(span);
     const processedSpan = beforeSendSpan(spanJson);
@@ -2176,13 +2175,47 @@ function createSpanEnvelope(spans, client) {
     return processedSpan;
   } : spanToJSON;
   const items = [];
-  for (const span of spans) {
+  for (const span of filteredSpans) {
     const spanJson = convertToSpanJSON(span);
     if (spanJson) {
       items.push(createSpanEnvelopeItem(spanJson));
     }
   }
   return createEnvelope(headers, items);
+}
+function logSpanStart(span) {
+  if (!DEBUG_BUILD) return;
+  const { description = "< unknown name >", op = "< unknown op >", parent_span_id: parentSpanId } = spanToJSON(span);
+  const { spanId } = span.spanContext();
+  const sampled = spanIsSampled(span);
+  const rootSpan = getRootSpan(span);
+  const isRootSpan = rootSpan === span;
+  const header = `[Tracing] Starting ${sampled ? "sampled" : "unsampled"} ${isRootSpan ? "root " : ""}span`;
+  const infoParts = [`op: ${op}`, `name: ${description}`, `ID: ${spanId}`];
+  if (parentSpanId) {
+    infoParts.push(`parent ID: ${parentSpanId}`);
+  }
+  if (!isRootSpan) {
+    const { op: op2, description: description2 } = spanToJSON(rootSpan);
+    infoParts.push(`root ID: ${rootSpan.spanContext().spanId}`);
+    if (op2) {
+      infoParts.push(`root op: ${op2}`);
+    }
+    if (description2) {
+      infoParts.push(`root description: ${description2}`);
+    }
+  }
+  debug.log(`${header}
+  ${infoParts.join("\n  ")}`);
+}
+function logSpanEnd(span) {
+  if (!DEBUG_BUILD) return;
+  const { description = "< unknown name >", op = "< unknown op >" } = spanToJSON(span);
+  const { spanId } = span.spanContext();
+  const rootSpan = getRootSpan(span);
+  const isRootSpan = rootSpan === span;
+  const msg = `[Tracing] Finishing "${op}" ${isRootSpan ? "root " : ""}span "${description}" with ID ${spanId}`;
+  debug.log(msg);
 }
 function timedEventsToMeasurements(events) {
   if (!events || events.length === 0) {
@@ -2489,6 +2522,85 @@ function sendSpanEnvelope(envelope) {
     return;
   }
   client.sendEnvelope(envelope);
+}
+function handleCallbackErrors(fn, onError, onFinally = () => {
+}) {
+  let maybePromiseResult;
+  try {
+    maybePromiseResult = fn();
+  } catch (e) {
+    onError(e);
+    onFinally();
+    throw e;
+  }
+  return maybeHandlePromiseRejection(maybePromiseResult, onError, onFinally);
+}
+function maybeHandlePromiseRejection(value, onError, onFinally) {
+  if (isThenable(value)) {
+    return value.then(
+      (res) => {
+        onFinally();
+        return res;
+      },
+      (e) => {
+        onError(e);
+        onFinally();
+        throw e;
+      }
+    );
+  }
+  onFinally();
+  return value;
+}
+function sampleSpan(options, samplingContext, sampleRand) {
+  if (!hasSpansEnabled(options)) {
+    return [false];
+  }
+  let localSampleRateWasApplied = void 0;
+  let sampleRate;
+  if (typeof options.tracesSampler === "function") {
+    sampleRate = options.tracesSampler(__spreadProps(__spreadValues({}, samplingContext), {
+      inheritOrSampleWith: (fallbackSampleRate) => {
+        if (typeof samplingContext.parentSampleRate === "number") {
+          return samplingContext.parentSampleRate;
+        }
+        if (typeof samplingContext.parentSampled === "boolean") {
+          return Number(samplingContext.parentSampled);
+        }
+        return fallbackSampleRate;
+      }
+    }));
+    localSampleRateWasApplied = true;
+  } else if (samplingContext.parentSampled !== void 0) {
+    sampleRate = samplingContext.parentSampled;
+  } else if (typeof options.tracesSampleRate !== "undefined") {
+    sampleRate = options.tracesSampleRate;
+    localSampleRateWasApplied = true;
+  }
+  const parsedSampleRate = parseSampleRate(sampleRate);
+  if (parsedSampleRate === void 0) {
+    DEBUG_BUILD && debug.warn(
+      `[Tracing] Discarding root span because of invalid sample rate. Sample rate must be a boolean or a number between 0 and 1. Got ${JSON.stringify(
+        sampleRate
+      )} of type ${JSON.stringify(typeof sampleRate)}.`
+    );
+    return [false];
+  }
+  if (!parsedSampleRate) {
+    DEBUG_BUILD && debug.log(
+      `[Tracing] Discarding transaction because ${typeof options.tracesSampler === "function" ? "tracesSampler returned 0 or false" : "a negative sampling decision was inherited or tracesSampleRate is set to 0"}`
+    );
+    return [false, parsedSampleRate, localSampleRateWasApplied];
+  }
+  const shouldSample = sampleRand < parsedSampleRate;
+  if (!shouldSample) {
+    DEBUG_BUILD && debug.log(
+      `[Tracing] Discarding transaction because it's not included in the random sample (sampling rate = ${Number(
+        sampleRate
+      )})`
+    );
+  }
+  return [shouldSample, parsedSampleRate, localSampleRateWasApplied];
 }
 const SUPPRESS_TRACING_KEY = "__SENTRY_SUPPRESS_TRACING__";
 function startSpan(options, callback) {
@@ -3215,8 +3327,52 @@ function close(timeout) {
     return Promise.resolve(false);
   });
 }
+function isEnabled() {
+  const client = getClient();
+  return (client == null ? void 0 : client.getOptions().enabled) !== false && !!(client == null ? void 0 : client.getTransport());
+}
 function addEventProcessor(callback) {
   getIsolationScope().addEventProcessor(callback);
+}
+function startSession(context) {
+  const isolationScope = getIsolationScope();
+  const currentScope = getCurrentScope();
+  const { userAgent } = GLOBAL_OBJ.navigator || {};
+  const session = makeSession(__spreadValues(__spreadValues({
+    user: currentScope.getUser() || isolationScope.getUser()
+  }, userAgent && { userAgent }), context));
+  const currentSession = isolationScope.getSession();
+  if ((currentSession == null ? void 0 : currentSession.status) === "ok") {
+    updateSession(currentSession, { status: "exited" });
+  }
+  endSession();
+  isolationScope.setSession(session);
+  return session;
+}
+function endSession() {
+  const isolationScope = getIsolationScope();
+  const currentScope = getCurrentScope();
+  const session = currentScope.getSession() || isolationScope.getSession();
+  if (session) {
+    closeSession(session);
+  }
+  _sendSessionUpdate();
+  isolationScope.setSession();
+}
+function _sendSessionUpdate() {
+  const isolationScope = getIsolationScope();
+  const client = getClient();
+  const session = isolationScope.getSession();
+  if (session && client) {
+    client.captureSession(session);
+  }
+}
+function captureSession(end = false) {
+  if (end) {
+    endSession();
+    return;
+  }
+  _sendSessionUpdate();
 }
 const SENTRY_API_VERSION = "7";
 function getBaseApiEndpoint(dsn) {
@@ -3284,6 +3440,14 @@ function setupIntegration(client, integration, integrationIndex) {
     client.addEventProcessor(processor);
   }
   DEBUG_BUILD && debug.log(`Integration installed: ${integration.name}`);
+}
+function addIntegration(integration) {
+  const client = getClient();
+  if (!client) {
+    DEBUG_BUILD && debug.warn(`Cannot add integration "${integration.name}" because no SDK Client is available.`);
+    return;
+  }
+  client.addIntegration(integration);
 }
 function createClientReportEnvelope(discarded_events, dsn, timestamp) {
   const clientReportItem = [
@@ -3895,6 +4059,10 @@ class Client {
         throw reason;
       }
       this.captureException(reason, {
+        mechanism: {
+          handled: false,
+          type: "internal"
+        },
         data: {
           __sentry__: true
         },
@@ -3959,7 +4127,6 @@ Reason: ${reason}`
    * Creates an {@link Event} from all inputs to `captureException` and non-primitive inputs to `captureMessage`.
    */
 }
-const BaseClient = Client;
 function _validateBeforeSendResult(beforeSendResult, beforeSendLabel) {
   const invalidValueError = `${beforeSendLabel} must return \`null\` or a valid event.`;
   if (isThenable(beforeSendResult)) {
@@ -3980,29 +4147,48 @@ function _validateBeforeSendResult(beforeSendResult, beforeSendLabel) {
   return beforeSendResult;
 }
 function processBeforeSend(client, options, event, hint) {
-  const { beforeSend, beforeSendTransaction, beforeSendSpan } = options;
+  const { beforeSend, beforeSendTransaction, beforeSendSpan, ignoreSpans } = options;
   let processedEvent = event;
   if (isErrorEvent(processedEvent) && beforeSend) {
     return beforeSend(processedEvent, hint);
   }
   if (isTransactionEvent(processedEvent)) {
-    if (beforeSendSpan) {
-      const processedRootSpanJson = beforeSendSpan(convertTransactionEventToSpanJson(processedEvent));
-      if (!processedRootSpanJson) {
-        showSpanDropWarning();
-      } else {
-        processedEvent = merge(event, convertSpanJsonToTransactionEvent(processedRootSpanJson));
+    if (beforeSendSpan || ignoreSpans) {
+      const rootSpanJson = convertTransactionEventToSpanJson(processedEvent);
+      if ((ignoreSpans == null ? void 0 : ignoreSpans.length) && shouldIgnoreSpan(rootSpanJson, ignoreSpans)) {
+        return null;
+      }
+      if (beforeSendSpan) {
+        const processedRootSpanJson = beforeSendSpan(rootSpanJson);
+        if (!processedRootSpanJson) {
+          showSpanDropWarning();
+        } else {
+          processedEvent = merge(event, convertSpanJsonToTransactionEvent(processedRootSpanJson));
+        }
       }
       if (processedEvent.spans) {
         const processedSpans = [];
-        for (const span of processedEvent.spans) {
-          const processedSpan = beforeSendSpan(span);
-          if (!processedSpan) {
-            showSpanDropWarning();
-            processedSpans.push(span);
-          } else {
-            processedSpans.push(processedSpan);
+        const initialSpans = processedEvent.spans;
+        for (const span of initialSpans) {
+          if ((ignoreSpans == null ? void 0 : ignoreSpans.length) && shouldIgnoreSpan(span, ignoreSpans)) {
+            reparentChildSpans(initialSpans, span);
+            continue;
           }
+          if (beforeSendSpan) {
+            const processedSpan = beforeSendSpan(span);
+            if (!processedSpan) {
+              showSpanDropWarning();
+              processedSpans.push(span);
+            } else {
+              processedSpans.push(processedSpan);
+            }
+          } else {
+            processedSpans.push(span);
+          }
+        }
+        const droppedSpans = processedEvent.spans.length - processedSpans.length;
+        if (droppedSpans) {
+          client.recordDroppedEvent("before_send", "span", droppedSpans);
         }
         processedEvent.spans = processedSpans;
       }
@@ -4348,7 +4534,6 @@ const appName = () => {
 };
 function createMiniappTransport(options) {
   const transportUrl = options.url;
-  options.headers;
   function makeRequest(request) {
     return new Promise((resolve, reject) => {
       var _a, _b, _c, _d;
@@ -4390,7 +4575,7 @@ const index$1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.definePrope
   __proto__: null,
   createMiniappTransport
 }, Symbol.toStringTag, { value: "Module" }));
-class MiniappClient extends BaseClient {
+class MiniappClient extends Client {
   /**
    * Creates a new Miniapp SDK instance.
    *
@@ -5474,18 +5659,24 @@ exports.SDK_VERSION = SDK_VERSION;
 exports.Transports = index$1;
 exports.addBreadcrumb = addBreadcrumb;
 exports.addEventProcessor = addEventProcessor;
+exports.addIntegration = addIntegration;
 exports.captureEvent = captureEvent;
 exports.captureException = captureException;
 exports.captureFeedback = captureFeedback;
 exports.captureMessage = captureMessage;
+exports.captureSession = captureSession;
 exports.close = close;
+exports.closeSession = closeSession;
 exports.defaultIntegrations = defaultIntegrations;
+exports.endSession = endSession;
 exports.flush = flush;
 exports.getCurrentScope = getCurrentScope;
 exports.getDefaultIntegrations = getDefaultIntegrations;
 exports.getIsolationScope = getIsolationScope;
 exports.init = init;
+exports.isEnabled = isEnabled;
 exports.lastEventId = lastEventId;
+exports.makeSession = makeSession;
 exports.setContext = setContext;
 exports.setExtra = setExtra;
 exports.setExtras = setExtras;
@@ -5493,7 +5684,9 @@ exports.setTag = setTag;
 exports.setTags = setTags;
 exports.setUser = setUser;
 exports.showReportDialog = showReportDialog;
+exports.startSession = startSession;
 exports.startSpan = startSpan;
+exports.updateSession = updateSession;
 exports.withScope = withScope;
 exports.wrap = wrap;
 //# sourceMappingURL=sentry-miniapp.js.map
