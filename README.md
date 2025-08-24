@@ -6,13 +6,14 @@
 ![github stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp?style=social)
 ![github watchers](https://img.shields.io/github/watchers/lizhiyao/sentry-miniapp?style=social)
 ![github license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
+![test coverage](https://img.shields.io/badge/test%20coverage-274%2B%20tests-brightgreen.svg)
 
-基于 `@sentry/core` 9.38.0 的微信小程序异常监控 SDK。
+基于 `@sentry/core` 10.5.0 的微信小程序异常监控 SDK。
 
 ## 特性
 
-- 🚀 基于最新的 Sentry JavaScript SDK 9.x 版本
-- 📱 支持微信小程序、支付宝小程序、字节跳动小程序等多平台
+- 🚀 基于最新的 Sentry JavaScript SDK 核心模块（@sentry/core 10.5.0）
+- 📱 支持微信小程序和微信小游戏
 - 🔍 自动捕获 JavaScript 异常和未处理的 Promise 拒绝
 - 🍞 自动记录面包屑（用户操作、网络请求、页面导航等）
 - 📊 收集系统信息和设备信息
@@ -120,10 +121,6 @@ Sentry.setContext('character', {
 - [x] 默认上报运行小程序的设备、操作系统、应用版本信息
 - [x] 支持微信小程序
 - [x] 支持微信小游戏
-- [x] 支持字节跳动小程序
-- [x] 支持支付宝小程序
-- [x] 支持钉钉小程序
-- [x] 支持百度小程序
 - [x] 支持在 [Taro](https://taro.aotu.io/) 等第三方小程序框架中使用
 - [x] 默认上报异常发生时的路由栈
 - [x] 完善的代码测试覆盖率（274+ 测试用例，覆盖核心功能模块）
@@ -145,14 +142,14 @@ Sentry.setContext('character', {
 
 ### 直接引用
 
-1. 微信小程序和微信小游戏下载 [sentry-miniapp.wx.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/weapp/vendor/sentry-miniapp.wx.min.js)；字节跳动小程序下载 [sentry-miniapp.tt.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ttapp/vendor/sentry-miniapp.tt.min.js)；支付宝小程序下载 [sentry-miniapp.my.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/myapp/vendor/sentry-miniapp.my.min.js)，钉钉小程序下载 [sentry-miniapp.dd.min.js](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/ddapp/vendor/sentry-miniapp.dd.min.js)
-2. 参照 `/examples` 中各项目使用方式，将 `sentry-miniapp.xx.min.js` 放入项目的合适目录中，比如放入 `vendor` 文件夹
-3. 参照 `/examples/app.js` 代码，进行 `Sentry` 的初始化
-4. 对于提供了微信、字节跳动小程序 `sentry-miniapp` 会自动上报 `xx.onError()` 捕获的异常，对于支付宝小程序需要应用开发者在 `App.onError()` 中主动进行异常上报。详情可见 `/docs/cross-platform.md`。
+1. 下载构建好的文件：
+   - 微信小程序：从 `examples/wxapp/lib/sentry-miniapp.js` 获取
+   - 或者运行 `npm run build:miniapp` 生成最新版本
+2. 将文件放入项目的合适目录中，比如 `lib` 或 `vendor` 文件夹
+3. 参照 `examples/wxapp/app.js` 代码，进行 `Sentry` 的初始化
+4. `sentry-miniapp` 会自动上报微信小程序 `wx.onError()` 捕获的异常
 
 ### npm 方式
-
-注意：目前字节跳动小程序不支持 npm 方式。
 
 1. 安装依赖
 
@@ -207,9 +204,9 @@ Sentry.setContext('character', {
 
 开发前请仔细阅读下面内容：
 
-- [sentry-javascript README 中文版](https://www.yuque.com/lizhiyao/dxydance/sentry-javascript-readme-cn)
-- [Sentry 开发指南](https://www.yuque.com/lizhiyao/dxydance/sentry-develop-guide)
-- [sentry-javascript 源码阅读](https://www.yuque.com/lizhiyao/dxydance/sentry-javascript-src)
+- [Sentry 官方文档](https://docs.sentry.io/)
+- [sentry-javascript 项目](https://github.com/getsentry/sentry-javascript)
+- [微信小程序开发文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
 
 #### sentry-core 设计图
 
@@ -242,18 +239,9 @@ npm run test:integration       # 运行集成测试
 npm run lint                   # 代码检查
 npm run lint:fix               # 自动修复代码问题
 
-# 构建相关命令
-npm run build:dist             # 构建供小程序直接引用的文件
-npm run build:wx               # 构建微信小程序版本
-npm run build:my               # 构建支付宝小程序版本
-npm run build:dd               # 构建钉钉小程序版本
-npm run build:tt               # 构建字节跳动小程序版本
-npm run build:swan             # 构建百度小程序版本
-npm run build:esm              # 构建 ESM 模块
-
-# 版本管理
-npm run version                # 更新版本号
-npm publish --registry=https://registry.npmjs.org/  # 发布到 npm
+# 发布相关命令
+npm run prepublishOnly         # 发布前构建
+npm publish                    # 发布到 npm
 ```
 
 ## 效果图
@@ -272,27 +260,15 @@ npm publish --registry=https://registry.npmjs.org/  # 发布到 npm
 - 丁香人才
 - 丁香家
 
-### 支付宝小程序
-
-- 丁香医生
-
-### 字节跳动小程序
-
-- 丁香医生
-
 ## 参考资料
 
 - [sentry-javascript](https://github.com/getsentry/sentry-javascript)
-- [Sentry Getting Started](https://docs.sentry.io/error-reporting/quickstart/?platform=browsernpm)
-- [Sentry JavaScript SDKs](http://getsentry.github.io/sentry-javascript/)
-- [Sentry TypeScript Configuration](https://github.com/getsentry/sentry-javascript/tree/master/packages/typescript)
+- [Sentry 官方文档](https://docs.sentry.io/)
+- [Sentry JavaScript SDKs](https://docs.sentry.io/platforms/javascript/)
+- [微信小程序开发文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
 - [wx.request](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html)
 - [小程序 App](https://developers.weixin.qq.com/miniprogram/dev/reference/api/App.html)
 - [wx.onError、App.onError 疑惑及如何捕获 Promise 异常？](https://developers.weixin.qq.com/community/develop/doc/000c8cf5794770272709f38a756000)
-- [shields.io](https://shields.io/)
-- [字节跳动小程序文档](https://developer.toutiao.com/docs/framework/)
-- [支付宝小程序文档](https://docs.alipay.com/mini/developer)
-- [tt.onError 的疑问](http://forum.microapp.bytedance.com/topic/2806/tt-onerror-%E7%96%91%E9%97%AE)
 
 ## 其他小程序异常监控产品
 
