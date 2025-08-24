@@ -445,12 +445,12 @@ Page({
         if (res.statusCode === 200 && res.data) {
           starsValue = self.formatNumber(res.data.stargazers_count);
         }
-        
+
         // 更新页面数据
         self.setData({
           'stats.githubStars': starsValue
         });
-        
+
         // 更新缓存数据对象
         if (githubData) {
           githubData.githubStars = starsValue;
@@ -462,7 +462,7 @@ Page({
         self.setData({
           'stats.githubStars': fallbackValue
         });
-        
+
         // 更新缓存数据对象
         if (githubData) {
           githubData.githubStars = fallbackValue;
@@ -482,12 +482,12 @@ Page({
         if (res.statusCode === 200 && res.data) {
           forksValue = self.formatNumber(res.data.forks_count);
         }
-        
+
         // 更新页面数据
         self.setData({
           'stats.githubForks': forksValue
         });
-        
+
         // 更新缓存数据对象
         if (githubData) {
           githubData.githubForks = forksValue;
@@ -499,7 +499,7 @@ Page({
         self.setData({
           'stats.githubForks': fallbackValue
         });
-        
+
         // 更新缓存数据对象
         if (githubData) {
           githubData.githubForks = fallbackValue;
@@ -529,28 +529,28 @@ Page({
       // 清除NPM和GitHub缓存
       cacheManager.clearCache('npm_stats_cache');
       cacheManager.clearCache('github_stats_cache');
-      
+
       console.log('缓存已清除');
-      
+
       // 显示提示
       wx.showToast({
         title: '缓存已清除',
         icon: 'success',
         duration: 1500
       });
-      
+
       // 重新加载数据
       setTimeout(() => {
         this.loadStatsWithCache();
       }, 500);
-      
+
       // 记录清除缓存事件
       Sentry.addBreadcrumb({
         message: '用户清除统计数据缓存',
         category: 'user_action',
         level: 'info',
       });
-      
+
     } catch (error) {
       console.error('清除缓存失败:', error);
       wx.showToast({
@@ -558,7 +558,7 @@ Page({
         icon: 'error',
         duration: 1500
       });
-      
+
       // 记录错误
       Sentry.captureException(error);
     }
