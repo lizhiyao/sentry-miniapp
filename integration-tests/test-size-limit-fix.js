@@ -1,5 +1,5 @@
 // 测试事件大小限制修复
-const Sentry = require('./examples/wxapp/lib/sentry-miniapp.js');
+const Sentry = require('../examples/wxapp/lib/sentry-miniapp.js');
 
 // 模拟小程序环境
 global.wx = {

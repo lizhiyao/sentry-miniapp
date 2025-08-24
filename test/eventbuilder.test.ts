@@ -1,6 +1,22 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { eventFromException, eventFromMessage } from '../src/eventbuilder';
+import { 
+  eventFromException, 
+  eventFromMessage, 
+  eventFromUnknownInput, 
+  eventFromString 
+} from '../src/eventbuilder';
 import { SeverityLevel } from '@sentry/core';
+import type { EventHint } from '@sentry/core';
+
+// Mock helpers
+jest.mock('../src/helpers', () => ({
+  isError: jest.fn((value: any) => value instanceof Error),
+  isPlainObject: jest.fn((value: any) => 
+    value !== null && 
+    typeof value === 'object' && 
+    value.constructor === Object
+  )
+}));
 
 // Mock exceptionFromError function
 const exceptionFromError = jest.fn((_stackParser: any, error: any) => {
@@ -267,6 +283,213 @@ describe('EventBuilder', () => {
       expect(exception.value).toBe('Test error');
       // Stack trace parsing may vary, so just check basic properties
       expect(true).toBe(true);
+    });
+  });
+
+  describe('eventFromString', () => {
+    const mockStackParser = jest.fn();
+
+    it('should create event from string with default level', () => {
+      const input = 'Test string message';
+      
+      const event = eventFromString(mockStackParser, input);
+
+      expect(event.message).toBe('Test string message');
+      expect(event.level).toBe('info');
+    });
+
+    it('should create event from string with custom level', () => {
+      const input = 'Error string message';
+      const level = 'error';
+      
+      const event = eventFromString(mockStackParser, input, level);
+
+      expect(event.message).toBe('Error string message');
+      expect(event.level).toBe('error');
+    });
+
+    it('should handle empty string', () => {
+      const event = eventFromString(mockStackParser, '');
+
+      expect(event.message).toBe('');
+      expect(event.level).toBe('info');
+    });
+  });
+
+  describe('eventFromUnknownInput', () => {
+    const mockStackParser = jest.fn();
+
+    it('should handle ErrorEvent with error property', () => {
+      const errorEvent = {
+        error: new Error('Inner error'),
+        message: 'Error event message',
+        constructor: { name: 'ErrorEvent' }
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, errorEvent);
+
+      expect(event.exception?.values?.[0]?.type).toBe('Error');
+      expect(event.exception?.values?.[0]?.value).toBe('Inner error');
+      expect(event.level).toBe('error');
+    });
+
+    it('should handle DOMError', () => {
+      const domError = {
+        name: 'DOMError',
+        message: 'DOM operation failed',
+        constructor: { name: 'DOMError' }
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, domError);
+
+      expect(event.message).toBe('DOMError: DOM operation failed');
+      expect(event.level).toBe('error');
+      expect(event.exception?.values?.[0]?.type).toBe('DOMError');
+      expect(event.exception?.values?.[0]?.value).toBe('DOM operation failed');
+    });
+
+    it('should handle DOMException', () => {
+      const domException = {
+        name: 'DOMException',
+        message: 'DOM exception occurred',
+        constructor: { name: 'DOMException' }
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, domException);
+
+      expect(event.message).toBe('DOMException: DOM exception occurred');
+      expect(event.level).toBe('error');
+      expect(event.exception?.values?.[0]?.type).toBe('DOMException');
+      expect(event.exception?.values?.[0]?.value).toBe('DOM exception occurred');
+    });
+
+    it('should handle DOMException with stack', () => {
+      const domException = {
+        name: 'DOMException',
+        message: 'DOM exception with stack',
+        stack: 'Error stack trace',
+        constructor: { name: 'DOMException' }
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, domException);
+
+      expect(event.exception?.values?.[0]?.type).toBe('DOMException');
+      expect(event.exception?.values?.[0]?.value).toBe('DOM exception with stack');
+      expect(event.level).toBe('error');
+    });
+
+    it('should handle Error objects', () => {
+      const error = new Error('Standard error');
+      error.name = 'CustomError';
+
+      const event = eventFromUnknownInput(mockStackParser, error);
+
+      expect(event.exception?.values?.[0]?.type).toBe('CustomError');
+      expect(event.exception?.values?.[0]?.value).toBe('Standard error');
+      expect(event.level).toBe('error');
+    });
+
+    it('should handle plain objects with synthetic exception', () => {
+      const plainObject = {
+        key1: 'value1',
+        key2: 'value2',
+        nested: { prop: 'value' }
+      };
+      const hint: EventHint = {
+        syntheticException: new Error('Synthetic error')
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, plainObject, hint);
+
+      expect(event.message).toContain('Non-Error exception captured with keys:');
+      expect(event.message).toContain('key1, key2, nested');
+      expect(event.exception?.values?.[0]?.type).toBe('Object');
+      expect(event.extra?.['__serialized__']).toBeDefined();
+    });
+
+    it('should handle plain objects with no keys', () => {
+      const plainObject = {};
+      const hint: EventHint = {
+        syntheticException: new Error('Synthetic error')
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, plainObject, hint);
+
+      expect(event.message).toContain('[object has no keys]');
+    });
+
+    it('should handle string exceptions', () => {
+      const stringException = 'String error message';
+
+      const event = eventFromUnknownInput(mockStackParser, stringException);
+
+      expect(event.message).toBe('String error message');
+      expect(event.exception?.values?.[0]?.type).toBe('UnhandledException');
+      expect(event.exception?.values?.[0]?.value).toBe('Non-Error exception captured: String error message');
+    });
+
+    it('should handle number exceptions', () => {
+      const numberException = 404;
+
+      const event = eventFromUnknownInput(mockStackParser, numberException);
+
+      expect(event.message).toBe(404);
+      expect(event.exception?.values?.[0]?.type).toBe('UnhandledException');
+      expect(event.exception?.values?.[0]?.value).toBe('Non-Error exception captured: 404');
+    });
+
+    it('should handle null exceptions', () => {
+      const event = eventFromUnknownInput(mockStackParser, null);
+
+      expect(event.message).toBe(null);
+      expect(event.exception?.values?.[0]?.type).toBe('UnhandledException');
+      expect(event.exception?.values?.[0]?.value).toBe('Non-Error exception captured: null');
+    });
+
+    it('should handle undefined exceptions', () => {
+      const event = eventFromUnknownInput(mockStackParser, undefined);
+
+      expect(event.message).toBe(undefined);
+      expect(event.exception?.values?.[0]?.type).toBe('UnhandledException');
+      expect(event.exception?.values?.[0]?.value).toBe('Non-Error exception captured: undefined');
+    });
+
+    it('should handle DOMError without message', () => {
+      const domError = {
+        name: 'DOMError',
+        constructor: { name: 'DOMError' }
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, domError);
+
+      expect(event.message).toBe('DOMError');
+      expect(event.exception?.values?.[0]?.type).toBe('DOMError');
+    });
+
+    it('should handle DOMException without name', () => {
+      const domException = {
+        message: 'Exception message',
+        constructor: { name: 'DOMException' }
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, domException);
+
+      expect(event.message).toBe('DOMException: Exception message');
+    });
+
+    it('should handle objects with many keys for truncation', () => {
+      const plainObject: Record<string, any> = {};
+      for (let i = 0; i < 20; i++) {
+        plainObject[`key${i}`] = `value${i}`;
+      }
+      const hint: EventHint = {
+        syntheticException: new Error('Synthetic error')
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, plainObject, hint);
+
+      expect(event.message).toContain('Non-Error exception captured with keys:');
+      expect(event.message).toContain('\u2026'); // ellipsis for truncated keys
     });
   });
 });

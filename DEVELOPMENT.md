@@ -19,11 +19,11 @@ npm run build
 # 构建小程序开发版本
 npm run build:miniapp
 
-# 开发模式构建（包含提示信息）
-npm run dev:miniapp
+# 构建类型定义文件
+npm run build:types
 
-# 监听模式构建
-npm run build:watch
+# 开发模式构建（监听模式）
+npm run dev
 
 # 运行测试
 npm test
@@ -46,6 +46,11 @@ npm run lint
 2. 运行 `npm run build:miniapp` 重新构建
 3. 在微信开发者工具中刷新或重新编译
 4. 查看控制台输出和错误信息
+
+**推荐使用监听模式：**
+```bash
+npm run dev  # 自动监听文件变化并重新构建
+```
 
 ### 调试技巧
 
@@ -72,13 +77,14 @@ examples/wxapp/
 
 ## 构建配置
 
-小程序构建使用特殊的 TypeScript 配置：
+项目使用 Vite 作为构建工具，配置如下：
 
-- **目标版本**：ES5（兼容性最佳）
-- **模块系统**：CommonJS
-- **严格模式**：关闭（避免兼容性问题）
-- **源码映射**：关闭（减少文件大小）
-- **注释移除**：开启（减少文件大小）
+- **构建工具**：Vite（替代 Webpack）
+- **目标版本**：ES2015
+- **模块系统**：支持 CommonJS 和 ESM
+- **源码映射**：开启（便于调试）
+- **代码压缩**：关闭（保持可读性）
+- **TypeScript**：完整支持
 
 ## 常见问题
 
@@ -113,6 +119,7 @@ examples/wxapp/
 2. 创建功能分支
 3. 修改代码并添加测试
 4. 运行 `npm run build:miniapp` 验证构建
+5. 运行 `npm test` 确保测试通过
 5. 在示例项目中测试功能
 6. 提交 Pull Request
 

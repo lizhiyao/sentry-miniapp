@@ -1,5 +1,5 @@
-// 测试多次消息上报
-const Sentry = require('./examples/wxapp/lib/sentry-miniapp.js');
+// 测试多次异常捕获
+const Sentry = require('../examples/wxapp/lib/sentry-miniapp.js');
 
 // 模拟小程序环境
 global.wx = {
@@ -9,15 +9,15 @@ global.wx = {
     console.log('Method:', options.method);
     console.log('Headers:', JSON.stringify(options.headers, null, 2));
     
-    // 解析请求体以显示消息信息
+    // 解析请求体以显示异常信息
     if (options.data) {
       try {
         const lines = options.data.split('\n');
-        const eventLine = lines.find(line => line.includes('"message"'));
+        const eventLine = lines.find(line => line.includes('"exception"'));
         if (eventLine) {
           const event = JSON.parse(eventLine);
-          if (event.message) {
-            console.log('消息内容:', event.message);
+          if (event.exception && event.exception.values) {
+            console.log('异常信息:', event.exception.values[0].value);
           }
         }
       } catch (e) {
@@ -47,7 +47,7 @@ global.wx = {
 
 // 模拟页面数据
 const pageData = {
-  messageCount: 0
+  clickCount: 0
 };
 
 // 模拟 setData 方法
@@ -64,10 +64,10 @@ try {
     debug: false, // 关闭调试日志以便观察
     beforeSend(event) {
       console.log('\n--- beforeSend 被调用 ---');
-      console.log('事件类型:', event.type || 'message');
+      console.log('事件类型:', event.type || 'exception');
       console.log('事件ID:', event.event_id);
-      if (event.message) {
-        console.log('消息内容:', event.message);
+      if (event.exception && event.exception.values) {
+        console.log('异常消息:', event.exception.values[0].value);
       }
       console.log('标签:', event.tags);
       return event;
@@ -76,38 +76,42 @@ try {
   
   console.log('Sentry 初始化成功\n');
   
-  // 模拟多次点击消息上报按钮
-  function testMessage() {
-    // 更新消息点击计数
-    const messageCount = (pageData.messageCount || 0) + 1;
-    setData({
-      messageCount: messageCount
-    });
-    
-    // 捕获自定义消息，添加时间戳以避免去重
-    const timestamp = new Date().toISOString();
-    Sentry.captureMessage(`用户点击了测试按钮 - ${timestamp}`, 'info', {
-      tags: {
-        action: 'test_message',
-        page: 'index',
-        click_count: messageCount,
-      },
-      extra: {
-        timestamp: timestamp,
-        userAgent: 'miniapp',
-        clickCount: messageCount,
-      },
-    });
-    
-    console.log(`消息已上报 (${messageCount})`);
+  // 模拟多次点击异常捕获按钮
+  function testException() {
+    try {
+      // 故意抛出一个错误，每次都包含不同的时间戳以避免去重
+      const timestamp = new Date().toISOString();
+      throw new Error(`这是一个测试异常 - ${timestamp}`);
+    } catch (error) {
+      // 手动捕获异常
+      Sentry.captureException(error, {
+        tags: {
+          action: 'test_exception',
+          page: 'index',
+          click_count: (pageData.clickCount || 0) + 1,
+        },
+        extra: {
+          timestamp: new Date().toISOString(),
+          userAgent: 'miniapp',
+          clickCount: (pageData.clickCount || 0) + 1,
+        },
+      });
+      
+      // 更新点击计数
+      setData({
+        clickCount: (pageData.clickCount || 0) + 1
+      });
+      
+      console.log(`异常已捕获并上报 (${pageData.clickCount})`);
+    }
   }
   
-  console.log('开始测试多次消息上报...');
+  console.log('开始测试多次异常捕获...');
   
   // 模拟连续点击 5 次
   for (let i = 1; i <= 5; i++) {
     console.log(`\n========== 第 ${i} 次点击 ==========`);
-    testMessage();
+    testException();
   }
   
   console.log('\n测试完成！');

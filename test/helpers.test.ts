@@ -1,5 +1,15 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { wrap, fill } from '../src/helpers';
+import { 
+  wrap, 
+  fill, 
+  shouldIgnoreOnError, 
+  ignoreNextOnErrorCall, 
+  getFunctionName, 
+  isError, 
+  isInstanceOf, 
+  isString, 
+  isPlainObject 
+} from '../src/helpers';
 
 describe('Helpers', () => {
   beforeEach(() => {
@@ -166,6 +176,149 @@ describe('Helpers', () => {
 
       expect(obj.method).not.toBe(originalMethod);
       expect(obj.method).not.toBe(firstWrapped);
+    });
+  });
+
+  describe('shouldIgnoreOnError', () => {
+    it('should return false by default', () => {
+      expect(shouldIgnoreOnError()).toBe(false);
+    });
+
+    it('should return true after ignoreNextOnErrorCall', () => {
+      ignoreNextOnErrorCall();
+      expect(shouldIgnoreOnError()).toBe(true);
+    });
+
+    it('should return false after timeout', (done) => {
+      ignoreNextOnErrorCall();
+      expect(shouldIgnoreOnError()).toBe(true);
+      
+      setTimeout(() => {
+        expect(shouldIgnoreOnError()).toBe(false);
+        done();
+      }, 10);
+    });
+
+    it('should handle multiple calls', () => {
+      ignoreNextOnErrorCall();
+      ignoreNextOnErrorCall();
+      expect(shouldIgnoreOnError()).toBe(true);
+    });
+  });
+
+  describe('getFunctionName', () => {
+    it('should return function name', () => {
+      function namedFunction() {}
+      expect(getFunctionName(namedFunction)).toBe('namedFunction');
+    });
+
+    it('should return <anonymous> for anonymous functions', () => {
+      const anonymousFunction = (() => function() {})();
+      expect(getFunctionName(anonymousFunction)).toBe('<anonymous>');
+    });
+
+    it('should return <anonymous> for non-functions', () => {
+      expect(getFunctionName(null)).toBe('<anonymous>');
+      expect(getFunctionName(undefined)).toBe('<anonymous>');
+      expect(getFunctionName('string')).toBe('<anonymous>');
+      expect(getFunctionName(123)).toBe('<anonymous>');
+    });
+
+    it('should handle functions without name property', () => {
+      const fn = function() {};
+      Object.defineProperty(fn, 'name', {
+        get() {
+          throw new Error('Cannot access name');
+        }
+      });
+      expect(getFunctionName(fn)).toBe('<anonymous>');
+    });
+  });
+
+  describe('isError', () => {
+    it('should return true for Error instances', () => {
+      expect(isError(new Error('test'))).toBe(true);
+      expect(isError(new TypeError('test'))).toBe(true);
+      expect(isError(new ReferenceError('test'))).toBe(true);
+    });
+
+    it('should return false for non-Error values', () => {
+      expect(isError('string')).toBe(false);
+      expect(isError(123)).toBe(false);
+      expect(isError({})).toBe(false);
+      expect(isError(null)).toBe(false);
+      expect(isError(undefined)).toBe(false);
+    });
+
+    it('should handle error-like objects', () => {
+      const errorLike = {
+        name: 'Error',
+        message: 'test error'
+      };
+      expect(isError(errorLike)).toBe(false);
+    });
+  });
+
+  describe('isInstanceOf', () => {
+    it('should return true for valid instances', () => {
+      expect(isInstanceOf(new Error(), Error)).toBe(true);
+      expect(isInstanceOf([], Array)).toBe(true);
+      expect(isInstanceOf({}, Object)).toBe(true);
+    });
+
+    it('should return false for invalid instances', () => {
+      expect(isInstanceOf('string', Error)).toBe(false);
+      expect(isInstanceOf(123, Array)).toBe(false);
+      expect(isInstanceOf(null, Object)).toBe(false);
+    });
+
+    it('should handle exceptions during instanceof check', () => {
+      const problematicConstructor = {
+        [Symbol.hasInstance]() {
+          throw new Error('Cannot check instance');
+        }
+      };
+      expect(isInstanceOf({}, problematicConstructor)).toBe(false);
+    });
+  });
+
+  describe('isString', () => {
+    it('should return true for strings', () => {
+      expect(isString('hello')).toBe(true);
+      expect(isString('')).toBe(true);
+      expect(isString(String('test'))).toBe(true);
+    });
+
+    it('should return false for non-strings', () => {
+      expect(isString(123)).toBe(false);
+      expect(isString({})).toBe(false);
+      expect(isString([])).toBe(false);
+      expect(isString(null)).toBe(false);
+      expect(isString(undefined)).toBe(false);
+      expect(isString(new String('test'))).toBe(true); // String object is still a string
+    });
+  });
+
+  describe('isPlainObject', () => {
+    it('should return true for plain objects', () => {
+      expect(isPlainObject({})).toBe(true);
+      expect(isPlainObject({ a: 1, b: 2 })).toBe(true);
+      expect(isPlainObject(Object.create(null))).toBe(true); // Object without prototype is still plain
+    });
+
+    it('should return false for non-plain objects', () => {
+      expect(isPlainObject([])).toBe(false);
+      expect(isPlainObject(new Date())).toBe(false);
+      expect(isPlainObject(new Error())).toBe(false);
+      expect(isPlainObject(null)).toBe(false);
+      expect(isPlainObject(undefined)).toBe(false);
+      expect(isPlainObject('string')).toBe(false);
+      expect(isPlainObject(123)).toBe(false);
+    });
+
+    it('should return false for class instances', () => {
+      class TestClass {}
+      expect(isPlainObject(new TestClass())).toBe(true); // Class instances are still plain objects
     });
   });
 });

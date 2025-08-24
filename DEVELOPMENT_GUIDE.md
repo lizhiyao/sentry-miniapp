@@ -8,12 +8,12 @@
 
 1. **一次性构建开发版本**
    ```bash
-   npm run dev
+   npm run build:miniapp
    ```
    
 2. **启动监听模式（推荐）**
    ```bash
-   npm run dev:watch
+   npm run dev
    ```
    
    监听模式会：
@@ -38,7 +38,7 @@
 
 ```bash
 # 启动监听模式
-npm run dev:watch
+npm run dev
 ```
 
 ### 2. 修改源码
@@ -56,11 +56,11 @@ npm run dev:watch
 在示例项目中测试修改后的代码：
 
 ```bash
-# 切换到示例项目目录
-cd examples/wxapp
+# 运行单元测试
+npm test
 
-# 运行测试脚本
-node test-module.js
+# 或者运行集成测试
+npm run test:integration
 ```
 
 ### 4. 微信开发者工具调试
@@ -81,24 +81,28 @@ sentry-miniapp/
 ├── examples/wxapp/               # 示例项目
 │   ├── lib/                      # 开发构建输出（自动生成）
 │   │   ├── sentry-miniapp.js     # 主入口文件
-│   │   ├── index.js              # 编译后的源码
-│   │   ├── *.js.map              # Source Map 文件
-│   │   └── @sentry/core/         # 依赖包
+│   │   └── sentry-miniapp.js.map # Source Map 文件
 │   ├── app.js                    # 小程序入口
-│   └── test-module.js            # 测试脚本
-└── scripts/
-    ├── build-dev.js              # 开发构建脚本
-    └── watch-dev.js              # 监听模式脚本
+│   ├── pages/                    # 小程序页面
+│   └── project.config.json       # 项目配置
+├── integration-tests/            # 集成测试脚本，用于验证特定问题修复和端到端功能
+│   ├── test-multiple-exceptions.js
+│   └── ...                       # 其他测试脚本
+└── test/                         # 单元测试文件
+    ├── client.test.ts
+    └── ...                       # 其他测试文件
 ```
 
 ## 常用命令
 
 | 命令 | 说明 |
 |------|------|
-| `npm run dev` | 一次性构建开发版本 |
-| `npm run dev:watch` | 启动监听模式（推荐） |
+| `npm run dev` | 启动监听模式（推荐） |
 | `npm run build` | 构建生产版本（npm 发布用） |
 | `npm run build:miniapp` | 构建小程序版本 |
+| `npm run build:types` | 构建类型定义文件 |
+| `npm test` | 运行测试套件 |
+| `npm run lint` | 代码检查 |
 
 ## 调试技巧
 
@@ -160,7 +164,7 @@ npm run dev
 ```bash
 # 停止当前监听（Ctrl+C）
 # 重新启动
-npm run dev:watch
+npm run dev
 ```
 
 ### 依赖问题

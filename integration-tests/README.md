@@ -1,6 +1,6 @@
-# 测试脚本集合
+# 集成测试脚本
 
-本文件夹包含了用于验证 Sentry 小程序 SDK 各种功能和问题修复的测试脚本。
+本文件夹包含了用于验证 Sentry 小程序 SDK 各种功能和问题修复的集成测试脚本。这些测试模拟真实的小程序环境，进行端到端的功能验证。
 
 ## 脚本列表
 
@@ -39,12 +39,18 @@
 所有脚本都可以通过 Node.js 直接运行：
 
 ```bash
-# 运行单个测试脚本
-node test-scripts/test-duplicate-async-error.js
+# 运行单个集成测试
+node integration-tests/test-duplicate-async-error.js
 
-# 或者从项目根目录运行
+# 运行核心集成测试套件
+npm run test:integration
+
+# 运行所有测试（单元测试 + 集成测试）
+npm run test:all
+
+# 或者从项目根目录运行特定脚本
 cd /path/to/sentry-miniapp
-node test-scripts/脚本名称.js
+node integration-tests/脚本名称.js
 ```
 
 ## 脚本特点

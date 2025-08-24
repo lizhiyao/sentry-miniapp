@@ -1,5 +1,5 @@
 // 测试异步错误重复上报修复
-const Sentry = require('./examples/wxapp/lib/sentry-miniapp.js');
+const Sentry = require('../examples/wxapp/lib/sentry-miniapp.js');
 
 let requestCount = 0;
 
