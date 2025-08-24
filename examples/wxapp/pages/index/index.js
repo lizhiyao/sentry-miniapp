@@ -362,12 +362,12 @@ Page({
               starsData = match[1];
             } else {
               // 备用方案：直接调用GitHub API（可能会遇到限流）
-              self.loadGithubStarsDirectly();
+              self.loadGithubStarsDirectly(githubData);
               checkAndCache();
               return;
             }
           } else {
-            self.loadGithubStarsDirectly();
+            self.loadGithubStarsDirectly(githubData);
             checkAndCache();
             return;
           }
@@ -377,13 +377,13 @@ Page({
             'stats.githubStars': starsData
           });
         } else {
-          self.loadGithubStarsDirectly();
+          self.loadGithubStarsDirectly(githubData);
         }
         checkAndCache();
       },
       fail: function (err) {
         console.log('获取 GitHub Stars 数据失败:', err);
-        self.loadGithubStarsDirectly();
+        self.loadGithubStarsDirectly(githubData);
         checkAndCache();
       }
     });
@@ -407,12 +407,12 @@ Page({
             if (match && match[1]) {
               forksData = match[1];
             } else {
-              self.loadGithubForksDirectly();
+              self.loadGithubForksDirectly(githubData);
               checkAndCache();
               return;
             }
           } else {
-            self.loadGithubForksDirectly();
+            self.loadGithubForksDirectly(githubData);
             checkAndCache();
             return;
           }
@@ -422,66 +422,88 @@ Page({
             'stats.githubForks': forksData
           });
         } else {
-          self.loadGithubForksDirectly();
+          self.loadGithubForksDirectly(githubData);
         }
         checkAndCache();
       },
       fail: function (err) {
         console.log('获取 GitHub Forks 数据失败:', err);
-        self.loadGithubForksDirectly();
+        self.loadGithubForksDirectly(githubData);
         checkAndCache();
       }
     });
   }),
 
   // 备用方案：直接调用GitHub API获取Stars
-  loadGithubStarsDirectly: function () {
+  loadGithubStarsDirectly: function (githubData) {
     const self = this;
     wx.request({
       url: 'https://api.github.com/repos/lizhiyao/sentry-miniapp',
       method: 'GET',
       success: function (res) {
+        let starsValue = '50+';
         if (res.statusCode === 200 && res.data) {
-          self.setData({
-            'stats.githubStars': self.formatNumber(res.data.stargazers_count)
-          });
-        } else {
-          self.setData({
-            'stats.githubStars': '50+'
-          });
+          starsValue = self.formatNumber(res.data.stargazers_count);
+        }
+        
+        // 更新页面数据
+        self.setData({
+          'stats.githubStars': starsValue
+        });
+        
+        // 更新缓存数据对象
+        if (githubData) {
+          githubData.githubStars = starsValue;
         }
       },
       fail: function (err) {
         console.log('GitHub API 调用失败:', err);
+        const fallbackValue = '50+';
         self.setData({
-          'stats.githubStars': '50+'
+          'stats.githubStars': fallbackValue
         });
+        
+        // 更新缓存数据对象
+        if (githubData) {
+          githubData.githubStars = fallbackValue;
+        }
       }
     });
   },
 
   // 备用方案：直接调用GitHub API获取Forks
-  loadGithubForksDirectly: function () {
+  loadGithubForksDirectly: function (githubData) {
     const self = this;
     wx.request({
       url: 'https://api.github.com/repos/lizhiyao/sentry-miniapp',
       method: 'GET',
       success: function (res) {
+        let forksValue = '10+';
         if (res.statusCode === 200 && res.data) {
-          self.setData({
-            'stats.githubForks': self.formatNumber(res.data.forks_count)
-          });
-        } else {
-          self.setData({
-            'stats.githubForks': '10+'
-          });
+          forksValue = self.formatNumber(res.data.forks_count);
+        }
+        
+        // 更新页面数据
+        self.setData({
+          'stats.githubForks': forksValue
+        });
+        
+        // 更新缓存数据对象
+        if (githubData) {
+          githubData.githubForks = forksValue;
         }
       },
       fail: function (err) {
         console.log('GitHub API 调用失败:', err);
+        const fallbackValue = '10+';
         self.setData({
-          'stats.githubForks': '10+'
+          'stats.githubForks': fallbackValue
         });
+        
+        // 更新缓存数据对象
+        if (githubData) {
+          githubData.githubForks = fallbackValue;
+        }
       }
     });
   },
@@ -495,5 +517,50 @@ Page({
     } else {
       return num.toString();
     }
-  }
+  },
+
+  // 清除统计数据缓存
+  clearStatsCache: Sentry.wrap(function () {
+    const cacheManager = this.cacheManager || {
+      clearCache: () => { }
+    };
+
+    try {
+      // 清除NPM和GitHub缓存
+      cacheManager.clearCache('npm_stats_cache');
+      cacheManager.clearCache('github_stats_cache');
+      
+      console.log('缓存已清除');
+      
+      // 显示提示
+      wx.showToast({
+        title: '缓存已清除',
+        icon: 'success',
+        duration: 1500
+      });
+      
+      // 重新加载数据
+      setTimeout(() => {
+        this.loadStatsWithCache();
+      }, 500);
+      
+      // 记录清除缓存事件
+      Sentry.addBreadcrumb({
+        message: '用户清除统计数据缓存',
+        category: 'user_action',
+        level: 'info',
+      });
+      
+    } catch (error) {
+      console.error('清除缓存失败:', error);
+      wx.showToast({
+        title: '清除缓存失败',
+        icon: 'error',
+        duration: 1500
+      });
+      
+      // 记录错误
+      Sentry.captureException(error);
+    }
+  })
 });

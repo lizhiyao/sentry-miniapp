@@ -70,6 +70,7 @@
     
     <view class="stats-footer">
       <text class="stats-update">数据更新时间: {{stats.lastUpdate || '加载中...'}}</text>
+      <button class="clear-cache-btn" bindtap="clearStatsCache" size="mini" type="default">清除缓存</button>
     </view>
   </view>
 

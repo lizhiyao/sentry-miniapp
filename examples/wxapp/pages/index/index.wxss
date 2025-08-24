@@ -187,11 +187,31 @@
    text-align: center;
    padding-top: 24rpx;
    border-top: 2rpx solid #f0f0f0;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   gap: 16rpx;
  }
  
  .stats-update {
    font-size: 24rpx;
    color: #999;
+ }
+ 
+ .clear-cache-btn {
+   background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+   color: white;
+   border: none;
+   border-radius: 20rpx;
+   font-size: 22rpx;
+   padding: 8rpx 24rpx;
+   box-shadow: 0 4rpx 12rpx rgba(255, 107, 107, 0.3);
+   transition: all 0.3s ease;
+ }
+ 
+ .clear-cache-btn:active {
+   transform: scale(0.95);
+   box-shadow: 0 2rpx 8rpx rgba(255, 107, 107, 0.4);
  }
  
  /* 功能测试区域 */
