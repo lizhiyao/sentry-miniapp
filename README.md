@@ -10,27 +10,42 @@
 
 基于 `@sentry/core` 10.5.0 的微信小程序异常监控 SDK。
 
+> 注意：
+1、sentry-miniapp v1.x.x 版本暂时只支持微信小程序和微信小游戏。
+2、sentry-miniapp v0.x.x 版本已停止维护
+
 ## 特性
 
-- 🚀 基于最新的 Sentry JavaScript SDK 核心模块（@sentry/core 10.5.0）
+- 🚀 基于最新的 Sentry JavaScript SDK 核心模块
+- 🎨 遵守 Sentry 官方统一的 API 设计文档，使用方式和官方保持一致
+- 📍 默认上报异常发生时的路由栈
+- 🎯 自动捕获小程序生命周期异常（onError、onUnhandledRejection、onPageNotFound、onMemoryWarning）
+- 🍞 自动记录面包屑（设备、用户操作、网络请求、页面导航等）
+- 🛡️ 智能错误去重和过滤机制
+- 🔧 支持在 Taro 等第三方小程序框架中使用
 - 📱 支持微信小程序和微信小游戏
 - 🔧 TypeScript 编写，提供完整的类型定义
 - 📦 支持 ES6 和 CommonJS 两种模块系统
-- 🎯 自动捕获小程序生命周期异常（onError、onUnhandledRejection、onPageNotFound、onMemoryWarning）
 - 📊 完善的测试覆盖率（274+ 测试用例，覆盖核心功能模块）
-- 🛡️ 智能错误去重和过滤机制
 - 🔍 完整的集成测试套件
-- 📍 默认上报异常发生时的路由栈
-- 🍞 自动记录面包屑（用户操作、网络请求、页面导航等）
-- 📋 默认上报运行小程序的设备、操作系统、应用版本信息
-- 🔧 支持在 Taro 等第三方小程序框架中使用
-- 🎨 遵守官方统一的 API 设计文档，使用方式和官方保持一致
 
-## 安装
+扫码体验：sentry-miniapp 使用示例小程序
+<img src="docs/qrcode/sentry-miniapp.jpg" alt="sentry-miniapp 使用示例小程序" width="300" height="300" />
 
-```bash
-npm install sentry-miniapp
-```
+## 安装和使用
+
+### 前置要求
+
+1. 使用前需要确保有可用的 `Sentry Service`，比如：使用 [官方 Sentry Service](https://sentry.io/welcome/) 服务 或[自己搭建 Sentry Service](https://docs.sentry.io/server/)。如果想直接将异常信息上报到 <https://sentry.io/>，由于其没有备案，可以先将异常信息上报给自己已备案域名下的服务端接口，由服务端进行请求转发。
+2. 在小程序管理后台配置 `Sentry Service` 对应的 `request` 合法域名
+
+### 安装依赖
+
+推荐使用 npm 方式。
+
+   ```bash
+   npm install sentry-miniapp --save
+   ```
 
 ## 快速开始
 
@@ -113,200 +128,15 @@ Sentry.setContext('character', {
 });
 ```
 
-
-
-## 安装和使用
-
-推荐使用 npm 方式安装和使用 sentry-miniapp。
-
-### 前置要求
-
-1. 需要开启「微信开发者工具 - 设置 - 项目设置 - 增强编译」功能
-2. 使用前需要确保有可用的 `Sentry Service`，比如：使用 [官方 Sentry Service](https://sentry.io/welcome/) 服务 或[自己搭建 Sentry Service](https://docs.sentry.io/server/)。如果想直接将异常信息上报到 <https://sentry.io/>，由于其没有备案，可以先将异常信息上报给自己已备案域名下的服务端接口，由服务端进行请求转发。
-3. 在小程序管理后台配置 `Sentry Service` 对应的 `request` 合法域名
-
-### 安装
-
-1. 安装依赖
-
-   ```bash
-   npm install sentry-miniapp --save
-   # 或者
-   yarn add sentry-miniapp
-   ```
-
-2. 使用「微信开发者工具 - 工具 - 构建 npm」进行构建，详情可参考[npm 支持](https://developers.weixin.qq.com/miniprogram/dev/devtools/npm.html)
-
-### 使用
-
-在 `app.js` 中引用并初始化 `Sentry`，根据实际需求设置上报到 Sentry 的元信息
-
-   ```js
-   import * as Sentry from "sentry-miniapp";
-
-   // init Sentry
-   // init options: https://github.com/getsentry/sentry-javascript/blob/master/packages/types/src/options.ts
-   Sentry.init({
-     dsn: "__DSN__",
-     // ...
-   });
-
-   // Set user information, as well as tags and further extras
-   Sentry.configureScope((scope) => {
-     scope.setExtra("battery", 0.7);
-     scope.setTag("user_mode", "admin");
-     scope.setUser({ id: "4711" });
-     // scope.clear();
-   });
-
-   // Add a breadcrumb for future events
-   Sentry.addBreadcrumb({
-     message: "My Breadcrumb",
-     // ...
-   });
-
-   // Capture exceptions, messages or manual events
-   Sentry.captureException(new Error("Good bye"));
-   Sentry.captureMessage("Hello, world!");
-   Sentry.captureEvent({
-     message: "Manual",
-     stacktrace: [
-       // ...
-     ],
-   });
-   ```
-
-## 开发
-
-### 知识储备
-
-开发前请仔细阅读下面内容：
-
-- [Sentry 官方文档](https://docs.sentry.io/)
-- [sentry-javascript 项目](https://github.com/getsentry/sentry-javascript)
-- [微信小程序开发文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
-
-#### sentry-core 设计图
-
-![Dashboard](docs/sentry-core.png)
-
-#### sentry-hub 设计图
-
-![Dashboard](docs/sentry-hub.png)
-
-#### sentry-miniapp 设计图
-
-![Dashboard](docs/sentry-miniapp.png)
-
-### 相关命令
-
-```bash
-# 开发相关命令
-npm run dev                    # 启动开发模式（监听文件变化）
-npm run build:miniapp          # 构建小程序开发版本
-npm run build                  # 构建生产版本
-npm run build:types            # 构建类型定义文件
-
-# 测试相关命令
-npm test                       # 运行完整测试套件（274+ 测试用例）
-npm run test:watch             # 监听模式运行测试
-npm run test:coverage          # 生成测试覆盖率报告
-npm run test:integration       # 运行集成测试
-
-# 代码质量
-npm run lint                   # 代码检查
-npm run lint:fix               # 自动修复代码问题
-
-# 发布相关命令
-npm run prepublishOnly         # 发布前构建
-npm publish                    # 发布到 npm
-```
-
-## 效果图
-
-![Dashboard](docs/screenshot/sentry-admin.png)
-![Error00](docs/screenshot/sentry-error-00.png)
-![Error01](docs/screenshot/sentry-error-01.png)
-![Error02](docs/screenshot/sentry-error-02.png)
-
-## 谁在使用 sentry-miniapp
-
-### 微信小程序
-
-- 丁香医生
-- 丁香医生医生端
-- 丁香人才
-- 丁香家
-
-## 参考资料
-
-- [sentry-javascript](https://github.com/getsentry/sentry-javascript)
-- [Sentry 官方文档](https://docs.sentry.io/)
-- [Sentry JavaScript SDKs](https://docs.sentry.io/platforms/javascript/)
-- [微信小程序开发文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
-- [wx.request](https://developers.weixin.qq.com/miniprogram/dev/api/network/request/wx.request.html)
-- [小程序 App](https://developers.weixin.qq.com/miniprogram/dev/reference/api/App.html)
-- [wx.onError、App.onError 疑惑及如何捕获 Promise 异常？](https://developers.weixin.qq.com/community/develop/doc/000c8cf5794770272709f38a756000)
-
-## 其他小程序异常监控产品
-
-- [Fundebug](https://www.fundebug.com/)
-- [FrontJS](https://www.frontjs.com/home/tour)
-- [Bugout](https://bugout.testin.cn/)
-
 ## 贡献
 
 欢迎通过 `issue`、`pull request` 等方式贡献 `sentry-miniapp`。
 
-### 贡献指南
-
-1. **Fork 项目并创建分支**
-   ```bash
-   git clone https://github.com/your-username/sentry-miniapp.git
-   git checkout -b feature/your-feature-name
-   ```
-
-2. **安装依赖并设置开发环境**
-   ```bash
-   npm install
-   npm run dev  # 启动开发模式
-   ```
-
-3. **编写代码和测试**
-   - 修改 `src/` 目录下的源码
-   - 为新功能添加相应的测试用例
-   - 确保测试覆盖率不降低
-
-4. **运行测试和检查**
-   ```bash
-   npm test                # 运行完整测试套件
-   npm run lint            # 代码风格检查
-   npm run build:miniapp   # 验证构建
-   ```
-
-5. **在示例项目中验证**
-   - 在 `examples/wxapp` 中测试新功能
-   - 确保在真实小程序环境中正常工作
-
-6. **提交 Pull Request**
-   - 提供清晰的变更说明
-   - 包含测试用例和文档更新
-   - 确保所有 CI 检查通过
-
-### 测试要求
-
-- 新功能必须包含相应的单元测试
-- 测试覆盖率应保持在高水平
-- 集成测试应验证端到端功能
-- 所有测试必须通过才能合并
-
 ## 联系作者
-
-PS. 由于微信群二维码有时效性限制，想入群的同学还可以加作者微信（添加时请备注 sentry-miniapp），由作者邀请入群
 
 ### sentry-miniapp 微信交流群
 
-<img src="docs/qrcode/sentry-miniapp.jpeg" alt="微信交流群二维码" width="300" height="400" />
+由于微信群二维码有时效性限制，想入群的同学可以加作者微信（添加时请备注 sentry-miniapp），由作者邀请入群
 
 ### 作者微信二维码
 
