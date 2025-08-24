@@ -40,7 +40,7 @@
   position: relative;
   z-index: 1;
   text-align: center;
-  padding: 40rpx 40rpx 30rpx;
+  padding: 70rpx 40rpx 30rpx;
   color: white;
 }
 

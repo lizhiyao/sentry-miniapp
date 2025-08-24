@@ -6,7 +6,7 @@
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#fff",
-    "navigationBarTitleText": "Sentry 小程序示例",
+    "navigationBarTitleText": "sentry-miniapp 示例",
     "navigationBarTextStyle": "black"
   },
   "style": "v2",

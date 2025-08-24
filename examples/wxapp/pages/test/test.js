@@ -9,7 +9,12 @@ Page({
     canIUseGetUserProfile: false,
     canIUseOpenData: wx.canIUse('open-data.type.userAvatarUrl') && wx.canIUse('open-data.type.userNickName'),
     testResults: [],
-    isRunning: false
+    isRunning: false,
+    successCount: 0,
+    errorCount: 0,
+    showDetailModal: false,
+    detailContent: '',
+    detailSections: []
   },
 
   onLoad: Sentry.wrap(function (options) {
@@ -117,7 +122,44 @@ Page({
       method: 'GET',
       success: (res) => {
         console.log('网络请求成功:', res);
-        this.addTestResult('网络请求', '成功', res.statusCode);
+        
+        // 构造网络请求成功的详细信息
+        const requestData = {
+          event_type: 'network_request',
+          timestamp: new Date().toISOString(),
+          request: {
+            url: 'https://httpbin.org/get',
+            method: 'GET',
+            status_code: res.statusCode,
+            response_headers: res.header,
+            response_data: res.data
+          },
+          user: this.data.userInfo,
+          tags: {
+            page: 'test',
+            test_type: 'network_request',
+            request_status: 'success'
+          },
+          breadcrumbs: [
+            {
+              message: '开始网络请求测试',
+              category: 'test',
+              level: 'info',
+              timestamp: new Date().toISOString()
+            },
+            {
+              message: '网络请求测试成功',
+              category: 'test',
+              level: 'info',
+              data: { statusCode: res.statusCode },
+              timestamp: new Date().toISOString()
+            }
+          ],
+          environment: 'development',
+          platform: 'javascript'
+        };
+        
+        this.addTestResult('网络请求', '成功', `状态码: ${res.statusCode}`, requestData);
 
         // 记录成功事件
         Sentry.addBreadcrumb({
@@ -155,7 +197,38 @@ Page({
       throw new Error('这是一个测试异常');
     } catch (error) {
       console.error('捕获到异常:', error);
-      this.addTestResult('异常捕获', '成功', error.message);
+      
+      // 构造 sentry 上报请求数据
+      const sentryRequestData = {
+        event_type: 'exception',
+        timestamp: new Date().toISOString(),
+        exception: {
+          values: [{
+            type: error.name,
+            value: error.message,
+            stacktrace: {
+              frames: error.stack ? error.stack.split('\n').slice(0, 5) : []
+            }
+          }]
+        },
+        user: this.data.userInfo,
+        tags: {
+          page: 'test',
+          test_type: 'exception'
+        },
+        breadcrumbs: [
+          {
+            message: '开始异常捕获测试',
+            category: 'test',
+            level: 'info',
+            timestamp: new Date().toISOString()
+          }
+        ],
+        environment: 'development',
+        platform: 'javascript'
+      };
+      
+      this.addTestResult('异常捕获', '成功', error.message, sentryRequestData);
 
       // 上报异常到 Sentry
       Sentry.captureException(error);
@@ -183,10 +256,38 @@ Page({
       level: 'info'
     });
 
-    // 发送测试消息到 Sentry
-    Sentry.captureMessage('这是一个测试消息', 'info');
+    const testMessage = '这是一个测试消息';
+    
+    // 构造 sentry 上报请求数据
+    const sentryRequestData = {
+      event_type: 'message',
+      timestamp: new Date().toISOString(),
+      message: {
+        formatted: testMessage,
+        message: testMessage
+      },
+      level: 'info',
+      user: this.data.userInfo,
+      tags: {
+        page: 'test',
+        test_type: 'message'
+      },
+      breadcrumbs: [
+        {
+          message: '开始消息上报测试',
+          category: 'test',
+          level: 'info',
+          timestamp: new Date().toISOString()
+        }
+      ],
+      environment: 'development',
+      platform: 'javascript'
+    };
 
-    this.addTestResult('消息上报', '成功', '测试消息已发送');
+    // 发送测试消息到 Sentry
+    Sentry.captureMessage(testMessage, 'info');
+
+    this.addTestResult('消息上报', '成功', '测试消息已发送', sentryRequestData);
 
     // 记录完成
     Sentry.addBreadcrumb({
@@ -215,7 +316,39 @@ Page({
         throw new Error('这是一个异步错误');
       } catch (error) {
         console.error('异步错误:', error);
-        self.addTestResult('异步错误', '成功', error.message);
+        
+        // 构造 sentry 上报请求数据
+        const sentryRequestData = {
+          event_type: 'exception',
+          timestamp: new Date().toISOString(),
+          exception: {
+            values: [{
+              type: error.name,
+              value: error.message,
+              stacktrace: {
+                frames: error.stack ? error.stack.split('\n').slice(0, 5) : []
+              }
+            }]
+          },
+          user: self.data.userInfo,
+          tags: {
+            page: 'test',
+            test_type: 'async_error',
+            async: true
+          },
+          breadcrumbs: [
+            {
+              message: '开始异步错误测试',
+              category: 'test',
+              level: 'info',
+              timestamp: new Date().toISOString()
+            }
+          ],
+          environment: 'development',
+          platform: 'javascript'
+        };
+        
+        self.addTestResult('异步错误', '成功', error.message, sentryRequestData);
 
         // 捕获异步错误
         Sentry.captureException(error);
@@ -251,8 +384,7 @@ Page({
       success: function(res) {
         if (res.confirm) {
           try {
-            // 使用新的 captureFeedback API，关联错误事件
-            const feedbackId = Sentry.captureFeedback({
+            const feedbackData = {
               message: '这是一个测试反馈，用于验证 captureFeedback 功能是否正常工作。',
               name: self.data.userInfo.nickName || '测试用户',
               email: 'test@example.com',
@@ -264,9 +396,55 @@ Page({
                 test_mode: true,
                 platform: 'wechat'
               }
-            });
+            };
             
-            self.addTestResult('用户反馈', '成功', `反馈已发送，事件ID: ${feedbackId}`);
+            // 使用新的 captureFeedback API，关联错误事件
+            const feedbackId = Sentry.captureFeedback(feedbackData);
+            
+            // 构造详情数据
+            const sentryRequestData = {
+              event_type: 'user_feedback',
+              feedback: feedbackData,
+              user: {
+                id: self.data.userInfo.nickName || 'test_user',
+                username: self.data.userInfo.nickName || '测试用户',
+                email: 'test@example.com'
+              },
+              tags: {
+                page: 'test',
+                test_type: 'user_feedback',
+                feedback_category: 'error_feedback',
+                platform: 'wechat',
+                test_mode: 'true'
+              },
+              breadcrumbs: [
+                {
+                  message: '用户反馈测试开始',
+                  category: 'test',
+                  level: 'info',
+                  timestamp: new Date().toISOString()
+                },
+                {
+                  message: '关联异常事件创建',
+                  category: 'error',
+                  level: 'error',
+                  data: { eventId: eventId },
+                  timestamp: new Date().toISOString()
+                },
+                {
+                  message: '用户反馈发送成功',
+                  category: 'feedback',
+                  level: 'info',
+                  data: { feedbackId: feedbackId },
+                  timestamp: new Date().toISOString()
+                }
+              ],
+              environment: 'development',
+              platform: 'javascript',
+              timestamp: new Date().toISOString()
+            };
+            
+            self.addTestResult('用户反馈', '成功', `反馈已发送，事件ID: ${feedbackId}`, sentryRequestData);
             
             wx.showToast({
               title: '反馈发送成功',
@@ -274,7 +452,48 @@ Page({
             });
           } catch (error) {
             console.error('发送用户反馈失败:', error);
-            self.addTestResult('用户反馈', '失败', `错误: ${error.message}`);
+            
+            // 构造错误详情数据
+            const sentryRequestData = {
+              event_type: 'user_feedback_error',
+              exception: {
+                values: [{
+                  type: 'FeedbackError',
+                  value: error.message,
+                  stacktrace: { frames: [error.stack || '无堆栈信息'] }
+                }]
+              },
+              user: {
+                id: self.data.userInfo.nickName || 'test_user',
+                username: self.data.userInfo.nickName || '测试用户'
+              },
+              tags: {
+                page: 'test',
+                test_type: 'user_feedback',
+                error_type: 'feedback_send_failed',
+                platform: 'wechat'
+              },
+              breadcrumbs: [
+                {
+                  message: '用户反馈测试开始',
+                  category: 'test',
+                  level: 'info',
+                  timestamp: new Date().toISOString()
+                },
+                {
+                  message: '用户反馈发送失败',
+                  category: 'error',
+                  level: 'error',
+                  data: { error: error.message },
+                  timestamp: new Date().toISOString()
+                }
+              ],
+              environment: 'development',
+              platform: 'javascript',
+              timestamp: new Date().toISOString()
+            };
+            
+            self.addTestResult('用户反馈', '失败', `错误: ${error.message}`, sentryRequestData);
             
             wx.showToast({
               title: '反馈发送失败',
@@ -308,8 +527,7 @@ Page({
         const selectedMessage = feedbackMessages[res.tapIndex];
         
         try {
-          // 使用新的 captureFeedback API
-          const feedbackId = Sentry.captureFeedback({
+          const feedbackData = {
             message: selectedMessage,
             name: self.data.userInfo.nickName || '测试用户',
             email: 'test@example.com',
@@ -321,9 +539,56 @@ Page({
               platform: 'wechat',
               test_mode: true
             }
-          });
+          };
           
-          self.addTestResult('新反馈API', '成功', `${selectedType}反馈已发送，ID: ${feedbackId}`);
+          // 使用新的 captureFeedback API
+          const feedbackId = Sentry.captureFeedback(feedbackData);
+          
+          // 构造详情数据
+          const sentryRequestData = {
+            event_type: 'capture_feedback',
+            feedback: feedbackData,
+            user: {
+              id: self.data.userInfo.nickName || 'test_user',
+              username: self.data.userInfo.nickName || '测试用户',
+              email: 'test@example.com'
+            },
+            tags: {
+              page: 'test',
+              test_type: 'capture_feedback',
+              feedback_category: selectedType,
+              feedback_priority: 'medium',
+              platform: 'wechat',
+              test_mode: 'true'
+            },
+            breadcrumbs: [
+              {
+                message: '独立反馈测试开始',
+                category: 'test',
+                level: 'info',
+                timestamp: new Date().toISOString()
+              },
+              {
+                message: `用户选择反馈类型: ${selectedType}`,
+                category: 'user_action',
+                level: 'info',
+                data: { feedbackType: selectedType, message: selectedMessage },
+                timestamp: new Date().toISOString()
+              },
+              {
+                message: '独立反馈发送成功',
+                category: 'feedback',
+                level: 'info',
+                data: { feedbackId: feedbackId, category: selectedType },
+                timestamp: new Date().toISOString()
+              }
+            ],
+            environment: 'development',
+            platform: 'javascript',
+            timestamp: new Date().toISOString()
+          };
+          
+          self.addTestResult('新反馈API', '成功', `${selectedType}反馈已发送，ID: ${feedbackId}`, sentryRequestData);
           
           wx.showToast({
             title: '反馈发送成功',
@@ -331,7 +596,56 @@ Page({
           });
         } catch (error) {
           console.error('发送反馈失败:', error);
-          self.addTestResult('新反馈API', '失败', `错误: ${error.message}`);
+          
+          // 构造错误详情数据
+          const sentryRequestData = {
+            event_type: 'capture_feedback_error',
+            exception: {
+              values: [{
+                type: 'CaptureFeedbackError',
+                value: error.message,
+                stacktrace: { frames: [error.stack || '无堆栈信息'] }
+              }]
+            },
+            user: {
+              id: self.data.userInfo.nickName || 'test_user',
+              username: self.data.userInfo.nickName || '测试用户'
+            },
+            tags: {
+              page: 'test',
+              test_type: 'capture_feedback',
+              error_type: 'feedback_send_failed',
+              feedback_category: selectedType,
+              platform: 'wechat'
+            },
+            breadcrumbs: [
+              {
+                message: '独立反馈测试开始',
+                category: 'test',
+                level: 'info',
+                timestamp: new Date().toISOString()
+              },
+              {
+                message: `用户选择反馈类型: ${selectedType}`,
+                category: 'user_action',
+                level: 'info',
+                data: { feedbackType: selectedType },
+                timestamp: new Date().toISOString()
+              },
+              {
+                message: '独立反馈发送失败',
+                category: 'error',
+                level: 'error',
+                data: { error: error.message, category: selectedType },
+                timestamp: new Date().toISOString()
+              }
+            ],
+            environment: 'development',
+            platform: 'javascript',
+            timestamp: new Date().toISOString()
+          };
+          
+          self.addTestResult('新反馈API', '失败', `错误: ${error.message}`, sentryRequestData);
           
           wx.showToast({
             title: '反馈发送失败',
@@ -342,26 +656,131 @@ Page({
     });
   }),
 
-  addTestResult: function (testType, status, detail) {
+  addTestResult: function (testType, status, detail, sentryRequestData) {
     const result = {
       type: testType,
       status: status,
       detail: detail,
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: new Date().toLocaleTimeString(),
+      sentryRequestData: sentryRequestData || null // 存储 sentry 上报请求的详细内容
     };
 
     const results = this.data.testResults;
     results.unshift(result); // 添加到数组开头
+    
+    // 计算统计数据
+    const limitedResults = results.slice(0, 10); // 保留最近10条记录
+    const successCount = limitedResults.filter(item => item.status === '成功').length;
+    const errorCount = limitedResults.filter(item => item.status === '失败').length;
 
     this.setData({
-      testResults: results.slice(0, 10) // 保留最近10条记录
+      testResults: limitedResults,
+      successCount: successCount,
+      errorCount: errorCount
     });
   },
 
   // 清空所有测试结果
   clearResults: function () {
     this.setData({
-      testResults: []
+      testResults: [],
+      successCount: 0,
+      errorCount: 0
     });
-  }
-});
+  },
+
+  // 显示测试详情
+  showTestDetail: function (e) {
+    const index = e.currentTarget.dataset.index;
+    const testResult = this.data.testResults[index];
+    
+    if (testResult && testResult.sentryRequestData) {
+      const data = testResult.sentryRequestData;
+      const sections = [];
+      
+      // 基本信息
+      sections.push({
+        key: 'basic',
+        title: '📋 基本信息',
+        content: `事件类型: ${data.event_type}\n时间戳: ${data.timestamp}\n环境: ${data.environment}\n平台: ${data.platform}`
+      });
+      
+      // 网络请求信息
+      if (data.request) {
+        sections.push({
+          key: 'request',
+          title: '🌐 网络请求信息',
+          content: `URL: ${data.request.url}\n方法: ${data.request.method}\n状态码: ${data.request.status_code}\n响应头: ${JSON.stringify(data.request.response_headers, null, 2)}\n响应数据: ${JSON.stringify(data.request.response_data, null, 2)}`
+        });
+      }
+      
+      // 用户反馈信息
+      if (data.feedback) {
+        sections.push({
+          key: 'feedback',
+          title: '💬 用户反馈信息',
+          content: `反馈消息: ${data.feedback.message}\n用户姓名: ${data.feedback.name}\n用户邮箱: ${data.feedback.email}\n页面URL: ${data.feedback.url}\n反馈来源: ${data.feedback.source}${data.feedback.associatedEventId ? '\n关联事件ID: ' + data.feedback.associatedEventId : ''}${data.feedback.tags ? '\n反馈标签: ' + JSON.stringify(data.feedback.tags, null, 2) : ''}`
+        });
+      }
+      
+      // 异常信息或消息内容
+      if (data.exception) {
+        const exception = data.exception.values[0];
+        sections.push({
+          key: 'exception',
+          title: '❌ 异常信息',
+          content: `类型: ${exception.type}\n消息: ${exception.value}\n堆栈信息: ${exception.stacktrace.frames.join('\n')}`
+        });
+      }
+      
+      if (data.message) {
+        sections.push({
+          key: 'message',
+          title: '💬 消息内容',
+          content: `消息: ${data.message.formatted}`
+        });
+      }
+      
+      // 用户信息
+      if (data.user && Object.keys(data.user).length > 0) {
+        sections.push({
+          key: 'user',
+          title: '👤 用户信息',
+          content: JSON.stringify(data.user, null, 2)
+        });
+      }
+      
+      // 标签信息
+      if (data.tags) {
+        sections.push({
+          key: 'tags',
+          title: '🏷️ 标签信息',
+          content: Object.entries(data.tags).map(([key, value]) => `${key}: ${value}`).join('\n')
+        });
+      }
+      
+      // 面包屑记录
+      if (data.breadcrumbs && data.breadcrumbs.length > 0) {
+        sections.push({
+          key: 'breadcrumbs',
+          title: '🍞 面包屑记录',
+          content: data.breadcrumbs.map(b => `[${b.level}] ${b.category}: ${b.message}`).join('\n')
+        });
+      }
+      
+      this.setData({
+         showDetailModal: true,
+         detailSections: sections
+       });
+     }
+   },
+ 
+   // 隐藏测试详情
+   hideTestDetail: function () {
+     this.setData({
+       showDetailModal: false,
+       detailContent: '',
+       detailSections: []
+     });
+   }
+ });

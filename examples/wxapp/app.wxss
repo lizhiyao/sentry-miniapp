@@ -1,6 +1,6 @@
 /**app.wxss**/
 page {
-  background-color: #f5f5f5;
+  background-color: #ffffff;
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Segoe UI, Arial, Roboto, 'PingFang SC', 'miui', 'Hiragino Sans GB', 'Microsoft Yahei', sans-serif;
 }
 
@@ -26,5 +26,5 @@ button::after {
 /* 通用文本样式 */
 text {
   font-size: 28rpx;
-  color: #333;
+  color: #1a1a1a;
 }
