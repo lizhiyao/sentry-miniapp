@@ -14,14 +14,17 @@
 
 - 🚀 基于最新的 Sentry JavaScript SDK 核心模块（@sentry/core 10.5.0）
 - 📱 支持微信小程序和微信小游戏
-- 🔍 自动捕获 JavaScript 异常和未处理的 Promise 拒绝
+- 🔧 TypeScript 编写，提供完整的类型定义
+- 📦 支持 ES6 和 CommonJS 两种模块系统
+- 🎯 自动捕获小程序生命周期异常（onError、onUnhandledRejection、onPageNotFound、onMemoryWarning）
+- 📊 完善的测试覆盖率（274+ 测试用例，覆盖核心功能模块）
+- 🛡️ 智能错误去重和过滤机制
+- 🔍 完整的集成测试套件
+- 📍 默认上报异常发生时的路由栈
 - 🍞 自动记录面包屑（用户操作、网络请求、页面导航等）
-- 📊 收集系统信息和设备信息
-- 🎯 支持自定义错误过滤和数据处理
-- 💪 TypeScript 支持
-- ✅ 完善的测试覆盖率（274+ 测试用例）
-- 🛡️ 稳定可靠的错误处理和去重机制
-- 🔧 开发友好的调试和集成测试工具
+- 📋 默认上报运行小程序的设备、操作系统、应用版本信息
+- 🔧 支持在 Taro 等第三方小程序框架中使用
+- 🎨 遵守官方统一的 API 设计文档，使用方式和官方保持一致
 
 ## 安装
 
@@ -45,7 +48,7 @@ Sentry.init({
   debug: false, // 开发环境可设置为 true
   
   // 小程序特有配置
-  platform: 'wechat', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'baidu'
+  platform: 'wechat', 
   enableSystemInfo: true, // 是否收集系统信息
   enableUserInteractionBreadcrumbs: true, // 是否记录用户交互面包屑
   enableConsoleBreadcrumbs: true, // 是否记录控制台日志面包屑
@@ -110,46 +113,19 @@ Sentry.setContext('character', {
 });
 ```
 
-## 功能特点
 
-- [x] 基于 [sentry-javascript 最新的基础模块](https://www.yuque.com/lizhiyao/dxy/zevhf1#0GMCN) 封装
-- [x] 遵守[官方统一的 API 设计文档](https://www.yuque.com/lizhiyao/dxy/gc3b9r#vQdTs)，使用方式和官方保持一致
-- [x] 使用 [TypeScript](https://www.typescriptlang.org/) 进行编写
-- [x] 包含 Sentry SDK（如：[@sentry/browser](https://github.com/getsentry/sentry-javascript/tree/master/packages/browser)）的所有基础功能
-- [x] 支持 `ES6`、`CommonJS` 两种模块系统（支持小程序原生开发方式、使用小程序框架开发方式两种开发模式下使用）
-- [x] 默认监听并上报小程序的 onError、onUnhandledRejection、onPageNotFound、onMemoryWarning 事件返回的信息（各事件支持程度与对应各小程序官方保持一致）
-- [x] 默认上报运行小程序的设备、操作系统、应用版本信息
-- [x] 支持微信小程序
-- [x] 支持微信小游戏
-- [x] 支持在 [Taro](https://taro.aotu.io/) 等第三方小程序框架中使用
-- [x] 默认上报异常发生时的路由栈
-- [x] 完善的代码测试覆盖率（274+ 测试用例，覆盖核心功能模块）
-- [x] 智能错误去重和过滤机制
-- [x] 完整的集成测试套件
 
-## 用法
+## 安装和使用
 
-支持两种使用方式：
+推荐使用 npm 方式安装和使用 sentry-miniapp。
 
-- 直接引用
-- 通过 npm 方式使用（推荐）
+### 前置要求
 
-### 注意
-
-1. 无论选择哪种使用方式，都需要开启「微信开发者工具 - 设置 - 项目设置 - 增强编译」功能
+1. 需要开启「微信开发者工具 - 设置 - 项目设置 - 增强编译」功能
 2. 使用前需要确保有可用的 `Sentry Service`，比如：使用 [官方 Sentry Service](https://sentry.io/welcome/) 服务 或[自己搭建 Sentry Service](https://docs.sentry.io/server/)。如果想直接将异常信息上报到 <https://sentry.io/>，由于其没有备案，可以先将异常信息上报给自己已备案域名下的服务端接口，由服务端进行请求转发。
 3. 在小程序管理后台配置 `Sentry Service` 对应的 `request` 合法域名
 
-### 直接引用
-
-1. 下载构建好的文件：
-   - 微信小程序：从 `examples/wxapp/lib/sentry-miniapp.js` 获取
-   - 或者运行 `npm run build:miniapp` 生成最新版本
-2. 将文件放入项目的合适目录中，比如 `lib` 或 `vendor` 文件夹
-3. 参照 `examples/wxapp/app.js` 代码，进行 `Sentry` 的初始化
-4. `sentry-miniapp` 会自动上报微信小程序 `wx.onError()` 捕获的异常
-
-### npm 方式
+### 安装
 
 1. 安装依赖
 
@@ -161,7 +137,9 @@ Sentry.setContext('character', {
 
 2. 使用「微信开发者工具 - 工具 - 构建 npm」进行构建，详情可参考[npm 支持](https://developers.weixin.qq.com/miniprogram/dev/devtools/npm.html)
 
-3. 在 `app.js` 中引用并初始化 `Sentry`，根据实际需求设置上报到 Sentry 的元信息
+### 使用
+
+在 `app.js` 中引用并初始化 `Sentry`，根据实际需求设置上报到 Sentry 的元信息
 
    ```js
    import * as Sentry from "sentry-miniapp";
