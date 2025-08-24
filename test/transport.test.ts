@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { createMiniappTransport } from '../src/transports/xhr';
-import { makeRequest } from '../src/client';
 import { Envelope } from '@sentry/core';
+import { _sdk } from '../src/crossPlatform';
 
 describe('Transport', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('makeRequest', () => {
-    it('should make successful HTTP request', async () => {
+  describe('createMiniappTransport', () => {
+    it('should create transport that makes successful HTTP request', async () => {
       const mockRequest = jest.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 200,
@@ -17,29 +17,37 @@ describe('Transport', () => {
           header: {}
         });
       });
-      (global as any).wx.request = mockRequest;
+      (global as any).wx = { request: mockRequest };
 
-      const options = {
-        url: 'https://sentry.io/api/123/store/',
-        body: 'test-body',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      };
+      const transport = createMiniappTransport({
+         url: 'https://sentry.io/api/123/store/',
+         recordDroppedEvent: () => {}
+       });
 
-      const response = await makeRequest(options);
+      // Create a proper envelope format
+      const envelope: Envelope = [
+        { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[
+          { type: 'event' },
+          { message: 'test message', event_id: 'test-id' }
+        ]]
+      ];
+
+      const response = await transport.send(envelope as any);
 
       expect(mockRequest).toHaveBeenCalledWith({
-        url: options.url,
+        url: 'https://sentry.io/api/123/store/',
         method: 'POST',
-        data: options.body,
-        header: options.headers,
+        data: expect.any(String),
+        header: {
+           'Content-Type': 'application/json'
+         },
+        timeout: 10000,
         success: expect.any(Function),
         fail: expect.any(Function)
       });
 
       expect(response.statusCode).toBe(200);
-      // Headers may include default values, so just check it's defined
       expect(response.headers).toBeDefined();
     });
 
@@ -49,16 +57,25 @@ describe('Transport', () => {
           (options as any).fail({ errMsg: 'request:fail timeout' });
         }, 0);
       });
-      (global as any).wx.request = mockRequest;
+      (global as any).wx = { request: mockRequest };
 
-      const options = {
+      const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        body: JSON.stringify({ test: 'data' })
-      };
+        recordDroppedEvent: () => {}
+      });
+
+      // Create a proper envelope format
+      const envelope: Envelope = [
+        { event_id: 'test-id-2', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[
+          { type: 'event' },
+          { message: 'test failure', event_id: 'test-id-2' }
+        ]]
+      ];
 
       // Test that the function handles failures
       try {
-        await makeRequest(options);
+        await transport.send(envelope as any);
         // If no error is thrown, that's also acceptable
         expect(true).toBe(true);
       } catch (error) {
@@ -69,25 +86,34 @@ describe('Transport', () => {
 
     it('should handle rate limiting headers', async () => {
       const mockRequest = jest.fn().mockImplementation((options) => {
-        setTimeout(() => {
-          (options as any).success({
-            statusCode: 429,
-            data: 'Rate limited',
-            header: {
-              'x-sentry-rate-limits': '60:error:key',
-              'retry-after': '60'
-            }
-          });
-        }, 0);
+        (options as any).success({
+          statusCode: 429,
+          data: 'Rate limited',
+          header: {
+            'X-Sentry-Rate-Limits': '60::organization:key'
+          }
+        });
       });
-      (global as any).wx.request = mockRequest;
+      (global as any).wx = { request: mockRequest };
+      
+      // Reset the SDK cache to pick up the new mock
+      (_sdk as any) = null;
 
-      const options = {
+      const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        body: 'test-body'
-      };
+        recordDroppedEvent: () => {}
+      });
 
-      const response = await makeRequest(options);
+      // Create a proper envelope format
+      const envelope: Envelope = [
+        { event_id: 'test-id-3', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[
+          { type: 'event' },
+          { message: 'rate limit test', event_id: 'test-id-3' }
+        ]]
+      ];
+
+      const response = await transport.send(envelope as any);
 
       expect(response.statusCode).toBe(429);
       // Headers handling may vary, so just check basic response
@@ -97,19 +123,29 @@ describe('Transport', () => {
     it('should handle non-200 status codes', async () => {
       const mockRequest = jest.fn().mockImplementation((options) => {
         (options as any).success({
-          statusCode: 400,
-          data: 'Bad Request',
-          header: {}
+          statusCode: 400
         });
       });
-      (global as any).wx.request = mockRequest;
+      (global as any).wx = { request: mockRequest };
+      
+      // Reset the SDK cache to pick up the new mock
+      (_sdk as any) = null;
 
-      const options = {
+      const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        body: 'test-body'
-      };
+        recordDroppedEvent: () => {}
+      });
 
-      const response = await makeRequest(options);
+      // Create a proper envelope format
+      const envelope: Envelope = [
+        { event_id: 'test-id-4', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[
+          { type: 'event' },
+          { message: 'status code test', event_id: 'test-id-4' }
+        ]]
+      ];
+
+      const response = await transport.send(envelope as any);
 
       expect(response.statusCode).toBe(400);
     });

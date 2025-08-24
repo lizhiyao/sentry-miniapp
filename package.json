@@ -58,6 +58,6 @@
     "vite-plugin-dts": "^4.5.4"
   },
   "dependencies": {
-    "@sentry/core": "9.38.0"
+    "@sentry/core": "10.5.0"
   }
 }

@@ -206,7 +206,7 @@ const isMiniappEnvironment = (): boolean => {
 };
 
 // 懒加载 SDK 和 appName，避免在模块导入时就执行平台检测
-let _sdk: SDK | null = null;
+export let _sdk: SDK | null = null;
 let _appName: string | null = null;
 
 export const sdk = (): SDK => {

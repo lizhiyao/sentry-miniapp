@@ -1,6 +1,5 @@
 import {
-  BaseClient,
-  createTransport,
+  Client,
   Scope,
   getIsolationScope,
   getCurrentScope,
@@ -8,8 +7,6 @@ import {
 import type {
   Event,
   EventHint,
-  Transport,
-  TransportMakeRequestResponse,
 } from '@sentry/core';
 
 import { sdk, appName, getSystemInfo } from './crossPlatform';
@@ -23,7 +20,7 @@ import { SDK_NAME, SDK_VERSION } from './version';
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
-export class MiniappClient extends BaseClient<any> {
+export class MiniappClient extends Client<any> {
   /**
    * Creates a new Miniapp SDK instance.
    *

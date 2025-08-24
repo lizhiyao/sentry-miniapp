@@ -14,7 +14,6 @@ export interface MiniappTransportOptions extends BaseTransportOptions {
 export function createMiniappTransport(options: MiniappTransportOptions): Transport {
   // 保存 URL 到局部变量
   const transportUrl = options.url;
-  const transportHeaders = options.headers;
 
   /**
    * Make a request using miniapp request API
