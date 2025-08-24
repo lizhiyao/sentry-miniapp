@@ -13,23 +13,21 @@ npm install
 ### 2. 开发命令
 
 ```bash
-# 构建标准版本（用于发布）
-npm run build
+# 开发相关
+npm run dev                    # 开发模式构建（监听模式）
+npm run build                  # 构建标准版本（用于发布）
+npm run build:miniapp          # 构建小程序开发版本
+npm run build:types            # 构建类型定义文件
 
-# 构建小程序开发版本
-npm run build:miniapp
+# 测试相关
+npm test                       # 运行完整测试套件（274+ 测试用例）
+npm run test:watch             # 监听模式运行测试
+npm run test:coverage          # 生成测试覆盖率报告
+npm run test:integration       # 运行集成测试
 
-# 构建类型定义文件
-npm run build:types
-
-# 开发模式构建（监听模式）
-npm run dev
-
-# 运行测试
-npm test
-
-# 代码检查
-npm run lint
+# 代码质量
+npm run lint                   # 代码检查
+npm run lint:fix               # 自动修复代码问题
 ```
 
 ## 小程序开发调试
@@ -123,10 +121,82 @@ examples/wxapp/
 5. 在示例项目中测试功能
 6. 提交 Pull Request
 
+## 测试和质量保证
+
+### 测试套件
+
+项目包含完善的测试覆盖率（274+ 测试用例）：
+
+- **单元测试**：覆盖所有核心模块
+  - `crossPlatform.test.ts` - 平台检测和系统信息
+  - `eventbuilder.test.ts` - 事件构建和格式化
+  - `helpers.test.ts` - 工具函数
+  - `polyfills.test.ts` - Polyfill 功能
+  - `version.test.ts` - 版本信息
+  - `dedupe.test.ts` - 去重集成
+  - `router.test.ts` - 路由集成
+
+- **集成测试**：验证端到端功能
+  - `integration-tests/` 目录包含各种场景测试
+  - 测试异常捕获、上报和处理流程
+  - 验证多平台兼容性
+
+### 运行测试
+
+```bash
+# 运行所有测试
+npm test
+
+# 监听模式（开发时推荐）
+npm run test:watch
+
+# 生成覆盖率报告
+npm run test:coverage
+
+# 运行集成测试
+npm run test:integration
+```
+
+### 代码质量
+
+```bash
+# 代码检查
+npm run lint
+
+# 自动修复
+npm run lint:fix
+```
+
 ## 发布流程
 
-1. 更新版本号
-2. 运行完整测试套件
-3. 构建生产版本
-4. 更新文档
-5. 发布到 npm
+1. **更新版本号**
+   ```bash
+   npm run version
+   ```
+
+2. **运行完整测试套件**
+   ```bash
+   npm test
+   npm run test:integration
+   ```
+
+3. **代码质量检查**
+   ```bash
+   npm run lint
+   ```
+
+4. **构建生产版本**
+   ```bash
+   npm run build
+   npm run build:types
+   ```
+
+5. **更新文档**
+   - 更新 README.md
+   - 更新 CHANGELOG.md
+   - 检查示例代码
+
+6. **发布到 npm**
+   ```bash
+   npm publish --registry=https://registry.npmjs.org/
+   ```
