@@ -4489,16 +4489,23 @@ const getSystemInfo = () => {
         platform: deviceInfo.platform || "",
         fontSizeSetting: appBaseInfo.fontSizeSetting || 0,
         SDKVersion: appBaseInfo.SDKVersion || "",
-        benchmarkLevel: deviceInfo.benchmarkLevel,
-        albumAuthorized: deviceInfo.albumAuthorized,
-        cameraAuthorized: deviceInfo.cameraAuthorized,
-        locationAuthorized: deviceInfo.locationAuthorized,
-        microphoneAuthorized: deviceInfo.microphoneAuthorized,
-        notificationAuthorized: deviceInfo.notificationAuthorized,
-        bluetoothEnabled: deviceInfo.bluetoothEnabled,
-        locationEnabled: deviceInfo.locationEnabled,
-        wifiEnabled: deviceInfo.wifiEnabled,
-        safeArea: windowInfo.safeArea
+        benchmarkLevel: deviceInfo.benchmarkLevel || 0,
+        albumAuthorized: deviceInfo.albumAuthorized || false,
+        cameraAuthorized: deviceInfo.cameraAuthorized || false,
+        locationAuthorized: deviceInfo.locationAuthorized || false,
+        microphoneAuthorized: deviceInfo.microphoneAuthorized || false,
+        notificationAuthorized: deviceInfo.notificationAuthorized || false,
+        bluetoothEnabled: deviceInfo.bluetoothEnabled || false,
+        locationEnabled: deviceInfo.locationEnabled || false,
+        wifiEnabled: deviceInfo.wifiEnabled || false,
+        safeArea: windowInfo.safeArea || {
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: windowInfo.windowWidth || 0,
+          height: windowInfo.windowHeight || 0
+        }
       };
     }
     if (currentSdk.getSystemInfoSync) {
@@ -4531,6 +4538,17 @@ const appName = () => {
     _appName = getAppName();
   }
   return _appName;
+};
+const getPerformanceManager = () => {
+  try {
+    const currentSdk = sdk();
+    if (currentSdk.getPerformance && typeof currentSdk.getPerformance === "function") {
+      return currentSdk.getPerformance();
+    }
+  } catch (error2) {
+    console.warn("Failed to get performance manager:", error2);
+  }
+  return null;
 };
 function createMiniappTransport(options) {
   const transportUrl = options.url;
@@ -4633,20 +4651,37 @@ class MiniappClient extends Client {
     const systemInfo = getSystemInfo();
     if (systemInfo) {
       event.contexts.device = {
-        brand: systemInfo.brand,
-        model: systemInfo.model,
-        screen_resolution: `${systemInfo.screenWidth}x${systemInfo.screenHeight}`,
-        language: systemInfo.language,
-        version: systemInfo.version,
-        system: systemInfo.system,
-        platform: systemInfo.platform
+        brand: systemInfo.brand || "unknown",
+        model: systemInfo.model || "unknown",
+        screen_resolution: `${systemInfo.screenWidth || 0}x${systemInfo.screenHeight || 0}`,
+        language: systemInfo.language || "unknown",
+        version: systemInfo.version || "unknown",
+        system: systemInfo.system || "unknown",
+        platform: systemInfo.platform || "unknown"
       };
       event.contexts.os = {
-        name: systemInfo.system,
-        version: systemInfo.version
+        name: systemInfo.system || "unknown",
+        version: systemInfo.version || "unknown"
       };
       event.contexts.app = {
-        app_version: systemInfo.SDKVersion
+        app_version: systemInfo.SDKVersion || "unknown"
+      };
+    } else {
+      event.contexts.device = {
+        brand: "unknown",
+        model: "unknown",
+        screen_resolution: "0x0",
+        language: "unknown",
+        version: "unknown",
+        system: "unknown",
+        platform: "unknown"
+      };
+      event.contexts.os = {
+        name: "unknown",
+        version: "unknown"
+      };
+      event.contexts.app = {
+        app_version: "unknown"
       };
     }
     try {
@@ -5569,15 +5604,450 @@ const _Router = class _Router {
 };
 _Router.id = "Router";
 let Router = _Router;
+const _PerformanceIntegration = class _PerformanceIntegration {
+  constructor(options = {}) {
+    this.name = _PerformanceIntegration.id;
+    this._performanceManager = null;
+    this._observers = [];
+    this._entryBuffer = [];
+    this._reportTimer = null;
+    this._options = __spreadValues({
+      enableNavigation: true,
+      enableRender: true,
+      enableResource: true,
+      enableUserTiming: true,
+      sampleRate: 1,
+      bufferSize: 100,
+      reportInterval: 3e4
+    }, options);
+  }
+  /**
+   * @inheritDoc
+   */
+  setupOnce() {
+    this._initializePerformanceManager();
+    this._setupPerformanceObservers();
+    this._startAutoReporting();
+    this._addPerformanceContext();
+  }
+  /**
+   * 初始化性能管理器
+   */
+  _initializePerformanceManager() {
+    try {
+      this._performanceManager = getPerformanceManager();
+      if (!this._performanceManager) {
+        console.warn("[Sentry Performance] Performance API not available");
+        return;
+      }
+      const scope = getCurrentScope();
+      scope.setTag("performance.api.available", true);
+      scope.setContext("performance", {
+        api_version: "miniapp-1.0",
+        sample_rate: this._options.sampleRate,
+        buffer_size: this._options.bufferSize
+      });
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to initialize performance manager:", error2);
+    }
+  }
+  /**
+   * 设置性能观察者
+   */
+  _setupPerformanceObservers() {
+    if (!this._performanceManager) {
+      return;
+    }
+    try {
+      const entryTypes = [];
+      if (this._options.enableNavigation) {
+        entryTypes.push("navigation");
+      }
+      if (this._options.enableRender) {
+        entryTypes.push("render");
+      }
+      if (this._options.enableResource) {
+        entryTypes.push("resource");
+      }
+      if (this._options.enableUserTiming) {
+        entryTypes.push("measure", "mark");
+      }
+      if (entryTypes.length === 0) {
+        return;
+      }
+      const observer = this._performanceManager.createObserver((entries) => {
+        this._handlePerformanceEntries(entries);
+      });
+      observer.observe({ entryTypes });
+      this._observers.push(observer);
+      console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to setup performance observers:", error2);
+    }
+  }
+  /**
+   * 处理性能条目
+   */
+  _handlePerformanceEntries(entries) {
+    if (!entries) {
+      return;
+    }
+    let entriesArray;
+    if (Array.isArray(entries)) {
+      entriesArray = entries;
+    } else if (typeof entries === "object" && entries.getEntries) {
+      entriesArray = entries.getEntries();
+    } else if (typeof entries === "object") {
+      entriesArray = [entries];
+    } else {
+      console.warn("[Sentry Performance] Invalid entries format:", typeof entries);
+      return;
+    }
+    if (entriesArray.length === 0) {
+      return;
+    }
+    if (Math.random() > this._options.sampleRate) {
+      return;
+    }
+    entriesArray.forEach((entry) => {
+      try {
+        this._processPerformanceEntry(entry);
+        this._addToBuffer(entry);
+      } catch (error2) {
+        console.warn("[Sentry Performance] Failed to process performance entry:", error2);
+      }
+    });
+  }
+  /**
+   * 处理单个性能条目
+   */
+  _processPerformanceEntry(entry) {
+    switch (entry.entryType) {
+      case "navigation":
+        this._processNavigationEntry(entry);
+        break;
+      case "render":
+        this._processRenderEntry(entry);
+        break;
+      case "resource":
+        this._processResourceEntry(entry);
+        break;
+      case "measure":
+      case "mark":
+        this._processUserTimingEntry(entry);
+        break;
+      default:
+        console.log("[Sentry Performance] Unknown entry type:", entry.entryType);
+    }
+  }
+  /**
+   * 处理导航性能条目
+   */
+  _processNavigationEntry(entry) {
+    const scope = getCurrentScope();
+    scope.addBreadcrumb({
+      message: `页面导航: ${entry.name}`,
+      category: "performance.navigation",
+      level: "info",
+      data: {
+        duration: entry.duration,
+        appLaunchTime: entry.appLaunchTime,
+        pageReadyTime: entry.pageReadyTime
+      }
+    });
+    startSpan({
+      name: `Navigation: ${entry.name}`,
+      op: "navigation",
+      startTime: entry.startTime / 1e3
+      // 转换为秒
+    }, (span) => {
+      span.setAttributes({
+        "navigation.name": entry.name,
+        "navigation.duration": entry.duration,
+        "navigation.app_launch_time": entry.appLaunchTime || 0,
+        "navigation.page_ready_time": entry.pageReadyTime || 0,
+        "navigation.first_render_time": entry.firstRenderTime || 0
+      });
+      span.end((entry.startTime + entry.duration) / 1e3);
+    });
+  }
+  /**
+   * 处理渲染性能条目
+   */
+  _processRenderEntry(entry) {
+    startSpan({
+      name: `Render: ${entry.name}`,
+      op: "render",
+      startTime: entry.startTime / 1e3
+    }, (span) => {
+      span.setAttributes({
+        "render.name": entry.name,
+        "render.duration": entry.duration,
+        "render.start": entry.renderStart || 0,
+        "render.end": entry.renderEnd || 0,
+        "render.script_start": entry.scriptStart || 0,
+        "render.script_end": entry.scriptEnd || 0
+      });
+      span.end((entry.startTime + entry.duration) / 1e3);
+    });
+  }
+  /**
+   * 处理资源加载性能条目
+   */
+  _processResourceEntry(entry) {
+    startSpan({
+      name: `Resource: ${entry.name}`,
+      op: "resource",
+      startTime: entry.startTime / 1e3
+    }, (span) => {
+      span.setAttributes({
+        "resource.name": entry.name,
+        "resource.duration": entry.duration,
+        "resource.type": entry.initiatorType || "unknown",
+        "resource.transfer_size": entry.transferSize || 0,
+        "resource.encoded_size": entry.encodedBodySize || 0,
+        "resource.decoded_size": entry.decodedBodySize || 0
+      });
+      if (entry.fetchStart && entry.responseEnd) {
+        span.setAttributes({
+          "resource.fetch_start": entry.fetchStart,
+          "resource.response_end": entry.responseEnd,
+          "resource.network_time": entry.responseEnd - entry.fetchStart
+        });
+      }
+      span.end((entry.startTime + entry.duration) / 1e3);
+    });
+  }
+  /**
+   * 处理用户自定义性能条目
+   */
+  _processUserTimingEntry(entry) {
+    if (entry.entryType === "measure") {
+      startSpan({
+        name: `Measure: ${entry.name}`,
+        op: "measure",
+        startTime: entry.startTime / 1e3
+      }, (span) => {
+        span.setAttributes({
+          "measure.name": entry.name,
+          "measure.duration": entry.duration,
+          "measure.detail": entry.detail ? JSON.stringify(entry.detail) : void 0
+        });
+        span.end((entry.startTime + entry.duration) / 1e3);
+      });
+    } else if (entry.entryType === "mark") {
+      const scope = getCurrentScope();
+      scope.addBreadcrumb({
+        message: `性能标记: ${entry.name}`,
+        category: "performance.mark",
+        level: "info",
+        data: {
+          timestamp: entry.startTime,
+          detail: entry.detail
+        }
+      });
+    }
+  }
+  /**
+   * 添加到缓冲区
+   */
+  _addToBuffer(entry) {
+    this._entryBuffer.push(entry);
+    if (this._entryBuffer.length > this._options.bufferSize) {
+      this._entryBuffer = this._entryBuffer.slice(-this._options.bufferSize);
+    }
+  }
+  /**
+   * 开始自动上报
+   */
+  _startAutoReporting() {
+    if (this._options.reportInterval <= 0) {
+      return;
+    }
+    this._reportTimer = setInterval(() => {
+      this._reportBufferedEntries();
+    }, this._options.reportInterval);
+  }
+  /**
+   * 上报缓冲的性能条目
+   */
+  _reportBufferedEntries() {
+    if (this._entryBuffer.length === 0) {
+      return;
+    }
+    try {
+      const scope = getCurrentScope();
+      const stats = this._calculatePerformanceStats();
+      scope.setContext("performance_summary", __spreadValues({
+        total_entries: this._entryBuffer.length,
+        navigation_count: this._entryBuffer.filter((e) => e.entryType === "navigation").length,
+        render_count: this._entryBuffer.filter((e) => e.entryType === "render").length,
+        resource_count: this._entryBuffer.filter((e) => e.entryType === "resource").length,
+        measure_count: this._entryBuffer.filter((e) => e.entryType === "measure").length,
+        mark_count: this._entryBuffer.filter((e) => e.entryType === "mark").length,
+        report_time: (/* @__PURE__ */ new Date()).toISOString()
+      }, stats));
+      this._checkPerformanceThresholds(stats);
+      this._reportToNativeAPI();
+      this._entryBuffer = [];
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to report buffered entries:", error2);
+    }
+  }
+  /**
+   * 计算性能统计数据
+   */
+  _calculatePerformanceStats() {
+    const navigationEntries = this._entryBuffer.filter((e) => e.entryType === "navigation");
+    const renderEntries = this._entryBuffer.filter((e) => e.entryType === "render");
+    const resourceEntries = this._entryBuffer.filter((e) => e.entryType === "resource");
+    const stats = {};
+    if (navigationEntries.length > 0) {
+      const durations = navigationEntries.map((e) => e.duration);
+      stats["navigation_stats"] = {
+        avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_duration: Math.max(...durations),
+        min_duration: Math.min(...durations)
+      };
+    }
+    if (renderEntries.length > 0) {
+      const durations = renderEntries.map((e) => e.duration);
+      stats["render_stats"] = {
+        avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_duration: Math.max(...durations),
+        min_duration: Math.min(...durations)
+      };
+    }
+    if (resourceEntries.length > 0) {
+      const durations = resourceEntries.map((e) => e.duration);
+      const sizes = resourceEntries.map((e) => e.transferSize || 0).filter((size) => size > 0);
+      stats["resource_stats"] = {
+        avg_load_time: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_load_time: Math.max(...durations),
+        total_transfer_size: sizes.reduce((a, b) => a + b, 0),
+        avg_transfer_size: sizes.length > 0 ? sizes.reduce((a, b) => a + b, 0) / sizes.length : 0
+      };
+    }
+    return stats;
+  }
+  /**
+   * 检查性能阈值
+   */
+  _checkPerformanceThresholds(stats) {
+    var _a, _b, _c;
+    const scope = getCurrentScope();
+    if (((_a = stats["navigation_stats"]) == null ? void 0 : _a.avg_duration) > 3e3) {
+      scope.addBreadcrumb({
+        message: "页面导航性能较慢",
+        category: "performance.warning",
+        level: "warning",
+        data: {
+          avg_duration: stats["navigation_stats"].avg_duration,
+          threshold: 3e3
+        }
+      });
+    }
+    if (((_b = stats["render_stats"]) == null ? void 0 : _b.avg_duration) > 1e3) {
+      scope.addBreadcrumb({
+        message: "页面渲染性能较慢",
+        category: "performance.warning",
+        level: "warning",
+        data: {
+          avg_duration: stats["render_stats"].avg_duration,
+          threshold: 1e3
+        }
+      });
+    }
+    if (((_c = stats["resource_stats"]) == null ? void 0 : _c.avg_load_time) > 2e3) {
+      scope.addBreadcrumb({
+        message: "资源加载性能较慢",
+        category: "performance.warning",
+        level: "warning",
+        data: {
+          avg_load_time: stats["resource_stats"].avg_load_time,
+          threshold: 2e3
+        }
+      });
+    }
+  }
+  /**
+   * 使用小程序原生 API 上报性能数据
+   */
+  _reportToNativeAPI() {
+    try {
+      const currentSdk = sdk();
+      if (currentSdk.reportPerformance && this._entryBuffer.length > 0) {
+        const performanceData = {
+          entries: this._entryBuffer.map((entry) => ({
+            name: entry.name,
+            entryType: entry.entryType,
+            startTime: entry.startTime,
+            duration: entry.duration
+          })),
+          timestamp: Date.now(),
+          sampleRate: this._options.sampleRate
+        };
+        currentSdk.reportPerformance(performanceData);
+      }
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to report to native API:", error2);
+    }
+  }
+  /**
+   * 添加性能上下文信息
+   */
+  _addPerformanceContext() {
+    try {
+      const scope = getCurrentScope();
+      const currentSdk = sdk();
+      const hasPerformanceAPI = !!currentSdk.getPerformance;
+      const hasReportAPI = !!currentSdk.reportPerformance;
+      scope.setContext("performance_support", {
+        has_performance_api: hasPerformanceAPI,
+        has_report_api: hasReportAPI,
+        integration_enabled: true,
+        options: this._options
+      });
+      scope.setTag("performance.integration", "enabled");
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to add performance context:", error2);
+    }
+  }
+  /**
+   * 清理资源
+   */
+  cleanup() {
+    this._observers.forEach((observer) => {
+      try {
+        observer.disconnect();
+      } catch (error2) {
+        console.warn("[Sentry Performance] Failed to disconnect observer:", error2);
+      }
+    });
+    this._observers = [];
+    if (this._reportTimer) {
+      clearInterval(this._reportTimer);
+      this._reportTimer = null;
+    }
+    this._reportBufferedEntries();
+  }
+};
+_PerformanceIntegration.id = "PerformanceAPI";
+let PerformanceIntegration = _PerformanceIntegration;
+const performanceIntegration = (options) => {
+  return () => new PerformanceIntegration(options);
+};
 const index = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   Dedupe,
   GlobalHandlers,
   HttpContext,
   LinkedErrors,
+  PerformanceIntegration,
   Router,
   System,
-  TryCatch
+  TryCatch,
+  performanceIntegration
 }, Symbol.toStringTag, { value: "Module" }));
 const defaultIntegrations = [
   // Core integrations
@@ -5585,7 +6055,16 @@ const defaultIntegrations = [
   new Dedupe(),
   new GlobalHandlers(),
   new TryCatch(),
-  new LinkedErrors()
+  new LinkedErrors(),
+  // Performance monitoring
+  performanceIntegration({
+    enableNavigation: true,
+    enableRender: true,
+    enableResource: true,
+    enableUserTiming: true,
+    sampleRate: 1,
+    reportInterval: 3e4
+  })
 ];
 function getDefaultIntegrations() {
   return [...defaultIntegrations];
@@ -5673,10 +6152,12 @@ exports.flush = flush;
 exports.getCurrentScope = getCurrentScope;
 exports.getDefaultIntegrations = getDefaultIntegrations;
 exports.getIsolationScope = getIsolationScope;
+exports.getPerformanceManager = getPerformanceManager;
 exports.init = init;
 exports.isEnabled = isEnabled;
 exports.lastEventId = lastEventId;
 exports.makeSession = makeSession;
+exports.performanceIntegration = performanceIntegration;
 exports.setContext = setContext;
 exports.setExtra = setExtra;
 exports.setExtras = setExtras;

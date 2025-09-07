@@ -79,6 +79,16 @@ Sentry.init({
       }
       return integration;
     }),
+    // 添加 Performance API 集成
+    new Sentry.Integrations.PerformanceIntegration({
+      enableNavigationTiming: true,
+      enableRenderTiming: true,
+      enableResourceTiming: true,
+      enableUserTiming: true,
+      sampleRate: 1.0,
+      bufferSize: 100,
+      reportInterval: 30000, // 30秒上报一次
+    }),
   ],
 });
 

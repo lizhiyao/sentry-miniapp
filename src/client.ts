@@ -96,22 +96,42 @@ export class MiniappClient extends Client<any> {
     const systemInfo = getSystemInfo();
     if (systemInfo) {
       event.contexts.device = {
-        brand: systemInfo.brand,
-        model: systemInfo.model,
-        screen_resolution: `${systemInfo.screenWidth}x${systemInfo.screenHeight}`,
-        language: systemInfo.language,
-        version: systemInfo.version,
-        system: systemInfo.system,
-        platform: systemInfo.platform,
+        brand: systemInfo.brand || 'unknown',
+        model: systemInfo.model || 'unknown',
+        screen_resolution: `${systemInfo.screenWidth || 0}x${systemInfo.screenHeight || 0}`,
+        language: systemInfo.language || 'unknown',
+        version: systemInfo.version || 'unknown',
+        system: systemInfo.system || 'unknown',
+        platform: systemInfo.platform || 'unknown',
       };
 
       event.contexts.os = {
-        name: systemInfo.system,
-        version: systemInfo.version,
+        name: systemInfo.system || 'unknown',
+        version: systemInfo.version || 'unknown',
       };
 
       event.contexts.app = {
-        app_version: systemInfo.SDKVersion,
+        app_version: systemInfo.SDKVersion || 'unknown',
+      };
+    } else {
+      // Provide fallback values when system info is not available
+      event.contexts.device = {
+        brand: 'unknown',
+        model: 'unknown',
+        screen_resolution: '0x0',
+        language: 'unknown',
+        version: 'unknown',
+        system: 'unknown',
+        platform: 'unknown',
+      };
+
+      event.contexts.os = {
+        name: 'unknown',
+        version: 'unknown',
+      };
+
+      event.contexts.app = {
+        app_version: 'unknown',
       };
     }
 

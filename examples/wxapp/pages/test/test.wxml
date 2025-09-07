@@ -92,6 +92,13 @@
         <text class="btn-desc">测试网络请求性能追踪</text>
         <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
       </button>
+      
+      <button bindtap="testPerformanceAPI" class="test-btn performance-api {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
+        <view class="btn-icon">🚀</view>
+        <text class="btn-title">Performance API</text>
+        <text class="btn-desc">测试 Performance API 集成</text>
+        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
+      </button>
     </view>
   </view>
 

@@ -194,16 +194,23 @@ describe('CrossPlatform', () => {
         platform: '',
         fontSizeSetting: 0,
         SDKVersion: '2.19.4',
-        benchmarkLevel: undefined,
-        albumAuthorized: undefined,
-        cameraAuthorized: undefined,
-        locationAuthorized: undefined,
-        microphoneAuthorized: undefined,
-        notificationAuthorized: undefined,
-        bluetoothEnabled: undefined,
-        locationEnabled: undefined,
-        wifiEnabled: undefined,
-        safeArea: undefined
+        benchmarkLevel: 0,
+        albumAuthorized: false,
+        cameraAuthorized: false,
+        locationAuthorized: false,
+        microphoneAuthorized: false,
+        notificationAuthorized: false,
+        bluetoothEnabled: false,
+        locationEnabled: false,
+        wifiEnabled: false,
+        safeArea: {
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: 390,
+          height: 844
+        }
       });
     });
 

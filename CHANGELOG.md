@@ -2,6 +2,35 @@
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
 
+## [1.0.1-beta.2] - 2025-01-07
+
+### 修复
+- 🐛 修复事件上报中出现大量 `undefined` 值的问题
+- 🔧 改进系统信息收集逻辑，为所有可能为 undefined 的字段提供默认值
+- ✅ 增强 `getSystemInfo` 函数的健壮性，确保返回的数据结构完整
+- 🎯 改进事件构建器中的系统信息处理，提供完整的回退机制
+
+### 新增
+- 🧪 新增系统信息处理的测试用例，验证 undefined 字段的处理
+- 🧪 新增系统信息不可用时的回退值测试
+
+## [1.0.1-beta.1] - 2025-01-07
+
+### 修复
+- 🐛 修复 Performance API 集成中的 TypeError 错误 (`entries.forEach is not a function`)
+- 🔧 为不同的 PerformanceObserver 回调参数格式添加健壮处理
+- ✅ 改进与微信小程序 PerformanceObserver 实现的兼容性
+
+### 改进
+- 🎯 增强 `_handlePerformanceEntries` 方法以处理各种条目格式：
+  - 标准数组格式
+  - 单个对象格式
+  - PerformanceObserverEntryList 类对象
+  - 无效/null 参数（优雅处理）
+
+### 新增
+- 🧪 为不同 Performance API 条目格式添加额外测试用例
+
 ## [未发布]
 
 ### 新增
