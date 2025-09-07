@@ -6,7 +6,7 @@
 ![github stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp?style=social)
 ![github watchers](https://img.shields.io/github/watchers/lizhiyao/sentry-miniapp?style=social)
 ![github license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
-![test coverage](https://img.shields.io/badge/test%20coverage-274%2B%20tests-brightgreen.svg)
+![test coverage](https://img.shields.io/badge/test%20coverage-286%20tests-brightgreen.svg)
 
 基于 `@sentry/core` 10.5.0 的微信小程序异常监控 SDK。
 
@@ -26,7 +26,7 @@
 - 📱 支持微信小程序和微信小游戏
 - 🔧 TypeScript 编写，提供完整的类型定义
 - 📦 支持 ES6 和 CommonJS 两种模块系统
-- 📊 完善的测试覆盖率（274+ 测试用例，覆盖核心功能模块）
+- 📊 完善的测试覆盖率（286 测试用例，覆盖核心功能模块）
 - 🔍 完整的集成测试套件
 
 扫码体验：sentry-miniapp 使用示例小程序
@@ -43,9 +43,17 @@
 
 推荐使用 npm 方式。
 
+**稳定版本：**
    ```bash
    npm install sentry-miniapp --save
    ```
+
+**Beta 版本（包含最新修复）：**
+   ```bash
+   npm install sentry-miniapp@beta --save
+   ```
+
+> **注意：** v1.0.1-beta.2 版本修复了事件上报中 `undefined` 值的问题，建议使用最新的 beta 版本。
 
 ### 重要提示
 
