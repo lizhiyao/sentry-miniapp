@@ -916,6 +916,133 @@ Page({
     });
   }),
 
+  // 测试 Performance API 集成
+  testPerformanceAPI: Sentry.wrap(function () {
+    if (!this.checkUserLogin()) return;
+
+    console.log('测试 Performance API 集成');
+
+    // 记录测试开始
+    Sentry.addBreadcrumb({
+      message: '开始 Performance API 集成测试',
+      category: 'test',
+      level: 'info'
+    });
+
+    const testStartTime = Date.now();
+    let testResults = [];
+
+    try {
+      // 测试用户自定义性能标记
+      if (wx.performance && wx.performance.mark) {
+        wx.performance.mark('test-start');
+        
+        // 模拟一些操作
+        setTimeout(() => {
+          wx.performance.mark('test-operation-complete');
+          
+          // 测量操作耗时
+          if (wx.performance.measure) {
+            wx.performance.measure('test-operation', 'test-start', 'test-operation-complete');
+          }
+          
+          testResults.push({
+            type: 'user_timing',
+            status: 'success',
+            message: '用户自定义性能标记测试成功'
+          });
+          
+          this.completePerformanceAPITest(testResults, testStartTime);
+        }, 100);
+        
+      } else {
+        testResults.push({
+          type: 'user_timing',
+          status: 'warning',
+          message: 'Performance API 不可用，可能在开发者工具中'
+        });
+        
+        this.completePerformanceAPITest(testResults, testStartTime);
+      }
+      
+      // 测试导航性能（模拟）
+      testResults.push({
+        type: 'navigation',
+        status: 'info',
+        message: '导航性能监控已启用，将在页面跳转时自动收集数据'
+      });
+      
+      // 测试渲染性能（模拟）
+      testResults.push({
+        type: 'render',
+        status: 'info',
+        message: '渲染性能监控已启用，将在页面渲染时自动收集数据'
+      });
+      
+      // 测试资源加载性能（模拟）
+      testResults.push({
+        type: 'resource',
+        status: 'info',
+        message: '资源加载性能监控已启用，将在资源加载时自动收集数据'
+      });
+      
+    } catch (error) {
+      console.error('Performance API 测试失败:', error);
+      
+      testResults.push({
+        type: 'error',
+        status: 'error',
+        message: `Performance API 测试失败: ${error.message}`
+      });
+      
+      this.completePerformanceAPITest(testResults, testStartTime);
+    }
+  }),
+
+  completePerformanceAPITest: function (testResults, testStartTime) {
+    const totalDuration = Date.now() - testStartTime;
+    
+    // 构造测试结果
+    const resultDetail = {
+      test_type: 'performance_api',
+      duration: totalDuration,
+      results: testResults,
+      performance_integration: {
+        enabled: true,
+        features: {
+          navigation_timing: true,
+          render_timing: true,
+          resource_timing: true,
+          user_timing: true
+        },
+        config: {
+          sample_rate: 1.0,
+          buffer_size: 100,
+          report_interval: 30000
+        }
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    // 发送自定义事件到 Sentry
+    Sentry.captureMessage('Performance API 集成测试完成', {
+      level: 'info',
+      tags: {
+        test_type: 'performance_api',
+        test_status: testResults.some(r => r.status === 'error') ? 'failed' : 'success'
+      },
+      extra: resultDetail
+    });
+    
+    // 添加测试结果到页面
+    const status = testResults.some(r => r.status === 'error') ? 'error' : 'success';
+    const summary = `Performance API 集成测试完成，耗时 ${totalDuration}ms`;
+    
+    this.addTestResult('Performance API 集成', status, summary, resultDetail);
+    
+    console.log('[Performance API 测试] 完成:', resultDetail);
+  },
+
   addTestResult: function (testType, status, detail, sentryRequestData) {
     const result = {
       type: testType,

@@ -16,6 +16,7 @@ import {
   LinkedErrors,
   HttpContext,
   Dedupe,
+  performanceIntegration,
 } from './integrations/index';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
@@ -29,6 +30,15 @@ export const defaultIntegrations: Integration[] = [
   new GlobalHandlers(),
   new TryCatch(),
   new LinkedErrors(),
+  // Performance monitoring
+  performanceIntegration({
+    enableNavigation: true,
+    enableRender: true,
+    enableResource: true,
+    enableUserTiming: true,
+    sampleRate: 1.0,
+    reportInterval: 30000,
+  }),
 ];
 
 /**

@@ -64,6 +64,19 @@ export { MiniappClient } from './client';
 export * as Integrations from './integrations/index';
 export * as Transports from './transports/index';
 
+// Performance API exports
+export {
+  getPerformanceManager,
+  type PerformanceEntry,
+  type NavigationPerformanceEntry,
+  type RenderPerformanceEntry,
+  type ResourcePerformanceEntry,
+  type UserTimingPerformanceEntry,
+  type PerformanceManager,
+  type PerformanceObserver,
+} from './crossPlatform';
+export { performanceIntegration, type PerformanceIntegrationOptions } from './integrations/performance';
+
 // Export Session utility functions from @sentry/core
 export { makeSession, closeSession, updateSession } from '@sentry/core';
 

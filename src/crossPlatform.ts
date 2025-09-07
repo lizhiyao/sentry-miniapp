@@ -26,6 +26,9 @@ interface SDK {
   getUpdateManager?: Function;
   showModal?: Function;
   URLSearchParams?: Function;
+  // Performance API
+  getPerformance?: Function; // 获取性能管理器
+  reportPerformance?: Function; // 上报性能数据
 }
 
 /**
@@ -169,16 +172,23 @@ const getSystemInfo = (): SystemInfo | null => {
         platform: deviceInfo.platform || '',
         fontSizeSetting: appBaseInfo.fontSizeSetting || 0,
         SDKVersion: appBaseInfo.SDKVersion || '',
-        benchmarkLevel: deviceInfo.benchmarkLevel,
-        albumAuthorized: deviceInfo.albumAuthorized,
-        cameraAuthorized: deviceInfo.cameraAuthorized,
-        locationAuthorized: deviceInfo.locationAuthorized,
-        microphoneAuthorized: deviceInfo.microphoneAuthorized,
-        notificationAuthorized: deviceInfo.notificationAuthorized,
-        bluetoothEnabled: deviceInfo.bluetoothEnabled,
-        locationEnabled: deviceInfo.locationEnabled,
-        wifiEnabled: deviceInfo.wifiEnabled,
-        safeArea: windowInfo.safeArea
+        benchmarkLevel: deviceInfo.benchmarkLevel || 0,
+        albumAuthorized: deviceInfo.albumAuthorized || false,
+        cameraAuthorized: deviceInfo.cameraAuthorized || false,
+        locationAuthorized: deviceInfo.locationAuthorized || false,
+        microphoneAuthorized: deviceInfo.microphoneAuthorized || false,
+        notificationAuthorized: deviceInfo.notificationAuthorized || false,
+        bluetoothEnabled: deviceInfo.bluetoothEnabled || false,
+        locationEnabled: deviceInfo.locationEnabled || false,
+        wifiEnabled: deviceInfo.wifiEnabled || false,
+        safeArea: windowInfo.safeArea || {
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: windowInfo.windowWidth || 0,
+          height: windowInfo.windowHeight || 0
+        }
       };
     }
     
@@ -221,6 +231,126 @@ export const appName = (): string => {
     _appName = getAppName();
   }
   return _appName;
+};
+
+/**
+ * 性能指标类型
+ */
+export interface PerformanceEntry {
+  name: string;
+  entryType: string;
+  startTime: number;
+  duration: number;
+}
+
+/**
+ * 导航性能指标
+ */
+export interface NavigationPerformanceEntry extends PerformanceEntry {
+  entryType: 'navigation';
+  // 小程序启动相关
+  appLaunchTime?: number;
+  pageReadyTime?: number;
+  firstRenderTime?: number;
+  // 页面导航相关
+  navigationStart?: number;
+  navigationEnd?: number;
+  loadEventStart?: number;
+  loadEventEnd?: number;
+}
+
+/**
+ * 渲染性能指标
+ */
+export interface RenderPerformanceEntry extends PerformanceEntry {
+  entryType: 'render';
+  // 渲染相关
+  renderStart?: number;
+  renderEnd?: number;
+  // 脚本执行
+  scriptStart?: number;
+  scriptEnd?: number;
+}
+
+/**
+ * 资源加载性能指标
+ */
+export interface ResourcePerformanceEntry extends PerformanceEntry {
+  entryType: 'resource';
+  // 资源类型
+  initiatorType?: string;
+  // 网络时序
+  fetchStart?: number;
+  domainLookupStart?: number;
+  domainLookupEnd?: number;
+  connectStart?: number;
+  connectEnd?: number;
+  requestStart?: number;
+  responseStart?: number;
+  responseEnd?: number;
+  // 资源大小
+  transferSize?: number;
+  encodedBodySize?: number;
+  decodedBodySize?: number;
+}
+
+/**
+ * 用户交互性能指标
+ */
+export interface UserTimingPerformanceEntry extends PerformanceEntry {
+  entryType: 'measure' | 'mark';
+  detail?: any;
+}
+
+/**
+ * Performance Observer 回调
+ */
+export interface PerformanceObserverCallback {
+  (entries: PerformanceEntry[]): void;
+}
+
+/**
+ * Performance API 管理器接口
+ */
+export interface PerformanceManager {
+  // 获取性能条目
+  getEntries(): PerformanceEntry[];
+  getEntriesByType(type: string): PerformanceEntry[];
+  getEntriesByName(name: string, type?: string): PerformanceEntry[];
+  
+  // 标记和测量
+  mark(name: string): void;
+  measure(name: string, startMark?: string, endMark?: string): void;
+  
+  // 清除
+  clearMarks(name?: string): void;
+  clearMeasures(name?: string): void;
+  
+  // 观察者
+  createObserver(callback: PerformanceObserverCallback): PerformanceObserver;
+}
+
+/**
+ * Performance Observer 接口
+ */
+export interface PerformanceObserver {
+  observe(options: { entryTypes: string[] }): void;
+  disconnect(): void;
+}
+
+/**
+ * 获取性能管理器
+ */
+export const getPerformanceManager = (): PerformanceManager | null => {
+  try {
+    const currentSdk = sdk();
+    if (currentSdk.getPerformance && typeof currentSdk.getPerformance === 'function') {
+      return currentSdk.getPerformance();
+    }
+  } catch (error) {
+    console.warn('Failed to get performance manager:', error);
+  }
+  return null;
 };
 
 export { getSDK, getSystemInfo, isMiniappEnvironment };

@@ -102,6 +102,135 @@ describe('MiniappClient', () => {
       expect(preparedEvent?.contexts?.['os']).toBeDefined();
     });
 
+    it('should prepare event with system info', async () => {
+      // Mock system info
+      (global as any).wx = {
+        getDeviceInfo: () => ({
+          brand: 'Apple',
+          model: 'iPhone',
+          system: 'iOS 15.0',
+          platform: 'ios'
+        }),
+        getWindowInfo: () => ({
+          screenWidth: 375,
+          screenHeight: 812,
+          pixelRatio: 3
+        }),
+        getAppBaseInfo: () => ({
+          language: 'zh_CN',
+          version: '8.0.0',
+          SDKVersion: '2.19.4'
+        })
+      };
+
+      const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
+      const event = await client['_prepareEvent']({ message: 'test' }, {});
+
+      expect(event?.contexts?.device).toEqual({
+        brand: 'Apple',
+        model: 'iPhone',
+        screen_resolution: '375x812',
+        language: 'zh_CN',
+        version: '8.0.0',
+        system: 'iOS 15.0',
+        platform: 'ios'
+      });
+
+      expect(event?.contexts?.os).toEqual({
+        name: 'iOS 15.0',
+        version: '8.0.0'
+      });
+
+      expect(event?.contexts?.app).toEqual({
+        app_version: '2.19.4'
+      });
+    });
+
+    it('should handle undefined system info fields gracefully', async () => {
+      // Mock system info with some undefined fields
+      (global as any).wx = {
+        getDeviceInfo: () => ({
+          brand: undefined,
+          model: 'iPhone',
+          system: undefined,
+          platform: 'ios'
+        }),
+        getWindowInfo: () => ({
+          screenWidth: undefined,
+          screenHeight: 812,
+          pixelRatio: 3
+        }),
+        getAppBaseInfo: () => ({
+          language: undefined,
+          version: '8.0.0',
+          SDKVersion: undefined
+        })
+      };
+
+      const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
+      const event = await client['_prepareEvent']({ message: 'test' }, {});
+
+      expect(event?.contexts?.device).toEqual({
+        brand: 'unknown',
+        model: 'iPhone',
+        screen_resolution: '0x812',
+        language: 'unknown',
+        version: '8.0.0',
+        system: 'unknown',
+        platform: 'ios'
+      });
+
+      expect(event?.contexts?.os).toEqual({
+        name: 'unknown',
+        version: '8.0.0'
+      });
+
+      expect(event?.contexts?.app).toEqual({
+        app_version: 'unknown'
+      });
+
+      // Ensure no undefined values exist
+      const deviceContext = event?.contexts?.device;
+      Object.values(deviceContext || {}).forEach(value => {
+        expect(value).not.toBeUndefined();
+      });
+    });
+
+    it('should provide fallback values when system info is null', async () => {
+      // Mock no system info available
+      (global as any).wx = {};
+
+      const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
+      const event = await client['_prepareEvent']({ message: 'test' }, {});
+
+      expect(event?.contexts?.device).toEqual({
+        brand: 'unknown',
+        model: 'unknown',
+        screen_resolution: '0x0',
+        language: 'unknown',
+        version: 'unknown',
+        system: 'unknown',
+        platform: 'unknown'
+      });
+
+      expect(event?.contexts?.os).toEqual({
+        name: 'unknown',
+        version: 'unknown'
+      });
+
+      expect(event?.contexts?.app).toEqual({
+        app_version: 'unknown'
+      });
+
+      // Ensure no undefined values exist
+      const allContexts = [event?.contexts?.device, event?.contexts?.os, event?.contexts?.app];
+      allContexts.forEach(context => {
+        Object.values(context || {}).forEach(value => {
+          expect(value).not.toBeUndefined();
+        });
+      });
+    });
+
     it('should preserve existing contexts', async () => {
       const event = {
         message: 'test',

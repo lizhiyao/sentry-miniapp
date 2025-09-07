@@ -6,7 +6,7 @@
 ![github stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp?style=social)
 ![github watchers](https://img.shields.io/github/watchers/lizhiyao/sentry-miniapp?style=social)
 ![github license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
-![test coverage](https://img.shields.io/badge/test%20coverage-274%2B%20tests-brightgreen.svg)
+![test coverage](https://img.shields.io/badge/test%20coverage-286%20tests-brightgreen.svg)
 
 基于 `@sentry/core` 10.5.0 的微信小程序异常监控 SDK。
 
@@ -22,11 +22,13 @@
 - 🎯 自动捕获小程序生命周期异常（onError、onUnhandledRejection、onPageNotFound、onMemoryWarning）
 - 🍞 自动记录面包屑（设备、用户操作、网络请求、页面导航等）
 - 🛡️ 智能错误去重和过滤机制
+- ⚡ 全面的性能监控（导航性能、渲染性能、资源加载、用户自定义性能标记）
+- 📈 智能性能阈值检查和自动警告
 - 🔧 支持在 Taro 等第三方小程序框架中使用
 - 📱 支持微信小程序和微信小游戏
 - 🔧 TypeScript 编写，提供完整的类型定义
 - 📦 支持 ES6 和 CommonJS 两种模块系统
-- 📊 完善的测试覆盖率（274+ 测试用例，覆盖核心功能模块）
+- 📊 完善的测试覆盖率（286 测试用例，覆盖核心功能模块）
 - 🔍 完整的集成测试套件
 
 扫码体验：sentry-miniapp 使用示例小程序
@@ -43,9 +45,17 @@
 
 推荐使用 npm 方式。
 
+**稳定版本：**
    ```bash
    npm install sentry-miniapp --save
    ```
+
+**Beta 版本（包含最新修复）：**
+   ```bash
+   npm install sentry-miniapp@beta --save
+   ```
+
+> **注意：** v1.0.1-beta.2 版本修复了事件上报中 `undefined` 值的问题，建议使用最新的 beta 版本。
 
 ### 重要提示
 
@@ -75,6 +85,19 @@ Sentry.init({
   
   // 采样率配置
   sampleRate: 1.0, // 错误采样率
+  
+  // 性能监控配置（可选）
+  integrations: [
+    // 性能监控集成
+    Sentry.performanceIntegration({
+      enableNavigation: true, // 导航性能监控
+      enableRender: true, // 渲染性能监控
+      enableResource: true, // 资源加载监控
+      enableUserTiming: true, // 用户自定义性能标记
+      sampleRate: 1.0, // 性能数据采样率
+      reportInterval: 30000, // 数据上报间隔（毫秒）
+    }),
+  ]
   
   // 过滤配置
   beforeSend(event) {
@@ -129,6 +152,31 @@ Sentry.setContext('character', {
   name: 'Mighty Fighter',
   age: 19,
   attack_type: 'melee'
+});
+```
+
+### 3. 性能监控
+
+```javascript
+import * as Sentry from 'sentry-miniapp';
+
+// 手动标记性能时间点
+Sentry.addPerformanceMark('page-load-start');
+// ... 页面加载逻辑
+Sentry.addPerformanceMark('page-load-end');
+
+// 测量性能区间
+Sentry.measurePerformance('page-load', 'page-load-start', 'page-load-end');
+
+// 记录自定义性能数据
+Sentry.recordPerformance({
+  name: 'api-request',
+  value: 1200, // 毫秒
+  unit: 'millisecond',
+  tags: {
+    endpoint: '/api/user',
+    method: 'GET'
+  }
 });
 ```
 
