@@ -1,33 +1,31 @@
-import { Integration, WrappedFunction } from "@sentry/types";
-import { fill, getGlobalObject } from "@sentry/utils";
-
-import { wrap } from "../helpers";
+import { captureException, getCurrentScope } from '@sentry/core';
+import type { Integration, IntegrationFn, WrappedFunction } from '@sentry/core';
 
 /** Wrap timer functions and event targets to catch errors and provide better meta data */
 export class TryCatch implements Integration {
-  /** JSDoc */
-  private _ignoreOnError: number = 0;
+  /**
+   * @inheritDoc
+   */
+  public static id: string = 'TryCatch';
 
   /**
    * @inheritDoc
    */
   public name: string = TryCatch.id;
 
-  /**
-   * @inheritDoc
-   */
-  public static id: string = "TryCatch";
+  /** JSDoc */
+  private _ignoreOnError: number = 0;
 
   /** JSDoc */
-  private _wrapTimeFunction(original: () => void): () => number {
-    return function(this: any, ...args: any[]): number {
+  private _wrapTimeFunction(original: (...args: any[]) => any): (...args: any[]) => any {
+    return function (this: any, ...args: any[]): any {
       const originalCallback = args[0];
       args[0] = wrap(originalCallback, {
         mechanism: {
           data: { function: getFunctionName(original) },
           handled: true,
-          type: "instrument"
-        }
+          type: 'instrument',
+        },
       });
       return original.apply(this, args);
     };
@@ -35,114 +33,20 @@ export class TryCatch implements Integration {
 
   /** JSDoc */
   private _wrapRAF(original: any): (callback: () => void) => any {
-    return function(this: any, callback: () => void): () => void {
+    return function (this: any, callback: () => void): any {
       return original(
         wrap(callback, {
           mechanism: {
             data: {
-              function: "requestAnimationFrame",
-              handler: getFunctionName(original)
+              function: 'requestAnimationFrame',
+              handler: getFunctionName(original),
             },
             handled: true,
-            type: "instrument"
-          }
-        })
+            type: 'instrument',
+          },
+        }),
       );
     };
-  }
-
-  /** JSDoc */
-  private _wrapEventTarget(target: string): void {
-    const global = getGlobalObject() as { [key: string]: any };
-    const proto = global[target] && global[target].prototype;
-
-    if (
-      !proto ||
-      !proto.hasOwnProperty ||
-      !proto.hasOwnProperty("addEventListener")
-    ) {
-      return;
-    }
-
-    fill(proto, "addEventListener", function(
-      original: () => void
-    ): (
-      eventName: string,
-      fn: EventListenerObject,
-      options?: boolean | AddEventListenerOptions
-    ) => void {
-      return function(
-        this: any,
-        eventName: string,
-        fn: EventListenerObject,
-        options?: boolean | AddEventListenerOptions
-      ): (
-        eventName: string,
-        fn: EventListenerObject,
-        capture?: boolean,
-        secure?: boolean
-      ) => void {
-        try {
-          // tslint:disable-next-line:no-unbound-method strict-type-predicates
-          if (typeof fn.handleEvent === "function") {
-            fn.handleEvent = wrap(fn.handleEvent.bind(fn), {
-              mechanism: {
-                data: {
-                  function: "handleEvent",
-                  handler: getFunctionName(fn),
-                  target
-                },
-                handled: true,
-                type: "instrument"
-              }
-            });
-          }
-        } catch (err) {
-          // can sometimes get 'Permission denied to access property "handle Event'
-        }
-
-        return original.call(
-          this,
-          eventName,
-          wrap((fn as any) as WrappedFunction, {
-            mechanism: {
-              data: {
-                function: "addEventListener",
-                handler: getFunctionName(fn),
-                target
-              },
-              handled: true,
-              type: "instrument"
-            }
-          }),
-          options
-        );
-      };
-    });
-
-    fill(proto, "removeEventListener", function(
-      original: () => void
-    ): (
-      this: any,
-      eventName: string,
-      fn: EventListenerObject,
-      options?: boolean | EventListenerOptions
-    ) => () => void {
-      return function(
-        this: any,
-        eventName: string,
-        fn: EventListenerObject,
-        options?: boolean | EventListenerOptions
-      ): () => void {
-        let callback = (fn as any) as WrappedFunction;
-        try {
-          callback = callback && (callback.__sentry_wrapped__ || callback);
-        } catch (e) {
-          // ignore, accessing __sentry_wrapped__ will throw in some Selenium environments
-        }
-        return original.call(this, eventName, callback, options);
-      };
-    });
   }
 
   /**
@@ -152,44 +56,166 @@ export class TryCatch implements Integration {
   public setupOnce(): void {
     this._ignoreOnError = this._ignoreOnError;
 
-    const global = getGlobalObject();
+    // In miniapp environment, we mainly focus on wrapping common async functions
+    const global = globalThis as any;
 
-    fill(global, "setTimeout", this._wrapTimeFunction.bind(this));
-    fill(global, "setInterval", this._wrapTimeFunction.bind(this));
-    fill(global, "requestAnimationFrame", this._wrapRAF.bind(this));
-
-    [
-      "EventTarget",
-      "Window",
-      "Node",
-      "ApplicationCache",
-      "AudioTrackList",
-      "ChannelMergerNode",
-      "CryptoOperation",
-      "EventSource",
-      "FileReader",
-      "HTMLUnknownElement",
-      "IDBDatabase",
-      "IDBRequest",
-      "IDBTransaction",
-      "KeyOperation",
-      "MediaController",
-      "MessagePort",
-      "ModalWindow",
-      "Notification",
-      "SVGElementInstance",
-      "Screen",
-      "TextTrack",
-      "TextTrackCue",
-      "TextTrackList",
-      "WebSocket",
-      "WebSocketWorker",
-      "Worker",
-      "XMLHttpRequest",
-      "XMLHttpRequestEventTarget",
-      "XMLHttpRequestUpload"
-    ].forEach(this._wrapEventTarget.bind(this));
+    if (global.setTimeout) {
+      fill(global, 'setTimeout', this._wrapTimeFunction.bind(this));
+    }
+    if (global.setInterval) {
+      fill(global, 'setInterval', this._wrapTimeFunction.bind(this));
+    }
+    if (global.requestAnimationFrame) {
+      fill(global, 'requestAnimationFrame', this._wrapRAF.bind(this));
+    }
   }
+}
+
+/**
+ * Wrap a function to capture exceptions
+ */
+export function wrap(
+  fn: WrappedFunction,
+  options: {
+    mechanism?: {
+      data?: Record<string, any>;
+      handled?: boolean;
+      type?: string;
+    };
+    capture?: boolean;
+  } = {},
+  before?: WrappedFunction,
+): any {
+  // tslint:disable-next-line:strict-type-predicates
+  if (typeof fn !== 'function') {
+    return fn;
+  }
+
+  try {
+    // We don't wanna wrap it twice
+    if ((fn as any).__sentry__) {
+      return fn;
+    }
+
+    // If this has already been wrapped in the past, return that wrapped function
+    if (fn.__sentry_wrapped__) {
+      return fn.__sentry_wrapped__;
+    }
+  } catch (e) {
+    // Just accessing custom props in some environments
+    // can cause a "Permission denied" exception.
+    // Bail on wrapping and return the function as-is.
+    return fn;
+  }
+
+  const sentryWrapped: WrappedFunction = function (this: any, ...args: any[]): any {
+    // tslint:disable-next-line:strict-type-predicates
+    if (before && typeof before === 'function') {
+      before.apply(this, args);
+    }
+
+    try {
+      const wrappedArguments = args.map((arg: any) => wrap(arg, options));
+
+      if ((fn as any).handleEvent) {
+        return (fn as any).handleEvent.apply(this, wrappedArguments);
+      }
+
+      return fn.apply(this, wrappedArguments);
+    } catch (ex) {
+      const scope = getCurrentScope();
+      
+      scope.addEventProcessor((event) => {
+        const processedEvent = { ...event };
+
+        if (options.mechanism) {
+          processedEvent.exception = processedEvent.exception || {};
+          (processedEvent.exception as any).mechanism = options.mechanism;
+        }
+
+        processedEvent.extra = {
+          ...processedEvent.extra,
+          arguments: args,
+        };
+
+        return processedEvent;
+      });
+
+      captureException(ex);
+      throw ex;
+    }
+  };
+
+  // Accessing some objects may throw
+  try {
+    // tslint:disable-next-line: no-for-in
+    for (const property in fn) {
+      if (Object.prototype.hasOwnProperty.call(fn, property)) {
+        (sentryWrapped as any)[property] = (fn as any)[property];
+      }
+    }
+  } catch (_oO) {
+    // no-empty
+  }
+
+  fn.prototype = fn.prototype || {};
+  sentryWrapped.prototype = fn.prototype;
+
+  Object.defineProperty(fn, '__sentry_wrapped__', {
+    enumerable: false,
+    value: sentryWrapped,
+  });
+
+  // Signal that this function has been wrapped/filled already
+  Object.defineProperties(sentryWrapped, {
+    __sentry__: {
+      enumerable: false,
+      value: true,
+    },
+    __sentry_original__: {
+      enumerable: false,
+      value: fn,
+    },
+  });
+
+  // Restore original function name
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(sentryWrapped, 'name') as PropertyDescriptor;
+    if (descriptor.configurable) {
+      Object.defineProperty(sentryWrapped, 'name', {
+        get(): string {
+          return fn.name;
+        },
+      });
+    }
+  } catch (_oO) {
+    // no-empty
+  }
+
+  return sentryWrapped;
+}
+
+/**
+ * Fill an object with a new value, keeping a reference to the original
+ */
+function fill(source: { [key: string]: any }, name: string, replacementFactory: (...args: any[]) => any): void {
+  if (!(name in source)) {
+    return;
+  }
+
+  const original = source[name] as () => any;
+  const wrapped = replacementFactory(original);
+
+  if (typeof wrapped === 'function') {
+    try {
+      wrapped.prototype = wrapped.prototype || {};
+      wrapped.prototype.constructor = wrapped;
+    } catch (_Oo) {
+      // This can throw in some funky environments
+    }
+  }
+
+  source[name] = wrapped;
 }
 
 /**
@@ -197,10 +223,15 @@ export class TryCatch implements Integration {
  */
 function getFunctionName(fn: any): string {
   try {
-    return (fn && fn.name) || "<anonymous>";
+    return (fn && fn.name) || '<anonymous>';
   } catch (e) {
-    // Just accessing custom props in some Selenium environments
-    // can cause a "Permission denied" exception (see raven-js#495).
-    return "<anonymous>";
+    return '<anonymous>';
   }
 }
+
+/**
+ * TryCatch integration
+ */
+export const tryCatchIntegration: IntegrationFn = () => {
+  return new TryCatch();
+};

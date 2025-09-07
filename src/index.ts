@@ -1,54 +1,71 @@
-export {
+// Sentry Miniapp SDK for WeChat Mini Program
+// Based on @sentry/core 9.38.0
+// Development Mode: Auto-rebuild enabled
+
+// Install polyfills for miniapp environment
+import { ensurePolyfills } from './polyfills';
+ensurePolyfills();
+
+// Export types from @sentry/core (v9 moved types from @sentry/types to @sentry/core)
+export type {
   Breadcrumb,
   BreadcrumbHint,
-  Request,
-  SdkInfo,
   Event,
   EventHint,
-  EventStatus,
   Exception,
-  Response,
-  Severity,
+  SdkInfo,
+  Session,
+  SeverityLevel,
   StackFrame,
   Stacktrace,
   Thread,
   User,
-} from "@sentry/types";
+  Integration,
+  Options,
+  Client,
+  Scope,
+  Transport,
+  BaseTransportOptions,
+} from '@sentry/core';
 
+// Export core functions from @sentry/core
 export {
-  addGlobalEventProcessor,
-  addBreadcrumb,
+  addEventProcessor,
+  addIntegration,
   captureException,
   captureEvent,
   captureMessage,
-  configureScope,
-  getHubFromCarrier,
-  getCurrentHub,
-  Hub,
-  Scope,
+  getCurrentScope,
+  getIsolationScope,
+  withScope,
+  startSpan,
   setContext,
   setExtra,
   setExtras,
   setTag,
   setTags,
   setUser,
-  withScope
-} from "@sentry/core";
-
-export { SDK_NAME, SDK_VERSION } from "./version";
-export {
-  defaultIntegrations,
-  init,
-  lastEventId,
-  showReportDialog,
+  addBreadcrumb,
   flush,
   close,
-  wrap
-} from "./sdk";
-export { MiniappOptions } from "./backend";
-export { MiniappClient, ReportDialogOptions } from "./client";
+  lastEventId,
+  isEnabled,
+  // Session management APIs
+  startSession,
+  endSession,
+  captureSession,
+} from '@sentry/core';
 
-import * as Integrations from "./integrations/index";
-import * as Transports from "./transports/index";
+// Export SDK specific exports
+export { SDK_NAME, SDK_VERSION } from './version';
+export { init, showReportDialog, wrap, captureFeedback } from './sdk';
+export type { MiniappOptions, SendFeedbackParams } from './types';
+export { MiniappClient } from './client';
+export * as Integrations from './integrations/index';
+export * as Transports from './transports/index';
 
-export { Integrations, Transports };
+// Export Session utility functions from @sentry/core
+export { makeSession, closeSession, updateSession } from '@sentry/core';
+
+// Export default integrations
+export { defaultIntegrations, getDefaultIntegrations } from './sdk';

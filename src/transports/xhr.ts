@@ -1,38 +1,61 @@
-import { Event, Response } from "@sentry/types";
-import { eventStatusFromHttpCode } from '@sentry/utils';
+import type { BaseTransportOptions, Transport, TransportMakeRequestResponse } from '@sentry/core';
+import { createTransport } from '@sentry/core';
 
-import { sdk } from "../crossPlatform";
+import { sdk } from '../crossPlatform';
 
-import { BaseTransport } from "./base";
+export interface MiniappTransportOptions extends BaseTransportOptions {
+  /** Custom headers for the request */
+  headers?: Record<string, string>;
+}
 
-/** `XHR` based transport */
-export class XHRTransport extends BaseTransport {
+/**
+ * Creates a Transport that uses the miniapp request API to send events to Sentry.
+ */
+export function createMiniappTransport(options: MiniappTransportOptions): Transport {
+  // 保存 URL 到局部变量
+  const transportUrl = options.url;
+
   /**
-   * @inheritDoc
+   * Make a request using miniapp request API
    */
-  public sendEvent(event: Event): PromiseLike<Response> {
-    const request = sdk.request || sdk.httpRequest;
+  function makeRequest(request: any): Promise<TransportMakeRequestResponse> {
+    
+    return new Promise((resolve, reject) => {
+      const requestOptions = {
+        url: transportUrl,
+        method: 'POST' as const,
+        data: request.body,
+        header: {
+          'Content-Type': 'application/json',
+          ...request.headers,
+        },
+        timeout: 10000,
+        success: (res: any) => {
+          const status = res.statusCode;
+          
+          resolve({
+            statusCode: status,
+            headers: {
+              'x-sentry-rate-limits': res.header?.['x-sentry-rate-limits'],
+              'retry-after': res.header?.['retry-after'],
+            },
+          });
+        },
+        fail: (error: any) => {
+          reject(new Error(`Network request failed: ${error.errMsg || error.message || 'Unknown error'}`));
+        },
+      };
 
-    return this._buffer.add(
-      () => new Promise<Response>((resolve, reject) => {
-        // tslint:disable-next-line: no-unsafe-any
-        request({
-          url: this.url,
-          method: "POST",
-          data: JSON.stringify(event),
-          header: {
-            "content-type": "application/json"
-          },
-          success(res: { statusCode: number }): void {
-            resolve({
-              status: eventStatusFromHttpCode(res.statusCode)
-            });
-          },
-          fail(error: object): void {
-            reject(error);
-          }
-        });
-      })
-    );
+      // Use the appropriate request method based on the platform
+      if (sdk().request) {
+        sdk().request?.(requestOptions);
+      } else if (sdk().httpRequest) {
+        sdk().httpRequest?.(requestOptions);
+      } else {
+        reject(new Error('No request method available in current miniapp environment'));
+      }
+    });
   }
+
+  return createTransport(options, makeRequest);
 }

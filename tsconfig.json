@@ -1,11 +1,39 @@
 {
-  "extends": "./node_modules/@sentry/typescript/tsconfig.json",
-  "include": ["src/**/*", "test/**/*"],
-  "exclude": ["./examples"],
   "compilerOptions": {
-    "outDir": "dist",
-    "module": "commonjs",
-    "target": "es5",
-    "sourceMap": true
-  }
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM"],
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
 }

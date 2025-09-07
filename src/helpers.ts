@@ -1,43 +1,17 @@
-import { captureException, getCurrentHub, withScope } from '@sentry/core';
-import { Event as SentryEvent, Mechanism, Scope, WrappedFunction } from '@sentry/types';
-import { addExceptionMechanism, addExceptionTypeValue, htmlTreeAsString, normalize } from '@sentry/utils';
-
-const debounceDuration: number = 1000;
-let keypressTimeout: number | undefined;
-let lastCapturedEvent: Event | undefined;
-let ignoreOnError: number = 0;
+import { captureException, getCurrentScope } from '@sentry/core';
+import type { WrappedFunction } from '@sentry/core';
 
 /**
- * @hidden
- */
-export function shouldIgnoreOnError(): boolean {
-  return ignoreOnError > 0;
-}
-
-/**
- * @hidden
- */
-export function ignoreNextOnError(): void {
-  // onerror should trigger before setTimeout
-  ignoreOnError += 1;
-  setTimeout(() => {
-    ignoreOnError -= 1;
-  });
-}
-
-/**
- * Instruments the given function and sends an event to Sentry every time the
- * function throws an exception.
- *
- * @param fn A function to wrap.
- * @returns The wrapped function.
- * @hidden
+ * Wrap a function to capture exceptions
  */
 export function wrap(
   fn: WrappedFunction,
   options: {
-    mechanism?: Mechanism;
-    capture?: boolean;
+    mechanism?: {
+      data?: Record<string, any>;
+      handled?: boolean;
+      type?: string;
+    };
   } = {},
   before?: WrappedFunction,
 ): any {
@@ -48,7 +22,7 @@ export function wrap(
 
   try {
     // We don't wanna wrap it twice
-    if (fn.__sentry__) {
+    if ((fn as any).__sentry__) {
       return fn;
     }
 
@@ -57,75 +31,55 @@ export function wrap(
       return fn.__sentry_wrapped__;
     }
   } catch (e) {
-    // Just accessing custom props in some Selenium environments
-    // can cause a "Permission denied" exception (see raven-js#495).
-    // Bail on wrapping and return the function as-is (defers to window.onerror).
+    // Just accessing custom props in some environments
+    // can cause a "Permission denied" exception.
+    // Bail on wrapping and return the function as-is.
     return fn;
   }
 
-  const sentryWrapped: WrappedFunction = function (this: any): void {
+  const sentryWrapped: WrappedFunction = function (this: any, ...args: any[]): any {
     // tslint:disable-next-line:strict-type-predicates
     if (before && typeof before === 'function') {
-      before.apply(this, arguments);
+      before.apply(this, args);
     }
 
-    const args = Array.prototype.slice.call(arguments);
-
-    // tslint:disable:no-unsafe-any
     try {
-      const wrappedArguments = args.map((arg: any) => wrap(arg, options));
-
-      if (fn.handleEvent) {
-        // Attempt to invoke user-land function
-        // NOTE: If you are a Sentry user, and you are seeing this stack frame, it
-        //       means the sentry.javascript SDK caught an error invoking your application code. This
-        //       is expected behavior and NOT indicative of a bug with sentry.javascript.
-        return fn.handleEvent.apply(this, wrappedArguments);
-      }
-
-      // Attempt to invoke user-land function
-      // NOTE: If you are a Sentry user, and you are seeing this stack frame, it
-      //       means the sentry.javascript SDK caught an error invoking your application code. This
-      //       is expected behavior and NOT indicative of a bug with sentry.javascript.
-      return fn.apply(this, wrappedArguments);
-      // tslint:enable:no-unsafe-any
+      return fn.apply(this, args);
     } catch (ex) {
-      ignoreNextOnError();
+      const scope = getCurrentScope();
+      
+      scope.addEventProcessor((event) => {
+        const processedEvent = { ...event };
 
-      withScope((scope: Scope) => {
-        scope.addEventProcessor((event: SentryEvent) => {
-          const processedEvent = { ...event };
+        if (options.mechanism) {
+          processedEvent.exception = processedEvent.exception || {};
+          (processedEvent.exception as any).mechanism = options.mechanism;
+        }
 
-          if (options.mechanism) {
-            addExceptionTypeValue(processedEvent, undefined, undefined);
-            addExceptionMechanism(processedEvent, options.mechanism);
-          }
+        processedEvent.extra = {
+          ...processedEvent.extra,
+          arguments: args,
+        };
 
-          processedEvent.extra = {
-            ...processedEvent.extra,
-            arguments: normalize(args, 3),
-          };
-
-          return processedEvent;
-        });
-
-        captureException(ex);
+        return processedEvent;
       });
 
+      captureException(ex);
       throw ex;
     }
   };
 
   // Accessing some objects may throw
-  // ref: https://github.com/getsentry/sentry-javascript/issues/1168
   try {
     // tslint:disable-next-line: no-for-in
     for (const property in fn) {
       if (Object.prototype.hasOwnProperty.call(fn, property)) {
-        sentryWrapped[property] = fn[property];
+        (sentryWrapped as any)[property] = (fn as any)[property];
       }
     }
-  } catch (_oO) { } // tslint:disable-line:no-empty
+  } catch (_oO) {
+    // no-empty
+  }
 
   fn.prototype = fn.prototype || {};
   sentryWrapped.prototype = fn.prototype;
@@ -136,7 +90,6 @@ export function wrap(
   });
 
   // Signal that this function has been wrapped/filled already
-  // for both debugging and to prevent it to being wrapped/filled twice
   Object.defineProperties(sentryWrapped, {
     __sentry__: {
       enumerable: false,
@@ -148,7 +101,7 @@ export function wrap(
     },
   });
 
-  // Restore original function name (not all browsers allow that)
+  // Restore original function name
   try {
     const descriptor = Object.getOwnPropertyDescriptor(sentryWrapped, 'name') as PropertyDescriptor;
     if (descriptor.configurable) {
@@ -159,112 +112,103 @@ export function wrap(
       });
     }
   } catch (_oO) {
-    /*no-empty*/
+    // no-empty
   }
 
   return sentryWrapped;
 }
 
-let debounceTimer: number = 0;
+/**
+ * Check if we should ignore the next onError event
+ */
+let ignoreNextOnError = 0;
 
 /**
- * Wraps addEventListener to capture UI breadcrumbs
- * @param eventName the event name (e.g. "click")
- * @returns wrapped breadcrumb events handler
- * @hidden
+ * Check if we should ignore onError
  */
-export function breadcrumbEventHandler(eventName: string, debounce: boolean = false): (event: Event) => void {
-  return (event: Event) => {
-    // reset keypress timeout; e.g. triggering a 'click' after
-    // a 'keypress' will reset the keypress debounce so that a new
-    // set of keypresses can be recorded
-    keypressTimeout = undefined;
-    // It's possible this handler might trigger multiple times for the same
-    // event (e.g. event propagation through node ancestors). Ignore if we've
-    // already captured the event.
-    // tslint:disable-next-line: strict-comparisons
-    if (!event || lastCapturedEvent === event) {
-      return;
-    }
-
-    lastCapturedEvent = event;
-
-    const captureBreadcrumb = () => {
-      let target;
-
-      // Accessing event.target can throw (see getsentry/raven-js#838, #768)
-      try {
-        target = event.target ? htmlTreeAsString(event.target as Node) : htmlTreeAsString((event as unknown) as Node);
-      } catch (e) {
-        target = '<unknown>';
-      }
-
-      if (target.length === 0) {
-        return;
-      }
-
-      getCurrentHub().addBreadcrumb(
-        {
-          category: `ui.${eventName}`, // e.g. ui.click, ui.input
-          message: target,
-        },
-        {
-          event,
-          name: eventName,
-        },
-      );
-    };
-
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-
-    if (debounce) {
-      debounceTimer = setTimeout(captureBreadcrumb);
-    } else {
-      captureBreadcrumb();
-    }
-  };
+export function shouldIgnoreOnError(): boolean {
+  return ignoreNextOnError > 0;
 }
 
 /**
- * Wraps addEventListener to capture keypress UI events
- * @returns wrapped keypress events handler
- * @hidden
+ * Ignore next onError
  */
-export function keypressEventHandler(): (event: Event) => void {
-  // TODO: if somehow user switches keypress target before
-  //       debounce timeout is triggered, we will only capture
-  //       a single breadcrumb from the FIRST target (acceptable?)
-  return (event: Event) => {
-    let target;
+export function ignoreNextOnErrorCall(): void {
+  ignoreNextOnError += 1;
+  setTimeout(() => {
+    ignoreNextOnError -= 1;
+  });
+}
 
+/**
+ * Safely extract function name from itself
+ */
+export function getFunctionName(fn: any): string {
+  try {
+    return (fn && fn.name) || '<anonymous>';
+  } catch (e) {
+    return '<anonymous>';
+  }
+}
+
+/**
+ * Fill an object with a new value, keeping a reference to the original
+ */
+export function fill(source: { [key: string]: any }, name: string, replacementFactory: (...args: any[]) => any): void {
+  if (!(name in source)) {
+    return;
+  }
+
+  const original = source[name] as () => any;
+  const wrapped = replacementFactory(original);
+
+  if (typeof wrapped === 'function') {
     try {
-      target = event.target;
-    } catch (e) {
-      // just accessing event properties can throw an exception in some rare circumstances
-      // see: https://github.com/getsentry/raven-js/issues/838
-      return;
+      wrapped.prototype = wrapped.prototype || {};
+      wrapped.prototype.constructor = wrapped;
+    } catch (_Oo) {
+      // This can throw in some funky environments
     }
+  }
 
-    const tagName = target && (target as HTMLElement).tagName;
+  source[name] = wrapped;
+}
 
-    // only consider keypress events on actual input elements
-    // this will disregard keypresses targeting body (e.g. tabbing
-    // through elements, hotkeys, etc)
-    if (!tagName || (tagName !== 'INPUT' && tagName !== 'TEXTAREA' && !(target as HTMLElement).isContentEditable)) {
-      return;
-    }
+/**
+ * Check if value is an instance of Error
+ */
+export function isError(wat: any): wat is Error {
+  switch (Object.prototype.toString.call(wat)) {
+    case '[object Error]':
+    case '[object Exception]':
+    case '[object DOMException]':
+      return true;
+    default:
+      return isInstanceOf(wat, Error);
+  }
+}
 
-    // record first keypress in a series, but ignore subsequent
-    // keypresses until debounce clears
-    if (!keypressTimeout) {
-      breadcrumbEventHandler('input')(event);
-    }
-    clearTimeout(keypressTimeout);
+/**
+ * Check if value is an instance of the given constructor
+ */
+export function isInstanceOf(wat: any, base: any): boolean {
+  try {
+    return wat instanceof base;
+  } catch (_e) {
+    return false;
+  }
+}
 
-    keypressTimeout = (setTimeout(() => {
-      keypressTimeout = undefined;
-    }, debounceDuration) as any) as number;
-  };
+/**
+ * Check if value is a string
+ */
+export function isString(wat: any): wat is string {
+  return Object.prototype.toString.call(wat) === '[object String]';
+}
+
+/**
+ * Check if value is a plain object
+ */
+export function isPlainObject(wat: any): wat is Record<string, any> {
+  return Object.prototype.toString.call(wat) === '[object Object]';
 }

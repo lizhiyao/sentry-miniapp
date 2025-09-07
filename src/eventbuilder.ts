@@ -1,63 +1,102 @@
-import { Event } from '@sentry/types';
-import {
-  addExceptionMechanism,
-  addExceptionTypeValue,
-  isDOMError,
-  isDOMException,
-  isError,
-  isErrorEvent,
-  isEvent,
-  isPlainObject,
-} from '@sentry/utils';
+// Note: eventFromException and eventFromMessage are now handled by the client
+import type { Event, EventHint, SeverityLevel } from '@sentry/core';
 
-import { eventFromPlainObject, eventFromStacktrace, prepareFramesForEvent } from './parsers';
-import { computeStackTrace } from './tracekit';
+// 为小程序环境定义 ErrorEvent 接口
+interface ErrorEvent {
+  error: Error;
+  message: string;
+  filename?: string;
+  lineno?: number;
+  colno?: number;
+  constructor: { name: string };
+}
 
-/** JSDoc */
+// Simple implementations for compatibility
+export function eventFromException(existingEvent: any, exception: any, _hint?: EventHint): Event {
+  return {
+    ...existingEvent,
+    exception: {
+      values: [{
+        type: (exception && exception.name) || 'Error',
+        value: (exception && exception.message) || String(exception),
+      }]
+    },
+    level: 'error',
+  } as Event;
+}
+
+export function eventFromMessage(existingEvent: any, message: string, level: any = 'info', _hint?: EventHint): Event {
+  return {
+    ...existingEvent,
+    message: message,
+    level,
+  } as Event;
+}
+
+import { isError, isPlainObject } from './helpers';
+
+/**
+ * Builds and Event from a Exception
+ * @hidden
+ */
 export function eventFromUnknownInput(
+  stackParser: any,
   exception: unknown,
-  syntheticException?: Error,
-  options: {
-    rejection?: boolean;
-    attachStacktrace?: boolean;
-  } = {},
+  hint?: EventHint,
 ): Event {
   let event: Event;
 
-  if (isErrorEvent(exception as ErrorEvent) && (exception as ErrorEvent).error) {
+  if (isErrorEvent(exception) && (exception as ErrorEvent).error) {
     // If it is an ErrorEvent with `error` property, extract it to get actual Error
     const errorEvent = exception as ErrorEvent;
-    exception = errorEvent.error; // tslint:disable-line:no-parameter-reassignment
-    event = eventFromStacktrace(computeStackTrace(exception as Error));
-    return event;
+    return eventFromException(stackParser, errorEvent.error, hint);
   }
-  if (isDOMError(exception as DOMError) || isDOMException(exception as DOMException)) {
-    // If it is a DOMError or DOMException (which are legacy APIs, but still supported in some browsers)
-    // then we just extract the name and message, as they don't provide anything else
-    // https://developer.mozilla.org/en-US/docs/Web/API/DOMError
-    // https://developer.mozilla.org/en-US/docs/Web/API/DOMException
-    const domException = exception as DOMException;
-    const name = domException.name || (isDOMError(domException) ? 'DOMError' : 'DOMException');
-    const message = domException.message ? `${name}: ${domException.message}` : name;
 
-    event = eventFromString(message, syntheticException, options);
-    addExceptionTypeValue(event, message);
+  // If it is a `DOMError` (which is a legacy API, but still supported in some browsers) or `DOMException`
+  if (isDOMError(exception) || isDOMException(exception)) {
+    const domException = exception as DOMException;
+
+    if ('stack' in exception) {
+      event = eventFromException(stackParser, exception as Error, hint);
+    } else {
+      const name = domException.name || (isDOMError(domException) ? 'DOMError' : 'DOMException');
+      const message = domException.message ? `${name}: ${domException.message}` : name;
+      event = eventFromMessage(stackParser, message, 'error', hint);
+      event.exception = {
+        values: [
+          {
+            type: name,
+            value: domException.message,
+          },
+        ],
+      };
+    }
     return event;
   }
-  if (isError(exception as Error)) {
+
+  if (isError(exception)) {
     // we have a real Error object, do nothing
-    event = eventFromStacktrace(computeStackTrace(exception as Error));
-    return event;
+    return eventFromException(stackParser, exception, hint);
   }
-  if (isPlainObject(exception) || isEvent(exception)) {
-    // If it is plain Object or Event, serialize it manually and extract options
+
+  if (isPlainObject(exception) && hint && hint.syntheticException) {
+    // If it is plain Object, serialize it manually and extract options
     // This will allow us to group events based on top-level keys
     // which is much better than creating new group when any key/value change
-    const objectException = exception as {};
-    event = eventFromPlainObject(objectException, syntheticException, options.rejection);
-    addExceptionMechanism(event, {
-      synthetic: true,
-    });
+    const message = `Non-Error exception captured with keys: ${extractExceptionKeysForMessage(exception)}`;
+    const syntheticException = hint.syntheticException;
+    event = eventFromException(stackParser, syntheticException, hint);
+    event.message = message;
+    event.exception!.values![0] = {
+      ...event.exception!.values![0],
+      type: 'Object',
+      value: message,
+    };
+    event.extra = {
+      ...event.extra,
+      __serialized__: normalizeToSize(exception),
+    };
+
     return event;
   }
 
@@ -70,35 +109,183 @@ export function eventFromUnknownInput(
   // - a plain Object
   //
   // So bail out and capture it as a simple message:
-  event = eventFromString(exception as string, syntheticException, options);
-  addExceptionTypeValue(event, `${exception}`, undefined);
-  addExceptionMechanism(event, {
-    synthetic: true,
-  });
+  const stringException = exception as string;
+  event = eventFromMessage(stackParser, stringException, undefined, hint);
+  event.exception = {
+    values: [
+      {
+        type: 'UnhandledException',
+        value: `Non-Error exception captured: ${stringException}`,
+      },
+    ],
+  };
 
   return event;
 }
 
-// this._options.attachStacktrace
-/** JSDoc */
+/**
+ * @hidden
+ */
 export function eventFromString(
+  stackParser: any,
   input: string,
-  syntheticException?: Error,
-  options: {
-    attachStacktrace?: boolean;
-  } = {},
+  level: SeverityLevel = 'info',
+  hint?: EventHint,
 ): Event {
-  const event: Event = {
-    message: input,
-  };
+  const event = eventFromMessage(stackParser, input, level, hint);
+  event.level = level;
+  return event;
+}
 
-  if (options.attachStacktrace && syntheticException) {
-    const stacktrace = computeStackTrace(syntheticException);
-    const frames = prepareFramesForEvent(stacktrace.stack);
-    event.stacktrace = {
-      frames,
+/**
+ * Checks whether given value's type is ErrorEvent
+ * {@link isErrorEvent}.
+ *
+ * @param wat A value to be checked.
+ * @returns A boolean representing the result.
+ */
+function isErrorEvent(wat: any): wat is ErrorEvent {
+  return wat && wat.constructor && wat.constructor.name === 'ErrorEvent';
+}
+
+/**
+ * Checks whether given value's type is DOMError
+ * {@link isDOMError}.
+ *
+ * @param wat A value to be checked.
+ * @returns A boolean representing the result.
+ */
+function isDOMError(wat: any): wat is Error {
+  return wat && wat.constructor && wat.constructor.name === 'DOMError';
+}
+
+/**
+ * Checks whether given value's type is DOMException
+ * {@link isDOMException}.
+ *
+ * @param wat A value to be checked.
+ * @returns A boolean representing the result.
+ */
+function isDOMException(wat: any): wat is DOMException {
+  return wat && wat.constructor && wat.constructor.name === 'DOMException';
+}
+
+/**
+ * @hidden
+ */
+function extractExceptionKeysForMessage(exception: Record<string, unknown>, maxLength: number = 40): string {
+  const keys = Object.keys(exception);
+  keys.sort();
+
+  if (!keys.length) {
+    return '[object has no keys]';
+  }
+
+  if (keys[0] && keys[0].length >= maxLength) {
+    return keys[0];
+  }
+
+  for (let includedKeys = keys.length; includedKeys > 0; includedKeys--) {
+    const serialized = keys.slice(0, includedKeys).join(', ');
+    if (serialized.length > maxLength) {
+      continue;
+    }
+    if (includedKeys === keys.length) {
+      return serialized;
+    }
+    return `${serialized}\u2026`;
+  }
+
+  return '';
+}
+
+/**
+ * Normalize any value to a reasonable size for serialization
+ */
+function normalizeToSize(object: any, depth: number = 3, maxProperties: number = 1000): any {
+  const normalized = normalizeValue(object, depth, maxProperties);
+
+  // truncate the object
+  if (normalized && typeof normalized === 'object' && Object.keys(normalized).length > maxProperties) {
+    return '[Object too large]';
+  }
+
+  return normalized;
+}
+
+/**
+ * Normalize a value
+ */
+function normalizeValue(value: any, depth: number, maxProperties: number): any {
+  if (depth === 0) {
+    return '[Object]';
+  }
+
+  if (value === null || (['number', 'boolean', 'string'].includes(typeof value) && !isNaN(value))) {
+    return value;
+  }
+
+  const stringified = stringifyValue(value);
+  if (!stringified.startsWith('[object ')) {
+    return stringified;
+  }
+
+  if (value['__sentry_skip_normalization__']) {
+    return value;
+  }
+
+  if (typeof value === 'function') {
+    return `[Function: ${value.name || '<anonymous>'}]`;
+  }
+
+  if (typeof value === 'symbol') {
+    return `[${String(value)}]`;
+  }
+
+  if (typeof value !== 'object') {
+    return value;
+  }
+
+  if (isError(value)) {
+    return {
+      message: value.message,
+      name: value.name,
+      stack: value.stack,
     };
   }
 
-  return event;
+  if (Array.isArray(value)) {
+    return value.map((v) => normalizeValue(v, depth - 1, maxProperties));
+  }
+
+  const normalized: Record<string, any> = {};
+  let numAdded = 0;
+
+  for (const key in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) {
+      continue;
+    }
+
+    if (numAdded >= maxProperties) {
+      normalized['[...]'] = '[Object too large]';
+      break;
+    }
+
+    const normalizedKey = typeof key === 'symbol' ? `[${String(key)}]` : key;
+    normalized[normalizedKey] = normalizeValue(value[key], depth - 1, maxProperties);
+    numAdded += 1;
+  }
+
+  return normalized;
+}
+
+/**
+ * Stringify a value
+ */
+function stringifyValue(value: any): string {
+  try {
+    return JSON.stringify(value);
+  } catch (_oO) {
+    return '[Object]';
+  }
 }

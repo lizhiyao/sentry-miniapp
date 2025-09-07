@@ -1,5 +1,0 @@
-page {
-  flex: 1;
-  display: flex;
-  background: #f7f7f7;
-}

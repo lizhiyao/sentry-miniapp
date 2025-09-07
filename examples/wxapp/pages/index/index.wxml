@@ -1,0 +1,80 @@
+<!--index.wxml-->
+<view class="container">
+  <!-- 顶部装饰背景 -->
+  <view class="bg-decoration"></view>
+  
+  <!-- 头部区域 -->
+  <view class="header">
+    <text class="title">Sentry 小程序 SDK</text>
+    <text class="subtitle">实时错误监控 · 性能追踪 · 数据分析</text>
+  </view>
+
+
+
+  <!-- 统计数据区域 -->
+  <view class="stats-section">
+    <view class="stats-header">
+      <text class="stats-title">📊 使用统计</text>
+      <text class="stats-desc">npm 包下载数据 & GitHub 数据</text>
+    </view>
+    
+    <view class="stats-grid">
+      <view class="stat-item">
+        <view class="stat-icon">📦</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.totalDownloads || '--'}}</text>
+          <text class="stat-label">总下载量</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">📅</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.lastMonthDownloads || '--'}}</text>
+          <text class="stat-label">本月下载</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">🔥</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.lastDayDownloads || '--'}}</text>
+          <text class="stat-label">今日下载</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">⭐</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.githubStars || '--'}}</text>
+          <text class="stat-label">GitHub Stars</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">🍴</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.githubForks || '--'}}</text>
+          <text class="stat-label">GitHub Forks</text>
+        </view>
+      </view>
+      
+      <view class="stat-item">
+        <view class="stat-icon">📈</view>
+        <view class="stat-content">
+          <text class="stat-number">{{stats.version || 'v1.0.0'}}</text>
+          <text class="stat-label">当前版本</text>
+        </view>
+      </view>
+    </view>
+    
+    <view class="stats-footer">
+      <text class="stats-update">数据更新时间: {{stats.lastUpdate || '加载中...'}}</text>
+      <button class="clear-cache-btn" bindtap="clearStatsCache" size="mini" type="default">清除缓存</button>
+    </view>
+  </view>
+
+
+
+
+</view>

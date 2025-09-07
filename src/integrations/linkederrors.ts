@@ -1,23 +1,20 @@
-import { addGlobalEventProcessor, getCurrentHub } from '@sentry/core';
-import { Event, EventHint, Exception, ExtendedError, Integration } from '@sentry/types';
-
-import { exceptionFromStacktrace } from '../parsers';
-import { computeStackTrace } from '../tracekit';
+import type { Event, EventHint, Exception, ExtendedError, Integration, IntegrationFn } from '@sentry/core';
+import { exceptionFromError, getCurrentScope } from '@sentry/core';
 
 const DEFAULT_KEY = 'cause';
 const DEFAULT_LIMIT = 5;
 
-/** Adds SDK info to an event. */
+/** Adds SDK info to the event */
 export class LinkedErrors implements Integration {
   /**
    * @inheritDoc
    */
-  public readonly name: string = LinkedErrors.id;
+  public static id: string = 'LinkedErrors';
 
   /**
    * @inheritDoc
    */
-  public static id: string = 'LinkedErrors';
+  public name: string = LinkedErrors.id;
 
   /**
    * @inheritDoc
@@ -41,24 +38,34 @@ export class LinkedErrors implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
-    addGlobalEventProcessor((event: Event, hint?: EventHint) => {
-      const self = getCurrentHub().getIntegration(LinkedErrors);
-      if (self) {
-        return self._handler(event, hint);
-      }
-      return event;
-    });
+    // This integration doesn't need setup
   }
 
   /**
    * @inheritDoc
    */
-  private _handler(event: Event, hint?: EventHint): Event | null {
-    if (!event.exception || !event.exception.values || !hint || !(hint.originalException instanceof Error)) {
+  public processEvent(event: Event, hint?: EventHint): Event {
+    const client = getCurrentScope().getClient();
+    if (!client) {
       return event;
     }
-    const linkedErrors = this._walkErrorTree(hint.originalException, this._key);
+
+    // const options = client.getOptions();
+    // Note: getCurrentScope() doesn't have getIntegration method, so we'll process directly
+    return this._handler(event, hint);
+  }
+
+  /**
+   * @inheritDoc
+   */
+  private _handler(event: Event, hint?: EventHint): Event {
+    if (!event.exception || !event.exception.values || !hint || !isInstanceOf(hint.originalException, Error)) {
+      return event;
+    }
+
+    const linkedErrors = this._walkErrorTree(hint.originalException as ExtendedError, this._key);
     event.exception.values = [...linkedErrors, ...event.exception.values];
+
     return event;
   }
 
@@ -66,11 +73,35 @@ export class LinkedErrors implements Integration {
    * @inheritDoc
    */
   private _walkErrorTree(error: ExtendedError, key: string, stack: Exception[] = []): Exception[] {
-    if (!(error[key] instanceof Error) || stack.length + 1 >= this._limit) {
+    if (!isInstanceOf(error[key], Error) || stack.length + 1 >= this._limit) {
       return stack;
     }
-    const stacktrace = computeStackTrace(error[key]);
-    const exception = exceptionFromStacktrace(stacktrace);
+
+    const exception = exceptionFromError(() => [], error[key]);
     return this._walkErrorTree(error[key], key, [exception, ...stack]);
   }
 }
+
+/**
+ * Checks whether given value's type is one of a few Error or Error-like
+ * {@link isError}.
+ *
+ * @param wat A value to be checked.
+ * @returns A boolean representing the result.
+ */
+function isInstanceOf(wat: any, base: any): boolean {
+  try {
+    return wat instanceof base;
+  } catch (_e) {
+    return false;
+  }
+}
+
+
+
+/**
+ * LinkedErrors integration
+ */
+export const linkedErrorsIntegration: IntegrationFn = (options?: { key?: string; limit?: number }) => {
+  return new LinkedErrors(options);
+};

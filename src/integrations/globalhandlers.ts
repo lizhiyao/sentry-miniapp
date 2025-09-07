@@ -1,8 +1,7 @@
-import { getCurrentHub } from "@sentry/core";
-import { Integration } from "@sentry/types";
-import { logger } from "@sentry/utils";
+import { captureException, getCurrentScope } from '@sentry/core';
+import type { Integration, IntegrationFn } from '@sentry/core';
 
-import { sdk } from "../crossPlatform";
+import { sdk } from '../crossPlatform';
 
 /** JSDoc */
 interface GlobalHandlersIntegrations {
@@ -17,12 +16,12 @@ export class GlobalHandlers implements Integration {
   /**
    * @inheritDoc
    */
-  public name: string = GlobalHandlers.id;
+  public static id: string = 'GlobalHandlers';
 
   /**
    * @inheritDoc
    */
-  public static id: string = "GlobalHandlers";
+  public name: string = GlobalHandlers.id;
 
   /** JSDoc */
   private readonly _options: GlobalHandlersIntegrations;
@@ -40,7 +39,7 @@ export class GlobalHandlers implements Integration {
   private _onMemoryWarningHandlerInstalled: boolean = false;
 
   /** JSDoc */
-  public constructor(options?: GlobalHandlersIntegrations) {
+  public constructor(options?: Partial<GlobalHandlersIntegrations>) {
     this._options = {
       onerror: true,
       onunhandledrejection: true,
@@ -49,6 +48,7 @@ export class GlobalHandlers implements Integration {
       ...options,
     };
   }
+
   /**
    * @inheritDoc
    */
@@ -56,22 +56,18 @@ export class GlobalHandlers implements Integration {
     Error.stackTraceLimit = 50;
 
     if (this._options.onerror) {
-      logger.log("Global Handler attached: onError");
       this._installGlobalOnErrorHandler();
     }
 
     if (this._options.onunhandledrejection) {
-      logger.log("Global Handler attached: onunhandledrejection");
       this._installGlobalOnUnhandledRejectionHandler();
     }
 
     if (this._options.onpagenotfound) {
-      logger.log("Global Handler attached: onPageNotFound");
       this._installGlobalOnPageNotFoundHandler();
     }
 
     if (this._options.onmemorywarning) {
-      logger.log("Global Handler attached: onMemoryWarning");
       this._installGlobalOnMemoryWarningHandler();
     }
   }
@@ -82,14 +78,16 @@ export class GlobalHandlers implements Integration {
       return;
     }
 
-    if (!!sdk.onError) {
-      const currentHub = getCurrentHub();
-
+    if (sdk().onError) {
       // https://developers.weixin.qq.com/miniprogram/dev/api/base/app/app-event/wx.onError.html
-      sdk.onError((err: string | object) => {
-        // console.info("sentry-miniapp", error);
-        const error = typeof err === 'string' ? new Error(err) : err
-        currentHub.captureException(error);
+      sdk().onError?.((err: string | Error) => {
+        const error = typeof err === 'string' ? new Error(err) : err;
+        captureException(error, {
+          mechanism: {
+            type: 'onerror',
+            handled: false,
+          },
+        });
       });
     }
 
@@ -102,25 +100,26 @@ export class GlobalHandlers implements Integration {
       return;
     }
 
-    if (!!sdk.onUnhandledRejection) {
-      const currentHub = getCurrentHub();
+    if (sdk().onUnhandledRejection) {
       /** JSDoc */
       interface OnUnhandledRejectionRes {
-        reason: string | object;
+        reason: string | Error;
         promise: Promise<any>;
       }
 
       // https://developers.weixin.qq.com/miniprogram/dev/api/base/app/app-event/wx.onUnhandledRejection.html
-      sdk.onUnhandledRejection(
-        ({ reason, promise }: OnUnhandledRejectionRes) => {
-          // console.log(reason, typeof reason, promise)
-          // 为什么官方文档上说 reason 是 string 类型，但是实际返回的确实 object 类型
-          const error = typeof reason === 'string' ? new Error(reason) : reason
-          currentHub.captureException(error, {
-            data: promise,
-          });
-        }
-      );
+      sdk().onUnhandledRejection?.(({ reason, promise }: OnUnhandledRejectionRes) => {
+        const error = typeof reason === 'string' ? new Error(reason) : reason;
+        (captureException as any)(error, {
+          mechanism: {
+            type: 'onunhandledrejection',
+            handled: false,
+          },
+          extra: {
+            promise,
+          },
+        });
+      });
     }
 
     this._onUnhandledRejectionHandlerInstalled = true;
@@ -132,15 +131,25 @@ export class GlobalHandlers implements Integration {
       return;
     }
 
-    if (!!sdk.onPageNotFound) {
-      const currentHub = getCurrentHub();
+    if (sdk().onPageNotFound) {
+      sdk().onPageNotFound?.((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => {
+        const scope = getCurrentScope();
+        const url = res.path.split('?')[0];
 
-      sdk.onPageNotFound((res: { path: string }) => {
-        const url = res.path.split("?")[0];
-
-        currentHub.setTag("pagenotfound", url);
-        currentHub.setExtra("message", JSON.stringify(res));
-        currentHub.captureMessage(`页面无法找到: ${url}`);
+        scope.setTag('pagenotfound', url);
+        scope.setContext('page_not_found', {
+          path: res.path,
+          query: res.query,
+          isEntryPage: res.isEntryPage,
+        });
+        
+        (captureException as any)(new Error(`页面无法找到: ${url}`), {
+          level: 'warning',
+          mechanism: {
+            type: 'onpagenotfound',
+            handled: true,
+          },
+        });
       });
     }
 
@@ -153,32 +162,48 @@ export class GlobalHandlers implements Integration {
       return;
     }
 
-    if (!!sdk.onMemoryWarning) {
-      const currentHub = getCurrentHub();
-
-      sdk.onMemoryWarning(({ level = -1 }: { level: number }) => {
-        let levelMessage = "没有获取到告警级别信息";
+    if (sdk().onMemoryWarning) {
+      sdk().onMemoryWarning?.(({ level = -1 }: { level: number }) => {
+        let levelMessage = '没有获取到告警级别信息';
 
         switch (level) {
           case 5:
-            levelMessage = "TRIM_MEMORY_RUNNING_MODERATE";
+            levelMessage = 'TRIM_MEMORY_RUNNING_MODERATE';
             break;
           case 10:
-            levelMessage = "TRIM_MEMORY_RUNNING_LOW";
+            levelMessage = 'TRIM_MEMORY_RUNNING_LOW';
             break;
           case 15:
-            levelMessage = "TRIM_MEMORY_RUNNING_CRITICAL";
+            levelMessage = 'TRIM_MEMORY_RUNNING_CRITICAL';
             break;
           default:
             return;
         }
 
-        currentHub.setTag("memory-warning", String(level));
-        currentHub.setExtra("message", levelMessage);
-        currentHub.captureMessage(`内存不足告警`);
+        const scope = getCurrentScope();
+        scope.setTag('memory-warning', String(level));
+        scope.setContext('memory_warning', {
+          level,
+          message: levelMessage,
+        });
+        
+        (captureException as any)(new Error('内存不足告警'), {
+          level: 'warning',
+          mechanism: {
+            type: 'onmemorywarning',
+            handled: true,
+          },
+        });
       });
     }
 
     this._onMemoryWarningHandlerInstalled = true;
   }
 }
+
+/**
+ * Global handlers integration
+ */
+export const globalHandlersIntegration: IntegrationFn = (options?: Partial<GlobalHandlersIntegrations>) => {
+  return new GlobalHandlers(options);
+};
