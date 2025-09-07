@@ -74,7 +74,42 @@
     </view>
   </view>
 
-
-
+  <!-- 速率限制监控区域 -->
+  <view class="rate-limit-section">
+    <view class="rate-limit-header">
+      <text class="rate-limit-title">🚦 API 速率限制监控</text>
+      <text class="rate-limit-desc">GitHub API 配额使用情况</text>
+    </view>
+    
+    <view class="rate-limit-content">
+      <view class="rate-limit-item">
+        <view class="rate-limit-label">剩余配额</view>
+        <view class="rate-limit-value {{rateLimitStatus.status === '警告' ? 'warning' : ''}}">
+          {{rateLimitStatus.remaining || '--'}} / {{rateLimitStatus.limit || '--'}}
+        </view>
+      </view>
+      
+      <view class="rate-limit-item">
+        <view class="rate-limit-label">使用率</view>
+        <view class="rate-limit-value">
+          {{rateLimitStatus.percentage !== null ? rateLimitStatus.percentage + '%' : '--'}}
+        </view>
+      </view>
+      
+      <view class="rate-limit-item">
+        <view class="rate-limit-label">状态</view>
+        <view class="rate-limit-status {{rateLimitStatus.status === '警告' ? 'warning' : 'normal'}}">
+          {{rateLimitStatus.status}}
+        </view>
+      </view>
+      
+      <view class="rate-limit-item" wx:if="{{rateLimitStatus.resetTime}}">
+        <view class="rate-limit-label">重置时间</view>
+        <view class="rate-limit-value small">
+          {{rateLimitStatus.resetTime}}
+        </view>
+      </view>
+    </view>
+  </view>
 
 </view>

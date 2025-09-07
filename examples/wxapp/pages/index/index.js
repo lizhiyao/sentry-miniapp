@@ -16,13 +16,22 @@ Page({
       githubStars: '--',
       githubForks: '--',
       lastUpdate: '加载中...'
+    },
+    rateLimitStatus: {
+      remaining: null,
+      limit: null,
+      percentage: null,
+      resetTime: null,
+      status: '未知'
     }
   },
 
   // 缓存管理工具函数
   cacheManager: {
-    // 缓存有效期：10分钟
-    CACHE_DURATION: 10 * 60 * 1000,
+    // 缓存有效期：1小时
+    CACHE_DURATION: 60 * 60 * 1000,
+    // GitHub API 专用长期缓存（6小时）
+    GITHUB_CACHE_DURATION: 6 * 60 * 60 * 1000,
 
     // 设置缓存
     setCache: function (key, data) {
@@ -93,6 +102,9 @@ Page({
 
     // 检查缓存并加载统计数据
     this.loadStatsWithCache();
+
+    // 获取当前速率限制状态
+    this.loadRateLimitStatus();
   }),
 
   // 页面加载性能追踪演示
@@ -408,12 +420,119 @@ Page({
     });
   }),
 
+  // GitHub API 轮换配置
+  githubApiConfig: {
+    // 可用的 API 端点列表
+    endpoints: [
+      {
+        name: 'search_repos',
+        url: 'https://api.github.com/search/repositories?q=sentry-miniapp+user:lizhiyao',
+        type: 'search'
+      },
+      {
+        name: 'primary_repo',
+        url: 'https://api.github.com/repos/lizhiyao/sentry-miniapp',
+        type: 'repo_info'
+      },
+      {
+        name: 'user_repos',
+        url: 'https://api.github.com/users/lizhiyao/repos',
+        type: 'user_repos',
+        filter: 'sentry-miniapp'
+      }
+    ],
+    
+    // 获取当前应使用的端点索引
+    getCurrentEndpointIndex: function() {
+      const lastUsed = wx.getStorageSync('github_api_last_endpoint') || 0;
+      const failedEndpoints = wx.getStorageSync('github_api_failed_endpoints') || [];
+      
+      // 找到下一个可用的端点
+      for (let i = 0; i < this.endpoints.length; i++) {
+        const index = (lastUsed + i) % this.endpoints.length;
+        if (!failedEndpoints.includes(index)) {
+          return index;
+        }
+      }
+      
+      // 如果所有端点都失败，重置失败列表并使用第一个
+      wx.removeStorageSync('github_api_failed_endpoints');
+      return 0;
+    },
+    
+    // 标记端点为失败
+    markEndpointFailed: function(index) {
+      const failedEndpoints = wx.getStorageSync('github_api_failed_endpoints') || [];
+      if (!failedEndpoints.includes(index)) {
+        failedEndpoints.push(index);
+        wx.setStorageSync('github_api_failed_endpoints', failedEndpoints);
+      }
+    },
+    
+    // 更新最后使用的端点
+    updateLastUsedEndpoint: function(index) {
+      wx.setStorageSync('github_api_last_endpoint', index);
+    },
+    
+    // 重试配置
+    retryConfig: {
+      maxRetries: 3,
+      baseDelay: 1000, // 基础延迟 1 秒
+      maxDelay: 30000,  // 最大延迟 30 秒
+      
+      // 计算指数退避延迟
+      calculateDelay: function(retryCount) {
+        const delay = this.baseDelay * Math.pow(2, retryCount);
+        return Math.min(delay, this.maxDelay);
+      }
+    },
+    
+    // 获取重试计数
+    getRetryCount: function(endpointIndex) {
+      const retryKey = `github_api_retry_${endpointIndex}`;
+      return wx.getStorageSync(retryKey) || 0;
+    },
+    
+    // 增加重试计数
+    incrementRetryCount: function(endpointIndex) {
+      const retryKey = `github_api_retry_${endpointIndex}`;
+      const currentCount = this.getRetryCount(endpointIndex);
+      wx.setStorageSync(retryKey, currentCount + 1);
+      return currentCount + 1;
+    },
+    
+    // 重置重试计数
+    resetRetryCount: function(endpointIndex) {
+      const retryKey = `github_api_retry_${endpointIndex}`;
+      wx.removeStorageSync(retryKey);
+    }
+  },
+
   // 加载 GitHub 统计数据
-  loadGithubStats: Sentry.wrap(function () {
-    const repoOwner = 'lizhiyao';
-    const repoName = 'sentry-miniapp';
+  loadGithubStats: Sentry.wrap(function (retryAttempt = 0, specificEndpointIndex = null) {
     const self = this;
     const cacheKey = 'github_stats_cache';
+    
+    // 获取当前要使用的 API 端点
+    const endpointIndex = specificEndpointIndex !== null ? specificEndpointIndex : this.githubApiConfig.getCurrentEndpointIndex();
+    const endpoint = this.githubApiConfig.endpoints[endpointIndex];
+    const retryCount = this.githubApiConfig.getRetryCount(endpointIndex);
+    
+    console.log(`使用 GitHub API 端点: ${endpoint.name} (${endpointIndex}), 重试次数: ${retryCount}`);
+    
+    // 检查是否超过最大重试次数
+    if (retryCount >= this.githubApiConfig.retryConfig.maxRetries) {
+      console.warn(`[重试机制] 端点 ${endpoint.name} 超过最大重试次数，标记为失败`);
+      this.githubApiConfig.markEndpointFailed(endpointIndex);
+      this.githubApiConfig.resetRetryCount(endpointIndex);
+      
+      // 尝试下一个端点
+      const nextEndpointIndex = this.githubApiConfig.getCurrentEndpointIndex();
+      if (nextEndpointIndex !== endpointIndex) {
+        setTimeout(() => self.loadGithubStats(), 1000);
+        return;
+      }
+    }
 
     // 获取缓存管理器
     const cacheManager = this.cacheManager || {
@@ -422,14 +541,29 @@ Page({
       clearCache: () => { }
     };
 
-    // 检查缓存
+    // 检查缓存 - 使用专用的 GitHub 缓存时间
     const cachedData = cacheManager.getCache(cacheKey);
-    if (cachedData) {
+    const cacheTimestamp = wx.getStorageSync(cacheKey + '_timestamp');
+    const etag = wx.getStorageSync(cacheKey + '_etag');
+    const now = Date.now();
+    
+    // 检查是否有有效的长期缓存
+    if (cachedData && cacheTimestamp && (now - cacheTimestamp < cacheManager.GITHUB_CACHE_DURATION)) {
+      console.log('使用 GitHub API 长期缓存数据');
       this.setData({
         'stats.githubStars': cachedData.githubStars || '--',
         'stats.githubForks': cachedData.githubForks || '--'
       });
       return;
+    }
+    
+    // 如果长期缓存过期但仍有数据，先显示旧数据，然后在后台更新
+    if (cachedData) {
+      console.log('显示过期缓存数据，后台更新中...');
+      this.setData({
+        'stats.githubStars': cachedData.githubStars + ' (更新中)',
+        'stats.githubForks': cachedData.githubForks + ' (更新中)'
+      });
     }
 
     console.log('缓存无效，重新获取GitHub数据');
@@ -441,32 +575,45 @@ Page({
     const checkAndCache = () => {
       requestCount++;
       if (requestCount === totalRequests) {
-        // 所有请求完成，缓存数据
+        // 所有请求完成，缓存数据和时间戳
         cacheManager.setCache(cacheKey, githubData);
-        console.log('GitHub数据已缓存');
+        wx.setStorageSync(cacheKey + '_timestamp', Date.now());
+        console.log('GitHub数据已缓存，缓存时间:', new Date().toLocaleString());
       }
     };
 
     // 网络请求性能追踪演示 - 获取 GitHub 仓库信息
     Sentry.startSpan({
-      name: 'GitHub API - 仓库信息',
+      name: `GitHub API - ${endpoint.name}`,
       op: 'http.client',
-      description: '获取 sentry-miniapp GitHub 仓库信息'
+      description: `获取 sentry-miniapp GitHub 仓库信息 (${endpoint.type})`
     }, (span) => {
       const requestStartTime = Date.now();
       
       // 设置请求相关标签
       span.setAttributes({
         'http.method': 'GET',
-        'http.url': `https://api.github.com/repos/${repoOwner}/${repoName}`,
-        'api.type': 'github_repo_info'
+        'http.url': endpoint.url,
+        'api.type': endpoint.type,
+        'api.endpoint_index': endpointIndex,
+        'api.endpoint_name': endpoint.name
       });
       
       console.log('[性能追踪] 开始获取 GitHub 仓库信息');
       
+      // 构建请求头部，包含 ETag 支持
+      const requestHeaders = {};
+      
+      // 如果有 ETag，添加 If-None-Match 头部
+      if (etag) {
+        requestHeaders['If-None-Match'] = etag;
+        console.log('使用 ETag 进行条件请求:', etag);
+      }
+      
       wx.request({
-        url: `https://api.github.com/repos/${repoOwner}/${repoName}`,
-        method: 'GET',
+          url: endpoint.url,
+          method: 'GET',
+          header: requestHeaders,
         success: function (res) {
           const requestDuration = Date.now() - requestStartTime;
           
@@ -478,31 +625,172 @@ Page({
           
           console.log(`[性能追踪] GitHub 仓库信息请求完成，耗时: ${requestDuration}ms`);
           
-          if (res.statusCode === 200 && res.data) {
-            const starsValue = self.formatNumber(res.data.stargazers_count);
-            const forksValue = self.formatNumber(res.data.forks_count);
+          if (res.statusCode === 304) {
+            // 304 Not Modified - 数据未变更，使用缓存数据
+            console.log('[ETag] 数据未变更，使用缓存数据');
+            if (cachedData) {
+              self.setData({
+                'stats.githubStars': cachedData.githubStars,
+                'stats.githubForks': cachedData.githubForks
+              });
+              
+              // 更新缓存时间戳但保持数据不变
+              wx.setStorageSync(cacheKey + '_timestamp', Date.now());
+            }
             
-            githubData.githubStars = starsValue;
-            githubData.githubForks = forksValue;
-            
-            self.setData({
-              'stats.githubStars': starsValue,
-              'stats.githubForks': forksValue
+            span.setAttributes({
+              'request.success': true,
+              'cache.hit': true,
+              'etag.used': true
             });
+            
+            checkAndCache();
+            return;
+          } else if (res.statusCode === 200 && res.data) {
+             // 解析不同类型的 API 响应
+             let repoData = null;
+             
+             if (endpoint.type === 'repo_info') {
+               repoData = res.data;
+             } else if (endpoint.type === 'user_repos') {
+               // 从用户仓库列表中找到目标仓库
+               repoData = res.data.find(repo => repo.name === endpoint.filter);
+             } else if (endpoint.type === 'search') {
+               // 从搜索结果中获取第一个仓库
+               repoData = res.data.items && res.data.items[0];
+             }
+             
+             if (repoData && repoData.stargazers_count !== undefined) {
+               const starsValue = self.formatNumber(repoData.stargazers_count);
+               const forksValue = self.formatNumber(repoData.forks_count);
+               
+               githubData.githubStars = starsValue;
+               githubData.githubForks = forksValue;
+               
+               self.setData({
+                 'stats.githubStars': starsValue,
+                 'stats.githubForks': forksValue
+               });
+               
+               // 标记端点使用成功并重置重试计数
+                self.githubApiConfig.updateLastUsedEndpoint(endpointIndex);
+                self.githubApiConfig.resetRetryCount(endpointIndex);
+                
+                console.log(`[API轮换] 端点 ${endpoint.name} 请求成功，重置重试计数`);
+             } else {
+               throw new Error('无法从响应中解析仓库数据');
+             }
+            
+            // 保存新的 ETag（如果存在）
+            if (res.header && res.header.etag) {
+              wx.setStorageSync(cacheKey + '_etag', res.header.etag);
+              console.log('[ETag] 保存新的 ETag:', res.header.etag);
+            }
+            
+            // 速率限制监控 - 解析 GitHub API 响应头部
+            const rateLimitInfo = self.parseRateLimitHeaders(res.header);
+            if (rateLimitInfo) {
+              self.updateRateLimitStatus(rateLimitInfo);
+              console.log('[速率限制监控] API 配额状态:', rateLimitInfo);
+            }
             
             span.setAttributes({
               'request.success': true,
               'repo.stars': res.data.stargazers_count,
-              'repo.forks': res.data.forks_count
+              'repo.forks': res.data.forks_count,
+              'etag.saved': !!res.header?.etag
             });
+          } else if (res.statusCode === 403) {
+            // API 速率限制处理
+            console.warn(`[GitHub API] 端点 ${endpoint.name} 速率限制超出`);
+            
+            const currentRetryCount = self.githubApiConfig.getRetryCount(endpointIndex);
+            
+            // 检查是否还能重试当前端点
+            if (currentRetryCount < self.githubApiConfig.retryConfig.maxRetries) {
+              const newRetryCount = self.githubApiConfig.incrementRetryCount(endpointIndex);
+              const delay = self.githubApiConfig.retryConfig.calculateDelay(newRetryCount - 1);
+              
+              console.log(`[重试机制] 端点 ${endpoint.name} 将在 ${delay}ms 后重试 (${newRetryCount}/${self.githubApiConfig.retryConfig.maxRetries})`);
+              
+              span.setAttributes({
+                'retry.attempt': newRetryCount,
+                'retry.delay': delay,
+                'retry.endpoint': endpoint.name
+              });
+              
+              // 指数退避重试
+              setTimeout(() => {
+                self.loadGithubStats(newRetryCount, endpointIndex);
+              }, delay);
+              
+              return;
+            } else {
+              // 超过重试次数，标记端点失败并尝试下一个
+              console.warn(`[重试机制] 端点 ${endpoint.name} 重试次数已用完，切换端点`);
+              self.githubApiConfig.markEndpointFailed(endpointIndex);
+              self.githubApiConfig.resetRetryCount(endpointIndex);
+              
+              // 尝试使用下一个端点
+              const nextEndpointIndex = self.githubApiConfig.getCurrentEndpointIndex();
+              if (nextEndpointIndex !== endpointIndex) {
+                console.log(`[API轮换] 切换到端点: ${self.githubApiConfig.endpoints[nextEndpointIndex].name}`);
+                setTimeout(() => self.loadGithubStats(), 1000);
+                return;
+              }
+            }
+            
+            // 所有端点都失败，实施降级策略
+            console.warn('[降级策略] 所有 GitHub API 端点都不可用，使用降级策略');
+            
+            // 优先使用过期的缓存数据
+            if (cachedData && cachedData.githubStars && cachedData.githubForks) {
+              console.log('[降级策略] 使用过期缓存数据');
+              githubData.githubStars = cachedData.githubStars;
+              githubData.githubForks = cachedData.githubForks;
+              
+              self.setData({
+                'stats.githubStars': cachedData.githubStars + ' (离线)',
+                'stats.githubForks': cachedData.githubForks + ' (离线)'
+              });
+              
+              span.setAttributes({
+                'fallback.type': 'cached_data',
+                'fallback.data_age': Date.now() - (cacheTimestamp || 0)
+              });
+            } else {
+              // 没有缓存数据，使用合理的默认值
+              console.log('[降级策略] 使用默认估算值');
+              githubData.githubStars = '625';
+              githubData.githubForks = '144';
+              
+              self.setData({
+                'stats.githubStars': '625 (估算)',
+                'stats.githubForks': '144 (估算)'
+              });
+              
+              span.setAttributes({
+                'fallback.type': 'default_values'
+              });
+            }
+            
+            span.setAttributes({ 
+              'request.success': false,
+              'error.type': 'rate_limit',
+              'error.message': `GitHub API rate limit exceeded on ${endpoint.name}`,
+              'api.endpoint_failed': endpointIndex
+            });
+            
+            // 记录速率限制错误
+            Sentry.captureMessage(`GitHub API 端点 ${endpoint.name} 速率限制超出`, 'warning');
           } else {
-            // 使用默认值
-            githubData.githubStars = '50+';
-            githubData.githubForks = '10+';
+            // 其他错误情况
+            githubData.githubStars = '625';
+            githubData.githubForks = '144';
             
             self.setData({
-              'stats.githubStars': '50+',
-              'stats.githubForks': '10+'
+              'stats.githubStars': '625',
+              'stats.githubForks': '144'
             });
             
             span.setAttributes({ 'request.success': false });
@@ -514,7 +802,7 @@ Page({
             category: 'http',
             level: 'info',
             data: {
-              url: `https://api.github.com/repos/${repoOwner}/${repoName}`,
+              url: endpoint.url,
               status: res.statusCode,
               duration: requestDuration
             }
@@ -534,12 +822,12 @@ Page({
           console.log(`[性能追踪] GitHub 仓库信息请求失败，耗时: ${requestDuration}ms`, err);
           
           // 使用默认值
-          githubData.githubStars = '50+';
-          githubData.githubForks = '10+';
+          githubData.githubStars = '625';
+          githubData.githubForks = '144';
           
           self.setData({
-            'stats.githubStars': '50+',
-            'stats.githubForks': '10+'
+            'stats.githubStars': '625',
+            'stats.githubForks': '144'
           });
           
           // 记录失败的网络请求
@@ -559,6 +847,93 @@ Page({
       });
     });
   }),
+
+  // 解析 GitHub API 速率限制头部
+  parseRateLimitHeaders: function(headers) {
+    if (!headers) return null;
+    
+    // GitHub API 速率限制头部字段
+    const rateLimitRemaining = headers['x-ratelimit-remaining'] || headers['X-RateLimit-Remaining'];
+    const rateLimitLimit = headers['x-ratelimit-limit'] || headers['X-RateLimit-Limit'];
+    const rateLimitReset = headers['x-ratelimit-reset'] || headers['X-RateLimit-Reset'];
+    const rateLimitUsed = headers['x-ratelimit-used'] || headers['X-RateLimit-Used'];
+    
+    if (rateLimitRemaining !== undefined) {
+      return {
+        remaining: parseInt(rateLimitRemaining),
+        limit: parseInt(rateLimitLimit) || 60,
+        used: parseInt(rateLimitUsed) || 0,
+        resetTime: parseInt(rateLimitReset) ? new Date(parseInt(rateLimitReset) * 1000) : null,
+        percentage: rateLimitLimit ? Math.round(((parseInt(rateLimitLimit) - parseInt(rateLimitRemaining)) / parseInt(rateLimitLimit)) * 100) : 0
+      };
+    }
+    
+    return null;
+  },
+  
+  // 更新速率限制状态
+  updateRateLimitStatus: function(rateLimitInfo) {
+    const statusKey = 'github_rate_limit_status';
+    const status = {
+      ...rateLimitInfo,
+      lastUpdated: Date.now(),
+      endpoint: 'github_api'
+    };
+    
+    wx.setStorageSync(statusKey, status);
+    
+    // 更新页面显示的速率限制状态
+    this.setData({
+      'rateLimitStatus.remaining': rateLimitInfo.remaining,
+      'rateLimitStatus.limit': rateLimitInfo.limit,
+      'rateLimitStatus.percentage': rateLimitInfo.percentage,
+      'rateLimitStatus.resetTime': rateLimitInfo.resetTime ? rateLimitInfo.resetTime.toLocaleString() : null,
+      'rateLimitStatus.status': rateLimitInfo.remaining > 10 ? '正常' : '警告'
+    });
+    
+    // 如果剩余配额很低，发送警告
+    if (rateLimitInfo.remaining < 10) {
+      console.warn(`[速率限制监控] GitHub API 配额即将耗尽: ${rateLimitInfo.remaining}/${rateLimitInfo.limit}`);
+      
+      Sentry.captureMessage(
+        `GitHub API 配额警告: 剩余 ${rateLimitInfo.remaining}/${rateLimitInfo.limit}`,
+        'warning'
+      );
+    }
+    
+    // 记录到 Sentry 性能监控
+    Sentry.addBreadcrumb({
+      message: 'GitHub API 速率限制状态更新',
+      category: 'api.rate_limit',
+      level: 'info',
+      data: {
+        remaining: rateLimitInfo.remaining,
+        limit: rateLimitInfo.limit,
+        percentage: rateLimitInfo.percentage,
+        resetTime: rateLimitInfo.resetTime?.toISOString()
+      }
+    });
+  },
+  
+  // 获取当前速率限制状态
+  getRateLimitStatus: function() {
+    const statusKey = 'github_rate_limit_status';
+    return wx.getStorageSync(statusKey) || null;
+  },
+
+  // 加载并显示速率限制状态
+  loadRateLimitStatus: function() {
+    const rateLimitInfo = this.getRateLimitStatus();
+    if (rateLimitInfo) {
+      this.setData({
+        'rateLimitStatus.remaining': rateLimitInfo.remaining,
+        'rateLimitStatus.limit': rateLimitInfo.limit,
+        'rateLimitStatus.percentage': rateLimitInfo.percentage,
+        'rateLimitStatus.resetTime': rateLimitInfo.resetTime ? new Date(rateLimitInfo.resetTime).toLocaleString() : null,
+        'rateLimitStatus.status': rateLimitInfo.remaining > 10 ? '正常' : '警告'
+      });
+    }
+  },
 
   // 格式化数字显示
   formatNumber: function (num) {

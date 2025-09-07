@@ -225,6 +225,92 @@
  
 
 
+/* 速率限制监控区域 */
+.rate-limit-section {
+  margin: 0 40rpx 40rpx;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 24rpx;
+  padding: 40rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10rpx);
+  border: 1rpx solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+.rate-limit-header {
+  text-align: center;
+  margin-bottom: 30rpx;
+}
+
+.rate-limit-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 8rpx;
+}
+
+.rate-limit-desc {
+  display: block;
+  font-size: 24rpx;
+  color: #7f8c8d;
+}
+
+.rate-limit-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.rate-limit-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 16rpx;
+  border: 1rpx solid rgba(0, 0, 0, 0.05);
+}
+
+.rate-limit-label {
+  font-size: 26rpx;
+  color: #34495e;
+  font-weight: 500;
+}
+
+.rate-limit-value {
+  font-size: 26rpx;
+  color: #2c3e50;
+  font-weight: bold;
+}
+
+.rate-limit-value.warning {
+  color: #e74c3c;
+}
+
+.rate-limit-value.small {
+  font-size: 22rpx;
+  font-weight: normal;
+}
+
+.rate-limit-status {
+  font-size: 24rpx;
+  padding: 8rpx 16rpx;
+  border-radius: 12rpx;
+  font-weight: bold;
+}
+
+.rate-limit-status.normal {
+  background: #d5f4e6;
+  color: #27ae60;
+}
+
+.rate-limit-status.warning {
+  background: #ffeaa7;
+  color: #e17055;
+}
+
 /* 底部信息 */
 .footer {
   text-align: center;
