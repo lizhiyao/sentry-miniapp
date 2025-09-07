@@ -22,6 +22,8 @@
 - 🎯 自动捕获小程序生命周期异常（onError、onUnhandledRejection、onPageNotFound、onMemoryWarning）
 - 🍞 自动记录面包屑（设备、用户操作、网络请求、页面导航等）
 - 🛡️ 智能错误去重和过滤机制
+- ⚡ 全面的性能监控（导航性能、渲染性能、资源加载、用户自定义性能标记）
+- 📈 智能性能阈值检查和自动警告
 - 🔧 支持在 Taro 等第三方小程序框架中使用
 - 📱 支持微信小程序和微信小游戏
 - 🔧 TypeScript 编写，提供完整的类型定义
@@ -84,6 +86,19 @@ Sentry.init({
   // 采样率配置
   sampleRate: 1.0, // 错误采样率
   
+  // 性能监控配置（可选）
+  integrations: [
+    // 性能监控集成
+    Sentry.performanceIntegration({
+      enableNavigation: true, // 导航性能监控
+      enableRender: true, // 渲染性能监控
+      enableResource: true, // 资源加载监控
+      enableUserTiming: true, // 用户自定义性能标记
+      sampleRate: 1.0, // 性能数据采样率
+      reportInterval: 30000, // 数据上报间隔（毫秒）
+    }),
+  ]
+  
   // 过滤配置
   beforeSend(event) {
     // 可以在这里过滤或修改事件
@@ -137,6 +152,31 @@ Sentry.setContext('character', {
   name: 'Mighty Fighter',
   age: 19,
   attack_type: 'melee'
+});
+```
+
+### 3. 性能监控
+
+```javascript
+import * as Sentry from 'sentry-miniapp';
+
+// 手动标记性能时间点
+Sentry.addPerformanceMark('page-load-start');
+// ... 页面加载逻辑
+Sentry.addPerformanceMark('page-load-end');
+
+// 测量性能区间
+Sentry.measurePerformance('page-load', 'page-load-start', 'page-load-end');
+
+// 记录自定义性能数据
+Sentry.recordPerformance({
+  name: 'api-request',
+  value: 1200, // 毫秒
+  unit: 'millisecond',
+  tags: {
+    endpoint: '/api/user',
+    method: 'GET'
+  }
 });
 ```
 
