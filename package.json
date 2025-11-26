@@ -21,6 +21,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "npx tsup",
+    "dev:wx": "npx tsup --platform browser --target chrome58 --out-dir examples/weapp/sentry --watch",
     "prepack": "npx tsup",
     "version": "node ./scripts/versionbump.js src/version.ts"
   },

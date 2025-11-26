@@ -1,4 +1,5 @@
 //index.js
+import * as Sentry from "../../sentry/index";
 //获取应用实例
 const app = getApp();
 
@@ -60,4 +61,27 @@ Page({
   //     Sentry.captureException(e)
   //   }
   // }
+
+  testError() {
+    throw new Error("测试错误");
+  },
+  
+  testCapture() {
+    try {
+      throw new Error("捕获的错误");
+    } catch (e) {
+      Sentry.captureException(e);
+    }
+  },
+  
+  testAsyncError() {
+    setTimeout(() => {
+      throw new Error("异步错误");
+    }, 1000);
+  },
+
+  testCustomEvent() {
+    Sentry.captureMessage("自定义事件测试");
+  }
+  
 });
