@@ -18,6 +18,18 @@ var __spreadValues = (a, b) => {
   return a;
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var __objRest = (source, exclude) => {
+  var target = {};
+  for (var prop in source)
+    if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
+      target[prop] = source[prop];
+  if (source != null && __getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(source)) {
+      if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
+        target[prop] = source[prop];
+    }
+  return target;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -4476,36 +4488,161 @@ function _addTracingExtensions() {
 }
 
 // src/tracing/browser/metrics.ts
+var EPOCH_TIME_THRESHOLD = 1e12;
 var MetricsInstrumentation = class {
-  // private _measurements: Measurements = {};
   constructor(_reportAllChanges = false) {
+    this._reportAllChanges = _reportAllChanges;
+    this._measurements = {};
   }
   addPerformanceEntries(transaction) {
-    if (!sdk.getPerformance) return;
-    const performance = sdk.getPerformance();
-    if (!performance) return;
-    const observer = performance.createObserver((entryList) => {
-      const list = entryList.getEntries() || [];
-      list.forEach((entry) => {
-        const span = transaction.startChild({
-          op: entry.name,
-          description: entry.path || entry.moduleName,
-          startTimestamp: msToSec(entry.startTime)
-          // 将毫秒转换为秒
-        });
-        span.finish(msToSec(entry.startTime + entry.duration));
-        if ("largestContentfulPaint" === entry.name) {
-          clearMarks();
-        }
-      });
-    });
-    function clearMarks() {
-      observer == null ? void 0 : observer.disconnect();
-      transaction == null ? void 0 : transaction.finish();
+    var _a;
+    const performance = this._getPerformance();
+    if (!performance) {
+      return;
     }
-    observer.observe({ entryTypes: ["navigation", "render", "script", "loadPackage"] });
+    this._timeOrigin = this._getTimeOrigin(performance, transaction);
+    this._observer = (_a = performance.createObserver) == null ? void 0 : _a.call(performance, (entryList) => {
+      var _a2;
+      const list = ((_a2 = entryList == null ? void 0 : entryList.getEntries) == null ? void 0 : _a2.call(entryList)) || [];
+      list.forEach((entry) => this._handleEntry(transaction, entry));
+    });
+    if (!this._observer) {
+      return;
+    }
+    this._observer.observe({
+      entryTypes: ["navigation", "render", "script", "loadPackage", "resource"]
+    });
+  }
+  _getPerformance() {
+    if (!sdk.getPerformance) {
+      return void 0;
+    }
+    const performance = sdk.getPerformance();
+    if (!performance || typeof performance.createObserver !== "function") {
+      return void 0;
+    }
+    return performance;
+  }
+  _getTimeOrigin(performance, transaction) {
+    if (typeof performance.timeOrigin === "number") {
+      return msToSec(performance.timeOrigin);
+    }
+    const perfNow = typeof performance.now === "function" ? performance.now() : void 0;
+    if (typeof perfNow === "number") {
+      return msToSec(Date.now() - perfNow);
+    }
+    return transaction.startTimestamp;
+  }
+  _handleEntry(transaction, entry) {
+    if (transaction.endTimestamp !== void 0) {
+      this._stopObserver();
+      return;
+    }
+    const startTimestamp = this._toTimestamp(entry.startTime, transaction.startTimestamp);
+    const endTimestamp = this._toTimestamp(entry.startTime + entry.duration, transaction.startTimestamp);
+    _startChild(transaction, {
+      op: this._mapOp(entry),
+      description: this._getDescription(entry),
+      startTimestamp,
+      endTimestamp,
+      data: this._buildSpanData(entry)
+    });
+    this._recordMeasurements(entry, transaction, startTimestamp);
+    transaction.setTag("sentry_reportAllChanges", this._reportAllChanges);
+    if (Object.keys(this._measurements).length > 0) {
+      transaction.setMeasurements(this._measurements);
+    }
+    if (entry.name === "largestContentfulPaint" && !this._reportAllChanges) {
+      this._stopObserver(transaction);
+    }
+  }
+  _mapOp(entry) {
+    switch (entry.entryType) {
+      case "navigation":
+        return "navigation";
+      case "render":
+        return "ui.render";
+      case "script":
+        return "script";
+      case "loadPackage":
+        return "resource.package";
+      case "resource":
+        return "resource";
+      default:
+        return entry.entryType || "custom";
+    }
+  }
+  _getDescription(entry) {
+    return entry.path || entry.moduleName || entry.name;
+  }
+  _buildSpanData(entry) {
+    const data = { entryType: entry.entryType };
+    if (entry.moduleName) {
+      data.moduleName = entry.moduleName;
+    }
+    if (entry.path) {
+      data.path = entry.path;
+    }
+    if (typeof entry.duration === "number") {
+      data.duration = entry.duration;
+    }
+    return data;
+  }
+  _recordMeasurements(entry, transaction, startTimestamp) {
+    const normalizedName = (entry.name || "").toLowerCase();
+    const durationMs = entry.duration;
+    const relativeStartMs = Math.max((startTimestamp - transaction.startTimestamp) * 1e3, 0);
+    if (normalizedName === "first-paint" || normalizedName === "firstpaint") {
+      this._measurements["fp"] = { value: relativeStartMs };
+    } else if (normalizedName === "first-contentful-paint" || normalizedName === "firstcontentfulpaint") {
+      this._measurements["fcp"] = { value: relativeStartMs };
+    } else if (normalizedName === "largest-contentful-paint" || normalizedName === "largestcontentfulpaint" || normalizedName === "lcp") {
+      this._measurements["lcp"] = { value: relativeStartMs };
+    } else if ((normalizedName === "first-input-delay" || normalizedName === "firstinputdelay" || normalizedName === "fid") && typeof durationMs === "number") {
+      this._measurements["fid"] = { value: durationMs };
+    } else if (entry.entryType === "navigation" && typeof durationMs === "number" && !this._measurements["navigation"]) {
+      this._measurements["navigation"] = { value: durationMs };
+    }
+    if (this._reportAllChanges && typeof durationMs === "number") {
+      const key = this._measurementKey(entry);
+      if (key && !this._measurements[key]) {
+        this._measurements[key] = { value: durationMs };
+      }
+    }
+  }
+  _measurementKey(entry) {
+    const base = entry.name || entry.entryType;
+    if (!base) {
+      return void 0;
+    }
+    return base.replace(/\s+/g, "_").toLowerCase();
+  }
+  _toTimestamp(startTimeMs, transactionStart) {
+    var _a;
+    if (startTimeMs > EPOCH_TIME_THRESHOLD) {
+      return msToSec(startTimeMs);
+    }
+    const origin = (_a = this._timeOrigin) != null ? _a : transactionStart;
+    return origin + msToSec(startTimeMs);
+  }
+  _stopObserver(transaction) {
+    var _a;
+    (_a = this._observer) == null ? void 0 : _a.disconnect();
+    this._observer = void 0;
+    if (transaction && !transaction.endTimestamp) {
+      transaction.finish();
+    }
   }
 };
+function _startChild(transaction, _a) {
+  var _b = _a, { startTimestamp } = _b, ctx = __objRest(_b, ["startTimestamp"]);
+  if (startTimestamp && transaction.startTimestamp > startTimestamp) {
+    transaction.startTimestamp = startTimestamp;
+  }
+  return transaction.startChild(__spreadValues({
+    startTimestamp
+  }, ctx));
+}
 
 // src/tracing/browser/miniatracing.ts
 var _MiniAppTracing = class _MiniAppTracing {
