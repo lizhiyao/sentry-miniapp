@@ -1,5 +1,5 @@
 import { Options, Transport, EventHint, Event, Severity, DsnLike, Integration, EventProcessor, TransportOptions, Response } from '@sentry/types';
-export { Breadcrumb, BreadcrumbHint, Event, EventHint, EventStatus, Exception, Request, Response, SdkInfo, Severity, StackFrame, Stacktrace, Thread, User } from '@sentry/types';
+export { Breadcrumb, BreadcrumbHint, Event, EventHint, EventStatus, Exception, Integration, Request, Response, SdkInfo, Severity, StackFrame, Stacktrace, Thread, User } from '@sentry/types';
 import { BaseBackend, BaseClient, Scope, Integrations } from '@sentry/core';
 export { Hub, Scope, addBreadcrumb, addGlobalEventProcessor, captureEvent, captureException, captureMessage, configureScope, getCurrentHub, getHubFromCarrier, setContext, setExtra, setExtras, setTag, setTags, setUser, startTransaction, withScope } from '@sentry/core';
 import { Hub } from '@sentry/hub';
@@ -285,13 +285,15 @@ declare namespace index$1 {
 
 declare class MiniAppTracing implements Integration {
     /**
-       * @inheritDoc
-       */
+     * @inheritDoc
+     */
     static id: string;
     /**
      * @inheritDoc
      */
     name: string;
+    private readonly _metrics;
+    constructor();
     setupOnce(_: (callback: EventProcessor) => void, getCurrentHub: () => Hub): void;
 }
 

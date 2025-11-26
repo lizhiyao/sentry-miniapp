@@ -9,6 +9,9 @@ declare const swan: any; // 百度小程序
  * 小程序平台 SDK 接口
  */
 interface SDK {
+  canIUse(arg0: string): unknown;
+  onAppHide(arg0: () => void): unknown;
+  getPerformance: Function;
   request: Function;
   httpRequest?: Function; // 针对钉钉小程序
   getSystemInfoSync: Function;
@@ -37,11 +40,19 @@ type AppName =
 const getSDK = () => {
   let currentSdk: SDK = {
     // tslint:disable-next-line: no-empty
-    request: () => {},
+    request: () => { },
     // tslint:disable-next-line: no-empty
-    httpRequest: () => {},
+    httpRequest: () => { },
     // tslint:disable-next-line: no-empty
-    getSystemInfoSync: () => {},
+    getSystemInfoSync: () => { },
+    getPerformance: () => {
+      return {};
+    },
+    onAppHide: function (arg0: () => void) {
+    },
+    canIUse: function (arg0: string): boolean {
+      return false;
+    }
   };
 
   if (typeof wx === "object") {

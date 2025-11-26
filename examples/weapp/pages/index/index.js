@@ -65,7 +65,7 @@ Page({
   testError() {
     throw new Error("测试错误");
   },
-  
+
   testCapture() {
     try {
       throw new Error("捕获的错误");
@@ -73,7 +73,7 @@ Page({
       Sentry.captureException(e);
     }
   },
-  
+
   testAsyncError() {
     setTimeout(() => {
       throw new Error("异步错误");
@@ -82,6 +82,12 @@ Page({
 
   testCustomEvent() {
     Sentry.captureMessage("自定义事件测试");
+  },
+
+  toLogPage() {
+    wx.navigateTo({
+      url: "/pages/logs/logs"
+    });
   }
-  
+
 });

@@ -1,19 +1,21 @@
-export {
-  type Breadcrumb,
-  type BreadcrumbHint,
-  type Request,
-  type SdkInfo,
-  type Event,
-  type EventHint,
-  type EventStatus,
-  type Exception,
-  type Response,
-  Severity,
-  type StackFrame,
-  type Stacktrace,
-  type Thread,
-  type User,
+export type {
+  Breadcrumb,
+  BreadcrumbHint,
+  Request,
+  SdkInfo,
+  Event,
+  EventHint,
+  EventStatus,
+  Exception,
+  Response,
+  StackFrame,
+  Stacktrace,
+  Thread,
+  User,
+  Integration,
 } from "@sentry/types";
+
+export { Severity } from "@sentry/types";
 
 
 export {
@@ -47,7 +49,7 @@ export {
   close,
   wrap
 } from "./sdk";
-export { type MiniappOptions } from "./backend";
+export type { MiniappOptions } from "./backend";
 export { MiniappClient, type ReportDialogOptions } from "./client";
 
 import * as Integrations from "./integrations/index";

@@ -18,7 +18,8 @@ export class System implements Integration {
    */
   public setupOnce(): void {
     addGlobalEventProcessor((event: Event) => {
-      if (getCurrentHub().getIntegration(System)) {
+      const currentHub = getCurrentHub();
+      if (currentHub.getIntegration(System)) {
         try {
           const systemInfo = sdk.getSystemInfoSync();
           const {
@@ -33,16 +34,20 @@ export class System implements Integration {
             platform,
             screenHeight,
             screenWidth,
-            statusBarHeight,
+            // statusBarHeight,
             system,
             version,
-            windowHeight,
-            windowWidth,
+            // windowHeight,
+            // windowWidth,
             app, // 支付宝小程序
             appName, // 字节跳动小程序
-            fontSizeSetting, // 支付宝小程序、 钉钉小程序、微信小程序
+            // fontSizeSetting, // 支付宝小程序、 钉钉小程序、微信小程序
           } = systemInfo;
           const [systemName, systemVersion] = system.split(" ");
+
+          currentHub.setTag("SDKVersion", SDKVersion);
+
+          const appDisplay = app || appName || currentAppName || "app" // wechat
 
           return {
             ...event,
@@ -52,26 +57,20 @@ export class System implements Integration {
                 brand,
                 battery_level: batteryLevel || currentBattery || battery,
                 model,
-                screen_dpi: pixelRatio
+                language,
+                platform,
+                screen_dpi: pixelRatio,
+                screen_height: screenHeight,
+                screen_width: screenWidth,
               },
               os: {
                 name: systemName || system,
                 version: systemVersion || system
               },
-              extra: {
-                SDKVersion,
-                language,
-                platform,
-                screenHeight,
-                screenWidth,
-                statusBarHeight,
-                version,
-                windowHeight,
-                windowWidth,
-                fontSizeSetting,
-                app: app || appName || currentAppName,
-                ...systemInfo,
-              }
+              browser: {
+                name: appDisplay,
+                version: version,
+              },
             }
           };
         } catch (e) {

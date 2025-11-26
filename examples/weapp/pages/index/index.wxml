@@ -13,5 +13,6 @@
     <button bindtap="testCapture">捕获错误</button>
     <button bindtap="testAsyncError">异步错误</button>
     <button bindtap="testCustomEvent">自定义事件</button>
+    <button bindtap="toLogPage">日志页面</button> 
   </view>
 </view>

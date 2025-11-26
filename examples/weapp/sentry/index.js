@@ -2642,7 +2642,7 @@ var SDK_VERSION = "0.12.0";
 
 // src/tracekit.ts
 var UNKNOWN_FUNCTION = "?";
-var chrome = /^\s*at (?:(.*?) ?\()?((?:file|https?|blob|chrome-extension|native|eval|webpack|<anonymous>|[-a-z]+:|\/).*?)(?::(\d+))?(?::(\d+))?\)?\s*$/i;
+var chrome = /^\s*at (?:(.*?) ?\()?((?:file|https?|blob|chrome-extension|address|native|eval|webpack|<anonymous>|[-a-z]+:|\/).*?)(?::(\d+))?(?::(\d+))?\)?\s*$/i;
 var gecko = /^\s*(.*?)(?:\((.*?)\))?(?:^|@)?((?:file|https?|blob|chrome|webpack|resource|moz-extension).*?:\/.*?|\[native code\]|[^@]*(?:bundle|\d+\.js))(?::(\d+))?(?::(\d+))?\s*$/i;
 var winjs = /^\s*at (?:((?:\[object object\])?.+) )?\(?((?:file|ms-appx|https?|webpack|blob):.*?):(\d+)(?::(\d+))?\)?\s*$/i;
 var geckoEval = /(\S+) line (\d+)(?: > eval line \d+)* > eval/i;
@@ -2976,6 +2976,14 @@ var getSDK = () => {
     },
     // tslint:disable-next-line: no-empty
     getSystemInfoSync: () => {
+    },
+    getPerformance: () => {
+      return {};
+    },
+    onAppHide: function(arg0) {
+    },
+    canIUse: function(arg0) {
+      return false;
     }
   };
   if (typeof wx === "object") {
@@ -3577,7 +3585,8 @@ var _System = class _System {
    */
   setupOnce() {
     addGlobalEventProcessor((event) => {
-      if (getCurrentHub().getIntegration(_System)) {
+      const currentHub = getCurrentHub();
+      if (currentHub.getIntegration(_System)) {
         try {
           const systemInfo = sdk.getSystemInfoSync();
           const {
@@ -3595,44 +3604,40 @@ var _System = class _System {
             platform,
             screenHeight,
             screenWidth,
-            statusBarHeight,
+            // statusBarHeight,
             system,
             version,
-            windowHeight,
-            windowWidth,
+            // windowHeight,
+            // windowWidth,
             app,
             // 支付宝小程序
-            appName: appName2,
+            appName: appName2
             // 字节跳动小程序
-            fontSizeSetting
-            // 支付宝小程序、 钉钉小程序、微信小程序
+            // fontSizeSetting, // 支付宝小程序、 钉钉小程序、微信小程序
           } = systemInfo;
           const [systemName, systemVersion] = system.split(" ");
+          currentHub.setTag("SDKVersion", SDKVersion);
+          const appDisplay = app || appName2 || appName || "app";
           return __spreadProps(__spreadValues({}, event), {
             contexts: __spreadProps(__spreadValues({}, event.contexts), {
               device: {
                 brand,
                 battery_level: batteryLevel || currentBattery || battery,
                 model,
-                screen_dpi: pixelRatio
+                language,
+                platform,
+                screen_dpi: pixelRatio,
+                screen_height: screenHeight,
+                screen_width: screenWidth
               },
               os: {
                 name: systemName || system,
                 version: systemVersion || system
               },
-              extra: __spreadValues({
-                SDKVersion,
-                language,
-                platform,
-                screenHeight,
-                screenWidth,
-                statusBarHeight,
-                version,
-                windowHeight,
-                windowWidth,
-                fontSizeSetting,
-                app: app || appName2 || appName
-              }, systemInfo)
+              browser: {
+                name: appDisplay,
+                version
+              }
             })
           });
         } catch (e) {
@@ -4338,6 +4343,9 @@ function hasTracingEnabled(maybeOptions) {
   const options = maybeOptions || client && client.getOptions();
   return !!options && ("tracesSampleRate" in options || "tracesSampler" in options);
 }
+function msToSec(time) {
+  return time / 1e3;
+}
 
 // src/tracing/hubextensions.ts
 function traceHeaders() {
@@ -4467,6 +4475,38 @@ function _addTracingExtensions() {
   }
 }
 
+// src/tracing/browser/metrics.ts
+var MetricsInstrumentation = class {
+  // private _measurements: Measurements = {};
+  constructor(_reportAllChanges = false) {
+  }
+  addPerformanceEntries(transaction) {
+    if (!sdk.getPerformance) return;
+    const performance = sdk.getPerformance();
+    if (!performance) return;
+    const observer = performance.createObserver((entryList) => {
+      const list = entryList.getEntries() || [];
+      list.forEach((entry) => {
+        const span = transaction.startChild({
+          op: entry.name,
+          description: entry.path || entry.moduleName,
+          startTimestamp: msToSec(entry.startTime)
+          // 将毫秒转换为秒
+        });
+        span.finish(msToSec(entry.startTime + entry.duration));
+        if ("largestContentfulPaint" === entry.name) {
+          clearMarks();
+        }
+      });
+    });
+    function clearMarks() {
+      observer == null ? void 0 : observer.disconnect();
+      transaction == null ? void 0 : transaction.finish();
+    }
+    observer.observe({ entryTypes: ["navigation", "render", "script", "loadPackage"] });
+  }
+};
+
 // src/tracing/browser/miniatracing.ts
 var _MiniAppTracing = class _MiniAppTracing {
   constructor() {
@@ -4474,32 +4514,32 @@ var _MiniAppTracing = class _MiniAppTracing {
      * @inheritDoc
      */
     this.name = _MiniAppTracing.id;
+    this._metrics = new MetricsInstrumentation();
   }
-  // private readonly _metrics: MetricsInstrumentation;
   setupOnce(_, getCurrentHub2) {
+    var _a, _b;
     _addTracingExtensions();
-    const idleTimeout = 1e3;
+    const idleTimeout = 5e3;
     const hub = getCurrentHub2();
-    const finalContext = {
-      name: "idleTransaction",
-      op: "idleTransaction"
-    };
-    const idleTransaction = startIdleTransaction(
+    const performanceIdleTransaction = startIdleTransaction(
       hub,
-      finalContext,
+      {
+        name: "app-performance",
+        op: "performance"
+      },
       idleTimeout,
       true,
       {}
-      // for use in the tracesSampler
     );
-    idleTransaction.registerBeforeFinishCallback((_transaction, _endTimestamp) => {
+    this._metrics.addPerformanceEntries(performanceIdleTransaction);
+    (_b = (_a = sdk).onAppHide) == null ? void 0 : _b.call(_a, () => {
+      performanceIdleTransaction.finish();
     });
-    idleTransaction.setTag("idleTimeout", idleTimeout);
   }
 };
 /**
-   * @inheritDoc
-   */
+ * @inheritDoc
+ */
 _MiniAppTracing.id = "MiniAppTracing";
 var MiniAppTracing = _MiniAppTracing;
 

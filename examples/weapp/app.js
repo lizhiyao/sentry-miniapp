@@ -1,7 +1,7 @@
 import * as Sentry from "./sentry/index";
 // 初始化 Sentry
 Sentry.init({
-  dsn: "https://47703e01ba4344b8b252c15e8fd980fd@sentry.io/1528228",
+  dsn: "https://607f106645b6ecb5420e7cf5a44cc90a@o325862.ingest.us.sentry.io/4510430332190720",
 });
 
 App({
