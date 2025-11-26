@@ -11,9 +11,6 @@ importers:
       '@sentry/core':
         specifier: 6.19.7
         version: 6.19.7
-      '@sentry/hub':
-        specifier: 6.19.7
-        version: 6.19.7
       '@sentry/types':
         specifier: 6.19.7
         version: 6.19.7

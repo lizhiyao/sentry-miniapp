@@ -1,6 +1,6 @@
 {
   "name": "sentry-miniapp",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "用于小程序/小游戏平台的 Sentry SDK",
   "repository": "git://github.com/junqing258/sentry-miniapp.git",
   "homepage": "https://github.com/junqing258/sentry-miniapp",
@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npx tsup",
+    "build": "npx tsup --minify terser",
     "dev:weapp": "npx tsup --platform browser --target chrome58 --out-dir examples/weapp/sentry --watch",
     "prepack": "npx tsup",
     "version": "node ./scripts/versionbump.js src/version.ts"
