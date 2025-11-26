@@ -1,4 +1,4 @@
-import { getMainCarrier, Hub } from '@sentry/hub';
+import { Hub } from '@sentry/core';
 import {
   CustomSamplingContext,
   Integration,
@@ -7,12 +7,16 @@ import {
   SamplingContext,
   TransactionContext,
 } from '@sentry/types';
-import { dynamicRequire, isNaN, isNodeEnv, loadModule, logger } from '@sentry/utils';
+import { dynamicRequire, isNaN, isNodeEnv, loadModule,logger } from '@sentry/utils';
 
 import { IS_DEBUG_BUILD } from './flags';
 import { IdleTransaction } from './idletransaction';
 import { Transaction } from './transaction';
 import { hasTracingEnabled } from './utils';
+import { sdk } from '../crossPlatform';
+
+
+const GLOBAL_OBJ = sdk
 
 /** Returns all trace headers that are currently on the top scope. */
 function traceHeaders(this: Hub): { [key: string]: string } {
@@ -208,10 +212,54 @@ export function startIdleTransaction(
   return transaction;
 }
 
+
+export interface RunWithAsyncContextOptions {
+  /** Whether to reuse an existing async context if one exists. Defaults to false. */
+  reuseExisting?: boolean;
+}
+
+export interface AsyncContextStrategy {
+  /**
+   * Gets the current async context. Returns undefined if there is no current async context.
+   */
+  // eslint-disable-next-line deprecation/deprecation
+  getCurrentHub: () => Hub | undefined;
+  /**
+   * Runs the supplied callback in its own async context.
+   */
+  runWithAsyncContext<T>(callback: () => T, options: RunWithAsyncContextOptions): T;
+}
+
+
+export interface Carrier {
+  __SENTRY__?: {
+    // eslint-disable-next-line deprecation/deprecation
+    hub?: Hub;
+    acs?: AsyncContextStrategy;
+    /**
+     * Extra Hub properties injected by various SDKs
+     */
+    integrations?: Integration[];
+    extensions?: {
+      /** Extension methods for the hub, which are bound to the current Hub instance */
+      // eslint-disable-next-line @typescript-eslint/ban-types
+      [key: string]: Function;
+    };
+  };
+}
+
+export function getMainCarrier(): Carrier {
+  (GLOBAL_OBJ as any).__SENTRY__ = (GLOBAL_OBJ as any).__SENTRY__ || {
+    extensions: {},
+    hub: undefined,
+  };
+  return GLOBAL_OBJ as Carrier;
+}
+
 /**
  * @private
  */
-export function _addTracingExtensions(): void {
+export function addTracingExtensions(): void {
   const carrier = getMainCarrier();
   if (!carrier.__SENTRY__) {
     return;

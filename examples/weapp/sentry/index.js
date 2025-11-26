@@ -1492,7 +1492,7 @@ var DEFAULT_BREADCRUMBS = 100;
 var Hub = (
   /** @class */
   function() {
-    function Hub4(client, scope, _version) {
+    function Hub3(client, scope, _version) {
       if (scope === void 0) {
         scope = new Scope();
       }
@@ -1506,17 +1506,17 @@ var Hub = (
         this.bindClient(client);
       }
     }
-    Hub4.prototype.isOlderThan = function(version) {
+    Hub3.prototype.isOlderThan = function(version) {
       return this._version < version;
     };
-    Hub4.prototype.bindClient = function(client) {
+    Hub3.prototype.bindClient = function(client) {
       var top = this.getStackTop();
       top.client = client;
       if (client && client.setupIntegrations) {
         client.setupIntegrations();
       }
     };
-    Hub4.prototype.pushScope = function() {
+    Hub3.prototype.pushScope = function() {
       var scope = Scope.clone(this.getScope());
       this.getStack().push({
         client: this.getClient(),
@@ -1524,12 +1524,12 @@ var Hub = (
       });
       return scope;
     };
-    Hub4.prototype.popScope = function() {
+    Hub3.prototype.popScope = function() {
       if (this.getStack().length <= 1)
         return false;
       return !!this.getStack().pop();
     };
-    Hub4.prototype.withScope = function(callback) {
+    Hub3.prototype.withScope = function(callback) {
       var scope = this.pushScope();
       try {
         callback(scope);
@@ -1537,19 +1537,19 @@ var Hub = (
         this.popScope();
       }
     };
-    Hub4.prototype.getClient = function() {
+    Hub3.prototype.getClient = function() {
       return this.getStackTop().client;
     };
-    Hub4.prototype.getScope = function() {
+    Hub3.prototype.getScope = function() {
       return this.getStackTop().scope;
     };
-    Hub4.prototype.getStack = function() {
+    Hub3.prototype.getStack = function() {
       return this._stack;
     };
-    Hub4.prototype.getStackTop = function() {
+    Hub3.prototype.getStackTop = function() {
       return this._stack[this._stack.length - 1];
     };
-    Hub4.prototype.captureException = function(exception, hint) {
+    Hub3.prototype.captureException = function(exception, hint) {
       var eventId = this._lastEventId = hint && hint.event_id ? hint.event_id : uuid4();
       var finalHint = hint;
       if (!hint) {
@@ -1567,7 +1567,7 @@ var Hub = (
       this._invokeClient("captureException", exception, __assign(__assign({}, finalHint), { event_id: eventId }));
       return eventId;
     };
-    Hub4.prototype.captureMessage = function(message, level, hint) {
+    Hub3.prototype.captureMessage = function(message, level, hint) {
       var eventId = this._lastEventId = hint && hint.event_id ? hint.event_id : uuid4();
       var finalHint = hint;
       if (!hint) {
@@ -1585,7 +1585,7 @@ var Hub = (
       this._invokeClient("captureMessage", message, level, __assign(__assign({}, finalHint), { event_id: eventId }));
       return eventId;
     };
-    Hub4.prototype.captureEvent = function(event, hint) {
+    Hub3.prototype.captureEvent = function(event, hint) {
       var eventId = hint && hint.event_id ? hint.event_id : uuid4();
       if (event.type !== "transaction") {
         this._lastEventId = eventId;
@@ -1593,10 +1593,10 @@ var Hub = (
       this._invokeClient("captureEvent", event, __assign(__assign({}, hint), { event_id: eventId }));
       return eventId;
     };
-    Hub4.prototype.lastEventId = function() {
+    Hub3.prototype.lastEventId = function() {
       return this._lastEventId;
     };
-    Hub4.prototype.addBreadcrumb = function(breadcrumb, hint) {
+    Hub3.prototype.addBreadcrumb = function(breadcrumb, hint) {
       var _a = this.getStackTop(), scope = _a.scope, client = _a.client;
       if (!scope || !client)
         return;
@@ -1612,43 +1612,43 @@ var Hub = (
         return;
       scope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
     };
-    Hub4.prototype.setUser = function(user) {
+    Hub3.prototype.setUser = function(user) {
       var scope = this.getScope();
       if (scope)
         scope.setUser(user);
     };
-    Hub4.prototype.setTags = function(tags) {
+    Hub3.prototype.setTags = function(tags) {
       var scope = this.getScope();
       if (scope)
         scope.setTags(tags);
     };
-    Hub4.prototype.setExtras = function(extras) {
+    Hub3.prototype.setExtras = function(extras) {
       var scope = this.getScope();
       if (scope)
         scope.setExtras(extras);
     };
-    Hub4.prototype.setTag = function(key, value) {
+    Hub3.prototype.setTag = function(key, value) {
       var scope = this.getScope();
       if (scope)
         scope.setTag(key, value);
     };
-    Hub4.prototype.setExtra = function(key, extra) {
+    Hub3.prototype.setExtra = function(key, extra) {
       var scope = this.getScope();
       if (scope)
         scope.setExtra(key, extra);
     };
-    Hub4.prototype.setContext = function(name, context) {
+    Hub3.prototype.setContext = function(name, context) {
       var scope = this.getScope();
       if (scope)
         scope.setContext(name, context);
     };
-    Hub4.prototype.configureScope = function(callback) {
+    Hub3.prototype.configureScope = function(callback) {
       var _a = this.getStackTop(), scope = _a.scope, client = _a.client;
       if (scope && client) {
         callback(scope);
       }
     };
-    Hub4.prototype.run = function(callback) {
+    Hub3.prototype.run = function(callback) {
       var oldHub = makeMain(this);
       try {
         callback(this);
@@ -1656,7 +1656,7 @@ var Hub = (
         makeMain(oldHub);
       }
     };
-    Hub4.prototype.getIntegration = function(integration) {
+    Hub3.prototype.getIntegration = function(integration) {
       var client = this.getClient();
       if (!client)
         return null;
@@ -1667,16 +1667,16 @@ var Hub = (
         return null;
       }
     };
-    Hub4.prototype.startSpan = function(context) {
+    Hub3.prototype.startSpan = function(context) {
       return this._callExtensionMethod("startSpan", context);
     };
-    Hub4.prototype.startTransaction = function(context, customSamplingContext) {
+    Hub3.prototype.startTransaction = function(context, customSamplingContext) {
       return this._callExtensionMethod("startTransaction", context, customSamplingContext);
     };
-    Hub4.prototype.traceHeaders = function() {
+    Hub3.prototype.traceHeaders = function() {
       return this._callExtensionMethod("traceHeaders");
     };
-    Hub4.prototype.captureSession = function(endSession) {
+    Hub3.prototype.captureSession = function(endSession) {
       if (endSession === void 0) {
         endSession = false;
       }
@@ -1685,7 +1685,7 @@ var Hub = (
       }
       this._sendSessionUpdate();
     };
-    Hub4.prototype.endSession = function() {
+    Hub3.prototype.endSession = function() {
       var layer = this.getStackTop();
       var scope = layer && layer.scope;
       var session = scope && scope.getSession();
@@ -1697,7 +1697,7 @@ var Hub = (
         scope.setSession();
       }
     };
-    Hub4.prototype.startSession = function(context) {
+    Hub3.prototype.startSession = function(context) {
       var _a = this.getStackTop(), scope = _a.scope, client = _a.client;
       var _b = client && client.getOptions() || {}, release = _b.release, environment = _b.environment;
       var global3 = getGlobalObject();
@@ -1716,7 +1716,7 @@ var Hub = (
       }
       return session;
     };
-    Hub4.prototype._sendSessionUpdate = function() {
+    Hub3.prototype._sendSessionUpdate = function() {
       var _a = this.getStackTop(), scope = _a.scope, client = _a.client;
       if (!scope)
         return;
@@ -1727,7 +1727,7 @@ var Hub = (
         }
       }
     };
-    Hub4.prototype._invokeClient = function(method) {
+    Hub3.prototype._invokeClient = function(method) {
       var _a;
       var args = [];
       for (var _i = 1; _i < arguments.length; _i++) {
@@ -1738,7 +1738,7 @@ var Hub = (
         (_a = client)[method].apply(_a, __spread(args, [scope]));
       }
     };
-    Hub4.prototype._callExtensionMethod = function(method) {
+    Hub3.prototype._callExtensionMethod = function(method) {
       var args = [];
       for (var _i = 1; _i < arguments.length; _i++) {
         args[_i - 1] = arguments[_i];
@@ -1750,7 +1750,7 @@ var Hub = (
       }
       IS_DEBUG_BUILD2 && logger.warn("Extension method " + method + " couldn't be found, doing nothing.");
     };
-    return Hub4;
+    return Hub3;
   }()
 );
 function getMainCarrier() {
@@ -4355,11 +4355,20 @@ function hasTracingEnabled(maybeOptions) {
   const options = maybeOptions || client && client.getOptions();
   return !!options && ("tracesSampleRate" in options || "tracesSampler" in options);
 }
+function getActiveTransaction(maybeHub) {
+  const hub = getCurrentHub();
+  const scope = hub.getScope();
+  return scope && scope.getTransaction();
+}
 function msToSec(time) {
   return time / 1e3;
 }
+function secToMs(time) {
+  return time * 1e3;
+}
 
 // src/tracing/hubextensions.ts
+var GLOBAL_OBJ = sdk;
 function traceHeaders() {
   const scope = this.getScope();
   if (scope) {
@@ -4473,8 +4482,15 @@ function startIdleTransaction(hub, transactionContext, idleTimeout, onScope, cus
   }
   return transaction;
 }
-function _addTracingExtensions() {
-  const carrier = getMainCarrier();
+function getMainCarrier2() {
+  GLOBAL_OBJ.__SENTRY__ = GLOBAL_OBJ.__SENTRY__ || {
+    extensions: {},
+    hub: void 0
+  };
+  return GLOBAL_OBJ;
+}
+function addTracingExtensions() {
+  const carrier = getMainCarrier2();
   if (!carrier.__SENTRY__) {
     return;
   }
@@ -4641,34 +4657,121 @@ function _startChild(transaction, _a) {
   }, ctx));
 }
 
+// src/tracing/miniapp/router.ts
+function instrumentRoutingWithDefaults(startTransaction2, startTransactionOnPageLoad = true, startTransactionOnLocationChange = true) {
+  const globalObj = getGlobalObject();
+  const onAppRoute = sdk.onAppRoute || globalObj.wx && globalObj.wx.onAppRoute;
+  if (typeof onAppRoute !== "function") {
+    return;
+  }
+  let hasStartedFirstRoute = false;
+  let activeRouteTransaction;
+  const startRouteTransaction = (context, isFirstRoute) => {
+    const shouldStart = isFirstRoute && startTransactionOnPageLoad || !isFirstRoute && startTransactionOnLocationChange;
+    if (!shouldStart) {
+      return;
+    }
+    if (activeRouteTransaction && typeof activeRouteTransaction.finish === "function") {
+      activeRouteTransaction.finish();
+    }
+    activeRouteTransaction = startTransaction2(context);
+  };
+  const handleRoute = (routeOptions, isFirstRoute = false) => {
+    const path = (routeOptions == null ? void 0 : routeOptions.path) || (routeOptions == null ? void 0 : routeOptions.route) || (routeOptions == null ? void 0 : routeOptions.url) || "";
+    const name = typeof path === "string" && path.length > 0 ? path : "unknown-route";
+    startRouteTransaction(
+      {
+        name,
+        op: "navigation",
+        description: (routeOptions == null ? void 0 : routeOptions.openType) || (routeOptions == null ? void 0 : routeOptions.event) || void 0,
+        metadata: { requestPath: name }
+      },
+      isFirstRoute
+    );
+  };
+  if (startTransactionOnPageLoad && typeof globalObj.getCurrentPages === "function") {
+    const pages = globalObj.getCurrentPages() || [];
+    const current = pages[pages.length - 1];
+    if (current && current.route) {
+      hasStartedFirstRoute = true;
+      handleRoute({ path: current.route }, true);
+    }
+  }
+  onAppRoute((options) => {
+    const isFirstRoute = !hasStartedFirstRoute;
+    hasStartedFirstRoute = true;
+    handleRoute(options, isFirstRoute);
+  });
+}
+
+// src/tracing/miniapp/request.ts
+var defaultRequestInstrumentationOptions = {
+  traceRequest: true
+};
+
 // src/tracing/miniapp/miniapptracing.ts
+var DEFAULT_MAX_TRANSACTION_DURATION_SECONDS = 600;
+var DEFAULT_MINIAPP_TRACING_OPTIONS = __spreadValues({
+  idleTimeout: 5e3,
+  startTransactionOnLocationChange: true,
+  startTransactionOnPageLoad: true,
+  maxTransactionDuration: DEFAULT_MAX_TRANSACTION_DURATION_SECONDS,
+  routingInstrumentation: instrumentRoutingWithDefaults
+}, defaultRequestInstrumentationOptions);
 var _MiniAppTracing = class _MiniAppTracing {
-  constructor() {
+  constructor(_options) {
     /**
      * @inheritDoc
      */
     this.name = _MiniAppTracing.id;
-    this._metrics = new MetricsInstrumentation();
+    addTracingExtensions();
+    this._configuredIdleTimeout = _options == null ? void 0 : _options.idleTimeout;
+    this.options = __spreadValues(__spreadValues({}, DEFAULT_MINIAPP_TRACING_OPTIONS), _options);
+    const { _metricOptions } = this.options;
+    this._metrics = new MetricsInstrumentation(_metricOptions && _metricOptions._reportAllChanges);
   }
   setupOnce(_, getCurrentHub2) {
     var _a, _b;
-    _addTracingExtensions();
-    const idleTimeout = 5e3;
-    const hub = getCurrentHub2();
-    const performanceIdleTransaction = startIdleTransaction(
-      hub,
-      {
-        name: "app-performance",
-        op: "performance"
-      },
-      idleTimeout,
-      true,
-      {}
+    this._getCurrentHub = getCurrentHub2;
+    const {
+      routingInstrumentation,
+      startTransactionOnLocationChange,
+      startTransactionOnPageLoad
+      // traceRequest,
+      // shouldCreateSpanForRequest,
+    } = this.options;
+    routingInstrumentation(
+      (context) => this._createRouteTransaction(context),
+      startTransactionOnPageLoad,
+      startTransactionOnLocationChange
     );
-    this._metrics.addPerformanceEntries(performanceIdleTransaction);
     (_b = (_a = sdk).onAppHide) == null ? void 0 : _b.call(_a, () => {
-      performanceIdleTransaction.finish();
+      const active = getActiveTransaction();
+      active == null ? void 0 : active.finish();
     });
+  }
+  /** Create routing idle transaction. */
+  _createRouteTransaction(context) {
+    var _a;
+    if (!this._getCurrentHub) {
+      return void 0;
+    }
+    const { beforeNavigate, idleTimeout, maxTransactionDuration } = this.options;
+    const expandedContext = __spreadProps(__spreadValues({}, context), {
+      trimEnd: true
+    });
+    const modifiedContext = typeof beforeNavigate === "function" ? beforeNavigate(expandedContext) : expandedContext;
+    if (modifiedContext === void 0) {
+      return void 0;
+    }
+    const hub = this._getCurrentHub();
+    const idleTransaction = startIdleTransaction(hub, modifiedContext, idleTimeout, true, {});
+    idleTransaction.registerBeforeFinishCallback((transaction, endTimestamp) => {
+      adjustTransactionDuration(secToMs(maxTransactionDuration), transaction, endTimestamp);
+    });
+    idleTransaction.setTag("idleTimeout", (_a = this._configuredIdleTimeout) != null ? _a : idleTimeout);
+    this._metrics.addPerformanceEntries(idleTransaction);
+    return idleTransaction;
   }
 };
 /**
@@ -4676,6 +4779,14 @@ var _MiniAppTracing = class _MiniAppTracing {
  */
 _MiniAppTracing.id = "MiniAppTracing";
 var MiniAppTracing = _MiniAppTracing;
+function adjustTransactionDuration(maxDuration, transaction, endTimestamp) {
+  const diff = endTimestamp - transaction.startTimestamp;
+  const isOutdatedTransaction = endTimestamp && (diff > maxDuration || diff < 0);
+  if (isOutdatedTransaction) {
+    transaction.setStatus("deadline_exceeded");
+    transaction.setTag("maxTransactionDurationExceeded", "true");
+  }
+}
 
 // src/sdk.ts
 var defaultIntegrations = [

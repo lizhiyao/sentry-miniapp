@@ -1,4 +1,4 @@
-import { getCurrentHub, Hub } from '@sentry/hub';
+import { getCurrentHub, Hub } from "@sentry/core"
 import {
   Event,
   Measurements,
@@ -10,6 +10,7 @@ import { dropUndefinedKeys, isInstanceOf, logger } from '@sentry/utils';
 
 import { IS_DEBUG_BUILD } from './flags';
 import { Span as SpanClass, SpanRecorder } from './span';
+
 
 /** JSDoc */
 export class Transaction extends SpanClass implements TransactionInterface {

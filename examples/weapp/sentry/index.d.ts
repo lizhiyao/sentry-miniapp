@@ -1,8 +1,7 @@
-import { Options, Transport, EventHint, Event, Severity, DsnLike, Integration, EventProcessor, TransportOptions, Response } from '@sentry/types';
+import { Options, Transport, EventHint, Event, Severity, DsnLike, Integration, Span as Span$1, Primitive, Transaction as Transaction$1, SpanContext, TransactionMetadata, TransactionContext, Measurements, EventProcessor, TransportOptions, Response } from '@sentry/types';
 export { Breadcrumb, BreadcrumbHint, Event, EventHint, EventStatus, Exception, Integration, Request, Response, SdkInfo, Severity, StackFrame, Stacktrace, Thread, User } from '@sentry/types';
-import { BaseBackend, BaseClient, Scope, Integrations } from '@sentry/core';
+import { BaseBackend, BaseClient, Scope, Hub, Integrations } from '@sentry/core';
 export { Hub, Scope, addBreadcrumb, addGlobalEventProcessor, captureEvent, captureException, captureMessage, configureScope, getCurrentHub, getHubFromCarrier, setContext, setExtra, setExtras, setTag, setTags, setUser, startTransaction, withScope } from '@sentry/core';
-import { Hub } from '@sentry/hub';
 import { PromiseBuffer } from '@sentry/utils';
 
 declare const SDK_NAME = "sentry.javascript.miniapp";
@@ -283,6 +282,342 @@ declare namespace index$1 {
   export { index$1_GlobalHandlers as GlobalHandlers, index$1_IgnoreMpcrawlerErrors as IgnoreMpcrawlerErrors, index$1_LinkedErrors as LinkedErrors, index$1_Router as Router, index$1_System as System, index$1_TryCatch as TryCatch };
 }
 
+interface RequestInstrumentationOptions {
+    traceRequest: boolean;
+    shouldCreateSpanForRequest?(url: string): boolean;
+}
+
+/**
+ * Keeps track of finished spans for a given transaction
+ * @internal
+ * @hideconstructor
+ * @hidden
+ */
+declare class SpanRecorder {
+    spans: Span[];
+    private readonly _maxlen;
+    constructor(maxlen?: number);
+    /**
+     * This is just so that we don't run out of memory while recording a lot
+     * of spans. At some point we just stop and flush out the start of the
+     * trace tree (i.e.the first n spans with the smallest
+     * start_timestamp).
+     */
+    add(span: Span): void;
+}
+/**
+ * Span contains all data about a span
+ */
+declare class Span implements Span$1 {
+    /**
+     * @inheritDoc
+     */
+    traceId: string;
+    /**
+     * @inheritDoc
+     */
+    spanId: string;
+    /**
+     * @inheritDoc
+     */
+    parentSpanId?: string;
+    /**
+     * Internal keeper of the status
+     */
+    status?: SpanStatusType | string;
+    /**
+     * @inheritDoc
+     */
+    sampled?: boolean;
+    /**
+     * Timestamp in seconds when the span was created.
+     */
+    startTimestamp: number;
+    /**
+     * Timestamp in seconds when the span ended.
+     */
+    endTimestamp?: number;
+    /**
+     * @inheritDoc
+     */
+    op?: string;
+    /**
+     * @inheritDoc
+     */
+    description?: string;
+    /**
+     * @inheritDoc
+     */
+    tags: {
+        [key: string]: Primitive;
+    };
+    /**
+     * @inheritDoc
+     */
+    data: {
+        [key: string]: any;
+    };
+    /**
+     * List of spans that were finalized
+     */
+    spanRecorder?: SpanRecorder;
+    /**
+     * @inheritDoc
+     */
+    transaction?: Transaction$1;
+    /**
+     * You should never call the constructor manually, always use `Sentry.startTransaction()`
+     * or call `startChild()` on an existing span.
+     * @internal
+     * @hideconstructor
+     * @hidden
+     */
+    constructor(spanContext?: SpanContext);
+    /**
+     * @inheritDoc
+     * @deprecated
+     */
+    child(spanContext?: Pick<SpanContext, Exclude<keyof SpanContext, 'spanId' | 'sampled' | 'traceId' | 'parentSpanId'>>): Span;
+    /**
+     * @inheritDoc
+     */
+    startChild(spanContext?: Pick<SpanContext, Exclude<keyof SpanContext, 'spanId' | 'sampled' | 'traceId' | 'parentSpanId'>>): Span;
+    /**
+     * @inheritDoc
+     */
+    setTag(key: string, value: Primitive): this;
+    /**
+     * @inheritDoc
+     */
+    setData(key: string, value: any): this;
+    /**
+     * @inheritDoc
+     */
+    setStatus(value: SpanStatusType): this;
+    /**
+     * @inheritDoc
+     */
+    setHttpStatus(httpStatus: number): this;
+    /**
+     * @inheritDoc
+     */
+    isSuccess(): boolean;
+    /**
+     * @inheritDoc
+     */
+    finish(endTimestamp?: number): void;
+    /**
+     * @inheritDoc
+     */
+    toTraceparent(): string;
+    /**
+     * @inheritDoc
+     */
+    toContext(): SpanContext;
+    /**
+     * @inheritDoc
+     */
+    updateWithContext(spanContext: SpanContext): this;
+    /**
+     * @inheritDoc
+     */
+    getTraceContext(): {
+        data?: {
+            [key: string]: any;
+        };
+        description?: string;
+        op?: string;
+        parent_span_id?: string;
+        span_id: string;
+        status?: string;
+        tags?: {
+            [key: string]: Primitive;
+        };
+        trace_id: string;
+    };
+    /**
+     * @inheritDoc
+     */
+    toJSON(): {
+        data?: {
+            [key: string]: any;
+        };
+        description?: string;
+        op?: string;
+        parent_span_id?: string;
+        span_id: string;
+        start_timestamp: number;
+        status?: string;
+        tags?: {
+            [key: string]: Primitive;
+        };
+        timestamp?: number;
+        trace_id: string;
+    };
+}
+type SpanStatusType = 
+/** The operation completed successfully. */
+'ok'
+/** Deadline expired before operation could complete. */
+ | 'deadline_exceeded'
+/** 401 Unauthorized (actually does mean unauthenticated according to RFC 7235) */
+ | 'unauthenticated'
+/** 403 Forbidden */
+ | 'permission_denied'
+/** 404 Not Found. Some requested entity (file or directory) was not found. */
+ | 'not_found'
+/** 429 Too Many Requests */
+ | 'resource_exhausted'
+/** Client specified an invalid argument. 4xx. */
+ | 'invalid_argument'
+/** 501 Not Implemented */
+ | 'unimplemented'
+/** 503 Service Unavailable */
+ | 'unavailable'
+/** Other/generic 5xx. */
+ | 'internal_error'
+/** Unknown. Any non-standard HTTP status code. */
+ | 'unknown_error'
+/** The operation was cancelled (typically by the user). */
+ | 'cancelled'
+/** Already exists (409) */
+ | 'already_exists'
+/** Operation was rejected because the system is not in a state required for the operation's */
+ | 'failed_precondition'
+/** The operation was aborted, typically due to a concurrency issue. */
+ | 'aborted'
+/** Operation was attempted past the valid range. */
+ | 'out_of_range'
+/** Unrecoverable data loss or corruption */
+ | 'data_loss';
+
+/** JSDoc */
+declare class Transaction extends Span implements Transaction$1 {
+    name: string;
+    metadata: TransactionMetadata;
+    private _measurements;
+    /**
+     * The reference to the current hub.
+     */
+    private readonly _hub;
+    private _trimEnd?;
+    /**
+     * This constructor should never be called manually. Those instrumenting tracing should use
+     * `Sentry.startTransaction()`, and internal methods should use `hub.startTransaction()`.
+     * @internal
+     * @hideconstructor
+     * @hidden
+     */
+    constructor(transactionContext: TransactionContext, hub?: Hub);
+    /**
+     * JSDoc
+     */
+    setName(name: string): void;
+    /**
+     * Attaches SpanRecorder to the span itself
+     * @param maxlen maximum number of spans that can be recorded
+     */
+    initSpanRecorder(maxlen?: number): void;
+    /**
+     * Set observed measurements for this transaction.
+     * @hidden
+     */
+    setMeasurements(measurements: Measurements): void;
+    /**
+     * Set metadata for this transaction.
+     * @hidden
+     */
+    setMetadata(newMetadata: TransactionMetadata): void;
+    /**
+     * @inheritDoc
+     */
+    finish(endTimestamp?: number): string | undefined;
+    /**
+     * @inheritDoc
+     */
+    toContext(): TransactionContext;
+    /**
+     * @inheritDoc
+     */
+    updateWithContext(transactionContext: TransactionContext): this;
+}
+
+type BeforeFinishCallback = (transactionSpan: IdleTransaction, endTimestamp: number) => void;
+/**
+ * An IdleTransaction is a transaction that automatically finishes. It does this by tracking child spans as activities.
+ * You can have multiple IdleTransactions active, but if the `onScope` option is specified, the idle transaction will
+ * put itself on the scope on creation.
+ */
+declare class IdleTransaction extends Transaction {
+    private readonly _idleHub?;
+    /**
+     * The time to wait in ms until the idle transaction will be finished.
+     * @default 1000
+     */
+    private readonly _idleTimeout;
+    private readonly _onScope;
+    activities: Record<string, boolean>;
+    private _prevHeartbeatString;
+    private _heartbeatCounter;
+    private _finished;
+    private readonly _beforeFinishCallbacks;
+    /**
+     * If a transaction is created and no activities are added, we want to make sure that
+     * it times out properly. This is cleared and not used when activities are added.
+     */
+    private _initTimeout;
+    constructor(transactionContext: TransactionContext, _idleHub?: Hub | undefined, 
+    /**
+     * The time to wait in ms until the idle transaction will be finished.
+     * @default 1000
+     */
+    _idleTimeout?: number, _onScope?: boolean);
+    /** {@inheritDoc} */
+    finish(endTimestamp?: number): string | undefined;
+    /**
+     * Register a callback function that gets excecuted before the transaction finishes.
+     * Useful for cleanup or if you want to add any additional spans based on current context.
+     *
+     * This is exposed because users have no other way of running something before an idle transaction
+     * finishes.
+     */
+    registerBeforeFinishCallback(callback: BeforeFinishCallback): void;
+    /**
+     * @inheritDoc
+     */
+    initSpanRecorder(maxlen?: number): void;
+    /**
+     * Start tracking a specific activity.
+     * @param spanId The span id that represents the activity
+     */
+    private _pushActivity;
+    /**
+     * Remove an activity from usage
+     * @param spanId The span id that represents the activity
+     */
+    private _popActivity;
+    /**
+     * Checks when entries of this.activities are not changing for 3 beats.
+     * If this occurs we finish the transaction.
+     */
+    private _beat;
+    /**
+     * Pings the heartbeat
+     */
+    private _pingHeartbeat;
+}
+
+interface MiniAppTracingOptions extends RequestInstrumentationOptions {
+    idleTimeout: number;
+    startTransactionOnLocationChange: boolean;
+    startTransactionOnPageLoad: boolean;
+    maxTransactionDuration: number;
+    _metricOptions?: Partial<{
+        _reportAllChanges: boolean;
+    }>;
+    beforeNavigate?(context: TransactionContext): TransactionContext | undefined;
+    routingInstrumentation<T extends IdleTransaction>(customStartTransaction: (context: TransactionContext) => T | undefined, startTransactionOnPageLoad?: boolean, startTransactionOnLocationChange?: boolean): void;
+}
 declare class MiniAppTracing implements Integration {
     /**
      * @inheritDoc
@@ -292,9 +627,14 @@ declare class MiniAppTracing implements Integration {
      * @inheritDoc
      */
     name: string;
+    options: MiniAppTracingOptions;
     private readonly _metrics;
-    constructor();
+    private _getCurrentHub?;
+    private readonly _configuredIdleTimeout;
+    constructor(_options?: Partial<MiniAppTracingOptions>);
     setupOnce(_: (callback: EventProcessor) => void, getCurrentHub: () => Hub): void;
+    /** Create routing idle transaction. */
+    private _createRouteTransaction;
 }
 
 declare const defaultIntegrations: (GlobalHandlers | TryCatch | LinkedErrors | System | Router | IgnoreMpcrawlerErrors | MiniAppTracing | Integrations.InboundFilters | Integrations.FunctionToString)[];

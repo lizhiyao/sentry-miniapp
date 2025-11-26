@@ -1,9 +1,43 @@
 
-import { Hub } from '@sentry/hub';
+import { Hub } from "@sentry/core"
 import { EventProcessor, Integration, TransactionContext } from '@sentry/types';
-import { _addTracingExtensions, startIdleTransaction } from '../hubextensions';
+import { addTracingExtensions, startIdleTransaction } from '../hubextensions';
 import { MetricsInstrumentation } from './metrics';
-import { sdk } from 'src/crossPlatform';
+import { instrumentRoutingWithDefaults } from './router';
+import {
+  defaultRequestInstrumentationOptions,
+  // instrumentOutgoingRequests,
+  RequestInstrumentationOptions,
+} from './request';
+import { sdk } from '../../crossPlatform';
+import { getActiveTransaction, secToMs } from '../utils';
+import { IdleTransaction } from '../idletransaction';
+
+const DEFAULT_MAX_TRANSACTION_DURATION_SECONDS = 600;
+
+
+export interface MiniAppTracingOptions extends RequestInstrumentationOptions {
+  idleTimeout: number;
+  startTransactionOnLocationChange: boolean;
+  startTransactionOnPageLoad: boolean;
+  maxTransactionDuration: number;
+  _metricOptions?: Partial<{ _reportAllChanges: boolean }>;
+  beforeNavigate?(context: TransactionContext): TransactionContext | undefined;
+  routingInstrumentation<T extends IdleTransaction>(
+    customStartTransaction: (context: TransactionContext) => T | undefined,
+    startTransactionOnPageLoad?: boolean,
+    startTransactionOnLocationChange?: boolean,
+  ): void;
+}
+
+const DEFAULT_MINIAPP_TRACING_OPTIONS: MiniAppTracingOptions = {
+  idleTimeout: 5000,
+  startTransactionOnLocationChange: true,
+  startTransactionOnPageLoad: true,
+  maxTransactionDuration: DEFAULT_MAX_TRANSACTION_DURATION_SECONDS,
+  routingInstrumentation: instrumentRoutingWithDefaults,
+  ...defaultRequestInstrumentationOptions,
+};
 
 export class MiniAppTracing implements Integration {
   /**
@@ -15,39 +49,90 @@ export class MiniAppTracing implements Integration {
    */
   public name: string = MiniAppTracing.id;
 
+  public options: MiniAppTracingOptions;
+
   private readonly _metrics: MetricsInstrumentation;
 
-  constructor() {
-    this._metrics = new MetricsInstrumentation();
+  private _getCurrentHub?: () => Hub;
+
+  private readonly _configuredIdleTimeout: number | undefined;
+
+  public constructor(_options?: Partial<MiniAppTracingOptions>) {
+    addTracingExtensions();
+
+    this._configuredIdleTimeout = _options?.idleTimeout;
+    this.options = {
+      ...DEFAULT_MINIAPP_TRACING_OPTIONS,
+      ..._options,
+    };
+
+    const { _metricOptions } = this.options;
+    this._metrics = new MetricsInstrumentation(_metricOptions && _metricOptions._reportAllChanges);
   }
 
   public setupOnce(_: (callback: EventProcessor) => void, getCurrentHub: () => Hub): void {
-    _addTracingExtensions();
+    this._getCurrentHub = getCurrentHub;
 
-    const idleTimeout = 5000;
-    const hub = getCurrentHub();
+    const {
+      routingInstrumentation,
+      startTransactionOnLocationChange,
+      startTransactionOnPageLoad,
+      // traceRequest,
+      // shouldCreateSpanForRequest,
+    } = this.options;
 
-    const performanceIdleTransaction = startIdleTransaction(
-      hub,
-      {
-        name: 'app-performance',
-        op: 'performance',
-      } as TransactionContext,
-      idleTimeout,
-      true,
-      {},
+    routingInstrumentation(
+      (context: TransactionContext) => this._createRouteTransaction(context),
+      startTransactionOnPageLoad,
+      startTransactionOnLocationChange,
     );
 
-    this._metrics.addPerformanceEntries(performanceIdleTransaction);
+    // instrumentOutgoingRequests({ traceRequest, shouldCreateSpanForRequest });
 
     sdk.onAppHide?.(() => {
-      performanceIdleTransaction.finish();
+      const active = getActiveTransaction();
+      active?.finish();
+    });
+  }
+
+  /** Create routing idle transaction. */
+  private _createRouteTransaction(context: TransactionContext): IdleTransaction | undefined {
+    if (!this._getCurrentHub) {
+      return undefined;
+    }
+
+    const { beforeNavigate, idleTimeout, maxTransactionDuration } = this.options;
+
+    const expandedContext: TransactionContext = {
+      ...context,
+      trimEnd: true,
+    };
+    const modifiedContext = typeof beforeNavigate === 'function' ? beforeNavigate(expandedContext) : expandedContext;
+
+    if (modifiedContext === undefined) {
+      return undefined;
+    }
+
+    const hub = this._getCurrentHub();
+    const idleTransaction = startIdleTransaction(hub, modifiedContext, idleTimeout, true, {});
+
+    idleTransaction.registerBeforeFinishCallback((transaction, endTimestamp) => {
+      adjustTransactionDuration(secToMs(maxTransactionDuration), transaction, endTimestamp);
     });
 
-    /* performanceIdleTransaction.registerBeforeFinishCallback((transaction, _endTimestamp) => {
-    }); */
+    idleTransaction.setTag('idleTimeout', this._configuredIdleTimeout ?? idleTimeout);
+    this._metrics.addPerformanceEntries(idleTransaction);
 
+    return idleTransaction;
+  }
+}
 
-    // idleTransaction.setTag('idleTimeout', idleTimeout);
+/** Adjusts transaction value based on max transaction duration */
+function adjustTransactionDuration(maxDuration: number, transaction: IdleTransaction, endTimestamp: number): void {
+  const diff = endTimestamp - transaction.startTimestamp;
+  const isOutdatedTransaction = endTimestamp && (diff > maxDuration || diff < 0);
+  if (isOutdatedTransaction) {
+    transaction.setStatus('deadline_exceeded');
+    transaction.setTag('maxTransactionDurationExceeded', 'true');
   }
 }
