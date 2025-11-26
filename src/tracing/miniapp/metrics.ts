@@ -156,28 +156,32 @@ export class MetricsInstrumentation {
     const relativeStartMs = Math.max((startTimestamp - transaction.startTimestamp) * 1000, 0);
 
     if (normalizedName === 'first-paint' || normalizedName === 'firstpaint') {
-      this._measurements['fp'] = { value: relativeStartMs };
+      this._measurements['fp'] = { value: relativeStartMs, unit: 'millisecond' };
     } else if (normalizedName === 'first-contentful-paint' || normalizedName === 'firstcontentfulpaint') {
-      this._measurements['fcp'] = { value: relativeStartMs };
+      this._measurements['fcp'] = { value: relativeStartMs, unit: 'millisecond' };
     } else if (
       normalizedName === 'largest-contentful-paint' ||
       normalizedName === 'largestcontentfulpaint' ||
       normalizedName === 'lcp'
     ) {
-      this._measurements['lcp'] = { value: relativeStartMs };
+      this._measurements['lcp'] = { value: relativeStartMs, unit: 'millisecond' };
     } else if (
       (normalizedName === 'first-input-delay' || normalizedName === 'firstinputdelay' || normalizedName === 'fid') &&
       typeof durationMs === 'number'
     ) {
-      this._measurements['fid'] = { value: durationMs };
-    } else if (entry.entryType === 'navigation' && typeof durationMs === 'number' && !this._measurements['navigation']) {
-      this._measurements['navigation'] = { value: durationMs };
+      this._measurements['fid'] = { value: durationMs, unit: 'millisecond' };
+    } else if (
+      entry.entryType === 'navigation' &&
+      typeof durationMs === 'number' &&
+      !this._measurements['navigation']
+    ) {
+      this._measurements['navigation'] = { value: durationMs, unit: 'millisecond' };
     }
 
     if (this._reportAllChanges && typeof durationMs === 'number') {
       const key = this._measurementKey(entry);
       if (key && !this._measurements[key]) {
-        this._measurements[key] = { value: durationMs };
+        this._measurements[key] = { value: durationMs, unit: 'millisecond' };
       }
     }
   }

@@ -8,6 +8,7 @@ import { resolvedSyncPromise } from "@sentry/utils";
 import { MiniappOptions } from "./backend";
 import { MiniappClient, ReportDialogOptions } from "./client";
 import { wrap as internalWrap } from "./helpers";
+import { makeMiniappTransport } from './transports';
 import {
   GlobalHandlers,
   IgnoreMpcrawlerErrors,
@@ -87,7 +88,7 @@ export const defaultIntegrations = [
  *
  * @see {@link MiniappOptions} for documentation on configuration options.
  */
-export function init(options: MiniappOptions = {}): void {
+export function init(options: Partial<MiniappOptions> = {}): void {
   // 如果将 options.defaultIntegrations 设置为 false，则不会添加默认集成，否则将在内部将其设置为建议的默认集成。
   // tslint:disable-next-line: strict-comparisons
   if (options.defaultIntegrations === undefined) {
@@ -97,7 +98,14 @@ export function init(options: MiniappOptions = {}): void {
   // https://github.com/lizhiyao/sentry-miniapp/issues/23
   options.normalizeDepth = options.normalizeDepth || 5;
 
-  initAndBind(MiniappClient, options);
+  const normalizedOptions: MiniappOptions = {
+    integrations: options.integrations || options.defaultIntegrations || [],
+    stackParser: options.stackParser || (() => []),
+    transport: options.transport || makeMiniappTransport,
+    ...options,
+  };
+
+  initAndBind(MiniappClient, normalizedOptions);
 }
 
 /**

@@ -1,48 +1,17 @@
-import { Options, Transport, EventHint, Event, Severity, DsnLike, Integration, Span as Span$1, Primitive, Transaction as Transaction$1, SpanContext, TransactionMetadata, TransactionContext, Measurements, EventProcessor, TransportOptions, Response } from '@sentry/types';
-export { Breadcrumb, BreadcrumbHint, Event, EventHint, EventStatus, Exception, Integration, Request, Response, SdkInfo, Severity, StackFrame, Stacktrace, Thread, User } from '@sentry/types';
-import { BaseBackend, BaseClient, Scope, Hub, Integrations } from '@sentry/core';
+import * as _sentry_types from '@sentry/types';
+import { ClientOptions, Integration, DsnLike, Event, EventHint, ParameterizedString, Severity, SeverityLevel, Span as Span$1, Primitive, SpanAttributes, Transaction as Transaction$1, Instrumenter, SpanOrigin, SpanContext, SpanAttributeValue, SpanTimeInput, TraceFlag, TransactionMetadata, TransactionContext, MeasurementUnit, Measurements, DynamicSamplingContext, EventProcessor, BaseTransportOptions, Transport } from '@sentry/types';
+export { Breadcrumb, BreadcrumbHint, Event, EventHint, Exception, Integration, Request, SdkInfo, Severity, SeverityLevel, StackFrame, Stacktrace, Thread, User } from '@sentry/types';
+import { BaseClient, Scope, Hub } from '@sentry/core';
 export { Hub, Scope, addBreadcrumb, addGlobalEventProcessor, captureEvent, captureException, captureMessage, configureScope, getCurrentHub, getHubFromCarrier, setContext, setExtra, setExtras, setTag, setTags, setUser, startTransaction, withScope } from '@sentry/core';
-import { PromiseBuffer } from '@sentry/utils';
 
 declare const SDK_NAME = "sentry.javascript.miniapp";
 declare const SDK_VERSION: string;
 
 /**
  * Configuration options for the Sentry Miniapp SDK.
- * Sentry Miniapp SDK 的配置选项。
- * @see MiniappClient for more information.
  */
-interface MiniappOptions extends Options {
-    /**
-     * A pattern for error URLs which should not be sent to Sentry.
-     * To whitelist certain errors instead, use {@link Options.whitelistUrls}.
-     * By default, all errors will be sent.
-     */
-    blacklistUrls?: Array<string | RegExp>;
-    /**
-     * A pattern for error URLs which should exclusively be sent to Sentry.
-     * This is the opposite of {@link Options.blacklistUrls}.
-     * By default, all errors will be sent.
-     */
-    whitelistUrls?: Array<string | RegExp>;
-}
-/**
- * The Sentry Browser SDK Backend.
- * @hidden
- */
-declare class MiniappBackend extends BaseBackend<MiniappOptions> {
-    /**
-     * @inheritDoc
-     */
-    protected _setupTransport(): Transport;
-    /**
-     * @inheritDoc
-     */
-    eventFromException(exception: any, hint?: EventHint): PromiseLike<Event>;
-    /**
-     * @inheritDoc
-     */
-    eventFromMessage(message: string, level?: Severity, hint?: EventHint): PromiseLike<Event>;
+interface MiniappOptions extends ClientOptions {
+    defaultIntegrations?: Integration[];
 }
 
 /**
@@ -77,17 +46,17 @@ interface ReportDialogOptions {
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
-declare class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
+declare class MiniappClient extends BaseClient<MiniappOptions> {
     /**
      * Creates a new Miniapp SDK instance.
      *
      * @param options Configuration options for this SDK.
      */
-    constructor(options?: MiniappOptions);
+    constructor(options?: Partial<MiniappOptions>);
     /**
      * @inheritDoc
      */
-    protected _prepareEvent(event: Event, scope?: Scope, hint?: EventHint): PromiseLike<Event | null>;
+    protected _prepareEvent(event: Event, hint: EventHint, scope?: Scope, isolationScope?: Scope): PromiseLike<Event | null>;
     /**
      * Show a report dialog to the user to send feedback to a specific event.
      * 向用户显示报告对话框以将反馈发送到特定事件。---> 小程序上暂时用不到&不考虑。
@@ -95,6 +64,14 @@ declare class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
      * @param options Set individual options for the dialog
      */
     showReportDialog(options?: ReportDialogOptions): void;
+    /**
+     * @inheritDoc
+     */
+    eventFromException(exception: unknown, hint?: EventHint): PromiseLike<Event>;
+    /**
+     * @inheritDoc
+     */
+    eventFromMessage(message: ParameterizedString, level?: Severity | SeverityLevel, hint?: EventHint): PromiseLike<Event>;
 }
 
 /** JSDoc */
@@ -310,6 +287,10 @@ declare class SpanRecorder {
  */
 declare class Span implements Span$1 {
     /**
+     * Human-readable identifier for the span. Mirrors description for backwards compatibility.
+     */
+    name: string;
+    /**
      * @inheritDoc
      */
     traceId: string;
@@ -358,6 +339,10 @@ declare class Span implements Span$1 {
         [key: string]: any;
     };
     /**
+     * Attributes for the span (new Sentry/OpenTelemetry style).
+     */
+    attributes: SpanAttributes;
+    /**
      * List of spans that were finalized
      */
     spanRecorder?: SpanRecorder;
@@ -365,6 +350,14 @@ declare class Span implements Span$1 {
      * @inheritDoc
      */
     transaction?: Transaction$1;
+    /**
+     * Instrumenter that created the span.
+     */
+    instrumenter: Instrumenter;
+    /**
+     * Origin of the span.
+     */
+    origin?: SpanOrigin;
     /**
      * You should never call the constructor manually, always use `Sentry.startTransaction()`
      * or call `startChild()` on an existing span.
@@ -381,7 +374,7 @@ declare class Span implements Span$1 {
     /**
      * @inheritDoc
      */
-    startChild(spanContext?: Pick<SpanContext, Exclude<keyof SpanContext, 'spanId' | 'sampled' | 'traceId' | 'parentSpanId'>>): Span;
+    startChild(spanContext?: SpanContext): Span;
     /**
      * @inheritDoc
      */
@@ -390,6 +383,14 @@ declare class Span implements Span$1 {
      * @inheritDoc
      */
     setData(key: string, value: any): this;
+    /**
+     * @inheritDoc
+     */
+    setAttribute(key: string, value: SpanAttributeValue | undefined): void;
+    /**
+     * @inheritDoc
+     */
+    setAttributes(attributes: SpanAttributes): void;
     /**
      * @inheritDoc
      */
@@ -402,6 +403,18 @@ declare class Span implements Span$1 {
      * @inheritDoc
      */
     isSuccess(): boolean;
+    /**
+     * @inheritDoc
+     */
+    setName(name: string): void;
+    /**
+     * @inheritDoc
+     */
+    updateName(name: string): this;
+    /**
+     * @inheritDoc
+     */
+    end(endTimestamp?: SpanTimeInput): void;
     /**
      * @inheritDoc
      */
@@ -451,9 +464,23 @@ declare class Span implements Span$1 {
         tags?: {
             [key: string]: Primitive;
         };
+        attributes?: SpanAttributes;
         timestamp?: number;
         trace_id: string;
     };
+    /**
+     * Return OTEL-like span context data.
+     */
+    spanContext(): {
+        traceId: string;
+        spanId: string;
+        isRemote?: boolean;
+        traceFlags: TraceFlag;
+    };
+    /**
+     * Whether span is recording (sampled and not finished).
+     */
+    isRecording(): boolean;
 }
 type SpanStatusType = 
 /** The operation completed successfully. */
@@ -496,6 +523,7 @@ declare class Transaction extends Span implements Transaction$1 {
     name: string;
     metadata: TransactionMetadata;
     private _measurements;
+    private _contexts;
     /**
      * The reference to the current hub.
      */
@@ -514,6 +542,16 @@ declare class Transaction extends Span implements Transaction$1 {
      */
     setName(name: string): void;
     /**
+     * Attach additional context to the transaction.
+     * @deprecated Prefer attributes or scope data.
+     */
+    setContext(key: string, context: object): void;
+    /**
+     * Record a single measurement.
+     * @deprecated Prefer top-level `setMeasurement`.
+     */
+    setMeasurement(name: string, value: number, unit?: MeasurementUnit): void;
+    /**
      * Attaches SpanRecorder to the span itself
      * @param maxlen maximum number of spans that can be recorded
      */
@@ -528,6 +566,14 @@ declare class Transaction extends Span implements Transaction$1 {
      * @hidden
      */
     setMetadata(newMetadata: TransactionMetadata): void;
+    /**
+     * Return dynamic sampling context for this transaction.
+     */
+    getDynamicSamplingContext(): Partial<DynamicSamplingContext>;
+    /**
+     * Placeholder profile id (not used in miniapp tracing).
+     */
+    getProfileId(): string | undefined;
     /**
      * @inheritDoc
      */
@@ -637,7 +683,9 @@ declare class MiniAppTracing implements Integration {
     private _createRouteTransaction;
 }
 
-declare const defaultIntegrations: (GlobalHandlers | TryCatch | LinkedErrors | System | Router | IgnoreMpcrawlerErrors | MiniAppTracing | Integrations.InboundFilters | Integrations.FunctionToString)[];
+declare const defaultIntegrations: (GlobalHandlers | TryCatch | LinkedErrors | System | Router | IgnoreMpcrawlerErrors | MiniAppTracing | (_sentry_types.Integration & {
+    preprocessEvent: (event: _sentry_types.Event, hint: _sentry_types.EventHint, client: _sentry_types.Client) => void;
+}))[];
 /**
  * The Sentry Miniapp SDK Client.
  *
@@ -692,7 +740,7 @@ declare const defaultIntegrations: (GlobalHandlers | TryCatch | LinkedErrors | S
  *
  * @see {@link MiniappOptions} for documentation on configuration options.
  */
-declare function init(options?: MiniappOptions): void;
+declare function init(options?: Partial<MiniappOptions>): void;
 /**
  * Present the user with a report dialog.
  * 向用户显示报告对话框。小程序上暂时不考虑实现该功能。
@@ -732,40 +780,11 @@ declare function close(timeout?: number): PromiseLike<boolean>;
  */
 declare function wrap(fn: Function): any;
 
-/** Base Transport class implementation */
-declare abstract class BaseTransport implements Transport {
-    options: TransportOptions;
-    /**
-     * @inheritDoc
-     */
-    url: string;
-    /** A simple buffer holding all requests. */
-    protected readonly _buffer: PromiseBuffer<Response>;
-    constructor(options: TransportOptions);
-    /**
-     * @inheritDoc
-     */
-    sendEvent(_: Event): PromiseLike<Response>;
-    /**
-     * @inheritDoc
-     */
-    close(timeout?: number): PromiseLike<boolean>;
-}
+declare function makeMiniappTransport(options: BaseTransportOptions): Transport;
 
-/** `XHR` based transport */
-declare class XHRTransport extends BaseTransport {
-    /**
-     * @inheritDoc
-     */
-    sendEvent(event: Event): PromiseLike<Response>;
-}
-
-type index_BaseTransport = BaseTransport;
-declare const index_BaseTransport: typeof BaseTransport;
-type index_XHRTransport = XHRTransport;
-declare const index_XHRTransport: typeof XHRTransport;
+declare const index_makeMiniappTransport: typeof makeMiniappTransport;
 declare namespace index {
-  export { index_BaseTransport as BaseTransport, index_XHRTransport as XHRTransport };
+  export { index_makeMiniappTransport as makeMiniappTransport };
 }
 
 export { index$1 as Integrations, MiniappClient, type MiniappOptions, type ReportDialogOptions, SDK_NAME, SDK_VERSION, index as Transports, close, defaultIntegrations, flush, init, lastEventId, showReportDialog, wrap };

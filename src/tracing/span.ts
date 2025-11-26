@@ -1,6 +1,18 @@
 /* eslint-disable max-lines */
-import { Primitive, Span as SpanInterface, SpanContext, Transaction } from '@sentry/types';
+import {
+  Primitive,
+  Span as SpanInterface,
+  SpanAttributeValue,
+  SpanAttributes,
+  SpanContext,
+  SpanTimeInput,
+  SpanOrigin,
+  TraceFlag,
+  Instrumenter,
+  Transaction,
+} from '@sentry/types';
 import { dropUndefinedKeys, timestampWithMs, uuid4 } from '@sentry/utils';
+import { msToSec } from './utils';
 
 /**
  * Keeps track of finished spans for a given transaction
@@ -36,6 +48,11 @@ export class SpanRecorder {
  * Span contains all data about a span
  */
 export class Span implements SpanInterface {
+  /**
+   * Human-readable identifier for the span. Mirrors description for backwards compatibility.
+   */
+  public name: string = '';
+
   /**
    * @inheritDoc
    */
@@ -93,6 +110,11 @@ export class Span implements SpanInterface {
   public data: { [key: string]: any } = {};
 
   /**
+   * Attributes for the span (new Sentry/OpenTelemetry style).
+   */
+  public attributes: SpanAttributes = {};
+
+  /**
    * List of spans that were finalized
    */
   public spanRecorder?: SpanRecorder;
@@ -101,6 +123,16 @@ export class Span implements SpanInterface {
    * @inheritDoc
    */
   public transaction?: Transaction;
+
+  /**
+   * Instrumenter that created the span.
+   */
+  public instrumenter: Instrumenter = 'sentry';
+
+  /**
+   * Origin of the span.
+   */
+  public origin?: SpanOrigin;
 
   /**
    * You should never call the constructor manually, always use `Sentry.startTransaction()`
@@ -113,40 +145,24 @@ export class Span implements SpanInterface {
     if (!spanContext) {
       return this;
     }
-    if (spanContext.traceId) {
-      this.traceId = spanContext.traceId;
-    }
-    if (spanContext.spanId) {
-      this.spanId = spanContext.spanId;
-    }
-    if (spanContext.parentSpanId) {
-      this.parentSpanId = spanContext.parentSpanId;
-    }
+    this.traceId = spanContext.traceId ?? this.traceId;
+    this.spanId = spanContext.spanId ?? this.spanId;
+    this.parentSpanId = spanContext.parentSpanId ?? this.parentSpanId;
     // We want to include booleans as well here
     if ('sampled' in spanContext) {
       this.sampled = spanContext.sampled;
     }
-    if (spanContext.op) {
-      this.op = spanContext.op;
-    }
-    if (spanContext.description) {
-      this.description = spanContext.description;
-    }
-    if (spanContext.data) {
-      this.data = spanContext.data;
-    }
-    if (spanContext.tags) {
-      this.tags = spanContext.tags;
-    }
-    if (spanContext.status) {
-      this.status = spanContext.status;
-    }
-    if (spanContext.startTimestamp) {
-      this.startTimestamp = spanContext.startTimestamp;
-    }
-    if (spanContext.endTimestamp) {
-      this.endTimestamp = spanContext.endTimestamp;
-    }
+    this.op = spanContext.op ?? this.op;
+    this.description = spanContext.description ?? spanContext.name ?? this.description;
+    this.name = spanContext.name ?? spanContext.description ?? this.name;
+    this.data = spanContext.data ? { ...spanContext.data } : this.data;
+    this.tags = spanContext.tags ? { ...spanContext.tags } : this.tags;
+    this.attributes = spanContext.attributes ? { ...spanContext.attributes } : this.attributes;
+    this.status = spanContext.status ?? this.status;
+    this.startTimestamp = spanContext.startTimestamp ?? this.startTimestamp;
+    this.endTimestamp = spanContext.endTimestamp ?? this.endTimestamp;
+    this.instrumenter = (spanContext as any).instrumenter ?? this.instrumenter;
+    this.origin = (spanContext as any).origin ?? this.origin;
   }
 
   /**
@@ -162,13 +178,13 @@ export class Span implements SpanInterface {
   /**
    * @inheritDoc
    */
-  public startChild(
-    spanContext?: Pick<SpanContext, Exclude<keyof SpanContext, 'spanId' | 'sampled' | 'traceId' | 'parentSpanId'>>,
-  ): Span {
+  public startChild(spanContext?: SpanContext): Span {
     const childSpan = new Span({
       ...spanContext,
       parentSpanId: this.spanId,
       sampled: this.sampled,
+      attributes: spanContext?.attributes ?? {},
+      instrumenter: this.instrumenter,
       traceId: this.traceId,
     });
 
@@ -202,6 +218,25 @@ export class Span implements SpanInterface {
   /**
    * @inheritDoc
    */
+  public setAttribute(key: string, value: SpanAttributeValue | undefined): void {
+    if (value === undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete this.attributes[key];
+    } else {
+      this.attributes[key] = value;
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public setAttributes(attributes: SpanAttributes): void {
+    Object.keys(attributes).forEach(attributeKey => this.setAttribute(attributeKey, attributes[attributeKey]));
+  }
+
+  /**
+   * @inheritDoc
+   */
   public setStatus(value: SpanStatusType): this {
     this.status = value;
     return this;
@@ -229,6 +264,29 @@ export class Span implements SpanInterface {
   /**
    * @inheritDoc
    */
+  public setName(name: string): void {
+    this.name = name;
+    this.description = name;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public updateName(name: string): this {
+    this.setName(name);
+    return this;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public end(endTimestamp?: SpanTimeInput): void {
+    this.finish(spanTimeInputToSeconds(endTimestamp));
+  }
+
+  /**
+   * @inheritDoc
+   */
   public finish(endTimestamp?: number): void {
     this.endTimestamp = typeof endTimestamp === 'number' ? endTimestamp : timestampWithMs();
   }
@@ -251,6 +309,8 @@ export class Span implements SpanInterface {
     return dropUndefinedKeys({
       data: this.data,
       description: this.description,
+      attributes: this.attributes,
+      name: this.name,
       endTimestamp: this.endTimestamp,
       op: this.op,
       parentSpanId: this.parentSpanId,
@@ -268,7 +328,8 @@ export class Span implements SpanInterface {
    */
   public updateWithContext(spanContext: SpanContext): this {
     this.data = spanContext.data ?? {};
-    this.description = spanContext.description;
+    this.description = spanContext.description ?? spanContext.name;
+    this.name = spanContext.name ?? spanContext.description ?? this.name;
     this.endTimestamp = spanContext.endTimestamp;
     this.op = spanContext.op;
     this.parentSpanId = spanContext.parentSpanId;
@@ -277,6 +338,7 @@ export class Span implements SpanInterface {
     this.startTimestamp = spanContext.startTimestamp ?? this.startTimestamp;
     this.status = spanContext.status;
     this.tags = spanContext.tags ?? {};
+    this.attributes = spanContext.attributes ?? this.attributes;
     this.traceId = spanContext.traceId ?? this.traceId;
 
     return this;
@@ -321,6 +383,7 @@ export class Span implements SpanInterface {
     start_timestamp: number;
     status?: string;
     tags?: { [key: string]: Primitive };
+    attributes?: SpanAttributes;
     timestamp?: number;
     trace_id: string;
   } {
@@ -333,10 +396,51 @@ export class Span implements SpanInterface {
       start_timestamp: this.startTimestamp,
       status: this.status,
       tags: Object.keys(this.tags).length > 0 ? this.tags : undefined,
+      attributes: Object.keys(this.attributes).length > 0 ? this.attributes : undefined,
       timestamp: this.endTimestamp,
       trace_id: this.traceId,
     });
   }
+
+  /**
+   * Return OTEL-like span context data.
+   */
+  public spanContext(): { traceId: string; spanId: string; isRemote?: boolean; traceFlags: TraceFlag } {
+    return {
+      traceId: this.traceId,
+      spanId: this.spanId,
+      traceFlags: this.sampled ? 1 : 0,
+    };
+  }
+
+  /**
+   * Whether span is recording (sampled and not finished).
+   */
+  public isRecording(): boolean {
+    return this.sampled !== false && this.endTimestamp === undefined;
+  }
+}
+
+function spanTimeInputToSeconds(input?: SpanTimeInput): number | undefined {
+  if (input === undefined) {
+    return timestampWithMs();
+  }
+
+  if (Array.isArray(input) && input.length === 2) {
+    const [seconds, nanoseconds] = input;
+    return seconds + nanoseconds / 1e9;
+  }
+
+  if (input instanceof Date) {
+    return input.getTime() / 1000;
+  }
+
+  if (typeof input === 'number') {
+    // If value looks like ms since epoch, convert to seconds.
+    return input > 1e12 ? msToSec(input) : input;
+  }
+
+  return timestampWithMs();
 }
 
 export type SpanStatusType =

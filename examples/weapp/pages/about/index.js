@@ -88,12 +88,6 @@ Page({
     wx.navigateTo({
       url: "/pages/logs/logs"
     });
-  },
-
-  toAboutPage() {
-    wx.navigateTo({
-      url: "/pages/about/index"
-    });
   }
 
 });

@@ -5,9 +5,7 @@ export type {
   SdkInfo,
   Event,
   EventHint,
-  EventStatus,
   Exception,
-  Response,
   StackFrame,
   Stacktrace,
   Thread,
@@ -15,7 +13,7 @@ export type {
   Integration,
 } from "@sentry/types";
 
-export { Severity } from "@sentry/types";
+export type { Severity, SeverityLevel } from "@sentry/types";
 
 
 export {

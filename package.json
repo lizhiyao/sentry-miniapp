@@ -23,6 +23,7 @@
     "build": "npx tsup --minify terser",
     "dev:weapp": "npx tsup --platform browser --target chrome58 --out-dir examples/weapp/sentry --watch",
     "prepack": "npx tsup",
+    "lint": "tsc --noEmit",
     "version": "node ./scripts/versionbump.js src/version.ts"
   },
   "keywords": [
@@ -55,8 +56,8 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    "@sentry/core": "6.19.7",
-    "@sentry/types": "6.19.7",
-    "@sentry/utils": "6.19.7"
+    "@sentry/core": "7.120.3",
+    "@sentry/types": "7.120.3",
+    "@sentry/utils": "7.120.3"
   }
 }

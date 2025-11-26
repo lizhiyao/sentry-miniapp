@@ -48,9 +48,9 @@ const getSDK = () => {
     getPerformance: () => {
       return {};
     },
-    onAppHide: function (arg0: () => void) {
+    onAppHide: function (_cb: () => void) {
     },
-    canIUse: function (arg0: string): boolean {
+    canIUse: function (_feature: string): boolean {
       return false;
     }
   };

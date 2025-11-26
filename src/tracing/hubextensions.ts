@@ -2,12 +2,11 @@ import { Hub } from '@sentry/core';
 import {
   CustomSamplingContext,
   Integration,
-  IntegrationClass,
   Options,
   SamplingContext,
   TransactionContext,
 } from '@sentry/types';
-import { dynamicRequire, isNaN, isNodeEnv, loadModule,logger } from '@sentry/utils';
+import { isNaN, logger } from '@sentry/utils';
 
 import { IS_DEBUG_BUILD } from './flags';
 import { IdleTransaction } from './idletransaction';
@@ -16,7 +15,7 @@ import { hasTracingEnabled } from './utils';
 import { sdk } from '../crossPlatform';
 
 
-const GLOBAL_OBJ = sdk
+const GLOBAL_OBJ = sdk;
 
 /** Returns all trace headers that are currently on the top scope. */
 function traceHeaders(this: Hub): { [key: string]: string } {
@@ -53,9 +52,6 @@ function sample<T extends Transaction>(transaction: T, options: Options, samplin
 
   // if the user has forced a sampling decision by passing a `sampled` value in their transaction context, go with that
   if (transaction.sampled !== undefined) {
-    transaction.setMetadata({
-      transactionSampling: { method: 'explicitly_set' },
-    });
     return transaction;
   }
 
@@ -64,27 +60,10 @@ function sample<T extends Transaction>(transaction: T, options: Options, samplin
   let sampleRate;
   if (typeof options.tracesSampler === 'function') {
     sampleRate = options.tracesSampler(samplingContext);
-    transaction.setMetadata({
-      transactionSampling: {
-        method: 'client_sampler',
-        // cast to number in case it's a boolean
-        rate: Number(sampleRate),
-      },
-    });
   } else if (samplingContext.parentSampled !== undefined) {
     sampleRate = samplingContext.parentSampled;
-    transaction.setMetadata({
-      transactionSampling: { method: 'inheritance' },
-    });
   } else {
     sampleRate = options.tracesSampleRate;
-    transaction.setMetadata({
-      transactionSampling: {
-        method: 'client_rate',
-        // cast to number in case it's a boolean
-        rate: Number(sampleRate),
-      },
-    });
   }
 
   // Since this is coming from the user (or from a function provided by the user), who knows what we might get. (The
@@ -182,7 +161,8 @@ function _startTransaction(
     ...customSamplingContext,
   });
   if (transaction.sampled) {
-    transaction.initSpanRecorder(options._experiments && (options._experiments.maxSpans as number));
+    const maxSpans = (options as any)._experiments && (options as any)._experiments.maxSpans;
+    transaction.initSpanRecorder(maxSpans as number);
   }
   return transaction;
 }
@@ -207,7 +187,8 @@ export function startIdleTransaction(
     ...customSamplingContext,
   });
   if (transaction.sampled) {
-    transaction.initSpanRecorder(options._experiments && (options._experiments.maxSpans as number));
+    const maxSpans = (options as any)._experiments && (options as any)._experiments.maxSpans;
+    transaction.initSpanRecorder(maxSpans as number);
   }
   return transaction;
 }

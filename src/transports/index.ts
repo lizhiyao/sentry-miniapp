@@ -1,2 +1,1 @@
-export { BaseTransport } from "./base";
-export { XHRTransport } from "./xhr";
+export { makeMiniappTransport } from "./xhr";

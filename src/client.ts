@@ -1,8 +1,12 @@
-import { BaseClient, Scope } from "@sentry/core";
-import { DsnLike, Event, EventHint } from "@sentry/types";
+import { applySdkMetadata, BaseClient, Scope } from '@sentry/core';
+import { DsnLike, Event, EventHint, ParameterizedString, Severity, SeverityLevel, StackParser } from '@sentry/types';
 
-import { MiniappBackend, MiniappOptions } from "./backend";
+import { MiniappOptions } from './backend';
 import { SDK_NAME, SDK_VERSION } from "./version";
+import { eventFromString, eventFromUnknownInput } from './eventbuilder';
+import { makeMiniappTransport } from './transports';
+
+const noopStackParser: StackParser = () => [];
 
 /**
  * All properties the report dialog supports
@@ -37,20 +41,36 @@ export interface ReportDialogOptions {
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
-export class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
+export class MiniappClient extends BaseClient<MiniappOptions> {
   /**
    * Creates a new Miniapp SDK instance.
    *
    * @param options Configuration options for this SDK.
    */
-  public constructor(options: MiniappOptions = {}) {
-    super(MiniappBackend, options);
+  public constructor(options: Partial<MiniappOptions> = {}) {
+    const transport = options.transport || makeMiniappTransport;
+    const stackParser = options.stackParser || noopStackParser;
+    const integrations = options.integrations || options.defaultIntegrations || [];
+
+    const opts: MiniappOptions = {
+      ...options,
+      transport,
+      stackParser,
+      integrations,
+      dsn: options.dsn,
+      // ensure defaults for required fields
+      tracesSampleRate: options.tracesSampleRate,
+    };
+
+    applySdkMetadata(opts, 'miniapp', ['miniapp']);
+
+    super(opts);
   }
 
   /**
    * @inheritDoc
    */
-  protected _prepareEvent(event: Event, scope?: Scope, hint?: EventHint): PromiseLike<Event | null> {
+  protected _prepareEvent(event: Event, hint: EventHint, scope?: Scope, isolationScope?: Scope): PromiseLike<Event | null> {
     event.platform = event.platform || "javascript";
     event.sdk = {
       ...event.sdk,
@@ -65,7 +85,7 @@ export class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
       version: SDK_VERSION
     };
 
-    return super._prepareEvent(event, scope, hint);
+    return super._prepareEvent(event, hint, scope, isolationScope);
   }
 
   /**
@@ -77,5 +97,41 @@ export class MiniappClient extends BaseClient<MiniappBackend, MiniappOptions> {
   public showReportDialog(options: ReportDialogOptions = {}): void {
     // doesn't work without a document (React Native)
     console.log('sentry-miniapp 暂未实现该方法', options);
+  }
+
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line deprecation/deprecation
+  public eventFromException(exception: unknown, hint?: EventHint): PromiseLike<Event> {
+    const syntheticException = hint && hint.syntheticException ? hint.syntheticException : undefined;
+    const event = eventFromUnknownInput(exception, syntheticException, {
+      attachStacktrace: this._options.attachStacktrace,
+    });
+    if (hint && hint.event_id) {
+      event.event_id = hint.event_id;
+    }
+    return Promise.resolve(event);
+  }
+
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line deprecation/deprecation
+  public eventFromMessage(
+    message: ParameterizedString,
+    // eslint-disable-next-line deprecation/deprecation
+    level: Severity | SeverityLevel = 'info',
+    hint?: EventHint,
+  ): PromiseLike<Event> {
+    const syntheticException = hint && hint.syntheticException ? hint.syntheticException : undefined;
+    const event = eventFromString(String(message), syntheticException, {
+      attachStacktrace: this._options.attachStacktrace,
+    });
+    event.level = level;
+    if (hint && hint.event_id) {
+      event.event_id = hint.event_id;
+    }
+    return Promise.resolve(event);
   }
 }

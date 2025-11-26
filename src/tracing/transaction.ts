@@ -1,6 +1,8 @@
-import { getCurrentHub, Hub } from "@sentry/core"
+import { getCurrentHub, Hub } from '@sentry/core';
 import {
   Event,
+  DynamicSamplingContext,
+  MeasurementUnit,
   Measurements,
   Transaction as TransactionInterface,
   TransactionContext,
@@ -19,6 +21,8 @@ export class Transaction extends SpanClass implements TransactionInterface {
   public metadata: TransactionMetadata;
 
   private _measurements: Measurements = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _contexts: Record<string, any> = {};
 
   /**
    * The reference to the current hub.
@@ -43,7 +47,11 @@ export class Transaction extends SpanClass implements TransactionInterface {
 
     this.name = transactionContext.name || '';
 
-    this.metadata = transactionContext.metadata || {};
+    this.metadata = {
+      source: 'custom',
+      spanMetadata: {},
+      ...transactionContext.metadata,
+    };
     this._trimEnd = transactionContext.trimEnd;
 
     // this is because transactions are also spans, and spans have a transaction pointer
@@ -55,6 +63,23 @@ export class Transaction extends SpanClass implements TransactionInterface {
    */
   public setName(name: string): void {
     this.name = name;
+  }
+
+  /**
+   * Attach additional context to the transaction.
+   * @deprecated Prefer attributes or scope data.
+   */
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  public setContext(key: string, context: object): void {
+    this._contexts[key] = context;
+  }
+
+  /**
+   * Record a single measurement.
+   * @deprecated Prefer top-level `setMeasurement`.
+   */
+  public setMeasurement(name: string, value: number, unit: MeasurementUnit = ''): void {
+    this._measurements[name] = { value, unit };
   }
 
   /**
@@ -85,6 +110,20 @@ export class Transaction extends SpanClass implements TransactionInterface {
   }
 
   /**
+   * Return dynamic sampling context for this transaction.
+   */
+  public getDynamicSamplingContext(): Partial<DynamicSamplingContext> {
+    return this.metadata?.dynamicSamplingContext || {};
+  }
+
+  /**
+   * Placeholder profile id (not used in miniapp tracing).
+   */
+  public getProfileId(): string | undefined {
+    return undefined;
+  }
+
+  /**
    * @inheritDoc
    */
   public finish(endTimestamp?: number): string | undefined {
@@ -105,11 +144,7 @@ export class Transaction extends SpanClass implements TransactionInterface {
       // At this point if `sampled !== true` we want to discard the transaction.
       IS_DEBUG_BUILD && logger.log('[Tracing] Discarding transaction because its trace was not chosen to be sampled.');
 
-      const client = this._hub.getClient();
-      const transport = client && client.getTransport && client.getTransport();
-      if (transport && transport.recordLostEvent) {
-        transport.recordLostEvent('sample_rate', 'transaction');
-      }
+      // Transport no longer exposes recordLostEvent in v7; best effort no-op.
       return undefined;
     }
 
@@ -127,6 +162,7 @@ export class Transaction extends SpanClass implements TransactionInterface {
     const transaction: Event = {
       contexts: {
         trace: this.getTraceContext(),
+        ...this._contexts,
       },
       spans: finishedSpans,
       start_timestamp: this.startTimestamp,

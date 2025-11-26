@@ -1,38 +1,40 @@
-import { Event, Response } from "@sentry/types";
-import { eventStatusFromHttpCode } from '@sentry/utils';
+import { createTransport } from '@sentry/core';
+import { BaseTransportOptions, Transport, TransportMakeRequestResponse, TransportRequest } from '@sentry/types';
+import { SyncPromise } from '@sentry/utils';
 
-import { sdk } from "../crossPlatform";
+import { sdk } from '../crossPlatform';
 
-import { BaseTransport } from "./base";
+const CONTENT_TYPE = 'application/json';
 
-/** `XHR` based transport */
-export class XHRTransport extends BaseTransport {
-  /**
-   * @inheritDoc
-   */
-  public sendEvent(event: Event): PromiseLike<Response> {
-    const request = sdk.request || sdk.httpRequest;
+export function makeMiniappTransport(options: BaseTransportOptions): Transport {
+  function makeRequest(request: TransportRequest): PromiseLike<TransportMakeRequestResponse> {
+    return new SyncPromise((resolve, reject) => {
+      const requestFn = (sdk as any).request || (sdk as any).httpRequest;
+      if (typeof requestFn !== 'function') {
+        reject(new Error('Miniapp request function is not available'));
+        return;
+      }
 
-    return this._buffer.add(
-      () => new Promise<Response>((resolve, reject) => {
-        // tslint:disable-next-line: no-unsafe-any
-        request({
-          url: this.url,
-          method: "POST",
-          data: JSON.stringify(event),
-          header: {
-            "content-type": "application/json"
-          },
-          success(res: { statusCode: number }): void {
-            resolve({
-              status: eventStatusFromHttpCode(res.statusCode)
-            });
-          },
-          fail(error: object): void {
-            reject(error);
-          }
-        });
-      })
-    );
+      requestFn({
+        url: options.url,
+        method: 'POST',
+        data: request.body,
+        header: { 'content-type': CONTENT_TYPE },
+        success(res: { statusCode?: number; headers?: Record<string, string> }): void {
+          resolve({
+            statusCode: res?.statusCode,
+            headers: {
+              'x-sentry-rate-limits': res?.headers?.['X-Sentry-Rate-Limits'] ?? null,
+              'retry-after': res?.headers?.['Retry-After'] ?? null,
+            },
+          });
+        },
+        fail(error: object): void {
+          reject(error);
+        },
+      });
+    });
   }
+
+  return createTransport(options, makeRequest);
 }
