@@ -4487,7 +4487,7 @@ function _addTracingExtensions() {
   }
 }
 
-// src/tracing/browser/metrics.ts
+// src/tracing/miniapp/metrics.ts
 var EPOCH_TIME_THRESHOLD = 1e12;
 var MetricsInstrumentation = class {
   constructor(_reportAllChanges = false) {
@@ -4551,9 +4551,6 @@ var MetricsInstrumentation = class {
     transaction.setTag("sentry_reportAllChanges", this._reportAllChanges);
     if (Object.keys(this._measurements).length > 0) {
       transaction.setMeasurements(this._measurements);
-    }
-    if (entry.name === "largestContentfulPaint" && !this._reportAllChanges) {
-      this._stopObserver(transaction);
     }
   }
   _mapOp(entry) {
@@ -4644,7 +4641,7 @@ function _startChild(transaction, _a) {
   }, ctx));
 }
 
-// src/tracing/browser/miniatracing.ts
+// src/tracing/miniapp/miniapptracing.ts
 var _MiniAppTracing = class _MiniAppTracing {
   constructor() {
     /**

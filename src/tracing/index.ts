@@ -1,1 +1,1 @@
-export { MiniAppTracing } from './browser/miniatracing';
+export { MiniAppTracing } from './miniapp/miniapptracing';

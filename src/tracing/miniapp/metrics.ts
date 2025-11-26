@@ -110,9 +110,9 @@ export class MetricsInstrumentation {
       transaction.setMeasurements(this._measurements);
     }
 
-    if (entry.name === 'largestContentfulPaint' && !this._reportAllChanges) {
+    /* if (entry.name === 'largestContentfulPaint' && !this._reportAllChanges) {
       this._stopObserver(transaction);
-    }
+    } */
   }
 
   private _mapOp(entry: PerformanceEntry): string {
