@@ -35,13 +35,168 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/is.js
+// src/polyfills/urlsearchparams.ts
+var GLOBAL_OBJ = (
+  // eslint-disable-next-line no-undef
+  typeof globalThis !== "undefined" && globalThis || // eslint-disable-next-line no-undef
+  typeof self !== "undefined" && self || // eslint-disable-next-line no-undef
+  typeof window !== "undefined" && window || // eslint-disable-next-line no-undef
+  typeof global !== "undefined" && global || {}
+);
+var MiniappURLSearchParams = class {
+  constructor(init2) {
+    this._entries = [];
+    if (!init2) {
+      return;
+    }
+    if (typeof init2 === "string") {
+      const query = init2.startsWith("?") ? init2.slice(1) : init2;
+      if (query.length > 0) {
+        query.split("&").forEach((pair) => {
+          if (!pair) {
+            return;
+          }
+          const [key, value = ""] = pair.split("=");
+          this.append(decodeURIComponent(key), decodeURIComponent(value));
+        });
+      }
+      return;
+    }
+    if (Array.isArray(init2)) {
+      init2.forEach(([key, value]) => this.append(key, value));
+      return;
+    }
+    Object.keys(init2).forEach((key) => {
+      const value = init2[key];
+      if (value === void 0 || value === null) {
+        return;
+      }
+      this.append(key, String(value));
+    });
+  }
+  append(key, value) {
+    this._entries.push([key, value]);
+  }
+  toString() {
+    return this._entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
+  }
+};
+if (!GLOBAL_OBJ.URLSearchParams) {
+  GLOBAL_OBJ.URLSearchParams = MiniappURLSearchParams;
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/debug-build.js
+var DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/version.js
+var SDK_VERSION = "8.55.0";
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/worldwide.js
+var GLOBAL_OBJ2 = globalThis;
+function getGlobalSingleton(name, creator, obj) {
+  const gbl = GLOBAL_OBJ2;
+  const __SENTRY__ = gbl.__SENTRY__ = gbl.__SENTRY__ || {};
+  const versionedCarrier = __SENTRY__[SDK_VERSION] = __SENTRY__[SDK_VERSION] || {};
+  return versionedCarrier[name] || (versionedCarrier[name] = creator());
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/debug-build.js
+var DEBUG_BUILD2 = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/logger.js
+var PREFIX = "Sentry Logger ";
+var CONSOLE_LEVELS = [
+  "debug",
+  "info",
+  "warn",
+  "error",
+  "log",
+  "assert",
+  "trace"
+];
+var originalConsoleMethods = {};
+function consoleSandbox(callback) {
+  if (!("console" in GLOBAL_OBJ2)) {
+    return callback();
+  }
+  const console2 = GLOBAL_OBJ2.console;
+  const wrappedFuncs = {};
+  const wrappedLevels = Object.keys(originalConsoleMethods);
+  wrappedLevels.forEach((level) => {
+    const originalConsoleMethod = originalConsoleMethods[level];
+    wrappedFuncs[level] = console2[level];
+    console2[level] = originalConsoleMethod;
+  });
+  try {
+    return callback();
+  } finally {
+    wrappedLevels.forEach((level) => {
+      console2[level] = wrappedFuncs[level];
+    });
+  }
+}
+function makeLogger() {
+  let enabled = false;
+  const logger3 = {
+    enable: () => {
+      enabled = true;
+    },
+    disable: () => {
+      enabled = false;
+    },
+    isEnabled: () => enabled
+  };
+  if (DEBUG_BUILD2) {
+    CONSOLE_LEVELS.forEach((name) => {
+      logger3[name] = (...args) => {
+        if (enabled) {
+          consoleSandbox(() => {
+            GLOBAL_OBJ2.console[name](`${PREFIX}[${name}]:`, ...args);
+          });
+        }
+      };
+    });
+  } else {
+    CONSOLE_LEVELS.forEach((name) => {
+      logger3[name] = () => void 0;
+    });
+  }
+  return logger3;
+}
+var logger = getGlobalSingleton("logger", makeLogger);
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/stacktrace.js
+var defaultFunctionName = "<anonymous>";
+function getFunctionName(fn) {
+  try {
+    if (!fn || typeof fn !== "function") {
+      return defaultFunctionName;
+    }
+    return fn.name || defaultFunctionName;
+  } catch (e) {
+    return defaultFunctionName;
+  }
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/carrier.js
+function getMainCarrier() {
+  getSentryCarrier(GLOBAL_OBJ2);
+  return GLOBAL_OBJ2;
+}
+function getSentryCarrier(carrier) {
+  const __SENTRY__ = carrier.__SENTRY__ = carrier.__SENTRY__ || {};
+  __SENTRY__.version = __SENTRY__.version || SDK_VERSION;
+  return __SENTRY__[SDK_VERSION] = __SENTRY__[SDK_VERSION] || {};
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/is.js
 var objectToString = Object.prototype.toString;
 function isError(wat) {
   switch (objectToString.call(wat)) {
     case "[object Error]":
     case "[object Exception]":
     case "[object DOMException]":
+    case "[object WebAssembly.Exception]":
       return true;
     default:
       return isInstanceOf(wat, Error);
@@ -86,9 +241,6 @@ function isThenable(wat) {
 function isSyntheticEvent(wat) {
   return isPlainObject(wat) && "nativeEvent" in wat && "preventDefault" in wat && "stopPropagation" in wat;
 }
-function isNaN2(wat) {
-  return typeof wat === "number" && wat !== wat;
-}
 function isInstanceOf(wat, base) {
   try {
     return wat instanceof base;
@@ -100,138 +252,8 @@ function isVueViewModel(wat) {
   return !!(typeof wat === "object" && wat !== null && (wat.__isVue || wat._isVue));
 }
 
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/string.js
-function truncate(str, max = 0) {
-  if (typeof str !== "string" || max === 0) {
-    return str;
-  }
-  return str.length <= max ? str : `${str.slice(0, max)}...`;
-}
-function isMatchingPattern(value, pattern, requireExactStringMatch = false) {
-  if (!isString(value)) {
-    return false;
-  }
-  if (isRegExp(pattern)) {
-    return pattern.test(value);
-  }
-  if (isString(pattern)) {
-    return requireExactStringMatch ? value === pattern : value.includes(pattern);
-  }
-  return false;
-}
-function stringMatchesSomePattern(testString, patterns = [], requireExactStringMatch = false) {
-  return patterns.some((pattern) => isMatchingPattern(testString, pattern, requireExactStringMatch));
-}
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/aggregate-errors.js
-function applyAggregateErrorsToEvent(exceptionFromErrorImplementation, parser, maxValueLimit = 250, key, limit, event, hint) {
-  if (!event.exception || !event.exception.values || !hint || !isInstanceOf(hint.originalException, Error)) {
-    return;
-  }
-  const originalException = event.exception.values.length > 0 ? event.exception.values[event.exception.values.length - 1] : void 0;
-  if (originalException) {
-    event.exception.values = truncateAggregateExceptions(
-      aggregateExceptionsFromError(
-        exceptionFromErrorImplementation,
-        parser,
-        limit,
-        hint.originalException,
-        key,
-        event.exception.values,
-        originalException,
-        0
-      ),
-      maxValueLimit
-    );
-  }
-}
-function aggregateExceptionsFromError(exceptionFromErrorImplementation, parser, limit, error, key, prevExceptions, exception, exceptionId) {
-  if (prevExceptions.length >= limit + 1) {
-    return prevExceptions;
-  }
-  let newExceptions = [...prevExceptions];
-  if (isInstanceOf(error[key], Error)) {
-    applyExceptionGroupFieldsForParentException(exception, exceptionId);
-    const newException = exceptionFromErrorImplementation(parser, error[key]);
-    const newExceptionId = newExceptions.length;
-    applyExceptionGroupFieldsForChildException(newException, key, newExceptionId, exceptionId);
-    newExceptions = aggregateExceptionsFromError(
-      exceptionFromErrorImplementation,
-      parser,
-      limit,
-      error[key],
-      key,
-      [newException, ...newExceptions],
-      newException,
-      newExceptionId
-    );
-  }
-  if (Array.isArray(error.errors)) {
-    error.errors.forEach((childError, i) => {
-      if (isInstanceOf(childError, Error)) {
-        applyExceptionGroupFieldsForParentException(exception, exceptionId);
-        const newException = exceptionFromErrorImplementation(parser, childError);
-        const newExceptionId = newExceptions.length;
-        applyExceptionGroupFieldsForChildException(newException, `errors[${i}]`, newExceptionId, exceptionId);
-        newExceptions = aggregateExceptionsFromError(
-          exceptionFromErrorImplementation,
-          parser,
-          limit,
-          childError,
-          key,
-          [newException, ...newExceptions],
-          newException,
-          newExceptionId
-        );
-      }
-    });
-  }
-  return newExceptions;
-}
-function applyExceptionGroupFieldsForParentException(exception, exceptionId) {
-  exception.mechanism = exception.mechanism || { type: "generic", handled: true };
-  exception.mechanism = __spreadProps(__spreadValues(__spreadValues({}, exception.mechanism), exception.type === "AggregateError" && { is_exception_group: true }), {
-    exception_id: exceptionId
-  });
-}
-function applyExceptionGroupFieldsForChildException(exception, source, exceptionId, parentId) {
-  exception.mechanism = exception.mechanism || { type: "generic", handled: true };
-  exception.mechanism = __spreadProps(__spreadValues({}, exception.mechanism), {
-    type: "chained",
-    source,
-    exception_id: exceptionId,
-    parent_id: parentId
-  });
-}
-function truncateAggregateExceptions(exceptions, maxValueLength) {
-  return exceptions.map((exception) => {
-    if (exception.value) {
-      exception.value = truncate(exception.value, maxValueLength);
-    }
-    return exception;
-  });
-}
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/worldwide.js
-function isGlobalObj(obj) {
-  return obj && obj.Math == Math ? obj : void 0;
-}
-var GLOBAL_OBJ = typeof globalThis == "object" && isGlobalObj(globalThis) || // eslint-disable-next-line no-restricted-globals
-typeof window == "object" && isGlobalObj(window) || typeof self == "object" && isGlobalObj(self) || typeof global == "object" && isGlobalObj(global) || /* @__PURE__ */ function() {
-  return this;
-}() || {};
-function getGlobalObject() {
-  return GLOBAL_OBJ;
-}
-function getGlobalSingleton(name, creator, obj) {
-  const gbl = obj || GLOBAL_OBJ;
-  const __SENTRY__ = gbl.__SENTRY__ = gbl.__SENTRY__ || {};
-  const singleton = __SENTRY__[name] || (__SENTRY__[name] = creator());
-  return singleton;
-}
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/browser.js
-var WINDOW = getGlobalObject();
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/browser.js
+var WINDOW = GLOBAL_OBJ2;
 var DEFAULT_MAX_STRING_LENGTH = 80;
 function htmlTreeAsString(elem, options = {}) {
   if (!elem) {
@@ -265,17 +287,17 @@ function htmlTreeAsString(elem, options = {}) {
 function _htmlElementAsString(el, keyAttrs) {
   const elem = el;
   const out = [];
-  let className;
-  let classes;
-  let key;
-  let attr;
-  let i;
   if (!elem || !elem.tagName) {
     return "";
   }
   if (WINDOW.HTMLElement) {
-    if (elem instanceof HTMLElement && elem.dataset && elem.dataset["sentryComponent"]) {
-      return elem.dataset["sentryComponent"];
+    if (elem instanceof HTMLElement && elem.dataset) {
+      if (elem.dataset["sentryComponent"]) {
+        return elem.dataset["sentryComponent"];
+      }
+      if (elem.dataset["sentryElement"]) {
+        return elem.dataset["sentryElement"];
+      }
     }
   }
   out.push(elem.tagName.toLowerCase());
@@ -288,185 +310,48 @@ function _htmlElementAsString(el, keyAttrs) {
     if (elem.id) {
       out.push(`#${elem.id}`);
     }
-    className = elem.className;
+    const className = elem.className;
     if (className && isString(className)) {
-      classes = className.split(/\s+/);
-      for (i = 0; i < classes.length; i++) {
-        out.push(`.${classes[i]}`);
+      const classes = className.split(/\s+/);
+      for (const c of classes) {
+        out.push(`.${c}`);
       }
     }
   }
   const allowedAttrs = ["aria-label", "type", "name", "title", "alt"];
-  for (i = 0; i < allowedAttrs.length; i++) {
-    key = allowedAttrs[i];
-    attr = elem.getAttribute(key);
+  for (const k of allowedAttrs) {
+    const attr = elem.getAttribute(k);
     if (attr) {
-      out.push(`[${key}="${attr}"]`);
+      out.push(`[${k}="${attr}"]`);
     }
   }
   return out.join("");
 }
 
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/debug-build.js
-var DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/logger.js
-var PREFIX = "Sentry Logger ";
-var CONSOLE_LEVELS = [
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "log",
-  "assert",
-  "trace"
-];
-var originalConsoleMethods = {};
-function consoleSandbox(callback) {
-  if (!("console" in GLOBAL_OBJ)) {
-    return callback();
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/string.js
+function truncate(str, max = 0) {
+  if (typeof str !== "string" || max === 0) {
+    return str;
   }
-  const console2 = GLOBAL_OBJ.console;
-  const wrappedFuncs = {};
-  const wrappedLevels = Object.keys(originalConsoleMethods);
-  wrappedLevels.forEach((level) => {
-    const originalConsoleMethod = originalConsoleMethods[level];
-    wrappedFuncs[level] = console2[level];
-    console2[level] = originalConsoleMethod;
-  });
-  try {
-    return callback();
-  } finally {
-    wrappedLevels.forEach((level) => {
-      console2[level] = wrappedFuncs[level];
-    });
-  }
+  return str.length <= max ? str : `${str.slice(0, max)}...`;
 }
-function makeLogger() {
-  let enabled = false;
-  const logger2 = {
-    enable: () => {
-      enabled = true;
-    },
-    disable: () => {
-      enabled = false;
-    },
-    isEnabled: () => enabled
-  };
-  if (DEBUG_BUILD) {
-    CONSOLE_LEVELS.forEach((name) => {
-      logger2[name] = (...args) => {
-        if (enabled) {
-          consoleSandbox(() => {
-            GLOBAL_OBJ.console[name](`${PREFIX}[${name}]:`, ...args);
-          });
-        }
-      };
-    });
-  } else {
-    CONSOLE_LEVELS.forEach((name) => {
-      logger2[name] = () => void 0;
-    });
-  }
-  return logger2;
-}
-var logger = makeLogger();
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/dsn.js
-var DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)([\w.-]+)(?::(\d+))?\/(.+)/;
-function isValidProtocol(protocol) {
-  return protocol === "http" || protocol === "https";
-}
-function dsnToString(dsn, withPassword = false) {
-  const { host, path, pass, port, projectId, protocol, publicKey } = dsn;
-  return `${protocol}://${publicKey}${withPassword && pass ? `:${pass}` : ""}@${host}${port ? `:${port}` : ""}/${path ? `${path}/` : path}${projectId}`;
-}
-function dsnFromString(str) {
-  const match = DSN_REGEX.exec(str);
-  if (!match) {
-    consoleSandbox(() => {
-      console.error(`Invalid Sentry Dsn: ${str}`);
-    });
-    return void 0;
-  }
-  const [protocol, publicKey, pass = "", host, port = "", lastPath] = match.slice(1);
-  let path = "";
-  let projectId = lastPath;
-  const split = projectId.split("/");
-  if (split.length > 1) {
-    path = split.slice(0, -1).join("/");
-    projectId = split.pop();
-  }
-  if (projectId) {
-    const projectMatch = projectId.match(/^\d+/);
-    if (projectMatch) {
-      projectId = projectMatch[0];
-    }
-  }
-  return dsnFromComponents({ host, pass, path, projectId, port, protocol, publicKey });
-}
-function dsnFromComponents(components) {
-  return {
-    protocol: components.protocol,
-    publicKey: components.publicKey || "",
-    pass: components.pass || "",
-    host: components.host,
-    port: components.port || "",
-    path: components.path || "",
-    projectId: components.projectId
-  };
-}
-function validateDsn(dsn) {
-  if (!DEBUG_BUILD) {
-    return true;
-  }
-  const { port, projectId, protocol } = dsn;
-  const requiredComponents = ["protocol", "publicKey", "host", "projectId"];
-  const hasMissingRequiredComponent = requiredComponents.find((component) => {
-    if (!dsn[component]) {
-      logger.error(`Invalid Sentry Dsn: ${component} missing`);
-      return true;
-    }
-    return false;
-  });
-  if (hasMissingRequiredComponent) {
+function isMatchingPattern(value, pattern, requireExactStringMatch = false) {
+  if (!isString(value)) {
     return false;
   }
-  if (!projectId.match(/^\d+$/)) {
-    logger.error(`Invalid Sentry Dsn: Invalid projectId ${projectId}`);
-    return false;
+  if (isRegExp(pattern)) {
+    return pattern.test(value);
   }
-  if (!isValidProtocol(protocol)) {
-    logger.error(`Invalid Sentry Dsn: Invalid protocol ${protocol}`);
-    return false;
+  if (isString(pattern)) {
+    return requireExactStringMatch ? value === pattern : value.includes(pattern);
   }
-  if (port && isNaN(parseInt(port, 10))) {
-    logger.error(`Invalid Sentry Dsn: Invalid port ${port}`);
-    return false;
-  }
-  return true;
+  return false;
 }
-function makeDsn(from) {
-  const components = typeof from === "string" ? dsnFromString(from) : dsnFromComponents(from);
-  if (!components || !validateDsn(components)) {
-    return void 0;
-  }
-  return components;
+function stringMatchesSomePattern(testString, patterns = [], requireExactStringMatch = false) {
+  return patterns.some((pattern) => isMatchingPattern(testString, pattern, requireExactStringMatch));
 }
 
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/error.js
-var SentryError = class extends Error {
-  /** Display name of this error instance. */
-  constructor(message, logLevel = "warn") {
-    super(message);
-    this.message = message;
-    this.name = new.target.prototype.constructor.name;
-    Object.setPrototypeOf(this, new.target.prototype);
-    this.logLevel = logLevel;
-  }
-};
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/object.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/object.js
 function fill(source, name, replacementFactory) {
   if (!(name in source)) {
     return;
@@ -476,7 +361,11 @@ function fill(source, name, replacementFactory) {
   if (typeof wrapped === "function") {
     markFunctionWrapped(wrapped, original);
   }
-  source[name] = wrapped;
+  try {
+    source[name] = wrapped;
+  } catch (e) {
+    DEBUG_BUILD2 && logger.log(`Failed to replace method "${name}" in object`, source);
+  }
 }
 function addNonEnumerableProperty(obj, name, value) {
   try {
@@ -487,7 +376,7 @@ function addNonEnumerableProperty(obj, name, value) {
       configurable: true
     });
   } catch (o_O) {
-    DEBUG_BUILD && logger.log(`Failed to add non-enumerable property "${name}" to object`, obj);
+    DEBUG_BUILD2 && logger.log(`Failed to add non-enumerable property "${name}" to object`, obj);
   }
 }
 function markFunctionWrapped(wrapped, original) {
@@ -500,9 +389,6 @@ function markFunctionWrapped(wrapped, original) {
 }
 function getOriginalFunction(func) {
   return func.__sentry_original__;
-}
-function urlEncode(object) {
-  return Object.keys(object).map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(object[key])}`).join("&");
 }
 function convertToPlainObject(value) {
   if (isError(value)) {
@@ -548,11 +434,12 @@ function getOwnProperties(obj) {
 function extractExceptionKeysForMessage(exception, maxLength = 40) {
   const keys = Object.keys(convertToPlainObject(exception));
   keys.sort();
-  if (!keys.length) {
+  const firstKey = keys[0];
+  if (!firstKey) {
     return "[object has no keys]";
   }
-  if (keys[0].length >= maxLength) {
-    return truncate(keys[0], maxLength);
+  if (firstKey.length >= maxLength) {
+    return truncate(firstKey, maxLength);
   }
   for (let includedKeys = keys.length; includedKeys > 0; includedKeys--) {
     const serialized = keys.slice(0, includedKeys).join(", ");
@@ -578,7 +465,7 @@ function _dropUndefinedKeys(inputValue, memoizationMap) {
     }
     const returnValue = {};
     memoizationMap.set(inputValue, returnValue);
-    for (const key of Object.keys(inputValue)) {
+    for (const key of Object.getOwnPropertyNames(inputValue)) {
       if (typeof inputValue[key] !== "undefined") {
         returnValue[key] = _dropUndefinedKeys(inputValue[key], memoizationMap);
       }
@@ -606,27 +493,55 @@ function isPojo(input) {
   try {
     const name = Object.getPrototypeOf(input).constructor.name;
     return !name || name === "Object";
-  } catch (e) {
+  } catch (e2) {
     return true;
   }
 }
 
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/stacktrace.js
-var defaultFunctionName = "<anonymous>";
-function getFunctionName(fn) {
-  try {
-    if (!fn || typeof fn !== "function") {
-      return defaultFunctionName;
-    }
-    return fn.name || defaultFunctionName;
-  } catch (e) {
-    return defaultFunctionName;
-  }
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/time.js
+var ONE_SECOND_IN_MS = 1e3;
+function dateTimestampInSeconds() {
+  return Date.now() / ONE_SECOND_IN_MS;
 }
+function createUnixTimestampInSecondsFunc() {
+  const { performance } = GLOBAL_OBJ2;
+  if (!performance || !performance.now) {
+    return dateTimestampInSeconds;
+  }
+  const approxStartingTimeOrigin = Date.now() - performance.now();
+  const timeOrigin = performance.timeOrigin == void 0 ? approxStartingTimeOrigin : performance.timeOrigin;
+  return () => {
+    return (timeOrigin + performance.now()) / ONE_SECOND_IN_MS;
+  };
+}
+var timestampInSeconds = createUnixTimestampInSecondsFunc();
+(() => {
+  const { performance } = GLOBAL_OBJ2;
+  if (!performance || !performance.now) {
+    return void 0;
+  }
+  const threshold = 3600 * 1e3;
+  const performanceNow = performance.now();
+  const dateNow = Date.now();
+  const timeOriginDelta = performance.timeOrigin ? Math.abs(performance.timeOrigin + performanceNow - dateNow) : threshold;
+  const timeOriginIsReliable = timeOriginDelta < threshold;
+  const navigationStart = performance.timing && performance.timing.navigationStart;
+  const hasNavigationStart = typeof navigationStart === "number";
+  const navigationStartDelta = hasNavigationStart ? Math.abs(navigationStart + performanceNow - dateNow) : threshold;
+  const navigationStartIsReliable = navigationStartDelta < threshold;
+  if (timeOriginIsReliable || navigationStartIsReliable) {
+    if (timeOriginDelta <= navigationStartDelta) {
+      return performance.timeOrigin;
+    } else {
+      return navigationStart;
+    }
+  }
+  return dateNow;
+})();
 
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/misc.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/misc.js
 function uuid4() {
-  const gbl = GLOBAL_OBJ;
+  const gbl = GLOBAL_OBJ2;
   const crypto = gbl.crypto || gbl.msCrypto;
   let getRandomByte = () => Math.random() * 16;
   try {
@@ -675,7 +590,7 @@ function addExceptionTypeValue(event, value, type) {
     firstException.value = value || "";
   }
   if (!firstException.type) {
-    firstException.type = "Error";
+    firstException.type = type || "Error";
   }
 }
 function addExceptionMechanism(event, newMechanism) {
@@ -692,7 +607,7 @@ function addExceptionMechanism(event, newMechanism) {
   }
 }
 function checkOrSetAlreadyCaught(exception) {
-  if (exception && exception.__sentry_captured__) {
+  if (isAlreadyCaptured(exception)) {
     return true;
   }
   try {
@@ -701,163 +616,14 @@ function checkOrSetAlreadyCaught(exception) {
   }
   return false;
 }
-function arrayify(maybeArray) {
-  return Array.isArray(maybeArray) ? maybeArray : [maybeArray];
-}
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/memo.js
-function memoBuilder() {
-  const hasWeakSet = typeof WeakSet === "function";
-  const inner = hasWeakSet ? /* @__PURE__ */ new WeakSet() : [];
-  function memoize(obj) {
-    if (hasWeakSet) {
-      if (inner.has(obj)) {
-        return true;
-      }
-      inner.add(obj);
-      return false;
-    }
-    for (let i = 0; i < inner.length; i++) {
-      const value = inner[i];
-      if (value === obj) {
-        return true;
-      }
-    }
-    inner.push(obj);
-    return false;
-  }
-  function unmemoize(obj) {
-    if (hasWeakSet) {
-      inner.delete(obj);
-    } else {
-      for (let i = 0; i < inner.length; i++) {
-        if (inner[i] === obj) {
-          inner.splice(i, 1);
-          break;
-        }
-      }
-    }
-  }
-  return [memoize, unmemoize];
-}
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/normalize.js
-function normalize(input, depth = 100, maxProperties = Infinity) {
+function isAlreadyCaptured(exception) {
   try {
-    return visit("", input, depth, maxProperties);
-  } catch (err) {
-    return { ERROR: `**non-serializable** (${err})` };
+    return exception.__sentry_captured__;
+  } catch (e) {
   }
-}
-function normalizeToSize(object, depth = 3, maxSize = 100 * 1024) {
-  const normalized = normalize(object, depth);
-  if (jsonSize(normalized) > maxSize) {
-    return normalizeToSize(object, depth - 1, maxSize);
-  }
-  return normalized;
-}
-function visit(key, value, depth = Infinity, maxProperties = Infinity, memo = memoBuilder()) {
-  const [memoize, unmemoize] = memo;
-  if (value == null || // this matches null and undefined -> eqeq not eqeqeq
-  ["number", "boolean", "string"].includes(typeof value) && !isNaN2(value)) {
-    return value;
-  }
-  const stringified = stringifyValue(key, value);
-  if (!stringified.startsWith("[object ")) {
-    return stringified;
-  }
-  if (value["__sentry_skip_normalization__"]) {
-    return value;
-  }
-  const remainingDepth = typeof value["__sentry_override_normalization_depth__"] === "number" ? value["__sentry_override_normalization_depth__"] : depth;
-  if (remainingDepth === 0) {
-    return stringified.replace("object ", "");
-  }
-  if (memoize(value)) {
-    return "[Circular ~]";
-  }
-  const valueWithToJSON = value;
-  if (valueWithToJSON && typeof valueWithToJSON.toJSON === "function") {
-    try {
-      const jsonValue = valueWithToJSON.toJSON();
-      return visit("", jsonValue, remainingDepth - 1, maxProperties, memo);
-    } catch (err) {
-    }
-  }
-  const normalized = Array.isArray(value) ? [] : {};
-  let numAdded = 0;
-  const visitable = convertToPlainObject(value);
-  for (const visitKey in visitable) {
-    if (!Object.prototype.hasOwnProperty.call(visitable, visitKey)) {
-      continue;
-    }
-    if (numAdded >= maxProperties) {
-      normalized[visitKey] = "[MaxProperties ~]";
-      break;
-    }
-    const visitValue = visitable[visitKey];
-    normalized[visitKey] = visit(visitKey, visitValue, remainingDepth - 1, maxProperties, memo);
-    numAdded++;
-  }
-  unmemoize(value);
-  return normalized;
-}
-function stringifyValue(key, value) {
-  try {
-    if (key === "domain" && value && typeof value === "object" && value._events) {
-      return "[Domain]";
-    }
-    if (key === "domainEmitter") {
-      return "[DomainEmitter]";
-    }
-    if (typeof global !== "undefined" && value === global) {
-      return "[Global]";
-    }
-    if (typeof window !== "undefined" && value === window) {
-      return "[Window]";
-    }
-    if (typeof document !== "undefined" && value === document) {
-      return "[Document]";
-    }
-    if (isVueViewModel(value)) {
-      return "[VueViewModel]";
-    }
-    if (isSyntheticEvent(value)) {
-      return "[SyntheticEvent]";
-    }
-    if (typeof value === "number" && value !== value) {
-      return "[NaN]";
-    }
-    if (typeof value === "function") {
-      return `[Function: ${getFunctionName(value)}]`;
-    }
-    if (typeof value === "symbol") {
-      return `[${String(value)}]`;
-    }
-    if (typeof value === "bigint") {
-      return `[BigInt: ${String(value)}]`;
-    }
-    const objName = getConstructorName(value);
-    if (/^HTML(\w*)Element$/.test(objName)) {
-      return `[HTMLElement: ${objName}]`;
-    }
-    return `[object ${objName}]`;
-  } catch (err) {
-    return `**non-serializable** (${err})`;
-  }
-}
-function getConstructorName(value) {
-  const prototype = Object.getPrototypeOf(value);
-  return prototype ? prototype.constructor.name : "null prototype";
-}
-function utf8Length(value) {
-  return ~-encodeURI(value).split(/%..|./).length;
-}
-function jsonSize(value) {
-  return utf8Length(JSON.stringify(value));
 }
 
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/syncpromise.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/syncpromise.js
 var States;
 (function(States2) {
   const PENDING = 0;
@@ -868,8 +634,8 @@ var States;
   States2[States2["REJECTED"] = REJECTED] = "REJECTED";
 })(States || (States = {}));
 function resolvedSyncPromise(value) {
-  return new SyncPromise((resolve) => {
-    resolve(value);
+  return new SyncPromise((resolve2) => {
+    resolve2(value);
   });
 }
 function rejectedSyncPromise(reason) {
@@ -893,15 +659,15 @@ var SyncPromise = class _SyncPromise {
   }
   /** JSDoc */
   then(onfulfilled, onrejected) {
-    return new _SyncPromise((resolve, reject) => {
+    return new _SyncPromise((resolve2, reject) => {
       this._handlers.push([
         false,
         (result) => {
           if (!onfulfilled) {
-            resolve(result);
+            resolve2(result);
           } else {
             try {
-              resolve(onfulfilled(result));
+              resolve2(onfulfilled(result));
             } catch (e) {
               reject(e);
             }
@@ -912,7 +678,7 @@ var SyncPromise = class _SyncPromise {
             reject(reason);
           } else {
             try {
-              resolve(onrejected(reason));
+              resolve2(onrejected(reason));
             } catch (e) {
               reject(e);
             }
@@ -928,7 +694,7 @@ var SyncPromise = class _SyncPromise {
   }
   /** JSDoc */
   finally(onfinally) {
-    return new _SyncPromise((resolve, reject) => {
+    return new _SyncPromise((resolve2, reject) => {
       let val;
       let isRejected;
       return this.then(
@@ -951,7 +717,7 @@ var SyncPromise = class _SyncPromise {
           reject(val);
           return;
         }
-        resolve(val);
+        resolve2(val);
       });
     });
   }
@@ -1006,308 +772,7 @@ var SyncPromise = class _SyncPromise {
   }
 };
 
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/promisebuffer.js
-function makePromiseBuffer(limit) {
-  const buffer = [];
-  function isReady() {
-    return limit === void 0 || buffer.length < limit;
-  }
-  function remove(task) {
-    return buffer.splice(buffer.indexOf(task), 1)[0];
-  }
-  function add(taskProducer) {
-    if (!isReady()) {
-      return rejectedSyncPromise(new SentryError("Not adding Promise because buffer limit was reached."));
-    }
-    const task = taskProducer();
-    if (buffer.indexOf(task) === -1) {
-      buffer.push(task);
-    }
-    void task.then(() => remove(task)).then(
-      null,
-      () => remove(task).then(null, () => {
-      })
-    );
-    return task;
-  }
-  function drain(timeout) {
-    return new SyncPromise((resolve, reject) => {
-      let counter = buffer.length;
-      if (!counter) {
-        return resolve(true);
-      }
-      const capturedSetTimeout = setTimeout(() => {
-        if (timeout && timeout > 0) {
-          resolve(false);
-        }
-      }, timeout);
-      buffer.forEach((item) => {
-        void resolvedSyncPromise(item).then(() => {
-          if (!--counter) {
-            clearTimeout(capturedSetTimeout);
-            resolve(true);
-          }
-        }, reject);
-      });
-    });
-  }
-  return {
-    $: buffer,
-    add,
-    drain
-  };
-}
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/time.js
-var ONE_SECOND_IN_MS = 1e3;
-function dateTimestampInSeconds() {
-  return Date.now() / ONE_SECOND_IN_MS;
-}
-function createUnixTimestampInSecondsFunc() {
-  const { performance } = GLOBAL_OBJ;
-  if (!performance || !performance.now) {
-    return dateTimestampInSeconds;
-  }
-  const approxStartingTimeOrigin = Date.now() - performance.now();
-  const timeOrigin = performance.timeOrigin == void 0 ? approxStartingTimeOrigin : performance.timeOrigin;
-  return () => {
-    return (timeOrigin + performance.now()) / ONE_SECOND_IN_MS;
-  };
-}
-var timestampInSeconds = createUnixTimestampInSecondsFunc();
-var timestampWithMs = timestampInSeconds;
-(() => {
-  const { performance } = GLOBAL_OBJ;
-  if (!performance || !performance.now) {
-    return void 0;
-  }
-  const threshold = 3600 * 1e3;
-  const performanceNow = performance.now();
-  const dateNow = Date.now();
-  const timeOriginDelta = performance.timeOrigin ? Math.abs(performance.timeOrigin + performanceNow - dateNow) : threshold;
-  const timeOriginIsReliable = timeOriginDelta < threshold;
-  const navigationStart = performance.timing && performance.timing.navigationStart;
-  const hasNavigationStart = typeof navigationStart === "number";
-  const navigationStartDelta = hasNavigationStart ? Math.abs(navigationStart + performanceNow - dateNow) : threshold;
-  const navigationStartIsReliable = navigationStartDelta < threshold;
-  if (timeOriginIsReliable || navigationStartIsReliable) {
-    if (timeOriginDelta <= navigationStartDelta) {
-      return performance.timeOrigin;
-    } else {
-      return navigationStart;
-    }
-  }
-  return dateNow;
-})();
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/envelope.js
-function createEnvelope(headers, items = []) {
-  return [headers, items];
-}
-function addItemToEnvelope(envelope, newItem) {
-  const [headers, items] = envelope;
-  return [headers, [...items, newItem]];
-}
-function forEachEnvelopeItem(envelope, callback) {
-  const envelopeItems = envelope[1];
-  for (const envelopeItem of envelopeItems) {
-    const envelopeItemType = envelopeItem[0].type;
-    const result = callback(envelopeItem, envelopeItemType);
-    if (result) {
-      return true;
-    }
-  }
-  return false;
-}
-function encodeUTF8(input, textEncoder) {
-  const utf8 = textEncoder || new TextEncoder();
-  return utf8.encode(input);
-}
-function serializeEnvelope(envelope, textEncoder) {
-  const [envHeaders, items] = envelope;
-  let parts = JSON.stringify(envHeaders);
-  function append(next) {
-    if (typeof parts === "string") {
-      parts = typeof next === "string" ? parts + next : [encodeUTF8(parts, textEncoder), next];
-    } else {
-      parts.push(typeof next === "string" ? encodeUTF8(next, textEncoder) : next);
-    }
-  }
-  for (const item of items) {
-    const [itemHeaders, payload] = item;
-    append(`
-${JSON.stringify(itemHeaders)}
-`);
-    if (typeof payload === "string" || payload instanceof Uint8Array) {
-      append(payload);
-    } else {
-      let stringifiedPayload;
-      try {
-        stringifiedPayload = JSON.stringify(payload);
-      } catch (e) {
-        stringifiedPayload = JSON.stringify(normalize(payload));
-      }
-      append(stringifiedPayload);
-    }
-  }
-  return typeof parts === "string" ? parts : concatBuffers(parts);
-}
-function concatBuffers(buffers) {
-  const totalLength = buffers.reduce((acc, buf) => acc + buf.length, 0);
-  const merged = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const buffer of buffers) {
-    merged.set(buffer, offset);
-    offset += buffer.length;
-  }
-  return merged;
-}
-function createAttachmentEnvelopeItem(attachment, textEncoder) {
-  const buffer = typeof attachment.data === "string" ? encodeUTF8(attachment.data, textEncoder) : attachment.data;
-  return [
-    dropUndefinedKeys({
-      type: "attachment",
-      length: buffer.length,
-      filename: attachment.filename,
-      content_type: attachment.contentType,
-      attachment_type: attachment.attachmentType
-    }),
-    buffer
-  ];
-}
-var ITEM_TYPE_TO_DATA_CATEGORY_MAP = {
-  session: "session",
-  sessions: "session",
-  attachment: "attachment",
-  transaction: "transaction",
-  event: "error",
-  client_report: "internal",
-  user_report: "default",
-  profile: "profile",
-  replay_event: "replay",
-  replay_recording: "replay",
-  check_in: "monitor",
-  feedback: "feedback",
-  span: "span",
-  statsd: "metric_bucket"
-};
-function envelopeItemTypeToDataCategory(type) {
-  return ITEM_TYPE_TO_DATA_CATEGORY_MAP[type];
-}
-function getSdkMetadataForEnvelopeHeader(metadataOrEvent) {
-  if (!metadataOrEvent || !metadataOrEvent.sdk) {
-    return;
-  }
-  const { name, version } = metadataOrEvent.sdk;
-  return { name, version };
-}
-function createEventEnvelopeHeaders(event, sdkInfo, tunnel, dsn) {
-  const dynamicSamplingContext = event.sdkProcessingMetadata && event.sdkProcessingMetadata.dynamicSamplingContext;
-  return __spreadValues(__spreadValues(__spreadValues({
-    event_id: event.event_id,
-    sent_at: (/* @__PURE__ */ new Date()).toISOString()
-  }, sdkInfo && { sdk: sdkInfo }), !!tunnel && dsn && { dsn: dsnToString(dsn) }), dynamicSamplingContext && {
-    trace: dropUndefinedKeys(__spreadValues({}, dynamicSamplingContext))
-  });
-}
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/ratelimit.js
-var DEFAULT_RETRY_AFTER = 60 * 1e3;
-function parseRetryAfterHeader(header, now = Date.now()) {
-  const headerDelay = parseInt(`${header}`, 10);
-  if (!isNaN(headerDelay)) {
-    return headerDelay * 1e3;
-  }
-  const headerDate = Date.parse(`${header}`);
-  if (!isNaN(headerDate)) {
-    return headerDate - now;
-  }
-  return DEFAULT_RETRY_AFTER;
-}
-function disabledUntil(limits, dataCategory) {
-  return limits[dataCategory] || limits.all || 0;
-}
-function isRateLimited(limits, dataCategory, now = Date.now()) {
-  return disabledUntil(limits, dataCategory) > now;
-}
-function updateRateLimits(limits, { statusCode, headers }, now = Date.now()) {
-  const updatedRateLimits = __spreadValues({}, limits);
-  const rateLimitHeader = headers && headers["x-sentry-rate-limits"];
-  const retryAfterHeader = headers && headers["retry-after"];
-  if (rateLimitHeader) {
-    for (const limit of rateLimitHeader.trim().split(",")) {
-      const [retryAfter, categories, , , namespaces] = limit.split(":", 5);
-      const headerDelay = parseInt(retryAfter, 10);
-      const delay = (!isNaN(headerDelay) ? headerDelay : 60) * 1e3;
-      if (!categories) {
-        updatedRateLimits.all = now + delay;
-      } else {
-        for (const category of categories.split(";")) {
-          if (category === "metric_bucket") {
-            if (!namespaces || namespaces.split(";").includes("custom")) {
-              updatedRateLimits[category] = now + delay;
-            }
-          } else {
-            updatedRateLimits[category] = now + delay;
-          }
-        }
-      }
-    }
-  } else if (retryAfterHeader) {
-    updatedRateLimits.all = now + parseRetryAfterHeader(retryAfterHeader, now);
-  } else if (statusCode === 429) {
-    updatedRateLimits.all = now + 60 * 1e3;
-  }
-  return updatedRateLimits;
-}
-
-// node_modules/.pnpm/@sentry+utils@7.120.3/node_modules/@sentry/utils/esm/eventbuilder.js
-function parseStackFrames(stackParser, error) {
-  return stackParser(error.stack || "", 1);
-}
-function exceptionFromError(stackParser, error) {
-  const exception = {
-    type: error.name || error.constructor.name,
-    value: error.message
-  };
-  const frames = parseStackFrames(stackParser, error);
-  if (frames.length) {
-    exception.stacktrace = { frames };
-  }
-  return exception;
-}
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/debug-build.js
-var DEBUG_BUILD2 = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/constants.js
-var DEFAULT_ENVIRONMENT = "production";
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/eventProcessors.js
-function getGlobalEventProcessors() {
-  return getGlobalSingleton("globalEventProcessors", () => []);
-}
-function addGlobalEventProcessor(callback) {
-  getGlobalEventProcessors().push(callback);
-}
-function notifyEventProcessors(processors, event, hint, index = 0) {
-  return new SyncPromise((resolve, reject) => {
-    const processor = processors[index];
-    if (event === null || typeof processor !== "function") {
-      resolve(event);
-    } else {
-      const result = processor(__spreadValues({}, event), hint);
-      DEBUG_BUILD2 && processor.id && result === null && logger.log(`Event processor "${processor.id}" dropped event`);
-      if (isThenable(result)) {
-        void result.then((final) => notifyEventProcessors(processors, final, hint, index + 1).then(resolve)).then(null, reject);
-      } else {
-        void notifyEventProcessors(processors, result, hint, index + 1).then(resolve).then(null, reject);
-      }
-    }
-  });
-}
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/session.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/session.js
 function makeSession(context) {
   const startingTime = timestampInSeconds();
   const session = {
@@ -1409,506 +874,50 @@ function sessionToJSON(session) {
   });
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/utils/spanUtils.js
-var TRACE_FLAG_SAMPLED = 1;
-function spanToTraceContext(span) {
-  const { spanId: span_id, traceId: trace_id } = span.spanContext();
-  const { data, op, parent_span_id, status, tags, origin } = spanToJSON(span);
-  return dropUndefinedKeys({
-    data,
-    op,
-    parent_span_id,
-    span_id,
-    status,
-    tags,
-    trace_id,
-    origin
-  });
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/propagationContext.js
+function generateTraceId() {
+  return uuid4();
 }
-function spanToJSON(span) {
-  if (spanIsSpanClass(span)) {
-    return span.getSpanJSON();
-  }
-  if (typeof span.toJSON === "function") {
-    return span.toJSON();
-  }
-  return {};
-}
-function spanIsSpanClass(span) {
-  return typeof span.getSpanJSON === "function";
-}
-function spanIsSampled(span) {
-  const { traceFlags } = span.spanContext();
-  return Boolean(traceFlags & TRACE_FLAG_SAMPLED);
+function generateSpanId() {
+  return uuid4().substring(16);
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/utils/prepareEvent.js
-function prepareEvent(options, event, hint, scope, client, isolationScope) {
-  const { normalizeDepth = 3, normalizeMaxBreadth = 1e3 } = options;
-  const prepared = __spreadProps(__spreadValues({}, event), {
-    event_id: event.event_id || hint.event_id || uuid4(),
-    timestamp: event.timestamp || dateTimestampInSeconds()
-  });
-  const integrations = hint.integrations || options.integrations.map((i) => i.name);
-  applyClientOptions(prepared, options);
-  applyIntegrationsMetadata(prepared, integrations);
-  if (event.type === void 0) {
-    applyDebugIds(prepared, options.stackParser);
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils/merge.js
+function merge(initialObj, mergeObj, levels = 2) {
+  if (!mergeObj || typeof mergeObj !== "object" || levels <= 0) {
+    return mergeObj;
   }
-  const finalScope = getFinalScope(scope, hint.captureContext);
-  if (hint.mechanism) {
-    addExceptionMechanism(prepared, hint.mechanism);
+  if (initialObj && mergeObj && Object.keys(mergeObj).length === 0) {
+    return initialObj;
   }
-  const clientEventProcessors = client && client.getEventProcessors ? client.getEventProcessors() : [];
-  const data = getGlobalScope().getScopeData();
-  if (isolationScope) {
-    const isolationData = isolationScope.getScopeData();
-    mergeScopeData(data, isolationData);
-  }
-  if (finalScope) {
-    const finalScopeData = finalScope.getScopeData();
-    mergeScopeData(data, finalScopeData);
-  }
-  const attachments = [...hint.attachments || [], ...data.attachments];
-  if (attachments.length) {
-    hint.attachments = attachments;
-  }
-  applyScopeDataToEvent(prepared, data);
-  const eventProcessors = [
-    ...clientEventProcessors,
-    // eslint-disable-next-line deprecation/deprecation
-    ...getGlobalEventProcessors(),
-    // Run scope event processors _after_ all other processors
-    ...data.eventProcessors
-  ];
-  const result = notifyEventProcessors(eventProcessors, prepared, hint);
-  return result.then((evt) => {
-    if (evt) {
-      applyDebugMeta(evt);
+  const output = __spreadValues({}, initialObj);
+  for (const key in mergeObj) {
+    if (Object.prototype.hasOwnProperty.call(mergeObj, key)) {
+      output[key] = merge(output[key], mergeObj[key], levels - 1);
     }
-    if (typeof normalizeDepth === "number" && normalizeDepth > 0) {
-      return normalizeEvent(evt, normalizeDepth, normalizeMaxBreadth);
-    }
-    return evt;
-  });
+  }
+  return output;
 }
-function applyClientOptions(event, options) {
-  const { environment, release, dist, maxValueLength = 250 } = options;
-  if (!("environment" in event)) {
-    event.environment = "environment" in options ? environment : DEFAULT_ENVIRONMENT;
-  }
-  if (event.release === void 0 && release !== void 0) {
-    event.release = release;
-  }
-  if (event.dist === void 0 && dist !== void 0) {
-    event.dist = dist;
-  }
-  if (event.message) {
-    event.message = truncate(event.message, maxValueLength);
-  }
-  const exception = event.exception && event.exception.values && event.exception.values[0];
-  if (exception && exception.value) {
-    exception.value = truncate(exception.value, maxValueLength);
-  }
-  const request = event.request;
-  if (request && request.url) {
-    request.url = truncate(request.url, maxValueLength);
-  }
-}
-var debugIdStackParserCache = /* @__PURE__ */ new WeakMap();
-function applyDebugIds(event, stackParser) {
-  const debugIdMap = GLOBAL_OBJ._sentryDebugIds;
-  if (!debugIdMap) {
-    return;
-  }
-  let debugIdStackFramesCache;
-  const cachedDebugIdStackFrameCache = debugIdStackParserCache.get(stackParser);
-  if (cachedDebugIdStackFrameCache) {
-    debugIdStackFramesCache = cachedDebugIdStackFrameCache;
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils/spanOnScope.js
+var SCOPE_SPAN_FIELD = "_sentrySpan";
+function _setSpanForScope(scope, span) {
+  if (span) {
+    addNonEnumerableProperty(scope, SCOPE_SPAN_FIELD, span);
   } else {
-    debugIdStackFramesCache = /* @__PURE__ */ new Map();
-    debugIdStackParserCache.set(stackParser, debugIdStackFramesCache);
-  }
-  const filenameDebugIdMap = Object.keys(debugIdMap).reduce((acc, debugIdStackTrace) => {
-    let parsedStack;
-    const cachedParsedStack = debugIdStackFramesCache.get(debugIdStackTrace);
-    if (cachedParsedStack) {
-      parsedStack = cachedParsedStack;
-    } else {
-      parsedStack = stackParser(debugIdStackTrace);
-      debugIdStackFramesCache.set(debugIdStackTrace, parsedStack);
-    }
-    for (let i = parsedStack.length - 1; i >= 0; i--) {
-      const stackFrame = parsedStack[i];
-      if (stackFrame.filename) {
-        acc[stackFrame.filename] = debugIdMap[debugIdStackTrace];
-        break;
-      }
-    }
-    return acc;
-  }, {});
-  try {
-    event.exception.values.forEach((exception) => {
-      exception.stacktrace.frames.forEach((frame) => {
-        if (frame.filename) {
-          frame.debug_id = filenameDebugIdMap[frame.filename];
-        }
-      });
-    });
-  } catch (e) {
+    delete scope[SCOPE_SPAN_FIELD];
   }
 }
-function applyDebugMeta(event) {
-  const filenameDebugIdMap = {};
-  try {
-    event.exception.values.forEach((exception) => {
-      exception.stacktrace.frames.forEach((frame) => {
-        if (frame.debug_id) {
-          if (frame.abs_path) {
-            filenameDebugIdMap[frame.abs_path] = frame.debug_id;
-          } else if (frame.filename) {
-            filenameDebugIdMap[frame.filename] = frame.debug_id;
-          }
-          delete frame.debug_id;
-        }
-      });
-    });
-  } catch (e) {
-  }
-  if (Object.keys(filenameDebugIdMap).length === 0) {
-    return;
-  }
-  event.debug_meta = event.debug_meta || {};
-  event.debug_meta.images = event.debug_meta.images || [];
-  const images = event.debug_meta.images;
-  Object.keys(filenameDebugIdMap).forEach((filename) => {
-    images.push({
-      type: "sourcemap",
-      code_file: filename,
-      debug_id: filenameDebugIdMap[filename]
-    });
-  });
-}
-function applyIntegrationsMetadata(event, integrationNames) {
-  if (integrationNames.length > 0) {
-    event.sdk = event.sdk || {};
-    event.sdk.integrations = [...event.sdk.integrations || [], ...integrationNames];
-  }
-}
-function normalizeEvent(event, depth, maxBreadth) {
-  if (!event) {
-    return null;
-  }
-  const normalized = __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({}, event), event.breadcrumbs && {
-    breadcrumbs: event.breadcrumbs.map((b) => __spreadValues(__spreadValues({}, b), b.data && {
-      data: normalize(b.data, depth, maxBreadth)
-    }))
-  }), event.user && {
-    user: normalize(event.user, depth, maxBreadth)
-  }), event.contexts && {
-    contexts: normalize(event.contexts, depth, maxBreadth)
-  }), event.extra && {
-    extra: normalize(event.extra, depth, maxBreadth)
-  });
-  if (event.contexts && event.contexts.trace && normalized.contexts) {
-    normalized.contexts.trace = event.contexts.trace;
-    if (event.contexts.trace.data) {
-      normalized.contexts.trace.data = normalize(event.contexts.trace.data, depth, maxBreadth);
-    }
-  }
-  if (event.spans) {
-    normalized.spans = event.spans.map((span) => {
-      const data = spanToJSON(span).data;
-      if (data) {
-        span.data = normalize(data, depth, maxBreadth);
-      }
-      return span;
-    });
-  }
-  return normalized;
-}
-function getFinalScope(scope, captureContext) {
-  if (!captureContext) {
-    return scope;
-  }
-  const finalScope = scope ? scope.clone() : new Scope();
-  finalScope.update(captureContext);
-  return finalScope;
-}
-function parseEventHintOrCaptureContext(hint) {
-  if (!hint) {
-    return void 0;
-  }
-  if (hintIsScopeOrFunction(hint)) {
-    return { captureContext: hint };
-  }
-  if (hintIsScopeContext(hint)) {
-    return {
-      captureContext: hint
-    };
-  }
-  return hint;
-}
-function hintIsScopeOrFunction(hint) {
-  return hint instanceof Scope || typeof hint === "function";
-}
-var captureContextKeys = [
-  "user",
-  "level",
-  "extra",
-  "contexts",
-  "tags",
-  "fingerprint",
-  "requestSession",
-  "propagationContext"
-];
-function hintIsScopeContext(hint) {
-  return Object.keys(hint).some((key) => captureContextKeys.includes(key));
+function _getSpanForScope(scope) {
+  return scope[SCOPE_SPAN_FIELD];
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/exports.js
-function captureException(exception, hint) {
-  return getCurrentHub().captureException(exception, parseEventHintOrCaptureContext(hint));
-}
-function captureMessage(message, captureContext) {
-  const level = typeof captureContext === "string" ? captureContext : void 0;
-  const context = typeof captureContext !== "string" ? { captureContext } : void 0;
-  return getCurrentHub().captureMessage(message, level, context);
-}
-function captureEvent(event, hint) {
-  return getCurrentHub().captureEvent(event, hint);
-}
-function configureScope(callback) {
-  getCurrentHub().configureScope(callback);
-}
-function addBreadcrumb(breadcrumb, hint) {
-  getCurrentHub().addBreadcrumb(breadcrumb, hint);
-}
-function setContext(name, context) {
-  getCurrentHub().setContext(name, context);
-}
-function setExtras(extras) {
-  getCurrentHub().setExtras(extras);
-}
-function setExtra(key, extra) {
-  getCurrentHub().setExtra(key, extra);
-}
-function setTags(tags) {
-  getCurrentHub().setTags(tags);
-}
-function setTag(key, value) {
-  getCurrentHub().setTag(key, value);
-}
-function setUser(user) {
-  getCurrentHub().setUser(user);
-}
-function withScope(...rest) {
-  const hub = getCurrentHub();
-  if (rest.length === 2) {
-    const [scope, callback] = rest;
-    if (!scope) {
-      return hub.withScope(callback);
-    }
-    return hub.withScope(() => {
-      hub.getStackTop().scope = scope;
-      return callback(scope);
-    });
-  }
-  return hub.withScope(rest[0]);
-}
-function startTransaction(context, customSamplingContext) {
-  return getCurrentHub().startTransaction(__spreadValues({}, context), customSamplingContext);
-}
-function getClient() {
-  return getCurrentHub().getClient();
-}
-function getCurrentScope() {
-  return getCurrentHub().getScope();
-}
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/utils/getRootSpan.js
-function getRootSpan(span) {
-  return span.transaction;
-}
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/tracing/dynamicSamplingContext.js
-function getDynamicSamplingContextFromClient(trace_id, client, scope) {
-  const options = client.getOptions();
-  const { publicKey: public_key } = client.getDsn() || {};
-  const { segment: user_segment } = scope && scope.getUser() || {};
-  const dsc = dropUndefinedKeys({
-    environment: options.environment || DEFAULT_ENVIRONMENT,
-    release: options.release,
-    user_segment,
-    public_key,
-    trace_id
-  });
-  client.emit && client.emit("createDsc", dsc);
-  return dsc;
-}
-function getDynamicSamplingContextFromSpan(span) {
-  const client = getClient();
-  if (!client) {
-    return {};
-  }
-  const dsc = getDynamicSamplingContextFromClient(spanToJSON(span).trace_id || "", client, getCurrentScope());
-  const txn = getRootSpan(span);
-  if (!txn) {
-    return dsc;
-  }
-  const v7FrozenDsc = txn && txn._frozenDynamicSamplingContext;
-  if (v7FrozenDsc) {
-    return v7FrozenDsc;
-  }
-  const { sampleRate: maybeSampleRate, source } = txn.metadata;
-  if (maybeSampleRate != null) {
-    dsc.sample_rate = `${maybeSampleRate}`;
-  }
-  const jsonSpan = spanToJSON(txn);
-  if (source && source !== "url") {
-    dsc.transaction = jsonSpan.description;
-  }
-  dsc.sampled = String(spanIsSampled(txn));
-  client.emit && client.emit("createDsc", dsc);
-  return dsc;
-}
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/utils/applyScopeDataToEvent.js
-function applyScopeDataToEvent(event, data) {
-  const { fingerprint, span, breadcrumbs, sdkProcessingMetadata } = data;
-  applyDataToEvent(event, data);
-  if (span) {
-    applySpanToEvent(event, span);
-  }
-  applyFingerprintToEvent(event, fingerprint);
-  applyBreadcrumbsToEvent(event, breadcrumbs);
-  applySdkMetadataToEvent(event, sdkProcessingMetadata);
-}
-function mergeScopeData(data, mergeData) {
-  const {
-    extra,
-    tags,
-    user,
-    contexts,
-    level,
-    sdkProcessingMetadata,
-    breadcrumbs,
-    fingerprint,
-    eventProcessors,
-    attachments,
-    propagationContext,
-    // eslint-disable-next-line deprecation/deprecation
-    transactionName,
-    span
-  } = mergeData;
-  mergeAndOverwriteScopeData(data, "extra", extra);
-  mergeAndOverwriteScopeData(data, "tags", tags);
-  mergeAndOverwriteScopeData(data, "user", user);
-  mergeAndOverwriteScopeData(data, "contexts", contexts);
-  mergeAndOverwriteScopeData(data, "sdkProcessingMetadata", sdkProcessingMetadata);
-  if (level) {
-    data.level = level;
-  }
-  if (transactionName) {
-    data.transactionName = transactionName;
-  }
-  if (span) {
-    data.span = span;
-  }
-  if (breadcrumbs.length) {
-    data.breadcrumbs = [...data.breadcrumbs, ...breadcrumbs];
-  }
-  if (fingerprint.length) {
-    data.fingerprint = [...data.fingerprint, ...fingerprint];
-  }
-  if (eventProcessors.length) {
-    data.eventProcessors = [...data.eventProcessors, ...eventProcessors];
-  }
-  if (attachments.length) {
-    data.attachments = [...data.attachments, ...attachments];
-  }
-  data.propagationContext = __spreadValues(__spreadValues({}, data.propagationContext), propagationContext);
-}
-function mergeAndOverwriteScopeData(data, prop, mergeVal) {
-  if (mergeVal && Object.keys(mergeVal).length) {
-    data[prop] = __spreadValues({}, data[prop]);
-    for (const key in mergeVal) {
-      if (Object.prototype.hasOwnProperty.call(mergeVal, key)) {
-        data[prop][key] = mergeVal[key];
-      }
-    }
-  }
-}
-function applyDataToEvent(event, data) {
-  const {
-    extra,
-    tags,
-    user,
-    contexts,
-    level,
-    // eslint-disable-next-line deprecation/deprecation
-    transactionName
-  } = data;
-  const cleanedExtra = dropUndefinedKeys(extra);
-  if (cleanedExtra && Object.keys(cleanedExtra).length) {
-    event.extra = __spreadValues(__spreadValues({}, cleanedExtra), event.extra);
-  }
-  const cleanedTags = dropUndefinedKeys(tags);
-  if (cleanedTags && Object.keys(cleanedTags).length) {
-    event.tags = __spreadValues(__spreadValues({}, cleanedTags), event.tags);
-  }
-  const cleanedUser = dropUndefinedKeys(user);
-  if (cleanedUser && Object.keys(cleanedUser).length) {
-    event.user = __spreadValues(__spreadValues({}, cleanedUser), event.user);
-  }
-  const cleanedContexts = dropUndefinedKeys(contexts);
-  if (cleanedContexts && Object.keys(cleanedContexts).length) {
-    event.contexts = __spreadValues(__spreadValues({}, cleanedContexts), event.contexts);
-  }
-  if (level) {
-    event.level = level;
-  }
-  if (transactionName) {
-    event.transaction = transactionName;
-  }
-}
-function applyBreadcrumbsToEvent(event, breadcrumbs) {
-  const mergedBreadcrumbs = [...event.breadcrumbs || [], ...breadcrumbs];
-  event.breadcrumbs = mergedBreadcrumbs.length ? mergedBreadcrumbs : void 0;
-}
-function applySdkMetadataToEvent(event, sdkProcessingMetadata) {
-  event.sdkProcessingMetadata = __spreadValues(__spreadValues({}, event.sdkProcessingMetadata), sdkProcessingMetadata);
-}
-function applySpanToEvent(event, span) {
-  event.contexts = __spreadValues({ trace: spanToTraceContext(span) }, event.contexts);
-  const rootSpan = getRootSpan(span);
-  if (rootSpan) {
-    event.sdkProcessingMetadata = __spreadValues({
-      dynamicSamplingContext: getDynamicSamplingContextFromSpan(span)
-    }, event.sdkProcessingMetadata);
-    const transactionName = spanToJSON(rootSpan).description;
-    if (transactionName) {
-      event.tags = __spreadValues({ transaction: transactionName }, event.tags);
-    }
-  }
-}
-function applyFingerprintToEvent(event, fingerprint) {
-  event.fingerprint = event.fingerprint ? arrayify(event.fingerprint) : [];
-  if (fingerprint) {
-    event.fingerprint = event.fingerprint.concat(fingerprint);
-  }
-  if (event.fingerprint && !event.fingerprint.length) {
-    delete event.fingerprint;
-  }
-}
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/scope.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/scope.js
 var DEFAULT_MAX_BREADCRUMBS = 100;
-var globalScope;
-var Scope = class _Scope {
+var ScopeClass = class _ScopeClass {
   /** Flag if notifying is happening. */
   /** Callback for client to receive scope changes. */
-  /** Callback list that will be called after {@link applyToEvent}. */
+  /** Callback list that will be called during event processing. */
   /** Array of breadcrumbs. */
   /** User */
   /** Tags */
@@ -1922,14 +931,17 @@ var Scope = class _Scope {
    */
   /** Fingerprint */
   /** Severity */
-  // eslint-disable-next-line deprecation/deprecation
   /**
    * Transaction Name
+   *
+   * IMPORTANT: The transaction name on the scope has nothing to do with root spans/transaction objects.
+   * It's purpose is to assign a transaction to the scope that's added to non-transaction events.
    */
-  /** Span */
   /** Session */
   /** Request Mode Session Status */
+  // eslint-disable-next-line deprecation/deprecation
   /** The client on this scope */
+  /** Contains the last event id of a captured event.  */
   // NOTE: Any field which gets added here should get added not only to the constructor but also to the `clone` method.
   constructor() {
     this._notifyingListeners = false;
@@ -1942,27 +954,27 @@ var Scope = class _Scope {
     this._extra = {};
     this._contexts = {};
     this._sdkProcessingMetadata = {};
-    this._propagationContext = generatePropagationContext();
+    this._propagationContext = {
+      traceId: generateTraceId(),
+      spanId: generateSpanId()
+    };
   }
   /**
-   * Inherit values from the parent scope.
-   * @deprecated Use `scope.clone()` and `new Scope()` instead.
-   */
-  static clone(scope) {
-    return scope ? scope.clone() : new _Scope();
-  }
-  /**
-   * Clone this scope instance.
+   * @inheritDoc
    */
   clone() {
-    const newScope = new _Scope();
+    const newScope = new _ScopeClass();
     newScope._breadcrumbs = [...this._breadcrumbs];
     newScope._tags = __spreadValues({}, this._tags);
     newScope._extra = __spreadValues({}, this._extra);
     newScope._contexts = __spreadValues({}, this._contexts);
+    if (this._contexts.flags) {
+      newScope._contexts.flags = {
+        values: [...this._contexts.flags.values]
+      };
+    }
     newScope._user = this._user;
     newScope._level = this._level;
-    newScope._span = this._span;
     newScope._session = this._session;
     newScope._transactionName = this._transactionName;
     newScope._fingerprint = this._fingerprint;
@@ -1972,23 +984,36 @@ var Scope = class _Scope {
     newScope._sdkProcessingMetadata = __spreadValues({}, this._sdkProcessingMetadata);
     newScope._propagationContext = __spreadValues({}, this._propagationContext);
     newScope._client = this._client;
+    newScope._lastEventId = this._lastEventId;
+    _setSpanForScope(newScope, _getSpanForScope(this));
     return newScope;
   }
-  /** Update the client on the scope. */
+  /**
+   * @inheritDoc
+   */
   setClient(client) {
     this._client = client;
   }
   /**
-   * Get the client assigned to this scope.
-   *
-   * It is generally recommended to use the global function `Sentry.getClient()` instead, unless you know what you are doing.
+   * @inheritDoc
+   */
+  setLastEventId(lastEventId3) {
+    this._lastEventId = lastEventId3;
+  }
+  /**
+   * @inheritDoc
    */
   getClient() {
     return this._client;
   }
   /**
-   * Add internal on change listener. Used for sub SDKs that need to store the scope.
-   * @hidden
+   * @inheritDoc
+   */
+  lastEventId() {
+    return this._lastEventId;
+  }
+  /**
+   * @inheritDoc
    */
   addScopeListener(callback) {
     this._scopeListeners.push(callback);
@@ -2008,7 +1033,6 @@ var Scope = class _Scope {
       email: void 0,
       id: void 0,
       ip_address: void 0,
-      segment: void 0,
       username: void 0
     };
     if (this._session) {
@@ -2026,12 +1050,14 @@ var Scope = class _Scope {
   /**
    * @inheritDoc
    */
+  // eslint-disable-next-line deprecation/deprecation
   getRequestSession() {
     return this._requestSession;
   }
   /**
    * @inheritDoc
    */
+  // eslint-disable-next-line deprecation/deprecation
   setRequestSession(requestSession) {
     this._requestSession = requestSession;
     return this;
@@ -2085,7 +1111,15 @@ var Scope = class _Scope {
     return this;
   }
   /**
-   * Sets the transaction name on the scope for future events.
+   * Sets the transaction name on the scope so that the name of e.g. taken server route or
+   * the page location is attached to future events.
+   *
+   * IMPORTANT: Calling this function does NOT change the name of the currently active
+   * root span. If you want to change the name of the active root span, use
+   * `Sentry.updateSpanName(rootSpan, 'new name')` instead.
+   *
+   * By default, the SDK updates the scope's transaction name automatically on sensible
+   * occasions, such as a page navigation or when handling a new request on the server.
    */
   setTransactionName(name) {
     this._transactionName = name;
@@ -2103,31 +1137,6 @@ var Scope = class _Scope {
     }
     this._notifyScopeListeners();
     return this;
-  }
-  /**
-   * Sets the Span on the scope.
-   * @param span Span
-   * @deprecated Instead of setting a span on a scope, use `startSpan()`/`startSpanManual()` instead.
-   */
-  setSpan(span) {
-    this._span = span;
-    this._notifyScopeListeners();
-    return this;
-  }
-  /**
-   * Returns the `Span` if there is one.
-   * @deprecated Use `getActiveSpan()` instead.
-   */
-  getSpan() {
-    return this._span;
-  }
-  /**
-   * Returns the `Transaction` attached to the scope (if there is one).
-   * @deprecated You should not rely on the transaction, but just use `startSpan()` APIs instead.
-   */
-  getTransaction() {
-    const span = this._span;
-    return span && span.transaction;
   }
   /**
    * @inheritDoc
@@ -2155,46 +1164,28 @@ var Scope = class _Scope {
       return this;
     }
     const scopeToMerge = typeof captureContext === "function" ? captureContext(this) : captureContext;
-    if (scopeToMerge instanceof _Scope) {
-      const scopeData = scopeToMerge.getScopeData();
-      this._tags = __spreadValues(__spreadValues({}, this._tags), scopeData.tags);
-      this._extra = __spreadValues(__spreadValues({}, this._extra), scopeData.extra);
-      this._contexts = __spreadValues(__spreadValues({}, this._contexts), scopeData.contexts);
-      if (scopeData.user && Object.keys(scopeData.user).length) {
-        this._user = scopeData.user;
-      }
-      if (scopeData.level) {
-        this._level = scopeData.level;
-      }
-      if (scopeData.fingerprint.length) {
-        this._fingerprint = scopeData.fingerprint;
-      }
-      if (scopeToMerge.getRequestSession()) {
-        this._requestSession = scopeToMerge.getRequestSession();
-      }
-      if (scopeData.propagationContext) {
-        this._propagationContext = scopeData.propagationContext;
-      }
-    } else if (isPlainObject(scopeToMerge)) {
-      const scopeContext = captureContext;
-      this._tags = __spreadValues(__spreadValues({}, this._tags), scopeContext.tags);
-      this._extra = __spreadValues(__spreadValues({}, this._extra), scopeContext.extra);
-      this._contexts = __spreadValues(__spreadValues({}, this._contexts), scopeContext.contexts);
-      if (scopeContext.user) {
-        this._user = scopeContext.user;
-      }
-      if (scopeContext.level) {
-        this._level = scopeContext.level;
-      }
-      if (scopeContext.fingerprint) {
-        this._fingerprint = scopeContext.fingerprint;
-      }
-      if (scopeContext.requestSession) {
-        this._requestSession = scopeContext.requestSession;
-      }
-      if (scopeContext.propagationContext) {
-        this._propagationContext = scopeContext.propagationContext;
-      }
+    const [scopeInstance, requestSession] = scopeToMerge instanceof Scope ? (
+      // eslint-disable-next-line deprecation/deprecation
+      [scopeToMerge.getScopeData(), scopeToMerge.getRequestSession()]
+    ) : isPlainObject(scopeToMerge) ? [captureContext, captureContext.requestSession] : [];
+    const { tags, extra, user, contexts, level, fingerprint = [], propagationContext } = scopeInstance || {};
+    this._tags = __spreadValues(__spreadValues({}, this._tags), tags);
+    this._extra = __spreadValues(__spreadValues({}, this._extra), extra);
+    this._contexts = __spreadValues(__spreadValues({}, this._contexts), contexts);
+    if (user && Object.keys(user).length) {
+      this._user = user;
+    }
+    if (level) {
+      this._level = level;
+    }
+    if (fingerprint.length) {
+      this._fingerprint = fingerprint;
+    }
+    if (propagationContext) {
+      this._propagationContext = propagationContext;
+    }
+    if (requestSession) {
+      this._requestSession = requestSession;
     }
     return this;
   }
@@ -2211,11 +1202,11 @@ var Scope = class _Scope {
     this._transactionName = void 0;
     this._fingerprint = void 0;
     this._requestSession = void 0;
-    this._span = void 0;
     this._session = void 0;
-    this._notifyScopeListeners();
+    _setSpanForScope(this, void 0);
     this._attachments = [];
-    this._propagationContext = generatePropagationContext();
+    this.setPropagationContext({ traceId: generateTraceId() });
+    this._notifyScopeListeners();
     return this;
   }
   /**
@@ -2229,9 +1220,13 @@ var Scope = class _Scope {
     const mergedBreadcrumb = __spreadValues({
       timestamp: dateTimestampInSeconds()
     }, breadcrumb);
-    const breadcrumbs = this._breadcrumbs;
-    breadcrumbs.push(mergedBreadcrumb);
-    this._breadcrumbs = breadcrumbs.length > maxCrumbs ? breadcrumbs.slice(-maxCrumbs) : breadcrumbs;
+    this._breadcrumbs.push(mergedBreadcrumb);
+    if (this._breadcrumbs.length > maxCrumbs) {
+      this._breadcrumbs = this._breadcrumbs.slice(-maxCrumbs);
+      if (this._client) {
+        this._client.recordDroppedEvent("buffer_overflow", "log_item");
+      }
+    }
     this._notifyScopeListeners();
     return this;
   }
@@ -2258,14 +1253,6 @@ var Scope = class _Scope {
   }
   /**
    * @inheritDoc
-   * @deprecated Use `getScopeData()` instead.
-   */
-  getAttachments() {
-    const data = this.getScopeData();
-    return data.attachments;
-  }
-  /**
-   * @inheritDoc
    */
   clearAttachments() {
     this._attachments = [];
@@ -2273,67 +1260,37 @@ var Scope = class _Scope {
   }
   /** @inheritDoc */
   getScopeData() {
-    const {
-      _breadcrumbs,
-      _attachments,
-      _contexts,
-      _tags,
-      _extra,
-      _user,
-      _level,
-      _fingerprint,
-      _eventProcessors,
-      _propagationContext,
-      _sdkProcessingMetadata,
-      _transactionName,
-      _span
-    } = this;
     return {
-      breadcrumbs: _breadcrumbs,
-      attachments: _attachments,
-      contexts: _contexts,
-      tags: _tags,
-      extra: _extra,
-      user: _user,
-      level: _level,
-      fingerprint: _fingerprint || [],
-      eventProcessors: _eventProcessors,
-      propagationContext: _propagationContext,
-      sdkProcessingMetadata: _sdkProcessingMetadata,
-      transactionName: _transactionName,
-      span: _span
+      breadcrumbs: this._breadcrumbs,
+      attachments: this._attachments,
+      contexts: this._contexts,
+      tags: this._tags,
+      extra: this._extra,
+      user: this._user,
+      level: this._level,
+      fingerprint: this._fingerprint || [],
+      eventProcessors: this._eventProcessors,
+      propagationContext: this._propagationContext,
+      sdkProcessingMetadata: this._sdkProcessingMetadata,
+      transactionName: this._transactionName,
+      span: _getSpanForScope(this)
     };
   }
   /**
-   * Applies data from the scope to the event and runs all event processors on it.
-   *
-   * @param event Event
-   * @param hint Object containing additional information about the original exception, for use by the event processors.
-   * @hidden
-   * @deprecated Use `applyScopeDataToEvent()` directly
-   */
-  applyToEvent(event, hint = {}, additionalEventProcessors = []) {
-    applyScopeDataToEvent(event, this.getScopeData());
-    const eventProcessors = [
-      ...additionalEventProcessors,
-      // eslint-disable-next-line deprecation/deprecation
-      ...getGlobalEventProcessors(),
-      ...this._eventProcessors
-    ];
-    return notifyEventProcessors(eventProcessors, event, hint);
-  }
-  /**
-   * Add data which will be accessible during event processing but won't get sent to Sentry
+   * @inheritDoc
    */
   setSDKProcessingMetadata(newData) {
-    this._sdkProcessingMetadata = __spreadValues(__spreadValues({}, this._sdkProcessingMetadata), newData);
+    this._sdkProcessingMetadata = merge(this._sdkProcessingMetadata, newData, 2);
     return this;
   }
   /**
    * @inheritDoc
    */
   setPropagationContext(context) {
-    this._propagationContext = context;
+    this._propagationContext = __spreadValues({
+      // eslint-disable-next-line deprecation/deprecation
+      spanId: generateSpanId()
+    }, context);
     return this;
   }
   /**
@@ -2343,11 +1300,7 @@ var Scope = class _Scope {
     return this._propagationContext;
   }
   /**
-   * Capture an exception for this scope.
-   *
-   * @param exception The exception to capture.
-   * @param hint Optinal additional data to attach to the Sentry event.
-   * @returns the id of the captured Sentry event.
+   * @inheritDoc
    */
   captureException(exception, hint) {
     const eventId = hint && hint.event_id ? hint.event_id : uuid4();
@@ -2369,12 +1322,7 @@ var Scope = class _Scope {
     return eventId;
   }
   /**
-   * Capture a message for this scope.
-   *
-   * @param message The message to capture.
-   * @param level An optional severity level to report the message with.
-   * @param hint Optional additional data to attach to the Sentry event.
-   * @returns the id of the captured message.
+   * @inheritDoc
    */
   captureMessage(message, level, hint) {
     const eventId = hint && hint.event_id ? hint.event_id : uuid4();
@@ -2397,11 +1345,7 @@ var Scope = class _Scope {
     return eventId;
   }
   /**
-   * Captures a manually created event for this scope and sends it to Sentry.
-   *
-   * @param exception The event to capture.
-   * @param hint Optional additional data to attach to the Sentry event.
-   * @returns the id of the captured event.
+   * @inheritDoc
    */
   captureEvent(event, hint) {
     const eventId = hint && hint.event_id ? hint.event_id : uuid4();
@@ -2425,541 +1369,781 @@ var Scope = class _Scope {
     }
   }
 };
-function getGlobalScope() {
-  if (!globalScope) {
-    globalScope = new Scope();
-  }
-  return globalScope;
+var Scope = ScopeClass;
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/defaultScopes.js
+function getDefaultCurrentScope() {
+  return getGlobalSingleton("defaultCurrentScope", () => new Scope());
 }
-function generatePropagationContext() {
-  return {
-    traceId: uuid4(),
-    spanId: uuid4().substring(16)
-  };
+function getDefaultIsolationScope() {
+  return getGlobalSingleton("defaultIsolationScope", () => new Scope());
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/version.js
-var SDK_VERSION = "7.120.3";
-
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/hub.js
-var API_VERSION = parseFloat(SDK_VERSION);
-var DEFAULT_BREADCRUMBS = 100;
-var Hub = class {
-  /** Is a {@link Layer}[] containing the client and scope */
-  /** Contains the last event id of a captured event.  */
-  /**
-   * Creates a new instance of the hub, will push one {@link Layer} into the
-   * internal stack on creation.
-   *
-   * @param client bound to the hub.
-   * @param scope bound to the hub.
-   * @param version number, higher number means higher priority.
-   *
-   * @deprecated Instantiation of Hub objects is deprecated and the constructor will be removed in version 8 of the SDK.
-   *
-   * If you are currently using the Hub for multi-client use like so:
-   *
-   * ```
-   * // OLD
-   * const hub = new Hub();
-   * hub.bindClient(client);
-   * makeMain(hub)
-   * ```
-   *
-   * instead initialize the client as follows:
-   *
-   * ```
-   * // NEW
-   * Sentry.withIsolationScope(() => {
-   *    Sentry.setCurrentClient(client);
-   *    client.init();
-   * });
-   * ```
-   *
-   * If you are using the Hub to capture events like so:
-   *
-   * ```
-   * // OLD
-   * const client = new Client();
-   * const hub = new Hub(client);
-   * hub.captureException()
-   * ```
-   *
-   * instead capture isolated events as follows:
-   *
-   * ```
-   * // NEW
-   * const client = new Client();
-   * const scope = new Scope();
-   * scope.setClient(client);
-   * scope.captureException();
-   * ```
-   */
-  constructor(client, scope, isolationScope, _version = API_VERSION) {
-    this._version = _version;
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/asyncContext/stackStrategy.js
+var AsyncContextStack = class {
+  constructor(scope, isolationScope) {
     let assignedScope;
     if (!scope) {
       assignedScope = new Scope();
-      assignedScope.setClient(client);
     } else {
       assignedScope = scope;
     }
     let assignedIsolationScope;
     if (!isolationScope) {
       assignedIsolationScope = new Scope();
-      assignedIsolationScope.setClient(client);
     } else {
       assignedIsolationScope = isolationScope;
     }
     this._stack = [{ scope: assignedScope }];
-    if (client) {
-      this.bindClient(client);
-    }
     this._isolationScope = assignedIsolationScope;
   }
   /**
-   * Checks if this hub's version is older than the given version.
-   *
-   * @param version A version number to compare to.
-   * @return True if the given version is newer; otherwise false.
-   *
-   * @deprecated This will be removed in v8.
-   */
-  isOlderThan(version) {
-    return this._version < version;
-  }
-  /**
-   * This binds the given client to the current scope.
-   * @param client An SDK client (client) instance.
-   *
-   * @deprecated Use `initAndBind()` directly, or `setCurrentClient()` and/or `client.init()` instead.
-   */
-  bindClient(client) {
-    const top = this.getStackTop();
-    top.client = client;
-    top.scope.setClient(client);
-    if (client && client.setupIntegrations) {
-      client.setupIntegrations();
-    }
-  }
-  /**
-   * @inheritDoc
-   *
-   * @deprecated Use `withScope` instead.
-   */
-  pushScope() {
-    const scope = this.getScope().clone();
-    this.getStack().push({
-      // eslint-disable-next-line deprecation/deprecation
-      client: this.getClient(),
-      scope
-    });
-    return scope;
-  }
-  /**
-   * @inheritDoc
-   *
-   * @deprecated Use `withScope` instead.
-   */
-  popScope() {
-    if (this.getStack().length <= 1) return false;
-    return !!this.getStack().pop();
-  }
-  /**
-   * @inheritDoc
-   *
-   * @deprecated Use `Sentry.withScope()` instead.
+   * Fork a scope for the stack.
    */
   withScope(callback) {
-    const scope = this.pushScope();
+    const scope = this._pushScope();
     let maybePromiseResult;
     try {
       maybePromiseResult = callback(scope);
     } catch (e) {
-      this.popScope();
+      this._popScope();
       throw e;
     }
     if (isThenable(maybePromiseResult)) {
       return maybePromiseResult.then(
         (res) => {
-          this.popScope();
+          this._popScope();
           return res;
         },
         (e) => {
-          this.popScope();
+          this._popScope();
           throw e;
         }
       );
     }
-    this.popScope();
+    this._popScope();
     return maybePromiseResult;
   }
   /**
-   * @inheritDoc
-   *
-   * @deprecated Use `Sentry.getClient()` instead.
+   * Get the client of the stack.
    */
   getClient() {
     return this.getStackTop().client;
   }
   /**
    * Returns the scope of the top stack.
-   *
-   * @deprecated Use `Sentry.getCurrentScope()` instead.
    */
   getScope() {
     return this.getStackTop().scope;
   }
   /**
-   * @deprecated Use `Sentry.getIsolationScope()` instead.
+   * Get the isolation scope for the stack.
    */
   getIsolationScope() {
     return this._isolationScope;
   }
   /**
-   * Returns the scope stack for domains or the process.
-   * @deprecated This will be removed in v8.
-   */
-  getStack() {
-    return this._stack;
-  }
-  /**
    * Returns the topmost scope layer in the order domain > local > process.
-   * @deprecated This will be removed in v8.
    */
   getStackTop() {
     return this._stack[this._stack.length - 1];
   }
   /**
-   * @inheritDoc
-   *
-   * @deprecated Use `Sentry.captureException()` instead.
+   * Push a scope to the stack.
    */
-  captureException(exception, hint) {
-    const eventId = this._lastEventId = hint && hint.event_id ? hint.event_id : uuid4();
-    const syntheticException = new Error("Sentry syntheticException");
-    this.getScope().captureException(exception, __spreadProps(__spreadValues({
-      originalException: exception,
-      syntheticException
-    }, hint), {
-      event_id: eventId
-    }));
-    return eventId;
+  _pushScope() {
+    const scope = this.getScope().clone();
+    this._stack.push({
+      client: this.getClient(),
+      scope
+    });
+    return scope;
   }
   /**
-   * @inheritDoc
-   *
-   * @deprecated Use  `Sentry.captureMessage()` instead.
+   * Pop a scope from the stack.
    */
-  captureMessage(message, level, hint) {
-    const eventId = this._lastEventId = hint && hint.event_id ? hint.event_id : uuid4();
-    const syntheticException = new Error(message);
-    this.getScope().captureMessage(message, level, __spreadProps(__spreadValues({
-      originalException: message,
-      syntheticException
-    }, hint), {
-      event_id: eventId
-    }));
-    return eventId;
-  }
-  /**
-   * @inheritDoc
-   *
-   * @deprecated Use `Sentry.captureEvent()` instead.
-   */
-  captureEvent(event, hint) {
-    const eventId = hint && hint.event_id ? hint.event_id : uuid4();
-    if (!event.type) {
-      this._lastEventId = eventId;
-    }
-    this.getScope().captureEvent(event, __spreadProps(__spreadValues({}, hint), { event_id: eventId }));
-    return eventId;
-  }
-  /**
-   * @inheritDoc
-   *
-   * @deprecated This will be removed in v8.
-   */
-  lastEventId() {
-    return this._lastEventId;
-  }
-  /**
-   * @inheritDoc
-   *
-   * @deprecated Use `Sentry.addBreadcrumb()` instead.
-   */
-  addBreadcrumb(breadcrumb, hint) {
-    const { scope, client } = this.getStackTop();
-    if (!client) return;
-    const { beforeBreadcrumb = null, maxBreadcrumbs = DEFAULT_BREADCRUMBS } = client.getOptions && client.getOptions() || {};
-    if (maxBreadcrumbs <= 0) return;
-    const timestamp = dateTimestampInSeconds();
-    const mergedBreadcrumb = __spreadValues({ timestamp }, breadcrumb);
-    const finalBreadcrumb = beforeBreadcrumb ? consoleSandbox(() => beforeBreadcrumb(mergedBreadcrumb, hint)) : mergedBreadcrumb;
-    if (finalBreadcrumb === null) return;
-    if (client.emit) {
-      client.emit("beforeAddBreadcrumb", finalBreadcrumb, hint);
-    }
-    scope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use `Sentry.setUser()` instead.
-   */
-  setUser(user) {
-    this.getScope().setUser(user);
-    this.getIsolationScope().setUser(user);
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use `Sentry.setTags()` instead.
-   */
-  setTags(tags) {
-    this.getScope().setTags(tags);
-    this.getIsolationScope().setTags(tags);
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use `Sentry.setExtras()` instead.
-   */
-  setExtras(extras) {
-    this.getScope().setExtras(extras);
-    this.getIsolationScope().setExtras(extras);
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use `Sentry.setTag()` instead.
-   */
-  setTag(key, value) {
-    this.getScope().setTag(key, value);
-    this.getIsolationScope().setTag(key, value);
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use `Sentry.setExtra()` instead.
-   */
-  setExtra(key, extra) {
-    this.getScope().setExtra(key, extra);
-    this.getIsolationScope().setExtra(key, extra);
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use `Sentry.setContext()` instead.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  setContext(name, context) {
-    this.getScope().setContext(name, context);
-    this.getIsolationScope().setContext(name, context);
-  }
-  /**
-   * @inheritDoc
-   *
-   * @deprecated Use `getScope()` directly.
-   */
-  configureScope(callback) {
-    const { scope, client } = this.getStackTop();
-    if (client) {
-      callback(scope);
-    }
-  }
-  /**
-   * @inheritDoc
-   */
-  // eslint-disable-next-line deprecation/deprecation
-  run(callback) {
-    const oldHub = makeMain(this);
-    try {
-      callback(this);
-    } finally {
-      makeMain(oldHub);
-    }
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use `Sentry.getClient().getIntegrationByName()` instead.
-   */
-  getIntegration(integration) {
-    const client = this.getClient();
-    if (!client) return null;
-    try {
-      return client.getIntegration(integration);
-    } catch (_oO) {
-      DEBUG_BUILD2 && logger.warn(`Cannot retrieve integration ${integration.id} from the current Hub`);
-      return null;
-    }
-  }
-  /**
-   * Starts a new `Transaction` and returns it. This is the entry point to manual tracing instrumentation.
-   *
-   * A tree structure can be built by adding child spans to the transaction, and child spans to other spans. To start a
-   * new child span within the transaction or any span, call the respective `.startChild()` method.
-   *
-   * Every child span must be finished before the transaction is finished, otherwise the unfinished spans are discarded.
-   *
-   * The transaction must be finished with a call to its `.end()` method, at which point the transaction with all its
-   * finished child spans will be sent to Sentry.
-   *
-   * @param context Properties of the new `Transaction`.
-   * @param customSamplingContext Information given to the transaction sampling function (along with context-dependent
-   * default values). See {@link Options.tracesSampler}.
-   *
-   * @returns The transaction which was just started
-   *
-   * @deprecated Use `startSpan()`, `startSpanManual()` or `startInactiveSpan()` instead.
-   */
-  startTransaction(context, customSamplingContext) {
-    const result = this._callExtensionMethod("startTransaction", context, customSamplingContext);
-    if (DEBUG_BUILD2 && !result) {
-      const client = this.getClient();
-      if (!client) {
-        logger.warn(
-          "Tracing extension 'startTransaction' is missing. You should 'init' the SDK before calling 'startTransaction'"
-        );
-      } else {
-        logger.warn(`Tracing extension 'startTransaction' has not been added. Call 'addTracingExtensions' before calling 'init':
-Sentry.addTracingExtensions();
-Sentry.init({...});
-`);
-      }
-    }
-    return result;
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use `spanToTraceHeader()` instead.
-   */
-  traceHeaders() {
-    return this._callExtensionMethod("traceHeaders");
-  }
-  /**
-   * @inheritDoc
-   *
-   * @deprecated Use top level `captureSession` instead.
-   */
-  captureSession(endSession2 = false) {
-    if (endSession2) {
-      return this.endSession();
-    }
-    this._sendSessionUpdate();
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use top level `endSession` instead.
-   */
-  endSession() {
-    const layer = this.getStackTop();
-    const scope = layer.scope;
-    const session = scope.getSession();
-    if (session) {
-      closeSession(session);
-    }
-    this._sendSessionUpdate();
-    scope.setSession();
-  }
-  /**
-   * @inheritDoc
-   * @deprecated Use top level `startSession` instead.
-   */
-  startSession(context) {
-    const { scope, client } = this.getStackTop();
-    const { release, environment = DEFAULT_ENVIRONMENT } = client && client.getOptions() || {};
-    const { userAgent } = GLOBAL_OBJ.navigator || {};
-    const session = makeSession(__spreadValues(__spreadValues({
-      release,
-      environment,
-      user: scope.getUser()
-    }, userAgent && { userAgent }), context));
-    const currentSession = scope.getSession && scope.getSession();
-    if (currentSession && currentSession.status === "ok") {
-      updateSession(currentSession, { status: "exited" });
-    }
-    this.endSession();
-    scope.setSession(session);
-    return session;
-  }
-  /**
-   * Returns if default PII should be sent to Sentry and propagated in ourgoing requests
-   * when Tracing is used.
-   *
-   * @deprecated Use top-level `getClient().getOptions().sendDefaultPii` instead. This function
-   * only unnecessarily increased API surface but only wrapped accessing the option.
-   */
-  shouldSendDefaultPii() {
-    const client = this.getClient();
-    const options = client && client.getOptions();
-    return Boolean(options && options.sendDefaultPii);
-  }
-  /**
-   * Sends the current Session on the scope
-   */
-  _sendSessionUpdate() {
-    const { scope, client } = this.getStackTop();
-    const session = scope.getSession();
-    if (session && client && client.captureSession) {
-      client.captureSession(session);
-    }
-  }
-  /**
-   * Calls global extension method and binding current instance to the function call
-   */
-  // @ts-expect-error Function lacks ending return statement and return type does not include 'undefined'. ts(2366)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _callExtensionMethod(method, ...args) {
-    const carrier = getMainCarrier();
-    const sentry = carrier.__SENTRY__;
-    if (sentry && sentry.extensions && typeof sentry.extensions[method] === "function") {
-      return sentry.extensions[method].apply(this, args);
-    }
-    DEBUG_BUILD2 && logger.warn(`Extension method ${method} couldn't be found, doing nothing.`);
+  _popScope() {
+    if (this._stack.length <= 1) return false;
+    return !!this._stack.pop();
   }
 };
-function getMainCarrier() {
-  GLOBAL_OBJ.__SENTRY__ = GLOBAL_OBJ.__SENTRY__ || {
-    extensions: {},
-    hub: void 0
+function getAsyncContextStack() {
+  const registry = getMainCarrier();
+  const sentry = getSentryCarrier(registry);
+  return sentry.stack = sentry.stack || new AsyncContextStack(getDefaultCurrentScope(), getDefaultIsolationScope());
+}
+function withScope(callback) {
+  return getAsyncContextStack().withScope(callback);
+}
+function withSetScope(scope, callback) {
+  const stack = getAsyncContextStack();
+  return stack.withScope(() => {
+    stack.getStackTop().scope = scope;
+    return callback(scope);
+  });
+}
+function withIsolationScope(callback) {
+  return getAsyncContextStack().withScope(() => {
+    return callback(getAsyncContextStack().getIsolationScope());
+  });
+}
+function getStackAsyncContextStrategy() {
+  return {
+    withIsolationScope,
+    withScope,
+    withSetScope,
+    withSetIsolationScope: (_isolationScope, callback) => {
+      return withIsolationScope(callback);
+    },
+    getCurrentScope: () => getAsyncContextStack().getScope(),
+    getIsolationScope: () => getAsyncContextStack().getIsolationScope()
   };
-  return GLOBAL_OBJ;
-}
-function makeMain(hub) {
-  const registry = getMainCarrier();
-  const oldHub = getHubFromCarrier(registry);
-  setHubOnCarrier(registry, hub);
-  return oldHub;
-}
-function getCurrentHub() {
-  const registry = getMainCarrier();
-  if (registry.__SENTRY__ && registry.__SENTRY__.acs) {
-    const hub = registry.__SENTRY__.acs.getCurrentHub();
-    if (hub) {
-      return hub;
-    }
-  }
-  return getGlobalHub(registry);
-}
-function getIsolationScope() {
-  return getCurrentHub().getIsolationScope();
-}
-function getGlobalHub(registry = getMainCarrier()) {
-  if (!hasHubOnCarrier(registry) || // eslint-disable-next-line deprecation/deprecation
-  getHubFromCarrier(registry).isOlderThan(API_VERSION)) {
-    setHubOnCarrier(registry, new Hub());
-  }
-  return getHubFromCarrier(registry);
-}
-function hasHubOnCarrier(carrier) {
-  return !!(carrier && carrier.__SENTRY__ && carrier.__SENTRY__.hub);
-}
-function getHubFromCarrier(carrier) {
-  return getGlobalSingleton("hub", () => new Hub(), carrier);
-}
-function setHubOnCarrier(carrier, hub) {
-  if (!carrier) return false;
-  const __SENTRY__ = carrier.__SENTRY__ = carrier.__SENTRY__ || {};
-  __SENTRY__.hub = hub;
-  return true;
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/envelope.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/asyncContext/index.js
+function getAsyncContextStrategy(carrier) {
+  const sentry = getSentryCarrier(carrier);
+  if (sentry.acs) {
+    return sentry.acs;
+  }
+  return getStackAsyncContextStrategy();
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/currentScopes.js
+function getCurrentScope() {
+  const carrier = getMainCarrier();
+  const acs = getAsyncContextStrategy(carrier);
+  return acs.getCurrentScope();
+}
+function getIsolationScope() {
+  const carrier = getMainCarrier();
+  const acs = getAsyncContextStrategy(carrier);
+  return acs.getIsolationScope();
+}
+function getGlobalScope() {
+  return getGlobalSingleton("globalScope", () => new Scope());
+}
+function withScope2(...rest) {
+  const carrier = getMainCarrier();
+  const acs = getAsyncContextStrategy(carrier);
+  if (rest.length === 2) {
+    const [scope, callback] = rest;
+    if (!scope) {
+      return acs.withScope(callback);
+    }
+    return acs.withSetScope(scope, callback);
+  }
+  return acs.withScope(rest[0]);
+}
+function getClient() {
+  return getCurrentScope().getClient();
+}
+function getTraceContextFromScope(scope) {
+  const propagationContext = scope.getPropagationContext();
+  const { traceId, spanId, parentSpanId } = propagationContext;
+  const traceContext = dropUndefinedKeys({
+    trace_id: traceId,
+    span_id: spanId,
+    parent_span_id: parentSpanId
+  });
+  return traceContext;
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/metrics/metric-summary.js
+var METRICS_SPAN_FIELD = "_sentryMetrics";
+function getMetricSummaryJsonForSpan(span) {
+  const storage = span[METRICS_SPAN_FIELD];
+  if (!storage) {
+    return void 0;
+  }
+  const output = {};
+  for (const [, [exportKey, summary]] of storage) {
+    const arr = output[exportKey] || (output[exportKey] = []);
+    arr.push(dropUndefinedKeys(summary));
+  }
+  return output;
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/semanticAttributes.js
+var SEMANTIC_ATTRIBUTE_SENTRY_SOURCE = "sentry.source";
+var SEMANTIC_ATTRIBUTE_SENTRY_SAMPLE_RATE = "sentry.sample_rate";
+var SEMANTIC_ATTRIBUTE_SENTRY_OP = "sentry.op";
+var SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN = "sentry.origin";
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/tracing/spanstatus.js
+var SPAN_STATUS_UNSET = 0;
+var SPAN_STATUS_OK = 1;
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/baggage.js
+var SENTRY_BAGGAGE_KEY_PREFIX = "sentry-";
+var SENTRY_BAGGAGE_KEY_PREFIX_REGEX = /^sentry-/;
+function baggageHeaderToDynamicSamplingContext(baggageHeader) {
+  const baggageObject = parseBaggageHeader(baggageHeader);
+  if (!baggageObject) {
+    return void 0;
+  }
+  const dynamicSamplingContext = Object.entries(baggageObject).reduce((acc, [key, value]) => {
+    if (key.match(SENTRY_BAGGAGE_KEY_PREFIX_REGEX)) {
+      const nonPrefixedKey = key.slice(SENTRY_BAGGAGE_KEY_PREFIX.length);
+      acc[nonPrefixedKey] = value;
+    }
+    return acc;
+  }, {});
+  if (Object.keys(dynamicSamplingContext).length > 0) {
+    return dynamicSamplingContext;
+  } else {
+    return void 0;
+  }
+}
+function parseBaggageHeader(baggageHeader) {
+  if (!baggageHeader || !isString(baggageHeader) && !Array.isArray(baggageHeader)) {
+    return void 0;
+  }
+  if (Array.isArray(baggageHeader)) {
+    return baggageHeader.reduce((acc, curr) => {
+      const currBaggageObject = baggageHeaderToObject(curr);
+      Object.entries(currBaggageObject).forEach(([key, value]) => {
+        acc[key] = value;
+      });
+      return acc;
+    }, {});
+  }
+  return baggageHeaderToObject(baggageHeader);
+}
+function baggageHeaderToObject(baggageHeader) {
+  return baggageHeader.split(",").map((baggageEntry) => baggageEntry.split("=").map((keyOrValue) => decodeURIComponent(keyOrValue.trim()))).reduce((acc, [key, value]) => {
+    if (key && value) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils/spanUtils.js
+var TRACE_FLAG_SAMPLED = 1;
+var hasShownSpanDropWarning = false;
+function spanToTraceContext(span) {
+  const { spanId, traceId: trace_id, isRemote } = span.spanContext();
+  const parent_span_id = isRemote ? spanId : spanToJSON(span).parent_span_id;
+  const span_id = isRemote ? generateSpanId() : spanId;
+  return dropUndefinedKeys({
+    parent_span_id,
+    span_id,
+    trace_id
+  });
+}
+function spanTimeInputToSeconds(input) {
+  if (typeof input === "number") {
+    return ensureTimestampInSeconds(input);
+  }
+  if (Array.isArray(input)) {
+    return input[0] + input[1] / 1e9;
+  }
+  if (input instanceof Date) {
+    return ensureTimestampInSeconds(input.getTime());
+  }
+  return timestampInSeconds();
+}
+function ensureTimestampInSeconds(timestamp) {
+  const isMs = timestamp > 9999999999;
+  return isMs ? timestamp / 1e3 : timestamp;
+}
+function spanToJSON(span) {
+  if (spanIsSentrySpan(span)) {
+    return span.getSpanJSON();
+  }
+  try {
+    const { spanId: span_id, traceId: trace_id } = span.spanContext();
+    if (spanIsOpenTelemetrySdkTraceBaseSpan(span)) {
+      const { attributes, startTime, name, endTime, parentSpanId, status } = span;
+      return dropUndefinedKeys({
+        span_id,
+        trace_id,
+        data: attributes,
+        description: name,
+        parent_span_id: parentSpanId,
+        start_timestamp: spanTimeInputToSeconds(startTime),
+        // This is [0,0] by default in OTEL, in which case we want to interpret this as no end time
+        timestamp: spanTimeInputToSeconds(endTime) || void 0,
+        status: getStatusMessage(status),
+        op: attributes[SEMANTIC_ATTRIBUTE_SENTRY_OP],
+        origin: attributes[SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN],
+        _metrics_summary: getMetricSummaryJsonForSpan(span)
+      });
+    }
+    return {
+      span_id,
+      trace_id
+    };
+  } catch (e) {
+    return {};
+  }
+}
+function spanIsOpenTelemetrySdkTraceBaseSpan(span) {
+  const castSpan = span;
+  return !!castSpan.attributes && !!castSpan.startTime && !!castSpan.name && !!castSpan.endTime && !!castSpan.status;
+}
+function spanIsSentrySpan(span) {
+  return typeof span.getSpanJSON === "function";
+}
+function spanIsSampled(span) {
+  const { traceFlags } = span.spanContext();
+  return traceFlags === TRACE_FLAG_SAMPLED;
+}
+function getStatusMessage(status) {
+  if (!status || status.code === SPAN_STATUS_UNSET) {
+    return void 0;
+  }
+  if (status.code === SPAN_STATUS_OK) {
+    return "ok";
+  }
+  return status.message || "unknown_error";
+}
+var ROOT_SPAN_FIELD = "_sentryRootSpan";
+function getRootSpan(span) {
+  return span[ROOT_SPAN_FIELD] || span;
+}
+function showSpanDropWarning() {
+  if (!hasShownSpanDropWarning) {
+    consoleSandbox(() => {
+      console.warn(
+        "[Sentry] Deprecation warning: Returning null from `beforeSendSpan` will be disallowed from SDK version 9.0.0 onwards. The callback will only support mutating spans. To drop certain spans, configure the respective integrations directly."
+      );
+    });
+    hasShownSpanDropWarning = true;
+  }
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils/hasTracingEnabled.js
+function hasTracingEnabled(maybeOptions) {
+  if (typeof __SENTRY_TRACING__ === "boolean" && !__SENTRY_TRACING__) {
+    return false;
+  }
+  const client = getClient();
+  const options = client && client.getOptions();
+  return !!options && (options.enableTracing || "tracesSampleRate" in options || "tracesSampler" in options);
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/constants.js
+var DEFAULT_ENVIRONMENT = "production";
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/tracing/dynamicSamplingContext.js
+var FROZEN_DSC_FIELD = "_frozenDsc";
+function getDynamicSamplingContextFromClient(trace_id, client) {
+  const options = client.getOptions();
+  const { publicKey: public_key } = client.getDsn() || {};
+  const dsc = dropUndefinedKeys({
+    environment: options.environment || DEFAULT_ENVIRONMENT,
+    release: options.release,
+    public_key,
+    trace_id
+  });
+  client.emit("createDsc", dsc);
+  return dsc;
+}
+function getDynamicSamplingContextFromScope(client, scope) {
+  const propagationContext = scope.getPropagationContext();
+  return propagationContext.dsc || getDynamicSamplingContextFromClient(propagationContext.traceId, client);
+}
+function getDynamicSamplingContextFromSpan(span) {
+  const client = getClient();
+  if (!client) {
+    return {};
+  }
+  const rootSpan = getRootSpan(span);
+  const frozenDsc = rootSpan[FROZEN_DSC_FIELD];
+  if (frozenDsc) {
+    return frozenDsc;
+  }
+  const traceState = rootSpan.spanContext().traceState;
+  const traceStateDsc = traceState && traceState.get("sentry.dsc");
+  const dscOnTraceState = traceStateDsc && baggageHeaderToDynamicSamplingContext(traceStateDsc);
+  if (dscOnTraceState) {
+    return dscOnTraceState;
+  }
+  const dsc = getDynamicSamplingContextFromClient(span.spanContext().traceId, client);
+  const jsonSpan = spanToJSON(rootSpan);
+  const attributes = jsonSpan.data || {};
+  const maybeSampleRate = attributes[SEMANTIC_ATTRIBUTE_SENTRY_SAMPLE_RATE];
+  if (maybeSampleRate != null) {
+    dsc.sample_rate = `${maybeSampleRate}`;
+  }
+  const source = attributes[SEMANTIC_ATTRIBUTE_SENTRY_SOURCE];
+  const name = jsonSpan.description;
+  if (source !== "url" && name) {
+    dsc.transaction = name;
+  }
+  if (hasTracingEnabled()) {
+    dsc.sampled = String(spanIsSampled(rootSpan));
+  }
+  client.emit("createDsc", dsc, rootSpan);
+  return dsc;
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils/parseSampleRate.js
+function parseSampleRate(sampleRate) {
+  if (typeof sampleRate === "boolean") {
+    return Number(sampleRate);
+  }
+  const rate = typeof sampleRate === "string" ? parseFloat(sampleRate) : sampleRate;
+  if (typeof rate !== "number" || isNaN(rate) || rate < 0 || rate > 1) {
+    DEBUG_BUILD && logger.warn(
+      `[Tracing] Given sample rate is invalid. Sample rate must be a boolean or a number between 0 and 1. Got ${JSON.stringify(
+        sampleRate
+      )} of type ${JSON.stringify(typeof sampleRate)}.`
+    );
+    return void 0;
+  }
+  return rate;
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/dsn.js
+var DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)([\w.-]+)(?::(\d+))?\/(.+)/;
+function isValidProtocol(protocol) {
+  return protocol === "http" || protocol === "https";
+}
+function dsnToString(dsn, withPassword = false) {
+  const { host, path, pass, port, projectId, protocol, publicKey } = dsn;
+  return `${protocol}://${publicKey}${withPassword && pass ? `:${pass}` : ""}@${host}${port ? `:${port}` : ""}/${path ? `${path}/` : path}${projectId}`;
+}
+function dsnFromString(str) {
+  const match = DSN_REGEX.exec(str);
+  if (!match) {
+    consoleSandbox(() => {
+      console.error(`Invalid Sentry Dsn: ${str}`);
+    });
+    return void 0;
+  }
+  const [protocol, publicKey, pass = "", host = "", port = "", lastPath = ""] = match.slice(1);
+  let path = "";
+  let projectId = lastPath;
+  const split = projectId.split("/");
+  if (split.length > 1) {
+    path = split.slice(0, -1).join("/");
+    projectId = split.pop();
+  }
+  if (projectId) {
+    const projectMatch = projectId.match(/^\d+/);
+    if (projectMatch) {
+      projectId = projectMatch[0];
+    }
+  }
+  return dsnFromComponents({ host, pass, path, projectId, port, protocol, publicKey });
+}
+function dsnFromComponents(components) {
+  return {
+    protocol: components.protocol,
+    publicKey: components.publicKey || "",
+    pass: components.pass || "",
+    host: components.host,
+    port: components.port || "",
+    path: components.path || "",
+    projectId: components.projectId
+  };
+}
+function validateDsn(dsn) {
+  if (!DEBUG_BUILD2) {
+    return true;
+  }
+  const { port, projectId, protocol } = dsn;
+  const requiredComponents = ["protocol", "publicKey", "host", "projectId"];
+  const hasMissingRequiredComponent = requiredComponents.find((component) => {
+    if (!dsn[component]) {
+      logger.error(`Invalid Sentry Dsn: ${component} missing`);
+      return true;
+    }
+    return false;
+  });
+  if (hasMissingRequiredComponent) {
+    return false;
+  }
+  if (!projectId.match(/^\d+$/)) {
+    logger.error(`Invalid Sentry Dsn: Invalid projectId ${projectId}`);
+    return false;
+  }
+  if (!isValidProtocol(protocol)) {
+    logger.error(`Invalid Sentry Dsn: Invalid protocol ${protocol}`);
+    return false;
+  }
+  if (port && isNaN(parseInt(port, 10))) {
+    logger.error(`Invalid Sentry Dsn: Invalid port ${port}`);
+    return false;
+  }
+  return true;
+}
+function makeDsn(from) {
+  const components = typeof from === "string" ? dsnFromString(from) : dsnFromComponents(from);
+  if (!components || !validateDsn(components)) {
+    return void 0;
+  }
+  return components;
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/memo.js
+function memoBuilder() {
+  const hasWeakSet = typeof WeakSet === "function";
+  const inner = hasWeakSet ? /* @__PURE__ */ new WeakSet() : [];
+  function memoize(obj) {
+    if (hasWeakSet) {
+      if (inner.has(obj)) {
+        return true;
+      }
+      inner.add(obj);
+      return false;
+    }
+    for (let i = 0; i < inner.length; i++) {
+      const value = inner[i];
+      if (value === obj) {
+        return true;
+      }
+    }
+    inner.push(obj);
+    return false;
+  }
+  function unmemoize(obj) {
+    if (hasWeakSet) {
+      inner.delete(obj);
+    } else {
+      for (let i = 0; i < inner.length; i++) {
+        if (inner[i] === obj) {
+          inner.splice(i, 1);
+          break;
+        }
+      }
+    }
+  }
+  return [memoize, unmemoize];
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/normalize.js
+function normalize(input, depth = 100, maxProperties = Infinity) {
+  try {
+    return visit("", input, depth, maxProperties);
+  } catch (err) {
+    return { ERROR: `**non-serializable** (${err})` };
+  }
+}
+function normalizeToSize(object, depth = 3, maxSize = 100 * 1024) {
+  const normalized = normalize(object, depth);
+  if (jsonSize(normalized) > maxSize) {
+    return normalizeToSize(object, depth - 1, maxSize);
+  }
+  return normalized;
+}
+function visit(key, value, depth = Infinity, maxProperties = Infinity, memo = memoBuilder()) {
+  const [memoize, unmemoize] = memo;
+  if (value == null || // this matches null and undefined -> eqeq not eqeqeq
+  ["boolean", "string"].includes(typeof value) || typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const stringified = stringifyValue(key, value);
+  if (!stringified.startsWith("[object ")) {
+    return stringified;
+  }
+  if (value["__sentry_skip_normalization__"]) {
+    return value;
+  }
+  const remainingDepth = typeof value["__sentry_override_normalization_depth__"] === "number" ? value["__sentry_override_normalization_depth__"] : depth;
+  if (remainingDepth === 0) {
+    return stringified.replace("object ", "");
+  }
+  if (memoize(value)) {
+    return "[Circular ~]";
+  }
+  const valueWithToJSON = value;
+  if (valueWithToJSON && typeof valueWithToJSON.toJSON === "function") {
+    try {
+      const jsonValue = valueWithToJSON.toJSON();
+      return visit("", jsonValue, remainingDepth - 1, maxProperties, memo);
+    } catch (err) {
+    }
+  }
+  const normalized = Array.isArray(value) ? [] : {};
+  let numAdded = 0;
+  const visitable = convertToPlainObject(value);
+  for (const visitKey in visitable) {
+    if (!Object.prototype.hasOwnProperty.call(visitable, visitKey)) {
+      continue;
+    }
+    if (numAdded >= maxProperties) {
+      normalized[visitKey] = "[MaxProperties ~]";
+      break;
+    }
+    const visitValue = visitable[visitKey];
+    normalized[visitKey] = visit(visitKey, visitValue, remainingDepth - 1, maxProperties, memo);
+    numAdded++;
+  }
+  unmemoize(value);
+  return normalized;
+}
+function stringifyValue(key, value) {
+  try {
+    if (key === "domain" && value && typeof value === "object" && value._events) {
+      return "[Domain]";
+    }
+    if (key === "domainEmitter") {
+      return "[DomainEmitter]";
+    }
+    if (typeof global !== "undefined" && value === global) {
+      return "[Global]";
+    }
+    if (typeof window !== "undefined" && value === window) {
+      return "[Window]";
+    }
+    if (typeof document !== "undefined" && value === document) {
+      return "[Document]";
+    }
+    if (isVueViewModel(value)) {
+      return "[VueViewModel]";
+    }
+    if (isSyntheticEvent(value)) {
+      return "[SyntheticEvent]";
+    }
+    if (typeof value === "number" && !Number.isFinite(value)) {
+      return `[${value}]`;
+    }
+    if (typeof value === "function") {
+      return `[Function: ${getFunctionName(value)}]`;
+    }
+    if (typeof value === "symbol") {
+      return `[${String(value)}]`;
+    }
+    if (typeof value === "bigint") {
+      return `[BigInt: ${String(value)}]`;
+    }
+    const objName = getConstructorName(value);
+    if (/^HTML(\w*)Element$/.test(objName)) {
+      return `[HTMLElement: ${objName}]`;
+    }
+    return `[object ${objName}]`;
+  } catch (err) {
+    return `**non-serializable** (${err})`;
+  }
+}
+function getConstructorName(value) {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype ? prototype.constructor.name : "null prototype";
+}
+function utf8Length(value) {
+  return ~-encodeURI(value).split(/%..|./).length;
+}
+function jsonSize(value) {
+  return utf8Length(JSON.stringify(value));
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/envelope.js
+function createEnvelope(headers, items = []) {
+  return [headers, items];
+}
+function addItemToEnvelope(envelope, newItem) {
+  const [headers, items] = envelope;
+  return [headers, [...items, newItem]];
+}
+function forEachEnvelopeItem(envelope, callback) {
+  const envelopeItems = envelope[1];
+  for (const envelopeItem of envelopeItems) {
+    const envelopeItemType = envelopeItem[0].type;
+    const result = callback(envelopeItem, envelopeItemType);
+    if (result) {
+      return true;
+    }
+  }
+  return false;
+}
+function encodeUTF8(input) {
+  return GLOBAL_OBJ2.__SENTRY__ && GLOBAL_OBJ2.__SENTRY__.encodePolyfill ? GLOBAL_OBJ2.__SENTRY__.encodePolyfill(input) : new TextEncoder().encode(input);
+}
+function serializeEnvelope(envelope) {
+  const [envHeaders, items] = envelope;
+  let parts = JSON.stringify(envHeaders);
+  function append(next) {
+    if (typeof parts === "string") {
+      parts = typeof next === "string" ? parts + next : [encodeUTF8(parts), next];
+    } else {
+      parts.push(typeof next === "string" ? encodeUTF8(next) : next);
+    }
+  }
+  for (const item of items) {
+    const [itemHeaders, payload] = item;
+    append(`
+${JSON.stringify(itemHeaders)}
+`);
+    if (typeof payload === "string" || payload instanceof Uint8Array) {
+      append(payload);
+    } else {
+      let stringifiedPayload;
+      try {
+        stringifiedPayload = JSON.stringify(payload);
+      } catch (e) {
+        stringifiedPayload = JSON.stringify(normalize(payload));
+      }
+      append(stringifiedPayload);
+    }
+  }
+  return typeof parts === "string" ? parts : concatBuffers(parts);
+}
+function concatBuffers(buffers) {
+  const totalLength = buffers.reduce((acc, buf) => acc + buf.length, 0);
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const buffer of buffers) {
+    merged.set(buffer, offset);
+    offset += buffer.length;
+  }
+  return merged;
+}
+function createAttachmentEnvelopeItem(attachment) {
+  const buffer = typeof attachment.data === "string" ? encodeUTF8(attachment.data) : attachment.data;
+  return [
+    dropUndefinedKeys({
+      type: "attachment",
+      length: buffer.length,
+      filename: attachment.filename,
+      content_type: attachment.contentType,
+      attachment_type: attachment.attachmentType
+    }),
+    buffer
+  ];
+}
+var ITEM_TYPE_TO_DATA_CATEGORY_MAP = {
+  session: "session",
+  sessions: "session",
+  attachment: "attachment",
+  transaction: "transaction",
+  event: "error",
+  client_report: "internal",
+  user_report: "default",
+  profile: "profile",
+  profile_chunk: "profile",
+  replay_event: "replay",
+  replay_recording: "replay",
+  check_in: "monitor",
+  feedback: "feedback",
+  span: "span",
+  statsd: "metric_bucket",
+  raw_security: "security"
+};
+function envelopeItemTypeToDataCategory(type) {
+  return ITEM_TYPE_TO_DATA_CATEGORY_MAP[type];
+}
+function getSdkMetadataForEnvelopeHeader(metadataOrEvent) {
+  if (!metadataOrEvent || !metadataOrEvent.sdk) {
+    return;
+  }
+  const { name, version } = metadataOrEvent.sdk;
+  return { name, version };
+}
+function createEventEnvelopeHeaders(event, sdkInfo, tunnel, dsn) {
+  const dynamicSamplingContext = event.sdkProcessingMetadata && event.sdkProcessingMetadata.dynamicSamplingContext;
+  return __spreadValues(__spreadValues(__spreadValues({
+    event_id: event.event_id,
+    sent_at: (/* @__PURE__ */ new Date()).toISOString()
+  }, sdkInfo && { sdk: sdkInfo }), !!tunnel && dsn && { dsn: dsnToString(dsn) }), dynamicSamplingContext && {
+    trace: dropUndefinedKeys(__spreadValues({}, dynamicSamplingContext))
+  });
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/envelope.js
 function enhanceEventWithSdkInfo(event, sdkInfo) {
   if (!sdkInfo) {
     return event;
@@ -2989,7 +2173,448 @@ function createEventEnvelope(event, dsn, metadata, tunnel) {
   return createEnvelope(envelopeHeaders, [eventItem]);
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/api.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/eventProcessors.js
+function notifyEventProcessors(processors, event, hint, index = 0) {
+  return new SyncPromise((resolve2, reject) => {
+    const processor = processors[index];
+    if (event === null || typeof processor !== "function") {
+      resolve2(event);
+    } else {
+      const result = processor(__spreadValues({}, event), hint);
+      DEBUG_BUILD && processor.id && result === null && logger.log(`Event processor "${processor.id}" dropped event`);
+      if (isThenable(result)) {
+        void result.then((final) => notifyEventProcessors(processors, final, hint, index + 1).then(resolve2)).then(null, reject);
+      } else {
+        void notifyEventProcessors(processors, result, hint, index + 1).then(resolve2).then(null, reject);
+      }
+    }
+  });
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/debug-ids.js
+var parsedStackResults;
+var lastKeysCount;
+var cachedFilenameDebugIds;
+function getFilenameToDebugIdMap(stackParser) {
+  const debugIdMap = GLOBAL_OBJ2._sentryDebugIds;
+  if (!debugIdMap) {
+    return {};
+  }
+  const debugIdKeys = Object.keys(debugIdMap);
+  if (cachedFilenameDebugIds && debugIdKeys.length === lastKeysCount) {
+    return cachedFilenameDebugIds;
+  }
+  lastKeysCount = debugIdKeys.length;
+  cachedFilenameDebugIds = debugIdKeys.reduce((acc, stackKey) => {
+    if (!parsedStackResults) {
+      parsedStackResults = {};
+    }
+    const result = parsedStackResults[stackKey];
+    if (result) {
+      acc[result[0]] = result[1];
+    } else {
+      const parsedStack = stackParser(stackKey);
+      for (let i = parsedStack.length - 1; i >= 0; i--) {
+        const stackFrame = parsedStack[i];
+        const filename = stackFrame && stackFrame.filename;
+        const debugId = debugIdMap[stackKey];
+        if (filename && debugId) {
+          acc[filename] = debugId;
+          parsedStackResults[stackKey] = [filename, debugId];
+          break;
+        }
+      }
+    }
+    return acc;
+  }, {});
+  return cachedFilenameDebugIds;
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils/applyScopeDataToEvent.js
+function applyScopeDataToEvent(event, data) {
+  const { fingerprint, span, breadcrumbs, sdkProcessingMetadata } = data;
+  applyDataToEvent(event, data);
+  if (span) {
+    applySpanToEvent(event, span);
+  }
+  applyFingerprintToEvent(event, fingerprint);
+  applyBreadcrumbsToEvent(event, breadcrumbs);
+  applySdkMetadataToEvent(event, sdkProcessingMetadata);
+}
+function mergeScopeData(data, mergeData) {
+  const {
+    extra,
+    tags,
+    user,
+    contexts,
+    level,
+    sdkProcessingMetadata,
+    breadcrumbs,
+    fingerprint,
+    eventProcessors,
+    attachments,
+    propagationContext,
+    transactionName,
+    span
+  } = mergeData;
+  mergeAndOverwriteScopeData(data, "extra", extra);
+  mergeAndOverwriteScopeData(data, "tags", tags);
+  mergeAndOverwriteScopeData(data, "user", user);
+  mergeAndOverwriteScopeData(data, "contexts", contexts);
+  data.sdkProcessingMetadata = merge(data.sdkProcessingMetadata, sdkProcessingMetadata, 2);
+  if (level) {
+    data.level = level;
+  }
+  if (transactionName) {
+    data.transactionName = transactionName;
+  }
+  if (span) {
+    data.span = span;
+  }
+  if (breadcrumbs.length) {
+    data.breadcrumbs = [...data.breadcrumbs, ...breadcrumbs];
+  }
+  if (fingerprint.length) {
+    data.fingerprint = [...data.fingerprint, ...fingerprint];
+  }
+  if (eventProcessors.length) {
+    data.eventProcessors = [...data.eventProcessors, ...eventProcessors];
+  }
+  if (attachments.length) {
+    data.attachments = [...data.attachments, ...attachments];
+  }
+  data.propagationContext = __spreadValues(__spreadValues({}, data.propagationContext), propagationContext);
+}
+function mergeAndOverwriteScopeData(data, prop, mergeVal) {
+  data[prop] = merge(data[prop], mergeVal, 1);
+}
+function applyDataToEvent(event, data) {
+  const { extra, tags, user, contexts, level, transactionName } = data;
+  const cleanedExtra = dropUndefinedKeys(extra);
+  if (cleanedExtra && Object.keys(cleanedExtra).length) {
+    event.extra = __spreadValues(__spreadValues({}, cleanedExtra), event.extra);
+  }
+  const cleanedTags = dropUndefinedKeys(tags);
+  if (cleanedTags && Object.keys(cleanedTags).length) {
+    event.tags = __spreadValues(__spreadValues({}, cleanedTags), event.tags);
+  }
+  const cleanedUser = dropUndefinedKeys(user);
+  if (cleanedUser && Object.keys(cleanedUser).length) {
+    event.user = __spreadValues(__spreadValues({}, cleanedUser), event.user);
+  }
+  const cleanedContexts = dropUndefinedKeys(contexts);
+  if (cleanedContexts && Object.keys(cleanedContexts).length) {
+    event.contexts = __spreadValues(__spreadValues({}, cleanedContexts), event.contexts);
+  }
+  if (level) {
+    event.level = level;
+  }
+  if (transactionName && event.type !== "transaction") {
+    event.transaction = transactionName;
+  }
+}
+function applyBreadcrumbsToEvent(event, breadcrumbs) {
+  const mergedBreadcrumbs = [...event.breadcrumbs || [], ...breadcrumbs];
+  event.breadcrumbs = mergedBreadcrumbs.length ? mergedBreadcrumbs : void 0;
+}
+function applySdkMetadataToEvent(event, sdkProcessingMetadata) {
+  event.sdkProcessingMetadata = __spreadValues(__spreadValues({}, event.sdkProcessingMetadata), sdkProcessingMetadata);
+}
+function applySpanToEvent(event, span) {
+  event.contexts = __spreadValues({
+    trace: spanToTraceContext(span)
+  }, event.contexts);
+  event.sdkProcessingMetadata = __spreadValues({
+    dynamicSamplingContext: getDynamicSamplingContextFromSpan(span)
+  }, event.sdkProcessingMetadata);
+  const rootSpan = getRootSpan(span);
+  const transactionName = spanToJSON(rootSpan).description;
+  if (transactionName && !event.transaction && event.type === "transaction") {
+    event.transaction = transactionName;
+  }
+}
+function applyFingerprintToEvent(event, fingerprint) {
+  event.fingerprint = event.fingerprint ? Array.isArray(event.fingerprint) ? event.fingerprint : [event.fingerprint] : [];
+  if (fingerprint) {
+    event.fingerprint = event.fingerprint.concat(fingerprint);
+  }
+  if (event.fingerprint && !event.fingerprint.length) {
+    delete event.fingerprint;
+  }
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils/prepareEvent.js
+function prepareEvent(options, event, hint, scope, client, isolationScope) {
+  const { normalizeDepth = 3, normalizeMaxBreadth = 1e3 } = options;
+  const prepared = __spreadProps(__spreadValues({}, event), {
+    event_id: event.event_id || hint.event_id || uuid4(),
+    timestamp: event.timestamp || dateTimestampInSeconds()
+  });
+  const integrations = hint.integrations || options.integrations.map((i) => i.name);
+  applyClientOptions(prepared, options);
+  applyIntegrationsMetadata(prepared, integrations);
+  if (client) {
+    client.emit("applyFrameMetadata", event);
+  }
+  if (event.type === void 0) {
+    applyDebugIds(prepared, options.stackParser);
+  }
+  const finalScope = getFinalScope(scope, hint.captureContext);
+  if (hint.mechanism) {
+    addExceptionMechanism(prepared, hint.mechanism);
+  }
+  const clientEventProcessors = client ? client.getEventProcessors() : [];
+  const data = getGlobalScope().getScopeData();
+  if (isolationScope) {
+    const isolationData = isolationScope.getScopeData();
+    mergeScopeData(data, isolationData);
+  }
+  if (finalScope) {
+    const finalScopeData = finalScope.getScopeData();
+    mergeScopeData(data, finalScopeData);
+  }
+  const attachments = [...hint.attachments || [], ...data.attachments];
+  if (attachments.length) {
+    hint.attachments = attachments;
+  }
+  applyScopeDataToEvent(prepared, data);
+  const eventProcessors = [
+    ...clientEventProcessors,
+    // Run scope event processors _after_ all other processors
+    ...data.eventProcessors
+  ];
+  const result = notifyEventProcessors(eventProcessors, prepared, hint);
+  return result.then((evt) => {
+    if (evt) {
+      applyDebugMeta(evt);
+    }
+    if (typeof normalizeDepth === "number" && normalizeDepth > 0) {
+      return normalizeEvent(evt, normalizeDepth, normalizeMaxBreadth);
+    }
+    return evt;
+  });
+}
+function applyClientOptions(event, options) {
+  const { environment, release, dist, maxValueLength = 250 } = options;
+  event.environment = event.environment || environment || DEFAULT_ENVIRONMENT;
+  if (!event.release && release) {
+    event.release = release;
+  }
+  if (!event.dist && dist) {
+    event.dist = dist;
+  }
+  if (event.message) {
+    event.message = truncate(event.message, maxValueLength);
+  }
+  const exception = event.exception && event.exception.values && event.exception.values[0];
+  if (exception && exception.value) {
+    exception.value = truncate(exception.value, maxValueLength);
+  }
+  const request = event.request;
+  if (request && request.url) {
+    request.url = truncate(request.url, maxValueLength);
+  }
+}
+function applyDebugIds(event, stackParser) {
+  const filenameDebugIdMap = getFilenameToDebugIdMap(stackParser);
+  try {
+    event.exception.values.forEach((exception) => {
+      exception.stacktrace.frames.forEach((frame) => {
+        if (filenameDebugIdMap && frame.filename) {
+          frame.debug_id = filenameDebugIdMap[frame.filename];
+        }
+      });
+    });
+  } catch (e) {
+  }
+}
+function applyDebugMeta(event) {
+  const filenameDebugIdMap = {};
+  try {
+    event.exception.values.forEach((exception) => {
+      exception.stacktrace.frames.forEach((frame) => {
+        if (frame.debug_id) {
+          if (frame.abs_path) {
+            filenameDebugIdMap[frame.abs_path] = frame.debug_id;
+          } else if (frame.filename) {
+            filenameDebugIdMap[frame.filename] = frame.debug_id;
+          }
+          delete frame.debug_id;
+        }
+      });
+    });
+  } catch (e) {
+  }
+  if (Object.keys(filenameDebugIdMap).length === 0) {
+    return;
+  }
+  event.debug_meta = event.debug_meta || {};
+  event.debug_meta.images = event.debug_meta.images || [];
+  const images = event.debug_meta.images;
+  Object.entries(filenameDebugIdMap).forEach(([filename, debug_id]) => {
+    images.push({
+      type: "sourcemap",
+      code_file: filename,
+      debug_id
+    });
+  });
+}
+function applyIntegrationsMetadata(event, integrationNames) {
+  if (integrationNames.length > 0) {
+    event.sdk = event.sdk || {};
+    event.sdk.integrations = [...event.sdk.integrations || [], ...integrationNames];
+  }
+}
+function normalizeEvent(event, depth, maxBreadth) {
+  if (!event) {
+    return null;
+  }
+  const normalized = __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({}, event), event.breadcrumbs && {
+    breadcrumbs: event.breadcrumbs.map((b) => __spreadValues(__spreadValues({}, b), b.data && {
+      data: normalize(b.data, depth, maxBreadth)
+    }))
+  }), event.user && {
+    user: normalize(event.user, depth, maxBreadth)
+  }), event.contexts && {
+    contexts: normalize(event.contexts, depth, maxBreadth)
+  }), event.extra && {
+    extra: normalize(event.extra, depth, maxBreadth)
+  });
+  if (event.contexts && event.contexts.trace && normalized.contexts) {
+    normalized.contexts.trace = event.contexts.trace;
+    if (event.contexts.trace.data) {
+      normalized.contexts.trace.data = normalize(event.contexts.trace.data, depth, maxBreadth);
+    }
+  }
+  if (event.spans) {
+    normalized.spans = event.spans.map((span) => {
+      return __spreadValues(__spreadValues({}, span), span.data && {
+        data: normalize(span.data, depth, maxBreadth)
+      });
+    });
+  }
+  if (event.contexts && event.contexts.flags && normalized.contexts) {
+    normalized.contexts.flags = normalize(event.contexts.flags, 3, maxBreadth);
+  }
+  return normalized;
+}
+function getFinalScope(scope, captureContext) {
+  if (!captureContext) {
+    return scope;
+  }
+  const finalScope = scope ? scope.clone() : new Scope();
+  finalScope.update(captureContext);
+  return finalScope;
+}
+function parseEventHintOrCaptureContext(hint) {
+  if (!hint) {
+    return void 0;
+  }
+  if (hintIsScopeOrFunction(hint)) {
+    return { captureContext: hint };
+  }
+  if (hintIsScopeContext(hint)) {
+    return {
+      captureContext: hint
+    };
+  }
+  return hint;
+}
+function hintIsScopeOrFunction(hint) {
+  return hint instanceof Scope || typeof hint === "function";
+}
+var captureContextKeys = [
+  "user",
+  "level",
+  "extra",
+  "contexts",
+  "tags",
+  "fingerprint",
+  "requestSession",
+  "propagationContext"
+];
+function hintIsScopeContext(hint) {
+  return Object.keys(hint).some((key) => captureContextKeys.includes(key));
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/exports.js
+function captureException(exception, hint) {
+  return getCurrentScope().captureException(exception, parseEventHintOrCaptureContext(hint));
+}
+function captureMessage(message, captureContext) {
+  const level = typeof captureContext === "string" ? captureContext : void 0;
+  const context = typeof captureContext !== "string" ? { captureContext } : void 0;
+  return getCurrentScope().captureMessage(message, level, context);
+}
+function captureEvent(event, hint) {
+  return getCurrentScope().captureEvent(event, hint);
+}
+function setContext(name, context) {
+  getIsolationScope().setContext(name, context);
+}
+function setExtras(extras) {
+  getIsolationScope().setExtras(extras);
+}
+function setExtra(key, extra) {
+  getIsolationScope().setExtra(key, extra);
+}
+function setTags(tags) {
+  getIsolationScope().setTags(tags);
+}
+function setTag(key, value) {
+  getIsolationScope().setTag(key, value);
+}
+function setUser(user) {
+  getIsolationScope().setUser(user);
+}
+function lastEventId() {
+  return getIsolationScope().lastEventId();
+}
+function addEventProcessor(callback) {
+  getIsolationScope().addEventProcessor(callback);
+}
+function startSession(context) {
+  const client = getClient();
+  const isolationScope = getIsolationScope();
+  const currentScope = getCurrentScope();
+  const { release, environment = DEFAULT_ENVIRONMENT } = client && client.getOptions() || {};
+  const { userAgent } = GLOBAL_OBJ2.navigator || {};
+  const session = makeSession(__spreadValues(__spreadValues({
+    release,
+    environment,
+    user: currentScope.getUser() || isolationScope.getUser()
+  }, userAgent && { userAgent }), context));
+  const currentSession = isolationScope.getSession();
+  if (currentSession && currentSession.status === "ok") {
+    updateSession(currentSession, { status: "exited" });
+  }
+  endSession();
+  isolationScope.setSession(session);
+  currentScope.setSession(session);
+  return session;
+}
+function endSession() {
+  const isolationScope = getIsolationScope();
+  const currentScope = getCurrentScope();
+  const session = currentScope.getSession() || isolationScope.getSession();
+  if (session) {
+    closeSession(session);
+  }
+  _sendSessionUpdate();
+  isolationScope.setSession();
+  currentScope.setSession();
+}
+function _sendSessionUpdate() {
+  const isolationScope = getIsolationScope();
+  const currentScope = getCurrentScope();
+  const client = getClient();
+  const session = currentScope.getSession() || isolationScope.getSession();
+  if (session && client) {
+    client.captureSession(session);
+  }
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/api.js
 var SENTRY_API_VERSION = "7";
 function getBaseApiEndpoint(dsn) {
   const protocol = dsn.protocol ? `${dsn.protocol}:` : "";
@@ -3000,20 +2625,22 @@ function _getIngestEndpoint(dsn) {
   return `${getBaseApiEndpoint(dsn)}${dsn.projectId}/envelope/`;
 }
 function _encodedAuth(dsn, sdkInfo) {
-  return urlEncode(__spreadValues({
-    // We send only the minimum set of required information. See
-    // https://github.com/getsentry/sentry-javascript/issues/2572.
-    sentry_key: dsn.publicKey,
+  const params = {
     sentry_version: SENTRY_API_VERSION
-  }, sdkInfo && { sentry_client: `${sdkInfo.name}/${sdkInfo.version}` }));
+  };
+  if (dsn.publicKey) {
+    params.sentry_key = dsn.publicKey;
+  }
+  if (sdkInfo) {
+    params.sentry_client = `${sdkInfo.name}/${sdkInfo.version}`;
+  }
+  return new URLSearchParams(params).toString();
 }
-function getEnvelopeEndpointWithUrlEncodedAuth(dsn, tunnelOrOptions = {}) {
-  const tunnel = typeof tunnelOrOptions === "string" ? tunnelOrOptions : tunnelOrOptions.tunnel;
-  const sdkInfo = typeof tunnelOrOptions === "string" || !tunnelOrOptions._metadata ? void 0 : tunnelOrOptions._metadata.sdk;
+function getEnvelopeEndpointWithUrlEncodedAuth(dsn, tunnel, sdkInfo) {
   return tunnel ? tunnel : `${_getIngestEndpoint(dsn)}?${_encodedAuth(dsn, sdkInfo)}`;
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/integration.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/integration.js
 var installedIntegrations = [];
 function setupIntegrations(client, integrations) {
   const integrationIndex = {};
@@ -3033,92 +2660,61 @@ function afterSetupIntegrations(client, integrations) {
 }
 function setupIntegration(client, integration, integrationIndex) {
   if (integrationIndex[integration.name]) {
-    DEBUG_BUILD2 && logger.log(`Integration skipped because it was already installed: ${integration.name}`);
+    DEBUG_BUILD && logger.log(`Integration skipped because it was already installed: ${integration.name}`);
     return;
   }
   integrationIndex[integration.name] = integration;
-  if (installedIntegrations.indexOf(integration.name) === -1) {
-    integration.setupOnce(addGlobalEventProcessor, getCurrentHub);
+  if (installedIntegrations.indexOf(integration.name) === -1 && typeof integration.setupOnce === "function") {
+    integration.setupOnce();
     installedIntegrations.push(integration.name);
   }
   if (integration.setup && typeof integration.setup === "function") {
     integration.setup(client);
   }
-  if (client.on && typeof integration.preprocessEvent === "function") {
+  if (typeof integration.preprocessEvent === "function") {
     const callback = integration.preprocessEvent.bind(integration);
     client.on("preprocessEvent", (event, hint) => callback(event, hint, client));
   }
-  if (client.addEventProcessor && typeof integration.processEvent === "function") {
+  if (typeof integration.processEvent === "function") {
     const callback = integration.processEvent.bind(integration);
     const processor = Object.assign((event, hint) => callback(event, hint, client), {
       id: integration.name
     });
     client.addEventProcessor(processor);
   }
-  DEBUG_BUILD2 && logger.log(`Integration installed: ${integration.name}`);
-}
-function convertIntegrationFnToClass(name, fn) {
-  return Object.assign(
-    function ConvertedIntegration(...args) {
-      return fn(...args);
-    },
-    { id: name }
-  );
+  DEBUG_BUILD && logger.log(`Integration installed: ${integration.name}`);
 }
 function defineIntegration(fn) {
   return fn;
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/metrics/utils.js
-function serializeMetricBuckets(metricBucketItems) {
-  let out = "";
-  for (const item of metricBucketItems) {
-    const tagEntries = Object.entries(item.tags);
-    const maybeTags = tagEntries.length > 0 ? `|#${tagEntries.map(([key, value]) => `${key}:${value}`).join(",")}` : "";
-    out += `${item.name}@${item.unit}:${item.metric}|${item.metricType}${maybeTags}|T${item.timestamp}
-`;
-  }
-  return out;
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/clientreport.js
+function createClientReportEnvelope(discarded_events, dsn, timestamp) {
+  const clientReportItem = [
+    { type: "client_report" },
+    {
+      timestamp: dateTimestampInSeconds(),
+      discarded_events
+    }
+  ];
+  return createEnvelope(dsn ? { dsn } : {}, [clientReportItem]);
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/metrics/envelope.js
-function createMetricEnvelope(metricBucketItems, dsn, metadata, tunnel) {
-  const headers = {
-    sent_at: (/* @__PURE__ */ new Date()).toISOString()
-  };
-  if (metadata && metadata.sdk) {
-    headers.sdk = {
-      name: metadata.sdk.name,
-      version: metadata.sdk.version
-    };
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/error.js
+var SentryError = class extends Error {
+  constructor(message, logLevel = "warn") {
+    super(message);
+    this.message = message;
+    this.logLevel = logLevel;
   }
-  if (!!tunnel && dsn) {
-    headers.dsn = dsnToString(dsn);
-  }
-  const item = createMetricEnvelopeItem(metricBucketItems);
-  return createEnvelope(headers, [item]);
-}
-function createMetricEnvelopeItem(metricBucketItems) {
-  const payload = serializeMetricBuckets(metricBucketItems);
-  const metricHeaders = {
-    type: "statsd",
-    length: payload.length
-  };
-  return [metricHeaders, payload];
-}
+};
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/baseclient.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/baseclient.js
 var ALREADY_SEEN_ERROR = "Not capturing exception because it's already been captured.";
 var BaseClient = class {
-  /**
-   * A reference to a metrics aggregator
-   *
-   * @experimental Note this is alpha API. It may experience breaking changes in the future.
-   */
   /** Options passed to the SDK. */
   /** The client Dsn, if specified in options. Without this Dsn, the SDK will be disabled. */
   /** Array of set up integrations. */
-  /** Indicates whether this client's integrations have been set up. */
   /** Number of calls being processed */
   /** Holds flushable  */
   // eslint-disable-next-line @typescript-eslint/ban-types
@@ -3130,7 +2726,6 @@ var BaseClient = class {
   constructor(options) {
     this._options = options;
     this._integrations = {};
-    this._integrationsInitialized = false;
     this._numProcessing = 0;
     this._outcomes = {};
     this._hooks = {};
@@ -3138,10 +2733,14 @@ var BaseClient = class {
     if (options.dsn) {
       this._dsn = makeDsn(options.dsn);
     } else {
-      DEBUG_BUILD2 && logger.warn("No DSN provided, client will not send events.");
+      DEBUG_BUILD && logger.warn("No DSN provided, client will not send events.");
     }
     if (this._dsn) {
-      const url = getEnvelopeEndpointWithUrlEncodedAuth(this._dsn, options);
+      const url = getEnvelopeEndpointWithUrlEncodedAuth(
+        this._dsn,
+        options.tunnel,
+        options._metadata ? options._metadata.sdk : void 0
+      );
       this._transport = options.transport(__spreadProps(__spreadValues({
         tunnel: this._options.tunnel,
         recordDroppedEvent: this.recordDroppedEvent.bind(this)
@@ -3149,62 +2748,70 @@ var BaseClient = class {
         url
       }));
     }
+    const tracingOptions = ["enableTracing", "tracesSampleRate", "tracesSampler"];
+    const undefinedOption = tracingOptions.find((option) => option in options && options[option] == void 0);
+    if (undefinedOption) {
+      consoleSandbox(() => {
+        console.warn(
+          `[Sentry] Deprecation warning: \`${undefinedOption}\` is set to undefined, which leads to tracing being enabled. In v9, a value of \`undefined\` will result in tracing being disabled.`
+        );
+      });
+    }
   }
   /**
    * @inheritDoc
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
   captureException(exception, hint, scope) {
+    const eventId = uuid4();
     if (checkOrSetAlreadyCaught(exception)) {
-      DEBUG_BUILD2 && logger.log(ALREADY_SEEN_ERROR);
-      return;
+      DEBUG_BUILD && logger.log(ALREADY_SEEN_ERROR);
+      return eventId;
     }
-    let eventId = hint && hint.event_id;
+    const hintWithEventId = __spreadValues({
+      event_id: eventId
+    }, hint);
     this._process(
-      this.eventFromException(exception, hint).then((event) => this._captureEvent(event, hint, scope)).then((result) => {
-        eventId = result;
-      })
+      this.eventFromException(exception, hintWithEventId).then(
+        (event) => this._captureEvent(event, hintWithEventId, scope)
+      )
     );
-    return eventId;
+    return hintWithEventId.event_id;
   }
   /**
    * @inheritDoc
    */
-  captureMessage(message, level, hint, scope) {
-    let eventId = hint && hint.event_id;
+  captureMessage(message, level, hint, currentScope) {
+    const hintWithEventId = __spreadValues({
+      event_id: uuid4()
+    }, hint);
     const eventMessage = isParameterizedString(message) ? message : String(message);
-    const promisedEvent = isPrimitive(message) ? this.eventFromMessage(eventMessage, level, hint) : this.eventFromException(message, hint);
-    this._process(
-      promisedEvent.then((event) => this._captureEvent(event, hint, scope)).then((result) => {
-        eventId = result;
-      })
-    );
-    return eventId;
+    const promisedEvent = isPrimitive(message) ? this.eventFromMessage(eventMessage, level, hintWithEventId) : this.eventFromException(message, hintWithEventId);
+    this._process(promisedEvent.then((event) => this._captureEvent(event, hintWithEventId, currentScope)));
+    return hintWithEventId.event_id;
   }
   /**
    * @inheritDoc
    */
-  captureEvent(event, hint, scope) {
+  captureEvent(event, hint, currentScope) {
+    const eventId = uuid4();
     if (hint && hint.originalException && checkOrSetAlreadyCaught(hint.originalException)) {
-      DEBUG_BUILD2 && logger.log(ALREADY_SEEN_ERROR);
-      return;
+      DEBUG_BUILD && logger.log(ALREADY_SEEN_ERROR);
+      return eventId;
     }
-    let eventId = hint && hint.event_id;
+    const hintWithEventId = __spreadValues({
+      event_id: eventId
+    }, hint);
     const sdkProcessingMetadata = event.sdkProcessingMetadata || {};
     const capturedSpanScope = sdkProcessingMetadata.capturedSpanScope;
-    this._process(
-      this._captureEvent(event, hint, capturedSpanScope || scope).then((result) => {
-        eventId = result;
-      })
-    );
-    return eventId;
+    this._process(this._captureEvent(event, hintWithEventId, capturedSpanScope || currentScope));
+    return hintWithEventId.event_id;
   }
   /**
    * @inheritDoc
    */
   captureSession(session) {
     if (!(typeof session.release === "string")) {
-      DEBUG_BUILD2 && logger.warn("Discarded session because of missing or non-string release");
+      DEBUG_BUILD && logger.warn("Discarded session because of missing or non-string release");
     } else {
       this.sendSession(session);
       updateSession(session, { init: false });
@@ -3223,7 +2830,7 @@ var BaseClient = class {
     return this._options;
   }
   /**
-   * @see SdkMetadata in @sentry/types
+   * @see SdkMetadata
    *
    * @return The metadata of the SDK
    */
@@ -3242,9 +2849,7 @@ var BaseClient = class {
   flush(timeout) {
     const transport = this._transport;
     if (transport) {
-      if (this.metricsAggregator) {
-        this.metricsAggregator.flush();
-      }
+      this.emit("flush");
       return this._isClientDoneProcessing(timeout).then((clientFinished) => {
         return transport.flush(timeout).then((transportFlushed) => clientFinished && transportFlushed);
       });
@@ -3258,9 +2863,7 @@ var BaseClient = class {
   close(timeout) {
     return this.flush(timeout).then((result) => {
       this.getOptions().enabled = false;
-      if (this.metricsAggregator) {
-        this.metricsAggregator.close();
-      }
+      this.emit("close");
       return result;
     });
   }
@@ -3272,29 +2875,16 @@ var BaseClient = class {
   addEventProcessor(eventProcessor) {
     this._eventProcessors.push(eventProcessor);
   }
-  /**
-   * This is an internal function to setup all integrations that should run on the client.
-   * @deprecated Use `client.init()` instead.
-   */
-  setupIntegrations(forceInitialize) {
-    if (forceInitialize && !this._integrationsInitialized || this._isEnabled() && !this._integrationsInitialized) {
-      this._setupIntegrations();
-    }
-  }
   /** @inheritdoc */
   init() {
-    if (this._isEnabled()) {
+    if (this._isEnabled() || // Force integrations to be setup even if no DSN was set when we have
+    // Spotlight enabled. This is particularly important for browser as we
+    // don't support the `spotlight` option there and rely on the users
+    // adding the `spotlightBrowserIntegration()` to their integrations which
+    // wouldn't get initialized with the check below when there's no DSN set.
+    this._options.integrations.some(({ name }) => name.startsWith("Spotlight"))) {
       this._setupIntegrations();
     }
-  }
-  /**
-   * Gets an installed integration by its `id`.
-   *
-   * @returns The installed integration or `undefined` if no integration with that `id` was installed.
-   * @deprecated Use `getIntegrationByName()` instead.
-   */
-  getIntegrationById(integrationId) {
-    return this.getIntegrationByName(integrationId);
   }
   /**
    * Gets an installed integration by its name.
@@ -3303,18 +2893,6 @@ var BaseClient = class {
    */
   getIntegrationByName(integrationName) {
     return this._integrations[integrationName];
-  }
-  /**
-   * Returns the client's instance of the given integration class, it any.
-   * @deprecated Use `getIntegrationByName()` instead.
-   */
-  getIntegration(integration) {
-    try {
-      return this._integrations[integration.id] || null;
-    } catch (_oO) {
-      DEBUG_BUILD2 && logger.warn(`Cannot retrieve integration ${integration.id} from the current Client`);
-      return null;
-    }
   }
   /**
    * @inheritDoc
@@ -3333,15 +2911,9 @@ var BaseClient = class {
     this.emit("beforeSendEvent", event, hint);
     let env = createEventEnvelope(event, this._dsn, this._options._metadata, this._options.tunnel);
     for (const attachment of hint.attachments || []) {
-      env = addItemToEnvelope(
-        env,
-        createAttachmentEnvelopeItem(
-          attachment,
-          this._options.transportOptions && this._options.transportOptions.textEncoder
-        )
-      );
+      env = addItemToEnvelope(env, createAttachmentEnvelopeItem(attachment));
     }
-    const promise = this._sendEnvelope(env);
+    const promise = this.sendEnvelope(env);
     if (promise) {
       promise.then((sendResponse) => this.emit("afterSendEvent", event, sendResponse), null);
     }
@@ -3351,7 +2923,7 @@ var BaseClient = class {
    */
   sendSession(session) {
     const env = createSessionEnvelope(session, this._dsn, this._options._metadata, this._options.tunnel);
-    this._sendEnvelope(env);
+    this.sendEnvelope(env);
   }
   /**
    * @inheritDoc
@@ -3360,39 +2932,45 @@ var BaseClient = class {
     if (this._options.sendClientReports) {
       const count = typeof eventOrCount === "number" ? eventOrCount : 1;
       const key = `${reason}:${category}`;
-      DEBUG_BUILD2 && logger.log(`Recording outcome: "${key}"${count > 1 ? ` (${count} times)` : ""}`);
+      DEBUG_BUILD && logger.log(`Recording outcome: "${key}"${count > 1 ? ` (${count} times)` : ""}`);
       this._outcomes[key] = (this._outcomes[key] || 0) + count;
     }
-  }
-  /**
-   * @inheritDoc
-   */
-  captureAggregateMetrics(metricBucketItems) {
-    DEBUG_BUILD2 && logger.log(`Flushing aggregated metrics, number of metrics: ${metricBucketItems.length}`);
-    const metricsEnvelope = createMetricEnvelope(
-      metricBucketItems,
-      this._dsn,
-      this._options._metadata,
-      this._options.tunnel
-    );
-    this._sendEnvelope(metricsEnvelope);
   }
   // Keep on() & emit() signatures in sync with types' client.ts interface
   /* eslint-disable @typescript-eslint/unified-signatures */
   /** @inheritdoc */
   /** @inheritdoc */
   on(hook, callback) {
-    if (!this._hooks[hook]) {
-      this._hooks[hook] = [];
-    }
-    this._hooks[hook].push(callback);
+    const hooks = this._hooks[hook] = this._hooks[hook] || [];
+    hooks.push(callback);
+    return () => {
+      const cbIndex = hooks.indexOf(callback);
+      if (cbIndex > -1) {
+        hooks.splice(cbIndex, 1);
+      }
+    };
   }
   /** @inheritdoc */
   /** @inheritdoc */
   emit(hook, ...rest) {
-    if (this._hooks[hook]) {
-      this._hooks[hook].forEach((callback) => callback(...rest));
+    const callbacks = this._hooks[hook];
+    if (callbacks) {
+      callbacks.forEach((callback) => callback(...rest));
     }
+  }
+  /**
+   * @inheritdoc
+   */
+  sendEnvelope(envelope) {
+    this.emit("beforeEnvelope", envelope);
+    if (this._isEnabled() && this._transport) {
+      return this._transport.send(envelope).then(null, (reason) => {
+        DEBUG_BUILD && logger.error("Error while sending envelope:", reason);
+        return reason;
+      });
+    }
+    DEBUG_BUILD && logger.error("Transport disabled");
+    return resolvedSyncPromise({});
   }
   /* eslint-enable @typescript-eslint/unified-signatures */
   /** Setup integrations for this client. */
@@ -3400,11 +2978,10 @@ var BaseClient = class {
     const { integrations } = this._options;
     this._integrations = setupIntegrations(this, integrations);
     afterSetupIntegrations(this, integrations);
-    this._integrationsInitialized = true;
   }
   /** Updates existing session based on the provided event */
   _updateSessionFromEvent(session, event) {
-    let crashed = false;
+    let crashed = event.level === "fatal";
     let errored = false;
     const exceptions = event.exception && event.exception.values;
     if (exceptions) {
@@ -3437,18 +3014,18 @@ var BaseClient = class {
    * `false` otherwise
    */
   _isClientDoneProcessing(timeout) {
-    return new SyncPromise((resolve) => {
+    return new SyncPromise((resolve2) => {
       let ticked = 0;
       const tick = 1;
       const interval = setInterval(() => {
         if (this._numProcessing == 0) {
           clearInterval(interval);
-          resolve(true);
+          resolve2(true);
         } else {
           ticked += tick;
           if (timeout && ticked >= timeout) {
             clearInterval(interval);
-            resolve(false);
+            resolve2(false);
           }
         }
       }, tick);
@@ -3469,36 +3046,30 @@ var BaseClient = class {
    *
    * @param event The original event.
    * @param hint May contain additional information about the original exception.
-   * @param scope A scope containing event metadata.
+   * @param currentScope A scope containing event metadata.
    * @returns A new event with more information.
    */
-  _prepareEvent(event, hint, scope, isolationScope = getIsolationScope()) {
+  _prepareEvent(event, hint, currentScope = getCurrentScope(), isolationScope = getIsolationScope()) {
     const options = this.getOptions();
     const integrations = Object.keys(this._integrations);
     if (!hint.integrations && integrations.length > 0) {
       hint.integrations = integrations;
     }
     this.emit("preprocessEvent", event, hint);
-    return prepareEvent(options, event, hint, scope, this, isolationScope).then((evt) => {
+    if (!event.type) {
+      isolationScope.setLastEventId(event.event_id || hint.event_id);
+    }
+    return prepareEvent(options, event, hint, currentScope, this, isolationScope).then((evt) => {
       if (evt === null) {
         return evt;
       }
-      const propagationContext = __spreadValues(__spreadValues({}, isolationScope.getPropagationContext()), scope ? scope.getPropagationContext() : void 0);
-      const trace = evt.contexts && evt.contexts.trace;
-      if (!trace && propagationContext) {
-        const { traceId: trace_id, spanId, parentSpanId, dsc } = propagationContext;
-        evt.contexts = __spreadValues({
-          trace: {
-            trace_id,
-            span_id: spanId,
-            parent_span_id: parentSpanId
-          }
-        }, evt.contexts);
-        const dynamicSamplingContext = dsc ? dsc : getDynamicSamplingContextFromClient(trace_id, this, scope);
-        evt.sdkProcessingMetadata = __spreadValues({
-          dynamicSamplingContext
-        }, evt.sdkProcessingMetadata);
-      }
+      evt.contexts = __spreadValues({
+        trace: getTraceContextFromScope(currentScope)
+      }, evt.contexts);
+      const dynamicSamplingContext = getDynamicSamplingContextFromScope(this, currentScope);
+      evt.sdkProcessingMetadata = __spreadValues({
+        dynamicSamplingContext
+      }, evt.sdkProcessingMetadata);
       return evt;
     });
   }
@@ -3514,12 +3085,11 @@ var BaseClient = class {
         return finalEvent.event_id;
       },
       (reason) => {
-        if (DEBUG_BUILD2) {
-          const sentryError = reason;
-          if (sentryError.logLevel === "log") {
-            logger.log(sentryError.message);
+        if (DEBUG_BUILD) {
+          if (reason instanceof SentryError && reason.logLevel === "log") {
+            logger.log(reason.message);
           } else {
-            logger.warn(sentryError);
+            logger.warn(reason);
           }
         }
         return void 0;
@@ -3536,17 +3106,18 @@ var BaseClient = class {
    *
    * @param event The event to send to Sentry.
    * @param hint May contain additional information about the original exception.
-   * @param scope A scope containing event metadata.
+   * @param currentScope A scope containing event metadata.
    * @returns A SyncPromise that resolves with the event or rejects in case event was/will not be send.
    */
-  _processEvent(event, hint, scope) {
+  _processEvent(event, hint, currentScope) {
     const options = this.getOptions();
     const { sampleRate } = options;
     const isTransaction = isTransactionEvent(event);
-    const isError2 = isErrorEvent2(event);
+    const isError3 = isErrorEvent2(event);
     const eventType = event.type || "error";
     const beforeSendLabel = `before send for type \`${eventType}\``;
-    if (isError2 && typeof sampleRate === "number" && Math.random() > sampleRate) {
+    const parsedSampleRate = typeof sampleRate === "undefined" ? void 0 : parseSampleRate(sampleRate);
+    if (isError3 && typeof parsedSampleRate === "number" && Math.random() > parsedSampleRate) {
       this.recordDroppedEvent("sample_rate", "error", event);
       return rejectedSyncPromise(
         new SentryError(
@@ -3558,7 +3129,7 @@ var BaseClient = class {
     const dataCategory = eventType === "replay_event" ? "replay" : eventType;
     const sdkProcessingMetadata = event.sdkProcessingMetadata || {};
     const capturedSpanIsolationScope = sdkProcessingMetadata.capturedSpanIsolationScope;
-    return this._prepareEvent(event, hint, scope, capturedSpanIsolationScope).then((prepared) => {
+    return this._prepareEvent(event, hint, currentScope, capturedSpanIsolationScope).then((prepared) => {
       if (prepared === null) {
         this.recordDroppedEvent("event_processor", dataCategory, event);
         throw new SentryError("An event processor returned `null`, will not send event.", "log");
@@ -3567,7 +3138,7 @@ var BaseClient = class {
       if (isInternalException) {
         return prepared;
       }
-      const result = processBeforeSend(options, prepared, hint);
+      const result = processBeforeSend(this, options, prepared, hint);
       return _validateBeforeSendResult(result, beforeSendLabel);
     }).then((processedEvent) => {
       if (processedEvent === null) {
@@ -3579,7 +3150,7 @@ var BaseClient = class {
         }
         throw new SentryError(`${beforeSendLabel} returned \`null\`, will not send event.`, "log");
       }
-      const session = scope && scope.getSession();
+      const session = currentScope && currentScope.getSession();
       if (!isTransaction && session) {
         this._updateSessionFromEvent(session, processedEvent);
       }
@@ -3633,37 +3204,41 @@ Reason: ${reason}`
     );
   }
   /**
-   * @inheritdoc
-   */
-  _sendEnvelope(envelope) {
-    this.emit("beforeEnvelope", envelope);
-    if (this._isEnabled() && this._transport) {
-      return this._transport.send(envelope).then(null, (reason) => {
-        DEBUG_BUILD2 && logger.error("Error while sending event:", reason);
-      });
-    } else {
-      DEBUG_BUILD2 && logger.error("Transport disabled");
-    }
-  }
-  /**
    * Clears outcomes on this client and returns them.
    */
   _clearOutcomes() {
     const outcomes = this._outcomes;
     this._outcomes = {};
-    return Object.keys(outcomes).map((key) => {
+    return Object.entries(outcomes).map(([key, quantity]) => {
       const [reason, category] = key.split(":");
       return {
         reason,
         category,
-        quantity: outcomes[key]
+        quantity
       };
     });
   }
   /**
+   * Sends client reports as an envelope.
+   */
+  _flushOutcomes() {
+    DEBUG_BUILD && logger.log("Flushing outcomes...");
+    const outcomes = this._clearOutcomes();
+    if (outcomes.length === 0) {
+      DEBUG_BUILD && logger.log("No outcomes to send");
+      return;
+    }
+    if (!this._dsn) {
+      DEBUG_BUILD && logger.log("No dsn provided, will not send outcomes");
+      return;
+    }
+    DEBUG_BUILD && logger.log("Sending outcomes:", outcomes);
+    const envelope = createClientReportEnvelope(outcomes, this._options.tunnel && dsnToString(this._dsn));
+    this.sendEnvelope(envelope);
+  }
+  /**
    * @inheritDoc
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
 };
 function _validateBeforeSendResult(beforeSendResult, beforeSendLabel) {
   const invalidValueError = `${beforeSendLabel} must return \`null\` or a valid event.`;
@@ -3684,19 +3259,34 @@ function _validateBeforeSendResult(beforeSendResult, beforeSendLabel) {
   }
   return beforeSendResult;
 }
-function processBeforeSend(options, event, hint) {
-  const { beforeSend, beforeSendTransaction } = options;
+function processBeforeSend(client, options, event, hint) {
+  const { beforeSend, beforeSendTransaction, beforeSendSpan } = options;
   if (isErrorEvent2(event) && beforeSend) {
     return beforeSend(event, hint);
   }
-  if (isTransactionEvent(event) && beforeSendTransaction) {
-    if (event.spans) {
-      const spanCountBefore = event.spans.length;
-      event.sdkProcessingMetadata = __spreadProps(__spreadValues({}, event.sdkProcessingMetadata), {
-        spanCountBeforeProcessing: spanCountBefore
-      });
+  if (isTransactionEvent(event)) {
+    if (event.spans && beforeSendSpan) {
+      const processedSpans = [];
+      for (const span of event.spans) {
+        const processedSpan = beforeSendSpan(span);
+        if (processedSpan) {
+          processedSpans.push(processedSpan);
+        } else {
+          showSpanDropWarning();
+          client.recordDroppedEvent("before_send", "span");
+        }
+      }
+      event.spans = processedSpans;
     }
-    return beforeSendTransaction(event, hint);
+    if (beforeSendTransaction) {
+      if (event.spans) {
+        const spanCountBefore = event.spans.length;
+        event.sdkProcessingMetadata = __spreadProps(__spreadValues({}, event.sdkProcessingMetadata), {
+          spanCountBeforeProcessing: spanCountBefore
+        });
+      }
+      return beforeSendTransaction(event, hint);
+    }
   }
   return event;
 }
@@ -3707,10 +3297,10 @@ function isTransactionEvent(event) {
   return event.type === "transaction";
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/sdk.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/sdk.js
 function initAndBind(clientClass, options) {
   if (options.debug === true) {
-    if (DEBUG_BUILD2) {
+    if (DEBUG_BUILD) {
       logger.enable();
     } else {
       consoleSandbox(() => {
@@ -3722,24 +3312,117 @@ function initAndBind(clientClass, options) {
   scope.update(options.initialScope);
   const client = new clientClass(options);
   setCurrentClient(client);
-  initializeClient(client);
+  client.init();
+  return client;
 }
 function setCurrentClient(client) {
-  const hub = getCurrentHub();
-  const top = hub.getStackTop();
-  top.client = client;
-  top.scope.setClient(client);
-}
-function initializeClient(client) {
-  if (client.init) {
-    client.init();
-  } else if (client.setupIntegrations) {
-    client.setupIntegrations();
-  }
+  getCurrentScope().setClient(client);
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/transports/base.js
-var DEFAULT_TRANSPORT_BUFFER_SIZE = 30;
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/promisebuffer.js
+function makePromiseBuffer(limit) {
+  const buffer = [];
+  function isReady() {
+    return limit === void 0 || buffer.length < limit;
+  }
+  function remove(task) {
+    return buffer.splice(buffer.indexOf(task), 1)[0] || Promise.resolve(void 0);
+  }
+  function add(taskProducer) {
+    if (!isReady()) {
+      return rejectedSyncPromise(new SentryError("Not adding Promise because buffer limit was reached."));
+    }
+    const task = taskProducer();
+    if (buffer.indexOf(task) === -1) {
+      buffer.push(task);
+    }
+    void task.then(() => remove(task)).then(
+      null,
+      () => remove(task).then(null, () => {
+      })
+    );
+    return task;
+  }
+  function drain(timeout) {
+    return new SyncPromise((resolve2, reject) => {
+      let counter = buffer.length;
+      if (!counter) {
+        return resolve2(true);
+      }
+      const capturedSetTimeout = setTimeout(() => {
+        if (timeout && timeout > 0) {
+          resolve2(false);
+        }
+      }, timeout);
+      buffer.forEach((item) => {
+        void resolvedSyncPromise(item).then(() => {
+          if (!--counter) {
+            clearTimeout(capturedSetTimeout);
+            resolve2(true);
+          }
+        }, reject);
+      });
+    });
+  }
+  return {
+    $: buffer,
+    add,
+    drain
+  };
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils-hoist/ratelimit.js
+var DEFAULT_RETRY_AFTER = 60 * 1e3;
+function parseRetryAfterHeader(header, now = Date.now()) {
+  const headerDelay = parseInt(`${header}`, 10);
+  if (!isNaN(headerDelay)) {
+    return headerDelay * 1e3;
+  }
+  const headerDate = Date.parse(`${header}`);
+  if (!isNaN(headerDate)) {
+    return headerDate - now;
+  }
+  return DEFAULT_RETRY_AFTER;
+}
+function disabledUntil(limits, dataCategory) {
+  return limits[dataCategory] || limits.all || 0;
+}
+function isRateLimited(limits, dataCategory, now = Date.now()) {
+  return disabledUntil(limits, dataCategory) > now;
+}
+function updateRateLimits(limits, { statusCode, headers }, now = Date.now()) {
+  const updatedRateLimits = __spreadValues({}, limits);
+  const rateLimitHeader = headers && headers["x-sentry-rate-limits"];
+  const retryAfterHeader = headers && headers["retry-after"];
+  if (rateLimitHeader) {
+    for (const limit of rateLimitHeader.trim().split(",")) {
+      const [retryAfter, categories, , , namespaces] = limit.split(":", 5);
+      const headerDelay = parseInt(retryAfter, 10);
+      const delay = (!isNaN(headerDelay) ? headerDelay : 60) * 1e3;
+      if (!categories) {
+        updatedRateLimits.all = now + delay;
+      } else {
+        for (const category of categories.split(";")) {
+          if (category === "metric_bucket") {
+            if (!namespaces || namespaces.split(";").includes("custom")) {
+              updatedRateLimits[category] = now + delay;
+            }
+          } else {
+            updatedRateLimits[category] = now + delay;
+          }
+        }
+      }
+    }
+  } else if (retryAfterHeader) {
+    updatedRateLimits.all = now + parseRetryAfterHeader(retryAfterHeader, now);
+  } else if (statusCode === 429) {
+    updatedRateLimits.all = now + 60 * 1e3;
+  }
+  return updatedRateLimits;
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/transports/base.js
+var DEFAULT_TRANSPORT_BUFFER_SIZE = 64;
 function createTransport(options, makeRequest, buffer = makePromiseBuffer(
   options.bufferSize || DEFAULT_TRANSPORT_BUFFER_SIZE
 )) {
@@ -3757,7 +3440,7 @@ function createTransport(options, makeRequest, buffer = makePromiseBuffer(
       }
     });
     if (filteredEnvelopeItems.length === 0) {
-      return resolvedSyncPromise();
+      return resolvedSyncPromise({});
     }
     const filteredEnvelope = createEnvelope(envelope[0], filteredEnvelopeItems);
     const recordEnvelopeLoss = (reason) => {
@@ -3766,10 +3449,10 @@ function createTransport(options, makeRequest, buffer = makePromiseBuffer(
         options.recordDroppedEvent(reason, envelopeItemTypeToDataCategory(type), event);
       });
     };
-    const requestTask = () => makeRequest({ body: serializeEnvelope(filteredEnvelope, options.textEncoder) }).then(
+    const requestTask = () => makeRequest({ body: serializeEnvelope(filteredEnvelope) }).then(
       (response) => {
         if (response.statusCode !== void 0 && (response.statusCode < 200 || response.statusCode >= 300)) {
-          DEBUG_BUILD2 && logger.warn(`Sentry responded with status code ${response.statusCode} to sent event.`);
+          DEBUG_BUILD && logger.warn(`Sentry responded with status code ${response.statusCode} to sent event.`);
         }
         rateLimits = updateRateLimits(rateLimits, response);
         return response;
@@ -3783,16 +3466,15 @@ function createTransport(options, makeRequest, buffer = makePromiseBuffer(
       (result) => result,
       (error) => {
         if (error instanceof SentryError) {
-          DEBUG_BUILD2 && logger.error("Skipped sending event because buffer is full.");
+          DEBUG_BUILD && logger.error("Skipped sending event because buffer is full.");
           recordEnvelopeLoss("queue_overflow");
-          return resolvedSyncPromise();
+          return resolvedSyncPromise({});
         } else {
           throw error;
         }
       }
     );
   }
-  send.__sentry__baseTransport__ = true;
   return {
     send,
     flush: flush3
@@ -3805,7 +3487,7 @@ function getEventForEnvelopeItem(item, type) {
   return Array.isArray(item) ? item[1] : void 0;
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/utils/sdkMetadata.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/utils/sdkMetadata.js
 function applySdkMetadata(options, name, names = [name], source = "npm") {
   const metadata = options._metadata || {};
   if (!metadata.sdk) {
@@ -3821,30 +3503,72 @@ function applySdkMetadata(options, name, names = [name], source = "npm") {
   options._metadata = metadata;
 }
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/integrations/inboundfilters.js
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/breadcrumbs.js
+var DEFAULT_BREADCRUMBS = 100;
+function addBreadcrumb(breadcrumb, hint) {
+  const client = getClient();
+  const isolationScope = getIsolationScope();
+  if (!client) return;
+  const { beforeBreadcrumb = null, maxBreadcrumbs = DEFAULT_BREADCRUMBS } = client.getOptions();
+  if (maxBreadcrumbs <= 0) return;
+  const timestamp = dateTimestampInSeconds();
+  const mergedBreadcrumb = __spreadValues({ timestamp }, breadcrumb);
+  const finalBreadcrumb = beforeBreadcrumb ? consoleSandbox(() => beforeBreadcrumb(mergedBreadcrumb, hint)) : mergedBreadcrumb;
+  if (finalBreadcrumb === null) return;
+  if (client.emit) {
+    client.emit("beforeAddBreadcrumb", finalBreadcrumb, hint);
+  }
+  isolationScope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
+}
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/integrations/functiontostring.js
+var originalFunctionToString;
+var INTEGRATION_NAME = "FunctionToString";
+var SETUP_CLIENTS = /* @__PURE__ */ new WeakMap();
+var _functionToStringIntegration = () => {
+  return {
+    name: INTEGRATION_NAME,
+    setupOnce() {
+      originalFunctionToString = Function.prototype.toString;
+      try {
+        Function.prototype.toString = function(...args) {
+          const originalFunction = getOriginalFunction(this);
+          const context = SETUP_CLIENTS.has(getClient()) && originalFunction !== void 0 ? originalFunction : this;
+          return originalFunctionToString.apply(context, args);
+        };
+      } catch (e) {
+      }
+    },
+    setup(client) {
+      SETUP_CLIENTS.set(client, true);
+    }
+  };
+};
+var functionToStringIntegration = defineIntegration(_functionToStringIntegration);
+
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/integrations/inboundfilters.js
 var DEFAULT_IGNORE_ERRORS = [
   /^Script error\.?$/,
   /^Javascript error: Script error\.? on line 0$/,
   /^ResizeObserver loop completed with undelivered notifications.$/,
-  /^Cannot redefine property: googletag$/
+  // The browser logs this when a ResizeObserver handler takes a bit longer. Usually this is not an actual issue though. It indicates slowness.
+  /^Cannot redefine property: googletag$/,
+  // This is thrown when google tag manager is used in combination with an ad blocker
+  "undefined is not an object (evaluating 'a.L')",
+  // Random error that happens but not actionable or noticeable to end-users.
+  `can't redefine non-configurable property "solana"`,
+  // Probably a browser extension or custom browser (Brave) throwing this error
+  "vv().getRestrictions is not a function. (In 'vv().getRestrictions(1,a)', 'vv().getRestrictions' is undefined)",
+  // Error thrown by GTM, seemingly not affecting end-users
+  "Can't find variable: _AutofillCallbackHandler",
+  // Unactionable error in instagram webview https://developers.facebook.com/community/threads/320013549791141/
+  /^Non-Error promise rejection captured with value: Object Not Found Matching Id:\d+, MethodName:simulateEvent, ParamCount:\d+$/
+  // unactionable error from CEFSharp, a .NET library that embeds chromium in .NET apps
 ];
-var DEFAULT_IGNORE_TRANSACTIONS = [
-  /^.*\/healthcheck$/,
-  /^.*\/healthy$/,
-  /^.*\/live$/,
-  /^.*\/ready$/,
-  /^.*\/heartbeat$/,
-  /^.*\/health$/,
-  /^.*\/healthz$/
-];
-var INTEGRATION_NAME = "InboundFilters";
+var INTEGRATION_NAME2 = "InboundFilters";
 var _inboundFiltersIntegration = (options = {}) => {
   return {
-    name: INTEGRATION_NAME,
-    // TODO v8: Remove this
-    setupOnce() {
-    },
-    // eslint-disable-line @typescript-eslint/no-empty-function
+    name: INTEGRATION_NAME2,
     processEvent(event, _hint, client) {
       const clientOptions = client.getOptions();
       const mergedOptions = _mergeOptions(options, clientOptions);
@@ -3853,10 +3577,6 @@ var _inboundFiltersIntegration = (options = {}) => {
   };
 };
 var inboundFiltersIntegration = defineIntegration(_inboundFiltersIntegration);
-var InboundFilters = convertIntegrationFnToClass(
-  INTEGRATION_NAME,
-  inboundFiltersIntegration
-);
 function _mergeOptions(internalOptions = {}, clientOptions = {}) {
   return {
     allowUrls: [...internalOptions.allowUrls || [], ...clientOptions.allowUrls || []],
@@ -3866,36 +3586,41 @@ function _mergeOptions(internalOptions = {}, clientOptions = {}) {
       ...clientOptions.ignoreErrors || [],
       ...internalOptions.disableErrorDefaults ? [] : DEFAULT_IGNORE_ERRORS
     ],
-    ignoreTransactions: [
-      ...internalOptions.ignoreTransactions || [],
-      ...clientOptions.ignoreTransactions || [],
-      ...internalOptions.disableTransactionDefaults ? [] : DEFAULT_IGNORE_TRANSACTIONS
-    ],
+    ignoreTransactions: [...internalOptions.ignoreTransactions || [], ...clientOptions.ignoreTransactions || []],
     ignoreInternal: internalOptions.ignoreInternal !== void 0 ? internalOptions.ignoreInternal : true
   };
 }
 function _shouldDropEvent(event, options) {
   if (options.ignoreInternal && _isSentryError(event)) {
-    DEBUG_BUILD2 && logger.warn(`Event dropped due to being internal Sentry Error.
+    DEBUG_BUILD && logger.warn(`Event dropped due to being internal Sentry Error.
 Event: ${getEventDescription(event)}`);
     return true;
   }
   if (_isIgnoredError(event, options.ignoreErrors)) {
-    DEBUG_BUILD2 && logger.warn(
+    DEBUG_BUILD && logger.warn(
       `Event dropped due to being matched by \`ignoreErrors\` option.
 Event: ${getEventDescription(event)}`
     );
     return true;
   }
+  if (_isUselessError(event)) {
+    DEBUG_BUILD && logger.warn(
+      `Event dropped due to not having an error message, error type or stacktrace.
+Event: ${getEventDescription(
+        event
+      )}`
+    );
+    return true;
+  }
   if (_isIgnoredTransaction(event, options.ignoreTransactions)) {
-    DEBUG_BUILD2 && logger.warn(
+    DEBUG_BUILD && logger.warn(
       `Event dropped due to being matched by \`ignoreTransactions\` option.
 Event: ${getEventDescription(event)}`
     );
     return true;
   }
   if (_isDeniedUrl(event, options.denyUrls)) {
-    DEBUG_BUILD2 && logger.warn(
+    DEBUG_BUILD && logger.warn(
       `Event dropped due to being matched by \`denyUrls\` option.
 Event: ${getEventDescription(
         event
@@ -3905,7 +3630,7 @@ Url: ${_getEventFilterUrl(event)}`
     return true;
   }
   if (!_isAllowedUrl(event, options.allowUrls)) {
-    DEBUG_BUILD2 && logger.warn(
+    DEBUG_BUILD && logger.warn(
       `Event dropped due to not being matched by \`allowUrls\` option.
 Event: ${getEventDescription(
         event
@@ -3961,9 +3686,6 @@ function _getPossibleEventMessages(event) {
       }
     }
   }
-  if (DEBUG_BUILD2 && possibleMessages.length === 0) {
-    logger.error(`Could not extract message for event ${getEventDescription(event)}`);
-  }
   return possibleMessages;
 }
 function _isSentryError(event) {
@@ -3991,87 +3713,936 @@ function _getEventFilterUrl(event) {
     }
     return frames ? _getLastValidUrl(frames) : null;
   } catch (oO) {
-    DEBUG_BUILD2 && logger.error(`Cannot extract url for event ${getEventDescription(event)}`);
+    DEBUG_BUILD && logger.error(`Cannot extract url for event ${getEventDescription(event)}`);
     return null;
   }
 }
+function _isUselessError(event) {
+  if (event.type) {
+    return false;
+  }
+  if (!event.exception || !event.exception.values || event.exception.values.length === 0) {
+    return false;
+  }
+  return (
+    // No top-level message
+    !event.message && // There are no exception values that have a stacktrace, a non-generic-Error type or value
+    !event.exception.values.some((value) => value.stacktrace || value.type && value.type !== "Error" || value.value)
+  );
+}
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/integrations/functiontostring.js
-var originalFunctionToString;
-var INTEGRATION_NAME2 = "FunctionToString";
-var SETUP_CLIENTS = /* @__PURE__ */ new WeakMap();
-var _functionToStringIntegration = () => {
+// node_modules/.pnpm/@sentry+core@8.55.0/node_modules/@sentry/core/build/esm/getCurrentHubShim.js
+function getCurrentHubShim() {
   return {
-    name: INTEGRATION_NAME2,
-    setupOnce() {
-      originalFunctionToString = Function.prototype.toString;
-      try {
-        Function.prototype.toString = function(...args) {
-          const originalFunction = getOriginalFunction(this);
-          const context = SETUP_CLIENTS.has(getClient()) && originalFunction !== void 0 ? originalFunction : this;
-          return originalFunctionToString.apply(context, args);
-        };
-      } catch (e) {
+    bindClient(client) {
+      const scope = getCurrentScope();
+      scope.setClient(client);
+    },
+    withScope: withScope2,
+    getClient: () => getClient(),
+    getScope: getCurrentScope,
+    getIsolationScope,
+    captureException: (exception, hint) => {
+      return getCurrentScope().captureException(exception, hint);
+    },
+    captureMessage: (message, level, hint) => {
+      return getCurrentScope().captureMessage(message, level, hint);
+    },
+    captureEvent,
+    addBreadcrumb,
+    setUser,
+    setTags,
+    setTag,
+    setExtra,
+    setExtras,
+    setContext,
+    getIntegration(integration) {
+      const client = getClient();
+      return client && client.getIntegrationByName(integration.id) || null;
+    },
+    startSession,
+    endSession,
+    captureSession(end) {
+      if (end) {
+        return endSession();
       }
-    },
-    setup(client) {
-      SETUP_CLIENTS.set(client, true);
+      _sendSessionUpdate2();
     }
   };
-};
-var functionToStringIntegration = defineIntegration(_functionToStringIntegration);
-var FunctionToString = convertIntegrationFnToClass(
-  INTEGRATION_NAME2,
-  functionToStringIntegration
-);
+}
+var getCurrentHub = getCurrentHubShim;
+function _sendSessionUpdate2() {
+  const scope = getCurrentScope();
+  const client = getClient();
+  const session = scope.getSession();
+  if (client && session) {
+    client.captureSession(session);
+  }
+}
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/integrations/linkederrors.js
-var DEFAULT_KEY = "cause";
-var DEFAULT_LIMIT = 5;
-var INTEGRATION_NAME3 = "LinkedErrors";
-var _linkedErrorsIntegration = (options = {}) => {
-  const limit = options.limit || DEFAULT_LIMIT;
-  const key = options.key || DEFAULT_KEY;
-  return {
-    name: INTEGRATION_NAME3,
-    // TODO v8: Remove this
-    setupOnce() {
-    },
-    // eslint-disable-line @typescript-eslint/no-empty-function
-    preprocessEvent(event, hint, client) {
-      const options2 = client.getOptions();
-      applyAggregateErrorsToEvent(
-        exceptionFromError,
-        options2.stackParser,
-        options2.maxValueLength,
-        key,
-        limit,
-        event,
-        hint
+// src/scope.ts
+function configureScope(callback) {
+  const scope = getCurrentScope();
+  callback(scope);
+}
+
+// node_modules/.pnpm/@sentry+utils@8.55.0/node_modules/@sentry/utils/build/esm/index.js
+var GLOBAL_OBJ3 = GLOBAL_OBJ2;
+var isDOMError2 = isDOMError;
+var isDOMException2 = isDOMException;
+var isError2 = isError;
+var isErrorEvent3 = isErrorEvent;
+var isEvent2 = isEvent;
+var isPlainObject2 = isPlainObject;
+var logger2 = logger;
+var addExceptionMechanism2 = addExceptionMechanism;
+var addExceptionTypeValue2 = addExceptionTypeValue;
+var uuid42 = uuid4;
+var normalize2 = normalize;
+var normalizeToSize2 = normalizeToSize;
+var dropUndefinedKeys2 = dropUndefinedKeys;
+var extractExceptionKeysForMessage2 = extractExceptionKeysForMessage;
+var fill2 = fill;
+var SyncPromise2 = SyncPromise;
+var resolvedSyncPromise2 = resolvedSyncPromise;
+var dateTimestampInSeconds2 = dateTimestampInSeconds;
+
+// src/tracing/flags.ts
+var IS_DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" ? true : __SENTRY_DEBUG__;
+
+// src/tracing/constants.ts
+var FINISH_REASON_TAG = "finishReason";
+var IDLE_TRANSACTION_FINISH_REASONS = ["heartbeatFailed", "idleTimeout", "documentHidden"];
+
+// src/tracing/utils.ts
+var activeTransaction;
+function hasTracingEnabled2(maybeOptions) {
+  const client = getClient();
+  const options = maybeOptions || client && client.getOptions && client.getOptions();
+  return !!options && ("tracesSampleRate" in options || "tracesSampler" in options);
+}
+function getActiveTransaction() {
+  return activeTransaction;
+}
+function setActiveTransaction(transaction) {
+  activeTransaction = transaction;
+}
+function msToSec(time) {
+  return time / 1e3;
+}
+function secToMs(time) {
+  return time * 1e3;
+}
+
+// src/tracing/span.ts
+var SpanRecorder = class {
+  constructor(maxlen = 1e3) {
+    this.spans = [];
+    this._maxlen = maxlen;
+  }
+  /**
+   * This is just so that we don't run out of memory while recording a lot
+   * of spans. At some point we just stop and flush out the start of the
+   * trace tree (i.e.the first n spans with the smallest
+   * start_timestamp).
+   */
+  add(span) {
+    if (this.spans.length > this._maxlen) {
+      span.spanRecorder = void 0;
+    } else {
+      this.spans.push(span);
+    }
+  }
+};
+var Span = class _Span {
+  /**
+   * You should never call the constructor manually, always use `Sentry.startTransaction()`
+   * or call `startChild()` on an existing span.
+   * @internal
+   * @hideconstructor
+   * @hidden
+   */
+  constructor(spanContext) {
+    /**
+     * Human-readable identifier for the span. Mirrors description for backwards compatibility.
+     */
+    this.name = "";
+    /**
+     * @inheritDoc
+     */
+    this.traceId = uuid42();
+    /**
+     * @inheritDoc
+     */
+    this.spanId = uuid42().substring(16);
+    /**
+     * Timestamp in seconds when the span was created.
+     */
+    this.startTimestamp = dateTimestampInSeconds2();
+    /**
+     * @inheritDoc
+     */
+    this.tags = {};
+    /**
+     * @inheritDoc
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.data = {};
+    /**
+     * Attributes for the span (new Sentry/OpenTelemetry style).
+     */
+    this.attributes = {};
+    /**
+     * Instrumenter that created the span.
+     */
+    this.instrumenter = "sentry";
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+    if (!spanContext) {
+      return this;
+    }
+    this.traceId = (_a = spanContext.traceId) != null ? _a : this.traceId;
+    this.spanId = (_b = spanContext.spanId) != null ? _b : this.spanId;
+    this.parentSpanId = (_c = spanContext.parentSpanId) != null ? _c : this.parentSpanId;
+    if ("sampled" in spanContext) {
+      this.sampled = spanContext.sampled;
+    }
+    this.op = (_d = spanContext.op) != null ? _d : this.op;
+    this.description = (_f = (_e = spanContext.description) != null ? _e : spanContext.name) != null ? _f : this.description;
+    this.name = (_h = (_g = spanContext.name) != null ? _g : spanContext.description) != null ? _h : this.name;
+    this.data = spanContext.data ? __spreadValues({}, spanContext.data) : this.data;
+    this.tags = spanContext.tags ? __spreadValues({}, spanContext.tags) : this.tags;
+    this.attributes = spanContext.attributes ? __spreadValues({}, spanContext.attributes) : this.attributes;
+    this.status = (_i = spanContext.status) != null ? _i : this.status;
+    this.startTimestamp = (_j = spanContext.startTimestamp) != null ? _j : this.startTimestamp;
+    this.endTimestamp = (_k = spanContext.endTimestamp) != null ? _k : this.endTimestamp;
+    this.instrumenter = (_l = spanContext.instrumenter) != null ? _l : this.instrumenter;
+    this.origin = (_m = spanContext.origin) != null ? _m : this.origin;
+  }
+  /**
+   * @inheritDoc
+   * @deprecated
+   */
+  child(spanContext) {
+    return this.startChild(spanContext);
+  }
+  /**
+   * @inheritDoc
+   */
+  startChild(spanContext) {
+    var _a;
+    const childSpan = new _Span(__spreadProps(__spreadValues({}, spanContext), {
+      parentSpanId: this.spanId,
+      sampled: this.sampled,
+      attributes: (_a = spanContext == null ? void 0 : spanContext.attributes) != null ? _a : {},
+      instrumenter: this.instrumenter,
+      traceId: this.traceId
+    }));
+    childSpan.spanRecorder = this.spanRecorder;
+    if (childSpan.spanRecorder) {
+      childSpan.spanRecorder.add(childSpan);
+    }
+    childSpan.transaction = this.transaction;
+    return childSpan;
+  }
+  /**
+   * @inheritDoc
+   */
+  setTag(key, value) {
+    this.tags = __spreadProps(__spreadValues({}, this.tags), { [key]: value });
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
+  setData(key, value) {
+    this.data = __spreadProps(__spreadValues({}, this.data), { [key]: value });
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  setAttribute(key, value) {
+    if (value === void 0) {
+      delete this.attributes[key];
+    } else {
+      this.attributes[key] = value;
+    }
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  setAttributes(attributes) {
+    Object.keys(attributes).forEach((attributeKey) => this.setAttribute(attributeKey, attributes[attributeKey]));
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  setStatus(value) {
+    var _a;
+    this.status = typeof value === "string" ? value : (_a = value.message) != null ? _a : value.code;
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  setHttpStatus(httpStatus) {
+    this.setTag("http.status_code", String(httpStatus));
+    const spanStatus = spanStatusfromHttpCode(httpStatus);
+    if (spanStatus !== "unknown_error") {
+      this.setStatus(spanStatus);
+    }
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  addEvent(_name, _attributesOrStartTime, _startTime) {
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addLink(_link) {
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addLinks(_links) {
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  recordException(_exception) {
+  }
+  /**
+   * @inheritDoc
+   */
+  isSuccess() {
+    return this.status === "ok";
+  }
+  /**
+   * @inheritDoc
+   */
+  setName(name) {
+    this.name = name;
+    this.description = name;
+  }
+  /**
+   * @inheritDoc
+   */
+  updateName(name) {
+    this.setName(name);
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  end(endTimestamp) {
+    this.finish(spanTimeInputToSeconds2(endTimestamp));
+  }
+  /**
+   * @inheritDoc
+   */
+  finish(endTimestamp) {
+    this.endTimestamp = typeof endTimestamp === "number" ? endTimestamp : dateTimestampInSeconds2();
+  }
+  /**
+   * @inheritDoc
+   */
+  toTraceparent() {
+    let sampledString = "";
+    if (this.sampled !== void 0) {
+      sampledString = this.sampled ? "-1" : "-0";
+    }
+    return `${this.traceId}-${this.spanId}${sampledString}`;
+  }
+  /**
+   * @inheritDoc
+   */
+  toContext() {
+    return dropUndefinedKeys2({
+      data: this.data,
+      description: this.description,
+      attributes: this.attributes,
+      name: this.name,
+      endTimestamp: this.endTimestamp,
+      op: this.op,
+      parentSpanId: this.parentSpanId,
+      sampled: this.sampled,
+      spanId: this.spanId,
+      startTimestamp: this.startTimestamp,
+      status: typeof this.status === "number" ? String(this.status) : this.status,
+      tags: this.tags,
+      traceId: this.traceId
+    });
+  }
+  /**
+   * @inheritDoc
+   */
+  updateWithContext(spanContext) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    this.data = (_a = spanContext.data) != null ? _a : {};
+    this.description = (_b = spanContext.description) != null ? _b : spanContext.name;
+    this.name = (_d = (_c = spanContext.name) != null ? _c : spanContext.description) != null ? _d : this.name;
+    this.endTimestamp = spanContext.endTimestamp;
+    this.op = spanContext.op;
+    this.parentSpanId = spanContext.parentSpanId;
+    this.sampled = spanContext.sampled;
+    this.spanId = (_e = spanContext.spanId) != null ? _e : this.spanId;
+    this.startTimestamp = (_f = spanContext.startTimestamp) != null ? _f : this.startTimestamp;
+    this.status = spanContext.status;
+    this.tags = (_g = spanContext.tags) != null ? _g : {};
+    this.attributes = (_h = spanContext.attributes) != null ? _h : this.attributes;
+    this.traceId = (_i = spanContext.traceId) != null ? _i : this.traceId;
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  getTraceContext() {
+    return dropUndefinedKeys2({
+      data: Object.keys(this.data).length > 0 ? this.data : void 0,
+      description: this.description,
+      op: this.op,
+      parent_span_id: this.parentSpanId,
+      span_id: this.spanId,
+      status: typeof this.status === "number" ? String(this.status) : this.status,
+      tags: Object.keys(this.tags).length > 0 ? this.tags : void 0,
+      trace_id: this.traceId
+    });
+  }
+  /**
+   * @inheritDoc
+   */
+  toJSON() {
+    return dropUndefinedKeys2({
+      data: Object.keys(this.data).length > 0 ? this.data : void 0,
+      description: this.description,
+      op: this.op,
+      parent_span_id: this.parentSpanId,
+      span_id: this.spanId,
+      start_timestamp: this.startTimestamp,
+      status: typeof this.status === "number" ? String(this.status) : this.status,
+      tags: Object.keys(this.tags).length > 0 ? this.tags : void 0,
+      attributes: Object.keys(this.attributes).length > 0 ? this.attributes : void 0,
+      timestamp: this.endTimestamp,
+      trace_id: this.traceId
+    });
+  }
+  /**
+   * Return OTEL-like span context data.
+   */
+  spanContext() {
+    return {
+      traceId: this.traceId,
+      spanId: this.spanId,
+      traceFlags: this.sampled ? 1 : 0
+    };
+  }
+  /**
+   * Whether span is recording (sampled and not finished).
+   */
+  isRecording() {
+    return this.sampled !== false && this.endTimestamp === void 0;
+  }
+};
+function spanTimeInputToSeconds2(input) {
+  if (input === void 0) {
+    return dateTimestampInSeconds2();
+  }
+  if (Array.isArray(input) && input.length === 2) {
+    const [seconds, nanoseconds] = input;
+    return seconds + nanoseconds / 1e9;
+  }
+  if (input instanceof Date) {
+    return input.getTime() / 1e3;
+  }
+  if (typeof input === "number") {
+    return input > 1e12 ? msToSec(input) : input;
+  }
+  return dateTimestampInSeconds2();
+}
+function spanStatusfromHttpCode(httpStatus) {
+  if (httpStatus < 400 && httpStatus >= 100) {
+    return "ok";
+  }
+  if (httpStatus >= 400 && httpStatus < 500) {
+    switch (httpStatus) {
+      case 401:
+        return "unauthenticated";
+      case 403:
+        return "permission_denied";
+      case 404:
+        return "not_found";
+      case 409:
+        return "already_exists";
+      case 413:
+        return "failed_precondition";
+      case 429:
+        return "resource_exhausted";
+      default:
+        return "invalid_argument";
+    }
+  }
+  if (httpStatus >= 500 && httpStatus < 600) {
+    switch (httpStatus) {
+      case 501:
+        return "unimplemented";
+      case 503:
+        return "unavailable";
+      case 504:
+        return "deadline_exceeded";
+      default:
+        return "internal_error";
+    }
+  }
+  return "unknown_error";
+}
+
+// src/tracing/transaction.ts
+var Transaction = class extends Span {
+  /**
+   * This constructor should never be called manually. Those instrumenting tracing should use
+   * `Sentry.startTransaction()`, and internal methods should use `hub.startTransaction()`.
+   * @internal
+   * @hideconstructor
+   * @hidden
+   */
+  constructor(transactionContext) {
+    super(transactionContext);
+    this._measurements = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this._contexts = {};
+    this.name = transactionContext.name || "";
+    this.metadata = __spreadValues({
+      source: "custom",
+      spanMetadata: {}
+    }, transactionContext.metadata);
+    this._trimEnd = transactionContext.trimEnd;
+    this.transaction = this;
+  }
+  /**
+   * JSDoc
+   */
+  setName(name) {
+    this.name = name;
+  }
+  /**
+   * Attach additional context to the transaction.
+   * @deprecated Prefer attributes or scope data.
+   */
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  setContext(key, context) {
+    this._contexts[key] = context;
+  }
+  /**
+   * Record a single measurement.
+   * @deprecated Prefer top-level `setMeasurement`.
+   */
+  setMeasurement(name, value, unit = "") {
+    this._measurements[name] = { value, unit };
+  }
+  /**
+   * Attaches SpanRecorder to the span itself
+   * @param maxlen maximum number of spans that can be recorded
+   */
+  initSpanRecorder(maxlen = 1e3) {
+    if (!this.spanRecorder) {
+      this.spanRecorder = new SpanRecorder(maxlen);
+    }
+    this.spanRecorder.add(this);
+  }
+  /**
+   * Set observed measurements for this transaction.
+   * @hidden
+   */
+  setMeasurements(measurements) {
+    this._measurements = __spreadValues({}, measurements);
+  }
+  /**
+   * Set metadata for this transaction.
+   * @hidden
+   */
+  setMetadata(newMetadata) {
+    this.metadata = __spreadValues(__spreadValues({}, this.metadata), newMetadata);
+  }
+  /**
+   * Return dynamic sampling context for this transaction.
+   */
+  getDynamicSamplingContext() {
+    var _a;
+    return ((_a = this.metadata) == null ? void 0 : _a.dynamicSamplingContext) || {};
+  }
+  /**
+   * Placeholder profile id (not used in miniapp tracing).
+   */
+  getProfileId() {
+    return void 0;
+  }
+  /**
+   * @inheritDoc
+   */
+  finish(endTimestamp) {
+    if (this.endTimestamp !== void 0) {
+      return void 0;
+    }
+    if (!this.name) {
+      IS_DEBUG_BUILD && logger2.warn("Transaction has no name, falling back to `<unlabeled transaction>`.");
+      this.name = "<unlabeled transaction>";
+    }
+    super.finish(endTimestamp);
+    if (this.sampled !== true) {
+      IS_DEBUG_BUILD && logger2.log("[Tracing] Discarding transaction because its trace was not chosen to be sampled.");
+      return void 0;
+    }
+    const finishedSpans = this.spanRecorder ? this.spanRecorder.spans.filter((s) => s !== this && s.endTimestamp) : [];
+    const serializedSpans = finishedSpans.map((span) => span.toJSON());
+    if (this._trimEnd && finishedSpans.length > 0) {
+      this.endTimestamp = finishedSpans.reduce((prev, current) => {
+        if (prev.endTimestamp && current.endTimestamp) {
+          return prev.endTimestamp > current.endTimestamp ? prev : current;
+        }
+        return prev;
+      }).endTimestamp;
+    }
+    const transaction = {
+      contexts: __spreadValues({
+        trace: this.getTraceContext()
+      }, this._contexts),
+      spans: serializedSpans,
+      start_timestamp: this.startTimestamp,
+      tags: this.tags,
+      timestamp: this.endTimestamp,
+      transaction: this.name,
+      type: "transaction",
+      sdkProcessingMetadata: this.metadata
+    };
+    const hasMeasurements = Object.keys(this._measurements).length > 0;
+    if (hasMeasurements) {
+      IS_DEBUG_BUILD && logger2.log(
+        "[Measurements] Adding measurements to transaction",
+        JSON.stringify(this._measurements, void 0, 2)
       );
+      transaction.measurements = this._measurements;
     }
-  };
+    IS_DEBUG_BUILD && logger2.log(`[Tracing] Finishing ${this.op} transaction: ${this.name}.`);
+    return captureEvent(transaction);
+  }
+  /**
+   * @inheritDoc
+   */
+  toContext() {
+    const spanContext = super.toContext();
+    return dropUndefinedKeys2(__spreadProps(__spreadValues({}, spanContext), {
+      name: this.name,
+      trimEnd: this._trimEnd
+    }));
+  }
+  /**
+   * @inheritDoc
+   */
+  updateWithContext(transactionContext) {
+    var _a;
+    super.updateWithContext(transactionContext);
+    this.name = (_a = transactionContext.name) != null ? _a : "";
+    this._trimEnd = transactionContext.trimEnd;
+    return this;
+  }
 };
-var linkedErrorsIntegration = defineIntegration(_linkedErrorsIntegration);
-var LinkedErrors = convertIntegrationFnToClass(INTEGRATION_NAME3, linkedErrorsIntegration);
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/integrations/index.js
-var integrations_exports = {};
-__export(integrations_exports, {
-  FunctionToString: () => FunctionToString,
-  InboundFilters: () => InboundFilters,
-  LinkedErrors: () => LinkedErrors
-});
+// src/tracing/idletransaction.ts
+var DEFAULT_IDLE_TIMEOUT = 1e3;
+var HEARTBEAT_INTERVAL = 5e3;
+var IdleTransactionSpanRecorder = class extends SpanRecorder {
+  constructor(_pushActivity, _popActivity, transactionSpanId = "", maxlen) {
+    super(maxlen);
+    this._pushActivity = _pushActivity;
+    this._popActivity = _popActivity;
+    this.transactionSpanId = transactionSpanId;
+  }
+  /**
+   * @inheritDoc
+   */
+  add(span) {
+    if (span.spanId !== this.transactionSpanId) {
+      span.finish = (endTimestamp) => {
+        span.endTimestamp = typeof endTimestamp === "number" ? endTimestamp : dateTimestampInSeconds2();
+        this._popActivity(span.spanId);
+      };
+      if (span.endTimestamp === void 0) {
+        this._pushActivity(span.spanId);
+      }
+    }
+    super.add(span);
+  }
+};
+var IdleTransaction = class extends Transaction {
+  constructor(transactionContext, _idleTimeout = DEFAULT_IDLE_TIMEOUT, _onScope = false) {
+    super(transactionContext);
+    this._idleTimeout = _idleTimeout;
+    this._onScope = _onScope;
+    // Activities store a list of active spans
+    this.activities = {};
+    // Amount of times heartbeat has counted. Will cause transaction to finish after 3 beats.
+    this._heartbeatCounter = 0;
+    // We should not use heartbeat if we finished a transaction
+    this._finished = false;
+    this._beforeFinishCallbacks = [];
+    if (_onScope) {
+      IS_DEBUG_BUILD && logger2.log(`Setting idle transaction as active. Span ID: ${this.spanId}`);
+      setActiveTransaction(this);
+    }
+    this._initTimeout = setTimeout(() => {
+      if (!this._finished) {
+        this.finish();
+      }
+    }, this._idleTimeout);
+  }
+  /** {@inheritDoc} */
+  finish(endTimestamp = dateTimestampInSeconds2()) {
+    this._finished = true;
+    this.activities = {};
+    if (this.spanRecorder) {
+      IS_DEBUG_BUILD && logger2.log("[Tracing] finishing IdleTransaction", new Date(endTimestamp * 1e3).toISOString(), this.op);
+      for (const callback of this._beforeFinishCallbacks) {
+        callback(this, endTimestamp);
+      }
+      this.spanRecorder.spans = this.spanRecorder.spans.filter((span) => {
+        if (span.spanId === this.spanId) {
+          return true;
+        }
+        if (!span.endTimestamp) {
+          span.endTimestamp = endTimestamp;
+          span.setStatus("cancelled");
+          IS_DEBUG_BUILD && logger2.log("[Tracing] cancelling span since transaction ended early", JSON.stringify(span, void 0, 2));
+        }
+        const keepSpan = span.startTimestamp < endTimestamp;
+        if (!keepSpan) {
+          IS_DEBUG_BUILD && logger2.log(
+            "[Tracing] discarding Span since it happened after Transaction was finished",
+            JSON.stringify(span, void 0, 2)
+          );
+        }
+        return keepSpan;
+      });
+      IS_DEBUG_BUILD && logger2.log("[Tracing] flushing IdleTransaction");
+    } else {
+      IS_DEBUG_BUILD && logger2.log("[Tracing] No active IdleTransaction");
+    }
+    if (this._onScope) {
+      setActiveTransaction(void 0);
+    }
+    return super.finish(endTimestamp);
+  }
+  /**
+   * Register a callback function that gets excecuted before the transaction finishes.
+   * Useful for cleanup or if you want to add any additional spans based on current context.
+   *
+   * This is exposed because users have no other way of running something before an idle transaction
+   * finishes.
+   */
+  registerBeforeFinishCallback(callback) {
+    this._beforeFinishCallbacks.push(callback);
+  }
+  /**
+   * @inheritDoc
+   */
+  initSpanRecorder(maxlen) {
+    if (!this.spanRecorder) {
+      const pushActivity = (id) => {
+        if (this._finished) {
+          return;
+        }
+        this._pushActivity(id);
+      };
+      const popActivity = (id) => {
+        if (this._finished) {
+          return;
+        }
+        this._popActivity(id);
+      };
+      this.spanRecorder = new IdleTransactionSpanRecorder(pushActivity, popActivity, this.spanId, maxlen);
+      IS_DEBUG_BUILD && logger2.log("Starting heartbeat");
+      this._pingHeartbeat();
+    }
+    this.spanRecorder.add(this);
+  }
+  /**
+   * Start tracking a specific activity.
+   * @param spanId The span id that represents the activity
+   */
+  _pushActivity(spanId) {
+    if (this._initTimeout) {
+      clearTimeout(this._initTimeout);
+      this._initTimeout = void 0;
+    }
+    IS_DEBUG_BUILD && logger2.log(`[Tracing] pushActivity: ${spanId}`);
+    this.activities[spanId] = true;
+    IS_DEBUG_BUILD && logger2.log("[Tracing] new activities count", Object.keys(this.activities).length);
+  }
+  /**
+   * Remove an activity from usage
+   * @param spanId The span id that represents the activity
+   */
+  _popActivity(spanId) {
+    if (this.activities[spanId]) {
+      IS_DEBUG_BUILD && logger2.log(`[Tracing] popActivity ${spanId}`);
+      delete this.activities[spanId];
+      IS_DEBUG_BUILD && logger2.log("[Tracing] new activities count", Object.keys(this.activities).length);
+    }
+    if (Object.keys(this.activities).length === 0) {
+      const timeout = this._idleTimeout;
+      const end = dateTimestampInSeconds2() + timeout / 1e3;
+      setTimeout(() => {
+        if (!this._finished) {
+          this.setTag(FINISH_REASON_TAG, IDLE_TRANSACTION_FINISH_REASONS[1]);
+          this.finish(end);
+        }
+      }, timeout);
+    }
+  }
+  /**
+   * Checks when entries of this.activities are not changing for 3 beats.
+   * If this occurs we finish the transaction.
+   */
+  _beat() {
+    if (this._finished) {
+      return;
+    }
+    const heartbeatString = Object.keys(this.activities).join("");
+    if (heartbeatString === this._prevHeartbeatString) {
+      this._heartbeatCounter += 1;
+    } else {
+      this._heartbeatCounter = 1;
+    }
+    this._prevHeartbeatString = heartbeatString;
+    if (this._heartbeatCounter >= 3) {
+      IS_DEBUG_BUILD && logger2.log("[Tracing] Transaction finished because of no change for 3 heart beats");
+      this.setStatus("deadline_exceeded");
+      this.setTag(FINISH_REASON_TAG, IDLE_TRANSACTION_FINISH_REASONS[0]);
+      this.finish();
+    } else {
+      this._pingHeartbeat();
+    }
+  }
+  /**
+   * Pings the heartbeat
+   */
+  _pingHeartbeat() {
+    IS_DEBUG_BUILD && logger2.log(`pinging Heartbeat -> current counter: ${this._heartbeatCounter}`);
+    setTimeout(() => {
+      this._beat();
+    }, HEARTBEAT_INTERVAL);
+  }
+};
 
-// node_modules/.pnpm/@sentry+core@7.120.3/node_modules/@sentry/core/esm/index.js
-var Integrations = integrations_exports;
+// src/tracing/hubextensions.ts
+function sample(transaction, options, samplingContext) {
+  if (!hasTracingEnabled2(options)) {
+    transaction.sampled = false;
+    return transaction;
+  }
+  if (transaction.sampled !== void 0) {
+    return transaction;
+  }
+  let sampleRate;
+  if (typeof options.tracesSampler === "function") {
+    sampleRate = options.tracesSampler(samplingContext);
+  } else if (samplingContext.parentSampled !== void 0) {
+    sampleRate = samplingContext.parentSampled;
+  } else {
+    sampleRate = options.tracesSampleRate;
+  }
+  if (!isValidSampleRate(sampleRate)) {
+    IS_DEBUG_BUILD && logger2.warn("[Tracing] Discarding transaction because of invalid sample rate.");
+    transaction.sampled = false;
+    return transaction;
+  }
+  if (!sampleRate) {
+    IS_DEBUG_BUILD && logger2.log(
+      `[Tracing] Discarding transaction because ${typeof options.tracesSampler === "function" ? "tracesSampler returned 0 or false" : "a negative sampling decision was inherited or tracesSampleRate is set to 0"}`
+    );
+    transaction.sampled = false;
+    return transaction;
+  }
+  transaction.sampled = Math.random() < sampleRate;
+  if (!transaction.sampled) {
+    IS_DEBUG_BUILD && logger2.log(
+      `[Tracing] Discarding transaction because it's not included in the random sample (sampling rate = ${Number(
+        sampleRate
+      )})`
+    );
+    return transaction;
+  }
+  IS_DEBUG_BUILD && logger2.log(`[Tracing] starting ${transaction.op} transaction - ${transaction.name}`);
+  return transaction;
+}
+function isValidSampleRate(rate) {
+  if (Number.isNaN(rate) || !(typeof rate === "number" || typeof rate === "boolean")) {
+    IS_DEBUG_BUILD && logger2.warn(
+      `[Tracing] Given sample rate is invalid. Sample rate must be a boolean or a number between 0 and 1. Got ${JSON.stringify(
+        rate
+      )} of type ${JSON.stringify(typeof rate)}.`
+    );
+    return false;
+  }
+  if (rate < 0 || rate > 1) {
+    IS_DEBUG_BUILD && logger2.warn(`[Tracing] Given sample rate is invalid. Sample rate must be between 0 and 1. Got ${rate}.`);
+    return false;
+  }
+  return true;
+}
+function startTransaction(transactionContext, customSamplingContext) {
+  const client = getClient();
+  const options = client && client.getOptions && client.getOptions() || {};
+  const transactionName = transactionContext.name || transactionContext.op || "unknown-transaction";
+  const samplingContext = __spreadValues({
+    parentSampled: transactionContext.parentSampled,
+    transactionContext: __spreadProps(__spreadValues({}, transactionContext), { name: transactionName }),
+    name: transactionName
+  }, customSamplingContext);
+  let transaction = new Transaction(__spreadProps(__spreadValues({}, transactionContext), { name: transactionName }));
+  transaction = sample(transaction, options, samplingContext);
+  if (transaction.sampled) {
+    const maxSpans = options._experiments && options._experiments.maxSpans;
+    transaction.initSpanRecorder(maxSpans);
+    setActiveTransaction(transaction);
+  }
+  return transaction;
+}
+function startIdleTransaction(transactionContext, idleTimeout, onScope, customSamplingContext) {
+  const client = getClient();
+  const options = client && client.getOptions && client.getOptions() || {};
+  const transactionName = transactionContext.name || transactionContext.op || "unknown-transaction";
+  const samplingContext = __spreadValues({
+    parentSampled: transactionContext.parentSampled,
+    transactionContext: __spreadProps(__spreadValues({}, transactionContext), { name: transactionName }),
+    name: transactionName
+  }, customSamplingContext);
+  let transaction = new IdleTransaction(__spreadProps(__spreadValues({}, transactionContext), { name: transactionName }), idleTimeout, onScope);
+  transaction = sample(transaction, options, samplingContext);
+  if (transaction.sampled) {
+    const maxSpans = options._experiments && options._experiments.maxSpans;
+    transaction.initSpanRecorder(maxSpans);
+    setActiveTransaction(transaction);
+  }
+  return transaction;
+}
 
 // src/version.ts
 var SDK_NAME = "sentry.javascript.miniapp";
 var SDK_VERSION2 = "0.12.1";
 
 // src/tracekit.ts
-var UNKNOWN_FUNCTION = "?";
+var UNKNOWN_FUNCTION2 = "?";
 var chrome = /^\s*at (?:(.*?) ?\()?((?:file|https?|blob|chrome-extension|address|native|eval|webpack|<anonymous>|[-a-z]+:|\/).*?)(?::(\d+))?(?::(\d+))?\)?\s*$/i;
 var gecko = /^\s*(.*?)(?:\((.*?)\))?(?:^|@)?((?:file|https?|blob|chrome|webpack|resource|moz-extension).*?:\/.*?|\[native code\]|[^@]*(?:bundle|\d+\.js))(?::(\d+))?(?::(\d+))?\s*$/i;
 var winjs = /^\s*at (?:((?:\[object object\])?.+) )?\(?((?:file|ms-appx|https?|webpack|blob):.*?):(\d+)(?::(\d+))?\)?\s*$/i;
@@ -4123,7 +4694,7 @@ function computeStackTraceFromStackProp(ex) {
       }
       element = {
         url: parts[2],
-        func: parts[1] || UNKNOWN_FUNCTION,
+        func: parts[1] || UNKNOWN_FUNCTION2,
         args: isNative ? [parts[2]] : [],
         line: parts[3] ? +parts[3] : null,
         column: parts[4] ? +parts[4] : null
@@ -4131,7 +4702,7 @@ function computeStackTraceFromStackProp(ex) {
     } else if (parts = winjs.exec(lines[i])) {
       element = {
         url: parts[2],
-        func: parts[1] || UNKNOWN_FUNCTION,
+        func: parts[1] || UNKNOWN_FUNCTION2,
         args: [],
         line: +parts[3],
         column: parts[4] ? +parts[4] : null
@@ -4148,7 +4719,7 @@ function computeStackTraceFromStackProp(ex) {
       }
       element = {
         url: parts[3],
-        func: parts[1] || UNKNOWN_FUNCTION,
+        func: parts[1] || UNKNOWN_FUNCTION2,
         args: parts[2] ? parts[2].split(",") : [],
         line: parts[4] ? +parts[4] : null,
         column: parts[5] ? +parts[5] : null
@@ -4156,7 +4727,7 @@ function computeStackTraceFromStackProp(ex) {
     } else if (parts = miniapp.exec(lines[i])) {
       element = {
         url: parts[2],
-        func: parts[1] || UNKNOWN_FUNCTION,
+        func: parts[1] || UNKNOWN_FUNCTION2,
         args: [],
         line: parts[3] ? +parts[3] : null,
         column: parts[4] ? +parts[4] : null
@@ -4165,7 +4736,7 @@ function computeStackTraceFromStackProp(ex) {
       continue;
     }
     if (!element.func && element.line) {
-      element.func = UNKNOWN_FUNCTION;
+      element.func = UNKNOWN_FUNCTION2;
     }
     stack.push(element);
   }
@@ -4209,7 +4780,7 @@ function computeStackTraceFromStacktraceProp(ex) {
     }
     if (element) {
       if (!element.func && element.line) {
-        element.func = UNKNOWN_FUNCTION;
+        element.func = UNKNOWN_FUNCTION2;
       }
       stack.push(element);
     }
@@ -4264,13 +4835,13 @@ function eventFromPlainObject(exception, syntheticException, rejection) {
     exception: {
       values: [
         {
-          type: isEvent(exception) ? exception.constructor.name : rejection ? "UnhandledRejection" : "Error",
-          value: `Non-Error ${rejection ? "promise rejection" : "exception"} captured with keys: ${extractExceptionKeysForMessage(exception)}`
+          type: isEvent2(exception) ? exception.constructor.name : rejection ? "UnhandledRejection" : "Error",
+          value: `Non-Error ${rejection ? "promise rejection" : "exception"} captured with keys: ${extractExceptionKeysForMessage2(exception)}`
         }
       ]
     },
     extra: {
-      __serialized__: normalizeToSize(exception)
+      __serialized__: normalizeToSize2(exception)
     }
   };
   if (syntheticException) {
@@ -4317,35 +4888,35 @@ function prepareFramesForEvent(stack) {
 // src/eventbuilder.ts
 function eventFromUnknownInput2(exception, syntheticException, options = {}) {
   let event;
-  if (isErrorEvent(exception) && exception.error) {
+  if (isErrorEvent3(exception) && exception.error) {
     const errorEvent = exception;
     exception = errorEvent.error;
     event = eventFromStacktrace(computeStackTrace(exception));
     return event;
   }
-  if (isDOMError(exception) || isDOMException(exception)) {
+  if (isDOMError2(exception) || isDOMException2(exception)) {
     const domException = exception;
-    const name = domException.name || (isDOMError(domException) ? "DOMError" : "DOMException");
+    const name = domException.name || (isDOMError2(domException) ? "DOMError" : "DOMException");
     const message = domException.message ? `${name}: ${domException.message}` : name;
     event = eventFromString(message, syntheticException, options);
-    addExceptionTypeValue(event, message);
+    addExceptionTypeValue2(event, message);
     return event;
   }
-  if (isError(exception)) {
+  if (isError2(exception)) {
     event = eventFromStacktrace(computeStackTrace(exception));
     return event;
   }
-  if (isPlainObject(exception) || isEvent(exception)) {
+  if (isPlainObject2(exception) || isEvent2(exception)) {
     const objectException = exception;
     event = eventFromPlainObject(objectException, syntheticException, options.rejection);
-    addExceptionMechanism(event, {
+    addExceptionMechanism2(event, {
       synthetic: true
     });
     return event;
   }
   event = eventFromString(exception, syntheticException, options);
-  addExceptionTypeValue(event, `${exception}`);
-  addExceptionMechanism(event, {
+  addExceptionTypeValue2(event, `${exception}`, void 0);
+  addExceptionMechanism2(event, {
     synthetic: true
   });
   return event;
@@ -4432,7 +5003,7 @@ var appName = getAppName();
 var CONTENT_TYPE = "application/json";
 function makeMiniappTransport(options) {
   function makeRequest(request) {
-    return new SyncPromise((resolve, reject) => {
+    return new SyncPromise2((resolve2, reject) => {
       const requestFn = sdk.request || sdk.httpRequest;
       if (typeof requestFn !== "function") {
         reject(new Error("Miniapp request function is not available"));
@@ -4445,7 +5016,7 @@ function makeMiniappTransport(options) {
         header: { "content-type": CONTENT_TYPE },
         success(res) {
           var _a, _b, _c, _d;
-          resolve({
+          resolve2({
             statusCode: res == null ? void 0 : res.statusCode,
             headers: {
               "x-sentry-rate-limits": (_b = (_a = res == null ? void 0 : res.headers) == null ? void 0 : _a["X-Sentry-Rate-Limits"]) != null ? _b : null,
@@ -4570,15 +5141,15 @@ function wrap(fn, options = {}, before) {
       return fn.apply(this, wrappedArguments);
     } catch (ex) {
       ignoreNextOnError();
-      withScope((scope) => {
+      withScope2((scope) => {
         scope.addEventProcessor((event) => {
           const processedEvent = __spreadValues({}, event);
           if (options.mechanism) {
-            addExceptionTypeValue(processedEvent, void 0);
-            addExceptionMechanism(processedEvent, options.mechanism);
+            addExceptionTypeValue2(processedEvent, void 0, void 0);
+            addExceptionMechanism2(processedEvent, options.mechanism);
           }
           processedEvent.extra = __spreadProps(__spreadValues({}, processedEvent.extra), {
-            arguments: normalize(args, 3)
+            arguments: normalize2(args, 3)
           });
           return processedEvent;
         });
@@ -4626,11 +5197,11 @@ function wrap(fn, options = {}, before) {
 }
 
 // src/integrations/index.ts
-var integrations_exports2 = {};
-__export(integrations_exports2, {
+var integrations_exports = {};
+__export(integrations_exports, {
   GlobalHandlers: () => GlobalHandlers,
   IgnoreMpcrawlerErrors: () => IgnoreMpcrawlerErrors,
-  LinkedErrors: () => LinkedErrors2,
+  LinkedErrors: () => LinkedErrors,
   Router: () => Router,
   System: () => System,
   TryCatch: () => TryCatch
@@ -4665,19 +5236,19 @@ var _GlobalHandlers = class _GlobalHandlers {
   setupOnce() {
     Error.stackTraceLimit = 50;
     if (this._options.onerror) {
-      logger.log("Global Handler attached: onError");
+      logger2.log("Global Handler attached: onError");
       this._installGlobalOnErrorHandler();
     }
     if (this._options.onunhandledrejection) {
-      logger.log("Global Handler attached: onunhandledrejection");
+      logger2.log("Global Handler attached: onunhandledrejection");
       this._installGlobalOnUnhandledRejectionHandler();
     }
     if (this._options.onpagenotfound) {
-      logger.log("Global Handler attached: onPageNotFound");
+      logger2.log("Global Handler attached: onPageNotFound");
       this._installGlobalOnPageNotFoundHandler();
     }
     if (this._options.onmemorywarning) {
-      logger.log("Global Handler attached: onMemoryWarning");
+      logger2.log("Global Handler attached: onMemoryWarning");
       this._installGlobalOnMemoryWarningHandler();
     }
   }
@@ -4808,12 +5379,12 @@ var _TryCatch = class _TryCatch {
   }
   /** JSDoc */
   _wrapEventTarget(target) {
-    const global2 = getGlobalObject();
+    const global2 = GLOBAL_OBJ3;
     const proto = global2[target] && global2[target].prototype;
     if (!proto || !proto.hasOwnProperty || !proto.hasOwnProperty("addEventListener")) {
       return;
     }
-    fill(proto, "addEventListener", function(original) {
+    fill2(proto, "addEventListener", function(original) {
       return function(eventName, fn, options) {
         try {
           if (typeof fn.handleEvent === "function") {
@@ -4849,7 +5420,7 @@ var _TryCatch = class _TryCatch {
         );
       };
     });
-    fill(proto, "removeEventListener", function(original) {
+    fill2(proto, "removeEventListener", function(original) {
       return function(eventName, fn, options) {
         let callback = fn;
         try {
@@ -4866,10 +5437,10 @@ var _TryCatch = class _TryCatch {
    */
   setupOnce() {
     this._ignoreOnError = this._ignoreOnError;
-    const global2 = getGlobalObject();
-    fill(global2, "setTimeout", this._wrapTimeFunction.bind(this));
-    fill(global2, "setInterval", this._wrapTimeFunction.bind(this));
-    fill(global2, "requestAnimationFrame", this._wrapRAF.bind(this));
+    const global2 = GLOBAL_OBJ3;
+    fill2(global2, "setTimeout", this._wrapTimeFunction.bind(this));
+    fill2(global2, "setInterval", this._wrapTimeFunction.bind(this));
+    fill2(global2, "requestAnimationFrame", this._wrapRAF.bind(this));
     [
       "EventTarget",
       "Window",
@@ -4917,8 +5488,8 @@ function getFunctionName2(fn) {
 }
 
 // src/integrations/linkederrors.ts
-var DEFAULT_KEY2 = "cause";
-var DEFAULT_LIMIT2 = 5;
+var DEFAULT_KEY = "cause";
+var DEFAULT_LIMIT = 5;
 var _LinkedErrors = class _LinkedErrors {
   /**
    * @inheritDoc
@@ -4928,14 +5499,14 @@ var _LinkedErrors = class _LinkedErrors {
      * @inheritDoc
      */
     this.name = _LinkedErrors.id;
-    this._key = options.key || DEFAULT_KEY2;
-    this._limit = options.limit || DEFAULT_LIMIT2;
+    this._key = options.key || DEFAULT_KEY;
+    this._limit = options.limit || DEFAULT_LIMIT;
   }
   /**
    * @inheritDoc
    */
   setupOnce() {
-    addGlobalEventProcessor((event, hint) => {
+    addEventProcessor((event, hint) => {
       const self2 = getCurrentHub().getIntegration(_LinkedErrors);
       if (self2) {
         return self2._handler(event, hint);
@@ -4970,7 +5541,7 @@ var _LinkedErrors = class _LinkedErrors {
  * @inheritDoc
  */
 _LinkedErrors.id = "LinkedErrors";
-var LinkedErrors2 = _LinkedErrors;
+var LinkedErrors = _LinkedErrors;
 
 // src/integrations/system.ts
 var _System = class _System {
@@ -4984,7 +5555,7 @@ var _System = class _System {
    * @inheritDoc
    */
   setupOnce() {
-    addGlobalEventProcessor((event) => {
+    addEventProcessor((event) => {
       const currentHub = getCurrentHub();
       if (currentHub.getIntegration(_System)) {
         try {
@@ -5072,7 +5643,7 @@ var _Router = class _Router {
    * @inheritDoc
    */
   setupOnce() {
-    addGlobalEventProcessor((event) => {
+    addEventProcessor((event) => {
       if (getCurrentHub().getIntegration(_Router)) {
         if (this._options.enable) {
           try {
@@ -5114,7 +5685,7 @@ var _IgnoreMpcrawlerErrors = class _IgnoreMpcrawlerErrors {
    * @inheritDoc
    */
   setupOnce() {
-    addGlobalEventProcessor((event) => {
+    addEventProcessor((event) => {
       if (getCurrentHub().getIntegration(_IgnoreMpcrawlerErrors) && appName === "wechat" && sdk.getLaunchOptionsSync) {
         const options = sdk.getLaunchOptionsSync();
         if (options.scene === 1129) {
@@ -5130,849 +5701,6 @@ var _IgnoreMpcrawlerErrors = class _IgnoreMpcrawlerErrors {
  */
 _IgnoreMpcrawlerErrors.id = "IgnoreMpcrawlerErrors";
 var IgnoreMpcrawlerErrors = _IgnoreMpcrawlerErrors;
-
-// src/tracing/flags.ts
-var IS_DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" ? true : __SENTRY_DEBUG__;
-
-// src/tracing/constants.ts
-var FINISH_REASON_TAG = "finishReason";
-var IDLE_TRANSACTION_FINISH_REASONS = ["heartbeatFailed", "idleTimeout", "documentHidden"];
-
-// src/tracing/utils.ts
-function hasTracingEnabled(maybeOptions) {
-  const client = getCurrentHub().getClient();
-  const options = maybeOptions || client && client.getOptions();
-  return !!options && ("tracesSampleRate" in options || "tracesSampler" in options);
-}
-function getActiveTransaction(maybeHub) {
-  const hub = getCurrentHub();
-  const scope = hub.getScope();
-  return scope && scope.getTransaction();
-}
-function msToSec(time) {
-  return time / 1e3;
-}
-function secToMs(time) {
-  return time * 1e3;
-}
-
-// src/tracing/span.ts
-var SpanRecorder = class {
-  constructor(maxlen = 1e3) {
-    this.spans = [];
-    this._maxlen = maxlen;
-  }
-  /**
-   * This is just so that we don't run out of memory while recording a lot
-   * of spans. At some point we just stop and flush out the start of the
-   * trace tree (i.e.the first n spans with the smallest
-   * start_timestamp).
-   */
-  add(span) {
-    if (this.spans.length > this._maxlen) {
-      span.spanRecorder = void 0;
-    } else {
-      this.spans.push(span);
-    }
-  }
-};
-var Span = class _Span {
-  /**
-   * You should never call the constructor manually, always use `Sentry.startTransaction()`
-   * or call `startChild()` on an existing span.
-   * @internal
-   * @hideconstructor
-   * @hidden
-   */
-  constructor(spanContext) {
-    /**
-     * Human-readable identifier for the span. Mirrors description for backwards compatibility.
-     */
-    this.name = "";
-    /**
-     * @inheritDoc
-     */
-    this.traceId = uuid4();
-    /**
-     * @inheritDoc
-     */
-    this.spanId = uuid4().substring(16);
-    /**
-     * Timestamp in seconds when the span was created.
-     */
-    this.startTimestamp = timestampWithMs();
-    /**
-     * @inheritDoc
-     */
-    this.tags = {};
-    /**
-     * @inheritDoc
-     */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.data = {};
-    /**
-     * Attributes for the span (new Sentry/OpenTelemetry style).
-     */
-    this.attributes = {};
-    /**
-     * Instrumenter that created the span.
-     */
-    this.instrumenter = "sentry";
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
-    if (!spanContext) {
-      return this;
-    }
-    this.traceId = (_a = spanContext.traceId) != null ? _a : this.traceId;
-    this.spanId = (_b = spanContext.spanId) != null ? _b : this.spanId;
-    this.parentSpanId = (_c = spanContext.parentSpanId) != null ? _c : this.parentSpanId;
-    if ("sampled" in spanContext) {
-      this.sampled = spanContext.sampled;
-    }
-    this.op = (_d = spanContext.op) != null ? _d : this.op;
-    this.description = (_f = (_e = spanContext.description) != null ? _e : spanContext.name) != null ? _f : this.description;
-    this.name = (_h = (_g = spanContext.name) != null ? _g : spanContext.description) != null ? _h : this.name;
-    this.data = spanContext.data ? __spreadValues({}, spanContext.data) : this.data;
-    this.tags = spanContext.tags ? __spreadValues({}, spanContext.tags) : this.tags;
-    this.attributes = spanContext.attributes ? __spreadValues({}, spanContext.attributes) : this.attributes;
-    this.status = (_i = spanContext.status) != null ? _i : this.status;
-    this.startTimestamp = (_j = spanContext.startTimestamp) != null ? _j : this.startTimestamp;
-    this.endTimestamp = (_k = spanContext.endTimestamp) != null ? _k : this.endTimestamp;
-    this.instrumenter = (_l = spanContext.instrumenter) != null ? _l : this.instrumenter;
-    this.origin = (_m = spanContext.origin) != null ? _m : this.origin;
-  }
-  /**
-   * @inheritDoc
-   * @deprecated
-   */
-  child(spanContext) {
-    return this.startChild(spanContext);
-  }
-  /**
-   * @inheritDoc
-   */
-  startChild(spanContext) {
-    var _a;
-    const childSpan = new _Span(__spreadProps(__spreadValues({}, spanContext), {
-      parentSpanId: this.spanId,
-      sampled: this.sampled,
-      attributes: (_a = spanContext == null ? void 0 : spanContext.attributes) != null ? _a : {},
-      instrumenter: this.instrumenter,
-      traceId: this.traceId
-    }));
-    childSpan.spanRecorder = this.spanRecorder;
-    if (childSpan.spanRecorder) {
-      childSpan.spanRecorder.add(childSpan);
-    }
-    childSpan.transaction = this.transaction;
-    return childSpan;
-  }
-  /**
-   * @inheritDoc
-   */
-  setTag(key, value) {
-    this.tags = __spreadProps(__spreadValues({}, this.tags), { [key]: value });
-    return this;
-  }
-  /**
-   * @inheritDoc
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/explicit-module-boundary-types
-  setData(key, value) {
-    this.data = __spreadProps(__spreadValues({}, this.data), { [key]: value });
-    return this;
-  }
-  /**
-   * @inheritDoc
-   */
-  setAttribute(key, value) {
-    if (value === void 0) {
-      delete this.attributes[key];
-    } else {
-      this.attributes[key] = value;
-    }
-  }
-  /**
-   * @inheritDoc
-   */
-  setAttributes(attributes) {
-    Object.keys(attributes).forEach((attributeKey) => this.setAttribute(attributeKey, attributes[attributeKey]));
-  }
-  /**
-   * @inheritDoc
-   */
-  setStatus(value) {
-    this.status = value;
-    return this;
-  }
-  /**
-   * @inheritDoc
-   */
-  setHttpStatus(httpStatus) {
-    this.setTag("http.status_code", String(httpStatus));
-    const spanStatus = spanStatusfromHttpCode(httpStatus);
-    if (spanStatus !== "unknown_error") {
-      this.setStatus(spanStatus);
-    }
-    return this;
-  }
-  /**
-   * @inheritDoc
-   */
-  isSuccess() {
-    return this.status === "ok";
-  }
-  /**
-   * @inheritDoc
-   */
-  setName(name) {
-    this.name = name;
-    this.description = name;
-  }
-  /**
-   * @inheritDoc
-   */
-  updateName(name) {
-    this.setName(name);
-    return this;
-  }
-  /**
-   * @inheritDoc
-   */
-  end(endTimestamp) {
-    this.finish(spanTimeInputToSeconds(endTimestamp));
-  }
-  /**
-   * @inheritDoc
-   */
-  finish(endTimestamp) {
-    this.endTimestamp = typeof endTimestamp === "number" ? endTimestamp : timestampWithMs();
-  }
-  /**
-   * @inheritDoc
-   */
-  toTraceparent() {
-    let sampledString = "";
-    if (this.sampled !== void 0) {
-      sampledString = this.sampled ? "-1" : "-0";
-    }
-    return `${this.traceId}-${this.spanId}${sampledString}`;
-  }
-  /**
-   * @inheritDoc
-   */
-  toContext() {
-    return dropUndefinedKeys({
-      data: this.data,
-      description: this.description,
-      attributes: this.attributes,
-      name: this.name,
-      endTimestamp: this.endTimestamp,
-      op: this.op,
-      parentSpanId: this.parentSpanId,
-      sampled: this.sampled,
-      spanId: this.spanId,
-      startTimestamp: this.startTimestamp,
-      status: this.status,
-      tags: this.tags,
-      traceId: this.traceId
-    });
-  }
-  /**
-   * @inheritDoc
-   */
-  updateWithContext(spanContext) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
-    this.data = (_a = spanContext.data) != null ? _a : {};
-    this.description = (_b = spanContext.description) != null ? _b : spanContext.name;
-    this.name = (_d = (_c = spanContext.name) != null ? _c : spanContext.description) != null ? _d : this.name;
-    this.endTimestamp = spanContext.endTimestamp;
-    this.op = spanContext.op;
-    this.parentSpanId = spanContext.parentSpanId;
-    this.sampled = spanContext.sampled;
-    this.spanId = (_e = spanContext.spanId) != null ? _e : this.spanId;
-    this.startTimestamp = (_f = spanContext.startTimestamp) != null ? _f : this.startTimestamp;
-    this.status = spanContext.status;
-    this.tags = (_g = spanContext.tags) != null ? _g : {};
-    this.attributes = (_h = spanContext.attributes) != null ? _h : this.attributes;
-    this.traceId = (_i = spanContext.traceId) != null ? _i : this.traceId;
-    return this;
-  }
-  /**
-   * @inheritDoc
-   */
-  getTraceContext() {
-    return dropUndefinedKeys({
-      data: Object.keys(this.data).length > 0 ? this.data : void 0,
-      description: this.description,
-      op: this.op,
-      parent_span_id: this.parentSpanId,
-      span_id: this.spanId,
-      status: this.status,
-      tags: Object.keys(this.tags).length > 0 ? this.tags : void 0,
-      trace_id: this.traceId
-    });
-  }
-  /**
-   * @inheritDoc
-   */
-  toJSON() {
-    return dropUndefinedKeys({
-      data: Object.keys(this.data).length > 0 ? this.data : void 0,
-      description: this.description,
-      op: this.op,
-      parent_span_id: this.parentSpanId,
-      span_id: this.spanId,
-      start_timestamp: this.startTimestamp,
-      status: this.status,
-      tags: Object.keys(this.tags).length > 0 ? this.tags : void 0,
-      attributes: Object.keys(this.attributes).length > 0 ? this.attributes : void 0,
-      timestamp: this.endTimestamp,
-      trace_id: this.traceId
-    });
-  }
-  /**
-   * Return OTEL-like span context data.
-   */
-  spanContext() {
-    return {
-      traceId: this.traceId,
-      spanId: this.spanId,
-      traceFlags: this.sampled ? 1 : 0
-    };
-  }
-  /**
-   * Whether span is recording (sampled and not finished).
-   */
-  isRecording() {
-    return this.sampled !== false && this.endTimestamp === void 0;
-  }
-};
-function spanTimeInputToSeconds(input) {
-  if (input === void 0) {
-    return timestampWithMs();
-  }
-  if (Array.isArray(input) && input.length === 2) {
-    const [seconds, nanoseconds] = input;
-    return seconds + nanoseconds / 1e9;
-  }
-  if (input instanceof Date) {
-    return input.getTime() / 1e3;
-  }
-  if (typeof input === "number") {
-    return input > 1e12 ? msToSec(input) : input;
-  }
-  return timestampWithMs();
-}
-function spanStatusfromHttpCode(httpStatus) {
-  if (httpStatus < 400 && httpStatus >= 100) {
-    return "ok";
-  }
-  if (httpStatus >= 400 && httpStatus < 500) {
-    switch (httpStatus) {
-      case 401:
-        return "unauthenticated";
-      case 403:
-        return "permission_denied";
-      case 404:
-        return "not_found";
-      case 409:
-        return "already_exists";
-      case 413:
-        return "failed_precondition";
-      case 429:
-        return "resource_exhausted";
-      default:
-        return "invalid_argument";
-    }
-  }
-  if (httpStatus >= 500 && httpStatus < 600) {
-    switch (httpStatus) {
-      case 501:
-        return "unimplemented";
-      case 503:
-        return "unavailable";
-      case 504:
-        return "deadline_exceeded";
-      default:
-        return "internal_error";
-    }
-  }
-  return "unknown_error";
-}
-
-// src/tracing/transaction.ts
-var Transaction = class extends Span {
-  /**
-   * This constructor should never be called manually. Those instrumenting tracing should use
-   * `Sentry.startTransaction()`, and internal methods should use `hub.startTransaction()`.
-   * @internal
-   * @hideconstructor
-   * @hidden
-   */
-  constructor(transactionContext, hub) {
-    super(transactionContext);
-    this._measurements = {};
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this._contexts = {};
-    /**
-     * The reference to the current hub.
-     */
-    this._hub = getCurrentHub();
-    if (isInstanceOf(hub, Hub)) {
-      this._hub = hub;
-    }
-    this.name = transactionContext.name || "";
-    this.metadata = __spreadValues({
-      source: "custom",
-      spanMetadata: {}
-    }, transactionContext.metadata);
-    this._trimEnd = transactionContext.trimEnd;
-    this.transaction = this;
-  }
-  /**
-   * JSDoc
-   */
-  setName(name) {
-    this.name = name;
-  }
-  /**
-   * Attach additional context to the transaction.
-   * @deprecated Prefer attributes or scope data.
-   */
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  setContext(key, context) {
-    this._contexts[key] = context;
-  }
-  /**
-   * Record a single measurement.
-   * @deprecated Prefer top-level `setMeasurement`.
-   */
-  setMeasurement(name, value, unit = "") {
-    this._measurements[name] = { value, unit };
-  }
-  /**
-   * Attaches SpanRecorder to the span itself
-   * @param maxlen maximum number of spans that can be recorded
-   */
-  initSpanRecorder(maxlen = 1e3) {
-    if (!this.spanRecorder) {
-      this.spanRecorder = new SpanRecorder(maxlen);
-    }
-    this.spanRecorder.add(this);
-  }
-  /**
-   * Set observed measurements for this transaction.
-   * @hidden
-   */
-  setMeasurements(measurements) {
-    this._measurements = __spreadValues({}, measurements);
-  }
-  /**
-   * Set metadata for this transaction.
-   * @hidden
-   */
-  setMetadata(newMetadata) {
-    this.metadata = __spreadValues(__spreadValues({}, this.metadata), newMetadata);
-  }
-  /**
-   * Return dynamic sampling context for this transaction.
-   */
-  getDynamicSamplingContext() {
-    var _a;
-    return ((_a = this.metadata) == null ? void 0 : _a.dynamicSamplingContext) || {};
-  }
-  /**
-   * Placeholder profile id (not used in miniapp tracing).
-   */
-  getProfileId() {
-    return void 0;
-  }
-  /**
-   * @inheritDoc
-   */
-  finish(endTimestamp) {
-    if (this.endTimestamp !== void 0) {
-      return void 0;
-    }
-    if (!this.name) {
-      IS_DEBUG_BUILD && logger.warn("Transaction has no name, falling back to `<unlabeled transaction>`.");
-      this.name = "<unlabeled transaction>";
-    }
-    super.finish(endTimestamp);
-    if (this.sampled !== true) {
-      IS_DEBUG_BUILD && logger.log("[Tracing] Discarding transaction because its trace was not chosen to be sampled.");
-      return void 0;
-    }
-    const finishedSpans = this.spanRecorder ? this.spanRecorder.spans.filter((s) => s !== this && s.endTimestamp) : [];
-    if (this._trimEnd && finishedSpans.length > 0) {
-      this.endTimestamp = finishedSpans.reduce((prev, current) => {
-        if (prev.endTimestamp && current.endTimestamp) {
-          return prev.endTimestamp > current.endTimestamp ? prev : current;
-        }
-        return prev;
-      }).endTimestamp;
-    }
-    const transaction = {
-      contexts: __spreadValues({
-        trace: this.getTraceContext()
-      }, this._contexts),
-      spans: finishedSpans,
-      start_timestamp: this.startTimestamp,
-      tags: this.tags,
-      timestamp: this.endTimestamp,
-      transaction: this.name,
-      type: "transaction",
-      sdkProcessingMetadata: this.metadata
-    };
-    const hasMeasurements = Object.keys(this._measurements).length > 0;
-    if (hasMeasurements) {
-      IS_DEBUG_BUILD && logger.log(
-        "[Measurements] Adding measurements to transaction",
-        JSON.stringify(this._measurements, void 0, 2)
-      );
-      transaction.measurements = this._measurements;
-    }
-    IS_DEBUG_BUILD && logger.log(`[Tracing] Finishing ${this.op} transaction: ${this.name}.`);
-    return this._hub.captureEvent(transaction);
-  }
-  /**
-   * @inheritDoc
-   */
-  toContext() {
-    const spanContext = super.toContext();
-    return dropUndefinedKeys(__spreadProps(__spreadValues({}, spanContext), {
-      name: this.name,
-      trimEnd: this._trimEnd
-    }));
-  }
-  /**
-   * @inheritDoc
-   */
-  updateWithContext(transactionContext) {
-    var _a;
-    super.updateWithContext(transactionContext);
-    this.name = (_a = transactionContext.name) != null ? _a : "";
-    this._trimEnd = transactionContext.trimEnd;
-    return this;
-  }
-};
-
-// src/tracing/idletransaction.ts
-var DEFAULT_IDLE_TIMEOUT = 1e3;
-var HEARTBEAT_INTERVAL = 5e3;
-var IdleTransactionSpanRecorder = class extends SpanRecorder {
-  constructor(_pushActivity, _popActivity, transactionSpanId = "", maxlen) {
-    super(maxlen);
-    this._pushActivity = _pushActivity;
-    this._popActivity = _popActivity;
-    this.transactionSpanId = transactionSpanId;
-  }
-  /**
-   * @inheritDoc
-   */
-  add(span) {
-    if (span.spanId !== this.transactionSpanId) {
-      span.finish = (endTimestamp) => {
-        span.endTimestamp = typeof endTimestamp === "number" ? endTimestamp : timestampWithMs();
-        this._popActivity(span.spanId);
-      };
-      if (span.endTimestamp === void 0) {
-        this._pushActivity(span.spanId);
-      }
-    }
-    super.add(span);
-  }
-};
-var IdleTransaction = class extends Transaction {
-  constructor(transactionContext, _idleHub, _idleTimeout = DEFAULT_IDLE_TIMEOUT, _onScope = false) {
-    super(transactionContext, _idleHub);
-    this._idleHub = _idleHub;
-    this._idleTimeout = _idleTimeout;
-    this._onScope = _onScope;
-    // Activities store a list of active spans
-    this.activities = {};
-    // Amount of times heartbeat has counted. Will cause transaction to finish after 3 beats.
-    this._heartbeatCounter = 0;
-    // We should not use heartbeat if we finished a transaction
-    this._finished = false;
-    this._beforeFinishCallbacks = [];
-    if (_idleHub && _onScope) {
-      clearActiveTransaction(_idleHub);
-      IS_DEBUG_BUILD && logger.log(`Setting idle transaction on scope. Span ID: ${this.spanId}`);
-      _idleHub.configureScope((scope) => scope.setSpan(this));
-    }
-    this._initTimeout = setTimeout(() => {
-      if (!this._finished) {
-        this.finish();
-      }
-    }, this._idleTimeout);
-  }
-  /** {@inheritDoc} */
-  finish(endTimestamp = timestampWithMs()) {
-    this._finished = true;
-    this.activities = {};
-    if (this.spanRecorder) {
-      IS_DEBUG_BUILD && logger.log("[Tracing] finishing IdleTransaction", new Date(endTimestamp * 1e3).toISOString(), this.op);
-      for (const callback of this._beforeFinishCallbacks) {
-        callback(this, endTimestamp);
-      }
-      this.spanRecorder.spans = this.spanRecorder.spans.filter((span) => {
-        if (span.spanId === this.spanId) {
-          return true;
-        }
-        if (!span.endTimestamp) {
-          span.endTimestamp = endTimestamp;
-          span.setStatus("cancelled");
-          IS_DEBUG_BUILD && logger.log("[Tracing] cancelling span since transaction ended early", JSON.stringify(span, void 0, 2));
-        }
-        const keepSpan = span.startTimestamp < endTimestamp;
-        if (!keepSpan) {
-          IS_DEBUG_BUILD && logger.log(
-            "[Tracing] discarding Span since it happened after Transaction was finished",
-            JSON.stringify(span, void 0, 2)
-          );
-        }
-        return keepSpan;
-      });
-      IS_DEBUG_BUILD && logger.log("[Tracing] flushing IdleTransaction");
-    } else {
-      IS_DEBUG_BUILD && logger.log("[Tracing] No active IdleTransaction");
-    }
-    if (this._onScope) {
-      clearActiveTransaction(this._idleHub);
-    }
-    return super.finish(endTimestamp);
-  }
-  /**
-   * Register a callback function that gets excecuted before the transaction finishes.
-   * Useful for cleanup or if you want to add any additional spans based on current context.
-   *
-   * This is exposed because users have no other way of running something before an idle transaction
-   * finishes.
-   */
-  registerBeforeFinishCallback(callback) {
-    this._beforeFinishCallbacks.push(callback);
-  }
-  /**
-   * @inheritDoc
-   */
-  initSpanRecorder(maxlen) {
-    if (!this.spanRecorder) {
-      const pushActivity = (id) => {
-        if (this._finished) {
-          return;
-        }
-        this._pushActivity(id);
-      };
-      const popActivity = (id) => {
-        if (this._finished) {
-          return;
-        }
-        this._popActivity(id);
-      };
-      this.spanRecorder = new IdleTransactionSpanRecorder(pushActivity, popActivity, this.spanId, maxlen);
-      IS_DEBUG_BUILD && logger.log("Starting heartbeat");
-      this._pingHeartbeat();
-    }
-    this.spanRecorder.add(this);
-  }
-  /**
-   * Start tracking a specific activity.
-   * @param spanId The span id that represents the activity
-   */
-  _pushActivity(spanId) {
-    if (this._initTimeout) {
-      clearTimeout(this._initTimeout);
-      this._initTimeout = void 0;
-    }
-    IS_DEBUG_BUILD && logger.log(`[Tracing] pushActivity: ${spanId}`);
-    this.activities[spanId] = true;
-    IS_DEBUG_BUILD && logger.log("[Tracing] new activities count", Object.keys(this.activities).length);
-  }
-  /**
-   * Remove an activity from usage
-   * @param spanId The span id that represents the activity
-   */
-  _popActivity(spanId) {
-    if (this.activities[spanId]) {
-      IS_DEBUG_BUILD && logger.log(`[Tracing] popActivity ${spanId}`);
-      delete this.activities[spanId];
-      IS_DEBUG_BUILD && logger.log("[Tracing] new activities count", Object.keys(this.activities).length);
-    }
-    if (Object.keys(this.activities).length === 0) {
-      const timeout = this._idleTimeout;
-      const end = timestampWithMs() + timeout / 1e3;
-      setTimeout(() => {
-        if (!this._finished) {
-          this.setTag(FINISH_REASON_TAG, IDLE_TRANSACTION_FINISH_REASONS[1]);
-          this.finish(end);
-        }
-      }, timeout);
-    }
-  }
-  /**
-   * Checks when entries of this.activities are not changing for 3 beats.
-   * If this occurs we finish the transaction.
-   */
-  _beat() {
-    if (this._finished) {
-      return;
-    }
-    const heartbeatString = Object.keys(this.activities).join("");
-    if (heartbeatString === this._prevHeartbeatString) {
-      this._heartbeatCounter += 1;
-    } else {
-      this._heartbeatCounter = 1;
-    }
-    this._prevHeartbeatString = heartbeatString;
-    if (this._heartbeatCounter >= 3) {
-      IS_DEBUG_BUILD && logger.log("[Tracing] Transaction finished because of no change for 3 heart beats");
-      this.setStatus("deadline_exceeded");
-      this.setTag(FINISH_REASON_TAG, IDLE_TRANSACTION_FINISH_REASONS[0]);
-      this.finish();
-    } else {
-      this._pingHeartbeat();
-    }
-  }
-  /**
-   * Pings the heartbeat
-   */
-  _pingHeartbeat() {
-    IS_DEBUG_BUILD && logger.log(`pinging Heartbeat -> current counter: ${this._heartbeatCounter}`);
-    setTimeout(() => {
-      this._beat();
-    }, HEARTBEAT_INTERVAL);
-  }
-};
-function clearActiveTransaction(hub) {
-  if (hub) {
-    const scope = hub.getScope();
-    if (scope) {
-      const transaction = scope.getTransaction();
-      if (transaction) {
-        scope.setSpan(void 0);
-      }
-    }
-  }
-}
-
-// src/tracing/hubextensions.ts
-var GLOBAL_OBJ2 = sdk;
-function traceHeaders() {
-  const scope = this.getScope();
-  if (scope) {
-    const span = scope.getSpan();
-    if (span) {
-      return {
-        "sentry-trace": span.toTraceparent()
-      };
-    }
-  }
-  return {};
-}
-function sample(transaction, options, samplingContext) {
-  if (!hasTracingEnabled(options)) {
-    transaction.sampled = false;
-    return transaction;
-  }
-  if (transaction.sampled !== void 0) {
-    return transaction;
-  }
-  let sampleRate;
-  if (typeof options.tracesSampler === "function") {
-    sampleRate = options.tracesSampler(samplingContext);
-  } else if (samplingContext.parentSampled !== void 0) {
-    sampleRate = samplingContext.parentSampled;
-  } else {
-    sampleRate = options.tracesSampleRate;
-  }
-  if (!isValidSampleRate(sampleRate)) {
-    IS_DEBUG_BUILD && logger.warn("[Tracing] Discarding transaction because of invalid sample rate.");
-    transaction.sampled = false;
-    return transaction;
-  }
-  if (!sampleRate) {
-    IS_DEBUG_BUILD && logger.log(
-      `[Tracing] Discarding transaction because ${typeof options.tracesSampler === "function" ? "tracesSampler returned 0 or false" : "a negative sampling decision was inherited or tracesSampleRate is set to 0"}`
-    );
-    transaction.sampled = false;
-    return transaction;
-  }
-  transaction.sampled = Math.random() < sampleRate;
-  if (!transaction.sampled) {
-    IS_DEBUG_BUILD && logger.log(
-      `[Tracing] Discarding transaction because it's not included in the random sample (sampling rate = ${Number(
-        sampleRate
-      )})`
-    );
-    return transaction;
-  }
-  IS_DEBUG_BUILD && logger.log(`[Tracing] starting ${transaction.op} transaction - ${transaction.name}`);
-  return transaction;
-}
-function isValidSampleRate(rate) {
-  if (isNaN2(rate) || !(typeof rate === "number" || typeof rate === "boolean")) {
-    IS_DEBUG_BUILD && logger.warn(
-      `[Tracing] Given sample rate is invalid. Sample rate must be a boolean or a number between 0 and 1. Got ${JSON.stringify(
-        rate
-      )} of type ${JSON.stringify(typeof rate)}.`
-    );
-    return false;
-  }
-  if (rate < 0 || rate > 1) {
-    IS_DEBUG_BUILD && logger.warn(`[Tracing] Given sample rate is invalid. Sample rate must be between 0 and 1. Got ${rate}.`);
-    return false;
-  }
-  return true;
-}
-function _startTransaction(transactionContext, customSamplingContext) {
-  const client = this.getClient();
-  const options = client && client.getOptions() || {};
-  let transaction = new Transaction(transactionContext, this);
-  transaction = sample(transaction, options, __spreadValues({
-    parentSampled: transactionContext.parentSampled,
-    transactionContext
-  }, customSamplingContext));
-  if (transaction.sampled) {
-    const maxSpans = options._experiments && options._experiments.maxSpans;
-    transaction.initSpanRecorder(maxSpans);
-  }
-  return transaction;
-}
-function startIdleTransaction(hub, transactionContext, idleTimeout, onScope, customSamplingContext) {
-  const client = hub.getClient();
-  const options = client && client.getOptions() || {};
-  let transaction = new IdleTransaction(transactionContext, hub, idleTimeout, onScope);
-  transaction = sample(transaction, options, __spreadValues({
-    parentSampled: transactionContext.parentSampled,
-    transactionContext
-  }, customSamplingContext));
-  if (transaction.sampled) {
-    const maxSpans = options._experiments && options._experiments.maxSpans;
-    transaction.initSpanRecorder(maxSpans);
-  }
-  return transaction;
-}
-function getMainCarrier2() {
-  GLOBAL_OBJ2.__SENTRY__ = GLOBAL_OBJ2.__SENTRY__ || {
-    extensions: {},
-    hub: void 0
-  };
-  return GLOBAL_OBJ2;
-}
-function addTracingExtensions() {
-  const carrier = getMainCarrier2();
-  if (!carrier.__SENTRY__) {
-    return;
-  }
-  carrier.__SENTRY__.extensions = carrier.__SENTRY__.extensions || {};
-  if (!carrier.__SENTRY__.extensions.startTransaction) {
-    carrier.__SENTRY__.extensions.startTransaction = _startTransaction;
-  }
-  if (!carrier.__SENTRY__.extensions.traceHeaders) {
-    carrier.__SENTRY__.extensions.traceHeaders = traceHeaders;
-  }
-}
 
 // src/tracing/miniapp/metrics.ts
 var EPOCH_TIME_THRESHOLD = 1e12;
@@ -6130,7 +5858,7 @@ function _startChild(transaction, _a) {
 
 // src/tracing/miniapp/router.ts
 function instrumentRoutingWithDefaults(startTransaction2, startTransactionOnPageLoad = true, startTransactionOnLocationChange = true) {
-  const globalObj = getGlobalObject();
+  const globalObj = GLOBAL_OBJ3;
   const onAppRoute = sdk.onAppRoute || globalObj.wx && globalObj.wx.onAppRoute;
   if (typeof onAppRoute !== "function") {
     return;
@@ -6195,15 +5923,13 @@ var _MiniAppTracing = class _MiniAppTracing {
      * @inheritDoc
      */
     this.name = _MiniAppTracing.id;
-    addTracingExtensions();
     this._configuredIdleTimeout = _options == null ? void 0 : _options.idleTimeout;
     this.options = __spreadValues(__spreadValues({}, DEFAULT_MINIAPP_TRACING_OPTIONS), _options);
     const { _metricOptions } = this.options;
     this._metrics = new MetricsInstrumentation(_metricOptions && _metricOptions._reportAllChanges);
   }
-  setupOnce(_, getCurrentHub2) {
+  setupOnce() {
     var _a, _b;
-    this._getCurrentHub = getCurrentHub2;
     const {
       routingInstrumentation,
       startTransactionOnLocationChange,
@@ -6224,9 +5950,6 @@ var _MiniAppTracing = class _MiniAppTracing {
   /** Create routing idle transaction. */
   _createRouteTransaction(context) {
     var _a;
-    if (!this._getCurrentHub) {
-      return void 0;
-    }
     const { beforeNavigate, idleTimeout, maxTransactionDuration } = this.options;
     const expandedContext = __spreadProps(__spreadValues({}, context), {
       trimEnd: true
@@ -6235,8 +5958,7 @@ var _MiniAppTracing = class _MiniAppTracing {
     if (modifiedContext === void 0) {
       return void 0;
     }
-    const hub = this._getCurrentHub();
-    const idleTransaction = startIdleTransaction(hub, modifiedContext, idleTimeout, true, {});
+    const idleTransaction = startIdleTransaction(modifiedContext, idleTimeout, true, {});
     idleTransaction.registerBeforeFinishCallback((transaction, endTimestamp) => {
       adjustTransactionDuration(secToMs(maxTransactionDuration), transaction, endTimestamp);
     });
@@ -6261,11 +5983,11 @@ function adjustTransactionDuration(maxDuration, transaction, endTimestamp) {
 
 // src/sdk.ts
 var defaultIntegrations = [
-  new Integrations.InboundFilters(),
-  new Integrations.FunctionToString(),
+  inboundFiltersIntegration(),
+  functionToStringIntegration(),
   new TryCatch(),
   new GlobalHandlers(),
-  new LinkedErrors2(),
+  new LinkedErrors(),
   new System(),
   new Router(),
   new IgnoreMpcrawlerErrors(),
@@ -6285,7 +6007,7 @@ function init(options = {}) {
 }
 function showReportDialog(options = {}) {
   if (!options.eventId) {
-    options.eventId = getCurrentHub().lastEventId();
+    options.eventId = lastEventId();
   }
   const client = getCurrentHub().getClient();
   if (client) {
@@ -6293,24 +6015,24 @@ function showReportDialog(options = {}) {
   }
 }
 function lastEventId2() {
-  return getCurrentHub().lastEventId();
+  return lastEventId();
 }
 function flush2(timeout) {
   const client = getCurrentHub().getClient();
   if (client) {
     return client.flush(timeout);
   }
-  return resolvedSyncPromise(false);
+  return resolvedSyncPromise2(false);
 }
 function close2(timeout) {
   const client = getCurrentHub().getClient();
   if (client) {
     return client.close(timeout);
   }
-  return resolvedSyncPromise(false);
+  return resolvedSyncPromise2(false);
 }
 function wrap2(fn) {
   return wrap(fn)();
 }
 
-export { Hub, integrations_exports2 as Integrations, MiniappClient, SDK_NAME, SDK_VERSION2 as SDK_VERSION, Scope, transports_exports as Transports, addBreadcrumb, addGlobalEventProcessor, captureEvent, captureException, captureMessage, close2 as close, configureScope, defaultIntegrations, flush2 as flush, getCurrentHub, getHubFromCarrier, init, lastEventId2 as lastEventId, setContext, setExtra, setExtras, setTag, setTags, setUser, showReportDialog, startTransaction, withScope, wrap2 as wrap };
+export { integrations_exports as Integrations, MiniappClient, SDK_NAME, SDK_VERSION2 as SDK_VERSION, transports_exports as Transports, addBreadcrumb, addEventProcessor, captureEvent, captureException, captureMessage, close2 as close, configureScope, defaultIntegrations, flush2 as flush, getCurrentHub, getCurrentScope, init, lastEventId2 as lastEventId, setContext, setExtra, setExtras, setTag, setTags, setUser, showReportDialog, startTransaction, withScope2 as withScope, wrap2 as wrap };

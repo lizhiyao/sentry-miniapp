@@ -1,35 +1,12 @@
-import { Hub } from '@sentry/core';
-import {
-  CustomSamplingContext,
-  Integration,
-  Options,
-  SamplingContext,
-  TransactionContext,
-} from '@sentry/types';
-import { isNaN, logger } from '@sentry/utils';
+import { getClient } from '@sentry/core';
+import { Options } from '@sentry/types';
+import { logger } from '@sentry/utils';
 
 import { IS_DEBUG_BUILD } from './flags';
 import { IdleTransaction } from './idletransaction';
 import { Transaction } from './transaction';
-import { hasTracingEnabled } from './utils';
-import { sdk } from '../crossPlatform';
-
-
-const GLOBAL_OBJ = sdk;
-
-/** Returns all trace headers that are currently on the top scope. */
-function traceHeaders(this: Hub): { [key: string]: string } {
-  const scope = this.getScope();
-  if (scope) {
-    const span = scope.getSpan();
-    if (span) {
-      return {
-        'sentry-trace': span.toTraceparent(),
-      };
-    }
-  }
-  return {};
-}
+import { hasTracingEnabled, setActiveTransaction } from './utils';
+import type { CustomSamplingContext, SamplingContext, TransactionContext } from './types';
 
 /**
  * Makes a sampling decision for the given transaction and stores it on the transaction.
@@ -112,7 +89,7 @@ function sample<T extends Transaction>(transaction: T, options: Options, samplin
 function isValidSampleRate(rate: unknown): boolean {
   // we need to check NaN explicitly because it's of type 'number' and therefore wouldn't get caught by this typecheck
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (isNaN(rate) || !(typeof rate === 'number' || typeof rate === 'boolean')) {
+  if (Number.isNaN(rate as number) || !(typeof rate === 'number' || typeof rate === 'boolean')) {
     IS_DEBUG_BUILD &&
       logger.warn(
         `[Tracing] Given sample rate is invalid. Sample rate must be a boolean or a number between 0 and 1. Got ${JSON.stringify(
@@ -133,36 +110,28 @@ function isValidSampleRate(rate: unknown): boolean {
 
 /**
  * Creates a new transaction and adds a sampling decision if it doesn't yet have one.
- *
- * The Hub.startTransaction method delegates to this method to do its work, passing the Hub instance in as `this`, as if
- * it had been called on the hub directly. Exists as a separate function so that it can be injected into the class as an
- * "extension method."
- *
- * @param this: The Hub starting the transaction
- * @param transactionContext: Data used to configure the transaction
- * @param CustomSamplingContext: Optional data to be provided to the `tracesSampler` function (if any)
- *
- * @returns The new transaction
- *
- * @see {@link Hub.startTransaction}
  */
-function _startTransaction(
-  this: Hub,
+export function startTransaction(
   transactionContext: TransactionContext,
   customSamplingContext?: CustomSamplingContext,
 ): Transaction {
-  const client = this.getClient();
-  const options = (client && client.getOptions()) || {};
+  const client = getClient();
+  const options = (client && client.getOptions && client.getOptions()) || ({} as Options);
 
-  let transaction = new Transaction(transactionContext, this);
-  transaction = sample(transaction, options, {
+  const transactionName = transactionContext.name || transactionContext.op || 'unknown-transaction';
+  const samplingContext: SamplingContext = {
     parentSampled: transactionContext.parentSampled,
-    transactionContext,
+    transactionContext: { ...transactionContext, name: transactionName },
+    name: transactionName,
     ...customSamplingContext,
-  });
+  };
+
+  let transaction = new Transaction({ ...transactionContext, name: transactionName });
+  transaction = sample(transaction, options, samplingContext);
   if (transaction.sampled) {
     const maxSpans = (options as any)._experiments && (options as any)._experiments.maxSpans;
     transaction.initSpanRecorder(maxSpans as number);
+    setActiveTransaction(transaction);
   }
   return transaction;
 }
@@ -171,85 +140,36 @@ function _startTransaction(
  * Create new idle transaction.
  */
 export function startIdleTransaction(
-  hub: Hub,
   transactionContext: TransactionContext,
   idleTimeout?: number,
   onScope?: boolean,
   customSamplingContext?: CustomSamplingContext,
 ): IdleTransaction {
-  const client = hub.getClient();
-  const options = (client && client.getOptions()) || {};
+  const client = getClient();
+  const options = (client && client.getOptions && client.getOptions()) || ({} as Options);
 
-  let transaction = new IdleTransaction(transactionContext, hub, idleTimeout, onScope);
-  transaction = sample(transaction, options, {
+  const transactionName = transactionContext.name || transactionContext.op || 'unknown-transaction';
+  const samplingContext: SamplingContext = {
     parentSampled: transactionContext.parentSampled,
-    transactionContext,
+    transactionContext: { ...transactionContext, name: transactionName },
+    name: transactionName,
     ...customSamplingContext,
-  });
+  };
+
+  let transaction = new IdleTransaction({ ...transactionContext, name: transactionName }, idleTimeout, onScope);
+  transaction = sample(transaction, options, samplingContext);
   if (transaction.sampled) {
     const maxSpans = (options as any)._experiments && (options as any)._experiments.maxSpans;
     transaction.initSpanRecorder(maxSpans as number);
+    setActiveTransaction(transaction);
   }
   return transaction;
 }
 
 
-export interface RunWithAsyncContextOptions {
-  /** Whether to reuse an existing async context if one exists. Defaults to false. */
-  reuseExisting?: boolean;
-}
-
-export interface AsyncContextStrategy {
-  /**
-   * Gets the current async context. Returns undefined if there is no current async context.
-   */
-  // eslint-disable-next-line deprecation/deprecation
-  getCurrentHub: () => Hub | undefined;
-  /**
-   * Runs the supplied callback in its own async context.
-   */
-  runWithAsyncContext<T>(callback: () => T, options: RunWithAsyncContextOptions): T;
-}
-
-
-export interface Carrier {
-  __SENTRY__?: {
-    // eslint-disable-next-line deprecation/deprecation
-    hub?: Hub;
-    acs?: AsyncContextStrategy;
-    /**
-     * Extra Hub properties injected by various SDKs
-     */
-    integrations?: Integration[];
-    extensions?: {
-      /** Extension methods for the hub, which are bound to the current Hub instance */
-      // eslint-disable-next-line @typescript-eslint/ban-types
-      [key: string]: Function;
-    };
-  };
-}
-
-export function getMainCarrier(): Carrier {
-  (GLOBAL_OBJ as any).__SENTRY__ = (GLOBAL_OBJ as any).__SENTRY__ || {
-    extensions: {},
-    hub: undefined,
-  };
-  return GLOBAL_OBJ as Carrier;
-}
-
 /**
- * @private
+ * Legacy no-op kept for backwards compatibility.
  */
 export function addTracingExtensions(): void {
-  const carrier = getMainCarrier();
-  if (!carrier.__SENTRY__) {
-    return;
-  }
-  carrier.__SENTRY__.extensions = carrier.__SENTRY__.extensions || {};
-  if (!carrier.__SENTRY__.extensions.startTransaction) {
-    carrier.__SENTRY__.extensions.startTransaction = _startTransaction;
-  }
-  if (!carrier.__SENTRY__.extensions.traceHeaders) {
-    carrier.__SENTRY__.extensions.traceHeaders = traceHeaders;
-  }
+  // Tracing helpers are wired up directly; no carrier patching required.
 }

@@ -1,6 +1,5 @@
 
-import { Hub } from "@sentry/core"
-import { EventProcessor, Integration, TransactionContext } from '@sentry/types';
+import { Integration } from '@sentry/types';
 import { addTracingExtensions, startIdleTransaction } from '../hubextensions';
 import { MetricsInstrumentation } from './metrics';
 import { instrumentRoutingWithDefaults } from './router';
@@ -11,6 +10,7 @@ import {
 } from './request';
 import { sdk } from '../../crossPlatform';
 import { getActiveTransaction, secToMs } from '../utils';
+import type { TransactionContext } from '../types';
 import { IdleTransaction } from '../idletransaction';
 
 const DEFAULT_MAX_TRANSACTION_DURATION_SECONDS = 600;
@@ -53,8 +53,6 @@ export class MiniAppTracing implements Integration {
 
   private readonly _metrics: MetricsInstrumentation;
 
-  private _getCurrentHub?: () => Hub;
-
   private readonly _configuredIdleTimeout: number | undefined;
 
   public constructor(_options?: Partial<MiniAppTracingOptions>) {
@@ -70,9 +68,7 @@ export class MiniAppTracing implements Integration {
     this._metrics = new MetricsInstrumentation(_metricOptions && _metricOptions._reportAllChanges);
   }
 
-  public setupOnce(_: (callback: EventProcessor) => void, getCurrentHub: () => Hub): void {
-    this._getCurrentHub = getCurrentHub;
-
+  public setupOnce(): void {
     const {
       routingInstrumentation,
       startTransactionOnLocationChange,
@@ -97,10 +93,6 @@ export class MiniAppTracing implements Integration {
 
   /** Create routing idle transaction. */
   private _createRouteTransaction(context: TransactionContext): IdleTransaction | undefined {
-    if (!this._getCurrentHub) {
-      return undefined;
-    }
-
     const { beforeNavigate, idleTimeout, maxTransactionDuration } = this.options;
 
     const expandedContext: TransactionContext = {
@@ -113,8 +105,7 @@ export class MiniAppTracing implements Integration {
       return undefined;
     }
 
-    const hub = this._getCurrentHub();
-    const idleTransaction = startIdleTransaction(hub, modifiedContext, idleTimeout, true, {});
+    const idleTransaction = startIdleTransaction(modifiedContext, idleTimeout, true, {});
 
     idleTransaction.registerBeforeFinishCallback((transaction, endTimestamp) => {
       adjustTransactionDuration(secToMs(maxTransactionDuration), transaction, endTimestamp);

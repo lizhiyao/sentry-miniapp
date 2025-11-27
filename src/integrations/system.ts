@@ -1,5 +1,5 @@
-import { addGlobalEventProcessor, getCurrentHub } from "@sentry/core";
-import { Event, Integration } from "@sentry/types";
+import { addEventProcessor, getCurrentHub } from '@sentry/core';
+import { Event, Integration } from '@sentry/types';
 
 import { appName as currentAppName, sdk } from "../crossPlatform";
 
@@ -17,7 +17,7 @@ export class System implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
-    addGlobalEventProcessor((event: Event) => {
+    addEventProcessor((event: Event) => {
       const currentHub = getCurrentHub();
       if (currentHub.getIntegration(System)) {
         try {

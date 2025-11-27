@@ -1,9 +1,11 @@
 import {
+  functionToStringIntegration,
   getCurrentHub,
+  inboundFiltersIntegration,
   initAndBind,
-  Integrations as CoreIntegrations,
-} from "@sentry/core";
-import { resolvedSyncPromise } from "@sentry/utils";
+  lastEventId as coreLastEventId,
+} from '@sentry/core';
+import { resolvedSyncPromise } from '@sentry/utils';
 
 import { MiniappOptions } from "./backend";
 import { MiniappClient, ReportDialogOptions } from "./client";
@@ -21,8 +23,8 @@ import {
 import { MiniAppTracing } from './tracing';
 
 export const defaultIntegrations = [
-  new CoreIntegrations.InboundFilters(),
-  new CoreIntegrations.FunctionToString(),
+  inboundFiltersIntegration(),
+  functionToStringIntegration(),
   new TryCatch(),
   new GlobalHandlers(),
   new LinkedErrors(),
@@ -116,7 +118,7 @@ export function init(options: Partial<MiniappOptions> = {}): void {
  */
 export function showReportDialog(options: ReportDialogOptions = {}): void {
   if (!options.eventId) {
-    options.eventId = getCurrentHub().lastEventId();
+    options.eventId = coreLastEventId();
   }
   const client = getCurrentHub().getClient<MiniappClient>();
   if (client) {
@@ -130,7 +132,7 @@ export function showReportDialog(options: ReportDialogOptions = {}): void {
  * @returns The last event id of a captured event.
  */
 export function lastEventId(): string | undefined {
-  return getCurrentHub().lastEventId();
+  return coreLastEventId();
 }
 
 /**

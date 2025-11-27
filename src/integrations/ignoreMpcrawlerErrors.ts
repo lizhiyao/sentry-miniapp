@@ -1,5 +1,5 @@
-import { addGlobalEventProcessor, getCurrentHub } from "@sentry/core";
-import { Event, Integration } from "@sentry/types";
+import { addEventProcessor, getCurrentHub } from '@sentry/core';
+import { Event, Integration } from '@sentry/types';
 
 import { appName, sdk } from "../crossPlatform";
 
@@ -21,7 +21,7 @@ export class IgnoreMpcrawlerErrors implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
-    addGlobalEventProcessor((event: Event) => {
+    addEventProcessor((event: Event) => {
       if (
         getCurrentHub().getIntegration(IgnoreMpcrawlerErrors) &&
         appName === "wechat" &&

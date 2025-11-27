@@ -1,8 +1,422 @@
-import * as _sentry_types from '@sentry/types';
-import { ClientOptions, Integration, DsnLike, Event, EventHint, ParameterizedString, Severity, SeverityLevel, Span as Span$1, Primitive, SpanAttributes, Transaction as Transaction$1, Instrumenter, SpanOrigin, SpanContext, SpanAttributeValue, SpanTimeInput, TraceFlag, TransactionMetadata, TransactionContext, MeasurementUnit, Measurements, DynamicSamplingContext, EventProcessor, BaseTransportOptions, Transport } from '@sentry/types';
-export { Breadcrumb, BreadcrumbHint, Event, EventHint, Exception, Integration, Request, SdkInfo, Severity, SeverityLevel, StackFrame, Stacktrace, Thread, User } from '@sentry/types';
-import { BaseClient, Scope, Hub } from '@sentry/core';
-export { Hub, Scope, addBreadcrumb, addGlobalEventProcessor, captureEvent, captureException, captureMessage, configureScope, getCurrentHub, getHubFromCarrier, setContext, setExtra, setExtras, setTag, setTags, setUser, startTransaction, withScope } from '@sentry/core';
+import { Primitive, SpanAttributes, SpanOrigin, DynamicSamplingContext, MeasurementUnit, Measurements, Span as Span$1, SpanAttributeValue, SpanStatus, SpanTimeInput, TraceFlag, ClientOptions, Integration, BaseTransportOptions, Transport } from '@sentry/types';
+export { Breadcrumb, BreadcrumbHint, Event, EventHint, Exception, Integration, Request, SdkInfo, SeverityLevel, StackFrame, Stacktrace, Thread, User } from '@sentry/types';
+import * as _sentry_core from '@sentry/core';
+import { Scope, DsnLike, BaseClient, Event, EventHint, ParameterizedString, SeverityLevel } from '@sentry/core';
+export { Hub, Scope, addBreadcrumb, addEventProcessor, captureEvent, captureException, captureMessage, getCurrentHub, getCurrentScope, setContext, setExtra, setExtras, setTag, setTags, setUser, withScope } from '@sentry/core';
+
+/**
+ * Lightweight replacement for the removed `configureScope` helper.
+ * Invokes the provided callback with the current scope.
+ */
+declare function configureScope(callback: (scope: Scope) => void): void;
+
+/** Lightweight span status type used throughout the custom tracing layer. */
+type SpanStatusType = 'ok' | 'deadline_exceeded' | 'unauthenticated' | 'permission_denied' | 'not_found' | 'resource_exhausted' | 'invalid_argument' | 'unimplemented' | 'unavailable' | 'internal_error' | 'unknown_error' | 'cancelled' | 'already_exists' | 'failed_precondition' | 'aborted' | 'out_of_range' | 'data_loss';
+/** Minimal span context used by the legacy miniapp tracing implementation. */
+interface SpanContext {
+    data?: Record<string, any>;
+    description?: string;
+    name?: string;
+    op?: string;
+    parentSpanId?: string;
+    sampled?: boolean;
+    spanId?: string;
+    startTimestamp?: number;
+    endTimestamp?: number;
+    status?: SpanStatusType | string | number;
+    tags?: {
+        [key: string]: Primitive;
+    };
+    traceId?: string;
+    attributes?: SpanAttributes;
+    instrumenter?: 'sentry' | 'otel';
+    origin?: SpanOrigin;
+}
+/** Transaction specific metadata. */
+interface TransactionMetadata {
+    source?: string;
+    spanMetadata?: Record<string, any>;
+    dynamicSamplingContext?: DynamicSamplingContext;
+    [key: string]: unknown;
+}
+/** Context used when creating a transaction/span. */
+interface TransactionContext extends SpanContext {
+    name?: string;
+    parentSampled?: boolean;
+    trimEnd?: boolean;
+    metadata?: TransactionMetadata;
+}
+type CustomSamplingContext = Record<string, unknown>;
+
+/** JSDoc */
+declare class Transaction extends Span {
+    name: string;
+    metadata: TransactionMetadata;
+    private _measurements;
+    private _contexts;
+    private _trimEnd?;
+    /**
+     * This constructor should never be called manually. Those instrumenting tracing should use
+     * `Sentry.startTransaction()`, and internal methods should use `hub.startTransaction()`.
+     * @internal
+     * @hideconstructor
+     * @hidden
+     */
+    constructor(transactionContext: TransactionContext);
+    /**
+     * JSDoc
+     */
+    setName(name: string): void;
+    /**
+     * Attach additional context to the transaction.
+     * @deprecated Prefer attributes or scope data.
+     */
+    setContext(key: string, context: object): void;
+    /**
+     * Record a single measurement.
+     * @deprecated Prefer top-level `setMeasurement`.
+     */
+    setMeasurement(name: string, value: number, unit?: MeasurementUnit): void;
+    /**
+     * Attaches SpanRecorder to the span itself
+     * @param maxlen maximum number of spans that can be recorded
+     */
+    initSpanRecorder(maxlen?: number): void;
+    /**
+     * Set observed measurements for this transaction.
+     * @hidden
+     */
+    setMeasurements(measurements: Measurements): void;
+    /**
+     * Set metadata for this transaction.
+     * @hidden
+     */
+    setMetadata(newMetadata: TransactionMetadata): void;
+    /**
+     * Return dynamic sampling context for this transaction.
+     */
+    getDynamicSamplingContext(): Partial<DynamicSamplingContext>;
+    /**
+     * Placeholder profile id (not used in miniapp tracing).
+     */
+    getProfileId(): string | undefined;
+    /**
+     * @inheritDoc
+     */
+    finish(endTimestamp?: number): string | undefined;
+    /**
+     * @inheritDoc
+     */
+    toContext(): TransactionContext;
+    /**
+     * @inheritDoc
+     */
+    updateWithContext(transactionContext: TransactionContext): this;
+}
+
+/**
+ * Keeps track of finished spans for a given transaction
+ * @internal
+ * @hideconstructor
+ * @hidden
+ */
+declare class SpanRecorder {
+    spans: Span[];
+    private readonly _maxlen;
+    constructor(maxlen?: number);
+    /**
+     * This is just so that we don't run out of memory while recording a lot
+     * of spans. At some point we just stop and flush out the start of the
+     * trace tree (i.e.the first n spans with the smallest
+     * start_timestamp).
+     */
+    add(span: Span): void;
+}
+/**
+ * Span contains all data about a span
+ */
+declare class Span implements Span$1 {
+    /**
+     * Human-readable identifier for the span. Mirrors description for backwards compatibility.
+     */
+    name: string;
+    /**
+     * @inheritDoc
+     */
+    traceId: string;
+    /**
+     * @inheritDoc
+     */
+    spanId: string;
+    /**
+     * @inheritDoc
+     */
+    parentSpanId?: string;
+    /**
+     * Internal keeper of the status
+     */
+    status?: SpanStatusType | string | number;
+    /**
+     * @inheritDoc
+     */
+    sampled?: boolean;
+    /**
+     * Timestamp in seconds when the span was created.
+     */
+    startTimestamp: number;
+    /**
+     * Timestamp in seconds when the span ended.
+     */
+    endTimestamp?: number;
+    /**
+     * @inheritDoc
+     */
+    op?: string;
+    /**
+     * @inheritDoc
+     */
+    description?: string;
+    /**
+     * @inheritDoc
+     */
+    tags: {
+        [key: string]: Primitive;
+    };
+    /**
+     * @inheritDoc
+     */
+    data: {
+        [key: string]: any;
+    };
+    /**
+     * Attributes for the span (new Sentry/OpenTelemetry style).
+     */
+    attributes: SpanAttributes;
+    /**
+     * List of spans that were finalized
+     */
+    spanRecorder?: SpanRecorder;
+    /**
+     * @inheritDoc
+     */
+    transaction?: Transaction;
+    /**
+     * Instrumenter that created the span.
+     */
+    instrumenter: 'sentry' | 'otel';
+    /**
+     * Origin of the span.
+     */
+    origin?: SpanOrigin;
+    /**
+     * You should never call the constructor manually, always use `Sentry.startTransaction()`
+     * or call `startChild()` on an existing span.
+     * @internal
+     * @hideconstructor
+     * @hidden
+     */
+    constructor(spanContext?: SpanContext);
+    /**
+     * @inheritDoc
+     * @deprecated
+     */
+    child(spanContext?: Pick<SpanContext, Exclude<keyof SpanContext, 'spanId' | 'sampled' | 'traceId' | 'parentSpanId'>>): Span;
+    /**
+     * @inheritDoc
+     */
+    startChild(spanContext?: SpanContext): Span;
+    /**
+     * @inheritDoc
+     */
+    setTag(key: string, value: Primitive): this;
+    /**
+     * @inheritDoc
+     */
+    setData(key: string, value: any): this;
+    /**
+     * @inheritDoc
+     */
+    setAttribute(key: string, value: SpanAttributeValue | undefined): this;
+    /**
+     * @inheritDoc
+     */
+    setAttributes(attributes: SpanAttributes): this;
+    /**
+     * @inheritDoc
+     */
+    setStatus(value: SpanStatus | SpanStatusType): this;
+    /**
+     * @inheritDoc
+     */
+    setHttpStatus(httpStatus: number): this;
+    /**
+     * @inheritDoc
+     */
+    addEvent(_name: string, _attributesOrStartTime?: SpanAttributes | SpanTimeInput, _startTime?: SpanTimeInput): this;
+    /**
+     * @inheritDoc
+     */
+    addLink(_link: unknown): this;
+    /**
+     * @inheritDoc
+     */
+    addLinks(_links: unknown): this;
+    /**
+     * @inheritDoc
+     */
+    recordException(_exception: unknown): void;
+    /**
+     * @inheritDoc
+     */
+    isSuccess(): boolean;
+    /**
+     * @inheritDoc
+     */
+    setName(name: string): void;
+    /**
+     * @inheritDoc
+     */
+    updateName(name: string): this;
+    /**
+     * @inheritDoc
+     */
+    end(endTimestamp?: SpanTimeInput): void;
+    /**
+     * @inheritDoc
+     */
+    finish(endTimestamp?: number): void;
+    /**
+     * @inheritDoc
+     */
+    toTraceparent(): string;
+    /**
+     * @inheritDoc
+     */
+    toContext(): SpanContext;
+    /**
+     * @inheritDoc
+     */
+    updateWithContext(spanContext: SpanContext): this;
+    /**
+     * @inheritDoc
+     */
+    getTraceContext(): {
+        data?: {
+            [key: string]: any;
+        };
+        description?: string;
+        op?: string;
+        parent_span_id?: string;
+        span_id: string;
+        status?: string;
+        tags?: {
+            [key: string]: Primitive;
+        };
+        trace_id: string;
+    };
+    /**
+     * @inheritDoc
+     */
+    toJSON(): {
+        data?: {
+            [key: string]: any;
+        };
+        description?: string;
+        op?: string;
+        parent_span_id?: string;
+        span_id: string;
+        start_timestamp: number;
+        status?: string;
+        tags?: {
+            [key: string]: Primitive;
+        };
+        attributes?: SpanAttributes;
+        timestamp?: number;
+        trace_id: string;
+    };
+    /**
+     * Return OTEL-like span context data.
+     */
+    spanContext(): {
+        traceId: string;
+        spanId: string;
+        isRemote?: boolean;
+        traceFlags: TraceFlag;
+    };
+    /**
+     * Whether span is recording (sampled and not finished).
+     */
+    isRecording(): boolean;
+}
+
+type BeforeFinishCallback = (transactionSpan: IdleTransaction, endTimestamp: number) => void;
+/**
+ * An IdleTransaction is a transaction that automatically finishes. It does this by tracking child spans as activities.
+ * You can have multiple IdleTransactions active, but if the `onScope` option is specified, the idle transaction will
+ * put itself on the scope on creation.
+ */
+declare class IdleTransaction extends Transaction {
+    /**
+     * The time to wait in ms until the idle transaction will be finished.
+     * @default 1000
+     */
+    private readonly _idleTimeout;
+    private readonly _onScope;
+    activities: Record<string, boolean>;
+    private _prevHeartbeatString;
+    private _heartbeatCounter;
+    private _finished;
+    private readonly _beforeFinishCallbacks;
+    /**
+     * If a transaction is created and no activities are added, we want to make sure that
+     * it times out properly. This is cleared and not used when activities are added.
+     */
+    private _initTimeout;
+    constructor(transactionContext: TransactionContext, 
+    /**
+     * The time to wait in ms until the idle transaction will be finished.
+     * @default 1000
+     */
+    _idleTimeout?: number, _onScope?: boolean);
+    /** {@inheritDoc} */
+    finish(endTimestamp?: number): string | undefined;
+    /**
+     * Register a callback function that gets excecuted before the transaction finishes.
+     * Useful for cleanup or if you want to add any additional spans based on current context.
+     *
+     * This is exposed because users have no other way of running something before an idle transaction
+     * finishes.
+     */
+    registerBeforeFinishCallback(callback: BeforeFinishCallback): void;
+    /**
+     * @inheritDoc
+     */
+    initSpanRecorder(maxlen?: number): void;
+    /**
+     * Start tracking a specific activity.
+     * @param spanId The span id that represents the activity
+     */
+    private _pushActivity;
+    /**
+     * Remove an activity from usage
+     * @param spanId The span id that represents the activity
+     */
+    private _popActivity;
+    /**
+     * Checks when entries of this.activities are not changing for 3 beats.
+     * If this occurs we finish the transaction.
+     */
+    private _beat;
+    /**
+     * Pings the heartbeat
+     */
+    private _pingHeartbeat;
+}
+
+/**
+ * Creates a new transaction and adds a sampling decision if it doesn't yet have one.
+ */
+declare function startTransaction(transactionContext: TransactionContext, customSamplingContext?: CustomSamplingContext): Transaction;
 
 declare const SDK_NAME = "sentry.javascript.miniapp";
 declare const SDK_VERSION: string;
@@ -71,7 +485,7 @@ declare class MiniappClient extends BaseClient<MiniappOptions> {
     /**
      * @inheritDoc
      */
-    eventFromMessage(message: ParameterizedString, level?: Severity | SeverityLevel, hint?: EventHint): PromiseLike<Event>;
+    eventFromMessage(message: ParameterizedString, level?: SeverityLevel, hint?: EventHint): PromiseLike<Event>;
 }
 
 /** JSDoc */
@@ -264,395 +678,6 @@ interface RequestInstrumentationOptions {
     shouldCreateSpanForRequest?(url: string): boolean;
 }
 
-/**
- * Keeps track of finished spans for a given transaction
- * @internal
- * @hideconstructor
- * @hidden
- */
-declare class SpanRecorder {
-    spans: Span[];
-    private readonly _maxlen;
-    constructor(maxlen?: number);
-    /**
-     * This is just so that we don't run out of memory while recording a lot
-     * of spans. At some point we just stop and flush out the start of the
-     * trace tree (i.e.the first n spans with the smallest
-     * start_timestamp).
-     */
-    add(span: Span): void;
-}
-/**
- * Span contains all data about a span
- */
-declare class Span implements Span$1 {
-    /**
-     * Human-readable identifier for the span. Mirrors description for backwards compatibility.
-     */
-    name: string;
-    /**
-     * @inheritDoc
-     */
-    traceId: string;
-    /**
-     * @inheritDoc
-     */
-    spanId: string;
-    /**
-     * @inheritDoc
-     */
-    parentSpanId?: string;
-    /**
-     * Internal keeper of the status
-     */
-    status?: SpanStatusType | string;
-    /**
-     * @inheritDoc
-     */
-    sampled?: boolean;
-    /**
-     * Timestamp in seconds when the span was created.
-     */
-    startTimestamp: number;
-    /**
-     * Timestamp in seconds when the span ended.
-     */
-    endTimestamp?: number;
-    /**
-     * @inheritDoc
-     */
-    op?: string;
-    /**
-     * @inheritDoc
-     */
-    description?: string;
-    /**
-     * @inheritDoc
-     */
-    tags: {
-        [key: string]: Primitive;
-    };
-    /**
-     * @inheritDoc
-     */
-    data: {
-        [key: string]: any;
-    };
-    /**
-     * Attributes for the span (new Sentry/OpenTelemetry style).
-     */
-    attributes: SpanAttributes;
-    /**
-     * List of spans that were finalized
-     */
-    spanRecorder?: SpanRecorder;
-    /**
-     * @inheritDoc
-     */
-    transaction?: Transaction$1;
-    /**
-     * Instrumenter that created the span.
-     */
-    instrumenter: Instrumenter;
-    /**
-     * Origin of the span.
-     */
-    origin?: SpanOrigin;
-    /**
-     * You should never call the constructor manually, always use `Sentry.startTransaction()`
-     * or call `startChild()` on an existing span.
-     * @internal
-     * @hideconstructor
-     * @hidden
-     */
-    constructor(spanContext?: SpanContext);
-    /**
-     * @inheritDoc
-     * @deprecated
-     */
-    child(spanContext?: Pick<SpanContext, Exclude<keyof SpanContext, 'spanId' | 'sampled' | 'traceId' | 'parentSpanId'>>): Span;
-    /**
-     * @inheritDoc
-     */
-    startChild(spanContext?: SpanContext): Span;
-    /**
-     * @inheritDoc
-     */
-    setTag(key: string, value: Primitive): this;
-    /**
-     * @inheritDoc
-     */
-    setData(key: string, value: any): this;
-    /**
-     * @inheritDoc
-     */
-    setAttribute(key: string, value: SpanAttributeValue | undefined): void;
-    /**
-     * @inheritDoc
-     */
-    setAttributes(attributes: SpanAttributes): void;
-    /**
-     * @inheritDoc
-     */
-    setStatus(value: SpanStatusType): this;
-    /**
-     * @inheritDoc
-     */
-    setHttpStatus(httpStatus: number): this;
-    /**
-     * @inheritDoc
-     */
-    isSuccess(): boolean;
-    /**
-     * @inheritDoc
-     */
-    setName(name: string): void;
-    /**
-     * @inheritDoc
-     */
-    updateName(name: string): this;
-    /**
-     * @inheritDoc
-     */
-    end(endTimestamp?: SpanTimeInput): void;
-    /**
-     * @inheritDoc
-     */
-    finish(endTimestamp?: number): void;
-    /**
-     * @inheritDoc
-     */
-    toTraceparent(): string;
-    /**
-     * @inheritDoc
-     */
-    toContext(): SpanContext;
-    /**
-     * @inheritDoc
-     */
-    updateWithContext(spanContext: SpanContext): this;
-    /**
-     * @inheritDoc
-     */
-    getTraceContext(): {
-        data?: {
-            [key: string]: any;
-        };
-        description?: string;
-        op?: string;
-        parent_span_id?: string;
-        span_id: string;
-        status?: string;
-        tags?: {
-            [key: string]: Primitive;
-        };
-        trace_id: string;
-    };
-    /**
-     * @inheritDoc
-     */
-    toJSON(): {
-        data?: {
-            [key: string]: any;
-        };
-        description?: string;
-        op?: string;
-        parent_span_id?: string;
-        span_id: string;
-        start_timestamp: number;
-        status?: string;
-        tags?: {
-            [key: string]: Primitive;
-        };
-        attributes?: SpanAttributes;
-        timestamp?: number;
-        trace_id: string;
-    };
-    /**
-     * Return OTEL-like span context data.
-     */
-    spanContext(): {
-        traceId: string;
-        spanId: string;
-        isRemote?: boolean;
-        traceFlags: TraceFlag;
-    };
-    /**
-     * Whether span is recording (sampled and not finished).
-     */
-    isRecording(): boolean;
-}
-type SpanStatusType = 
-/** The operation completed successfully. */
-'ok'
-/** Deadline expired before operation could complete. */
- | 'deadline_exceeded'
-/** 401 Unauthorized (actually does mean unauthenticated according to RFC 7235) */
- | 'unauthenticated'
-/** 403 Forbidden */
- | 'permission_denied'
-/** 404 Not Found. Some requested entity (file or directory) was not found. */
- | 'not_found'
-/** 429 Too Many Requests */
- | 'resource_exhausted'
-/** Client specified an invalid argument. 4xx. */
- | 'invalid_argument'
-/** 501 Not Implemented */
- | 'unimplemented'
-/** 503 Service Unavailable */
- | 'unavailable'
-/** Other/generic 5xx. */
- | 'internal_error'
-/** Unknown. Any non-standard HTTP status code. */
- | 'unknown_error'
-/** The operation was cancelled (typically by the user). */
- | 'cancelled'
-/** Already exists (409) */
- | 'already_exists'
-/** Operation was rejected because the system is not in a state required for the operation's */
- | 'failed_precondition'
-/** The operation was aborted, typically due to a concurrency issue. */
- | 'aborted'
-/** Operation was attempted past the valid range. */
- | 'out_of_range'
-/** Unrecoverable data loss or corruption */
- | 'data_loss';
-
-/** JSDoc */
-declare class Transaction extends Span implements Transaction$1 {
-    name: string;
-    metadata: TransactionMetadata;
-    private _measurements;
-    private _contexts;
-    /**
-     * The reference to the current hub.
-     */
-    private readonly _hub;
-    private _trimEnd?;
-    /**
-     * This constructor should never be called manually. Those instrumenting tracing should use
-     * `Sentry.startTransaction()`, and internal methods should use `hub.startTransaction()`.
-     * @internal
-     * @hideconstructor
-     * @hidden
-     */
-    constructor(transactionContext: TransactionContext, hub?: Hub);
-    /**
-     * JSDoc
-     */
-    setName(name: string): void;
-    /**
-     * Attach additional context to the transaction.
-     * @deprecated Prefer attributes or scope data.
-     */
-    setContext(key: string, context: object): void;
-    /**
-     * Record a single measurement.
-     * @deprecated Prefer top-level `setMeasurement`.
-     */
-    setMeasurement(name: string, value: number, unit?: MeasurementUnit): void;
-    /**
-     * Attaches SpanRecorder to the span itself
-     * @param maxlen maximum number of spans that can be recorded
-     */
-    initSpanRecorder(maxlen?: number): void;
-    /**
-     * Set observed measurements for this transaction.
-     * @hidden
-     */
-    setMeasurements(measurements: Measurements): void;
-    /**
-     * Set metadata for this transaction.
-     * @hidden
-     */
-    setMetadata(newMetadata: TransactionMetadata): void;
-    /**
-     * Return dynamic sampling context for this transaction.
-     */
-    getDynamicSamplingContext(): Partial<DynamicSamplingContext>;
-    /**
-     * Placeholder profile id (not used in miniapp tracing).
-     */
-    getProfileId(): string | undefined;
-    /**
-     * @inheritDoc
-     */
-    finish(endTimestamp?: number): string | undefined;
-    /**
-     * @inheritDoc
-     */
-    toContext(): TransactionContext;
-    /**
-     * @inheritDoc
-     */
-    updateWithContext(transactionContext: TransactionContext): this;
-}
-
-type BeforeFinishCallback = (transactionSpan: IdleTransaction, endTimestamp: number) => void;
-/**
- * An IdleTransaction is a transaction that automatically finishes. It does this by tracking child spans as activities.
- * You can have multiple IdleTransactions active, but if the `onScope` option is specified, the idle transaction will
- * put itself on the scope on creation.
- */
-declare class IdleTransaction extends Transaction {
-    private readonly _idleHub?;
-    /**
-     * The time to wait in ms until the idle transaction will be finished.
-     * @default 1000
-     */
-    private readonly _idleTimeout;
-    private readonly _onScope;
-    activities: Record<string, boolean>;
-    private _prevHeartbeatString;
-    private _heartbeatCounter;
-    private _finished;
-    private readonly _beforeFinishCallbacks;
-    /**
-     * If a transaction is created and no activities are added, we want to make sure that
-     * it times out properly. This is cleared and not used when activities are added.
-     */
-    private _initTimeout;
-    constructor(transactionContext: TransactionContext, _idleHub?: Hub | undefined, 
-    /**
-     * The time to wait in ms until the idle transaction will be finished.
-     * @default 1000
-     */
-    _idleTimeout?: number, _onScope?: boolean);
-    /** {@inheritDoc} */
-    finish(endTimestamp?: number): string | undefined;
-    /**
-     * Register a callback function that gets excecuted before the transaction finishes.
-     * Useful for cleanup or if you want to add any additional spans based on current context.
-     *
-     * This is exposed because users have no other way of running something before an idle transaction
-     * finishes.
-     */
-    registerBeforeFinishCallback(callback: BeforeFinishCallback): void;
-    /**
-     * @inheritDoc
-     */
-    initSpanRecorder(maxlen?: number): void;
-    /**
-     * Start tracking a specific activity.
-     * @param spanId The span id that represents the activity
-     */
-    private _pushActivity;
-    /**
-     * Remove an activity from usage
-     * @param spanId The span id that represents the activity
-     */
-    private _popActivity;
-    /**
-     * Checks when entries of this.activities are not changing for 3 beats.
-     * If this occurs we finish the transaction.
-     */
-    private _beat;
-    /**
-     * Pings the heartbeat
-     */
-    private _pingHeartbeat;
-}
-
 interface MiniAppTracingOptions extends RequestInstrumentationOptions {
     idleTimeout: number;
     startTransactionOnLocationChange: boolean;
@@ -675,17 +700,14 @@ declare class MiniAppTracing implements Integration {
     name: string;
     options: MiniAppTracingOptions;
     private readonly _metrics;
-    private _getCurrentHub?;
     private readonly _configuredIdleTimeout;
     constructor(_options?: Partial<MiniAppTracingOptions>);
-    setupOnce(_: (callback: EventProcessor) => void, getCurrentHub: () => Hub): void;
+    setupOnce(): void;
     /** Create routing idle transaction. */
     private _createRouteTransaction;
 }
 
-declare const defaultIntegrations: (GlobalHandlers | TryCatch | LinkedErrors | System | Router | IgnoreMpcrawlerErrors | MiniAppTracing | (_sentry_types.Integration & {
-    preprocessEvent: (event: _sentry_types.Event, hint: _sentry_types.EventHint, client: _sentry_types.Client) => void;
-}))[];
+declare const defaultIntegrations: (_sentry_core.Integration | GlobalHandlers | TryCatch | LinkedErrors | System | Router | IgnoreMpcrawlerErrors | MiniAppTracing)[];
 /**
  * The Sentry Miniapp SDK Client.
  *
@@ -787,4 +809,4 @@ declare namespace index {
   export { index_makeMiniappTransport as makeMiniappTransport };
 }
 
-export { index$1 as Integrations, MiniappClient, type MiniappOptions, type ReportDialogOptions, SDK_NAME, SDK_VERSION, index as Transports, close, defaultIntegrations, flush, init, lastEventId, showReportDialog, wrap };
+export { index$1 as Integrations, MiniappClient, type MiniappOptions, type ReportDialogOptions, SDK_NAME, SDK_VERSION, index as Transports, close, configureScope, defaultIntegrations, flush, init, lastEventId, showReportDialog, startTransaction, wrap };

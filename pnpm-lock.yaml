@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@sentry/core':
-        specifier: 7.120.3
-        version: 7.120.3
+        specifier: 8.55.0
+        version: 8.55.0
       '@sentry/types':
-        specifier: 7.120.3
-        version: 7.120.3
+        specifier: 8.55.0
+        version: 8.55.0
       '@sentry/utils':
-        specifier: 7.120.3
-        version: 7.120.3
+        specifier: 8.55.0
+        version: 8.55.0
     devDependencies:
       '@types/node':
         specifier: ^12.7.1
@@ -332,17 +332,17 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@sentry/core@7.120.3':
-    resolution: {integrity: sha512-vyy11fCGpkGK3qI5DSXOjgIboBZTriw0YDx/0KyX5CjIjDDNgp5AGgpgFkfZyiYiaU2Ww3iFuKo4wHmBusz1uA==}
-    engines: {node: '>=8'}
+  '@sentry/core@8.55.0':
+    resolution: {integrity: sha512-6g7jpbefjHYs821Z+EBJ8r4Z7LT5h80YSWRJaylGS4nW5W5Z2KXzpdnyFarv37O7QjauzVC2E+PABmpkw5/JGA==}
+    engines: {node: '>=14.18'}
 
-  '@sentry/types@7.120.3':
-    resolution: {integrity: sha512-C4z+3kGWNFJ303FC+FxAd4KkHvxpNFYAFN8iMIgBwJdpIl25KZ8Q/VdGn0MLLUEHNLvjob0+wvwlcRBBNLXOow==}
-    engines: {node: '>=8'}
+  '@sentry/types@8.55.0':
+    resolution: {integrity: sha512-6LRT0+r6NWQ+RtllrUW2yQfodST0cJnkOmdpHA75vONgBUhpKwiJ4H7AmgfoTET8w29pU6AnntaGOe0LJbOmog==}
+    engines: {node: '>=14.18'}
 
-  '@sentry/utils@7.120.3':
-    resolution: {integrity: sha512-UDAOQJtJDxZHQ5Nm1olycBIsz2wdGX8SdzyGVHmD8EOQYAeDZQyIlQYohDe9nazdIOQLZCIc3fU0G9gqVLkaGQ==}
-    engines: {node: '>=8'}
+  '@sentry/utils@8.55.0':
+    resolution: {integrity: sha512-cYcl39+xcOivBpN9d8ZKbALl+DxZKo/8H0nueJZ0PO4JA+MJGhSm6oHakXxLPaiMoNLTX7yor8ndnQIuFg+vmQ==}
+    engines: {node: '>=14.18'}
 
   '@types/estree@1.0.6':
     resolution: {integrity: sha512-AYnb1nQyY49te+VRAVgmzfcgjYS91mY5P0TKUDCLEM+gNnA+3T6rWITXRLYCpahpqSQbN5cE+gHpnPyXjHWxcw==}
@@ -903,16 +903,15 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.34.6':
     optional: true
 
-  '@sentry/core@7.120.3':
-    dependencies:
-      '@sentry/types': 7.120.3
-      '@sentry/utils': 7.120.3
+  '@sentry/core@8.55.0': {}
 
-  '@sentry/types@7.120.3': {}
-
-  '@sentry/utils@7.120.3':
+  '@sentry/types@8.55.0':
     dependencies:
-      '@sentry/types': 7.120.3
+      '@sentry/core': 8.55.0
+
+  '@sentry/utils@8.55.0':
+    dependencies:
+      '@sentry/core': 8.55.0
 
   '@types/estree@1.0.6': {}
 

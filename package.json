@@ -56,8 +56,8 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    "@sentry/core": "7.120.3",
-    "@sentry/types": "7.120.3",
-    "@sentry/utils": "7.120.3"
+    "@sentry/core": "8.55.0",
+    "@sentry/types": "8.55.0",
+    "@sentry/utils": "8.55.0"
   }
 }

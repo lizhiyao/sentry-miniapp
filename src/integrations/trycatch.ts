@@ -1,5 +1,5 @@
-import { Integration, WrappedFunction } from "@sentry/types";
-import { fill, getGlobalObject } from "@sentry/utils";
+import { Integration, WrappedFunction } from '@sentry/types';
+import { fill, GLOBAL_OBJ } from '@sentry/utils';
 
 import { wrap } from "../helpers";
 
@@ -55,7 +55,7 @@ export class TryCatch implements Integration {
 
   /** JSDoc */
   private _wrapEventTarget(target: string): void {
-    const global = getGlobalObject() as { [key: string]: any };
+    const global = GLOBAL_OBJ as { [key: string]: any };
     const proto = global[target] && global[target].prototype;
 
     if (
@@ -153,7 +153,7 @@ export class TryCatch implements Integration {
   public setupOnce(): void {
     this._ignoreOnError = this._ignoreOnError;
 
-    const global = getGlobalObject();
+    const global = GLOBAL_OBJ as { [key: string]: any };
 
     fill(global, "setTimeout", this._wrapTimeFunction.bind(this));
     fill(global, "setInterval", this._wrapTimeFunction.bind(this));

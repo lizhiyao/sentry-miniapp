@@ -1,11 +1,11 @@
-import { Hub } from '@sentry/core';
-import { TransactionContext } from '@sentry/types';
-import { logger, timestampWithMs } from '@sentry/utils';
+import { TransactionContext } from './types';
+import { logger, dateTimestampInSeconds } from '@sentry/utils';
 
 import { FINISH_REASON_TAG, IDLE_TRANSACTION_FINISH_REASONS } from './constants';
 import { IS_DEBUG_BUILD } from './flags';
 import { Span, SpanRecorder } from './span';
 import { Transaction } from './transaction';
+import { setActiveTransaction } from './utils';
 
 export const DEFAULT_IDLE_TIMEOUT = 1000;
 export const HEARTBEAT_INTERVAL = 5000;
@@ -32,7 +32,7 @@ export class IdleTransactionSpanRecorder extends SpanRecorder {
     if (span.spanId !== this.transactionSpanId) {
       // We patch span.finish() to pop an activity after setting an endTimestamp.
       span.finish = (endTimestamp?: number) => {
-        span.endTimestamp = typeof endTimestamp === 'number' ? endTimestamp : timestampWithMs();
+        span.endTimestamp = typeof endTimestamp === 'number' ? endTimestamp : dateTimestampInSeconds();
         this._popActivity(span.spanId);
       };
 
@@ -76,7 +76,6 @@ export class IdleTransaction extends Transaction {
 
   public constructor(
     transactionContext: TransactionContext,
-    private readonly _idleHub?: Hub,
     /**
      * The time to wait in ms until the idle transaction will be finished.
      * @default 1000
@@ -85,16 +84,12 @@ export class IdleTransaction extends Transaction {
     // Whether or not the transaction should put itself on the scope when it starts and pop itself off when it ends
     private readonly _onScope: boolean = false,
   ) {
-    super(transactionContext, _idleHub);
+    super(transactionContext);
 
-    if (_idleHub && _onScope) {
-      // There should only be one active transaction on the scope
-      clearActiveTransaction(_idleHub);
-
-      // We set the transaction here on the scope so error events pick up the trace
-      // context and attach it to the error.
-      IS_DEBUG_BUILD && logger.log(`Setting idle transaction on scope. Span ID: ${this.spanId}`);
-      _idleHub.configureScope(scope => scope.setSpan(this));
+    if (_onScope) {
+      // We set the transaction here so error events pick up the trace context.
+      IS_DEBUG_BUILD && logger.log(`Setting idle transaction as active. Span ID: ${this.spanId}`);
+      setActiveTransaction(this);
     }
 
     this._initTimeout = setTimeout(() => {
@@ -105,7 +100,7 @@ export class IdleTransaction extends Transaction {
   }
 
   /** {@inheritDoc} */
-  public finish(endTimestamp: number = timestampWithMs()): string | undefined {
+  public finish(endTimestamp: number = dateTimestampInSeconds()): string | undefined {
     this._finished = true;
     this.activities = {};
 
@@ -149,7 +144,7 @@ export class IdleTransaction extends Transaction {
 
     // if `this._onScope` is `true`, the transaction put itself on the scope when it started
     if (this._onScope) {
-      clearActiveTransaction(this._idleHub);
+      setActiveTransaction(undefined);
     }
 
     return super.finish(endTimestamp);
@@ -222,8 +217,8 @@ export class IdleTransaction extends Transaction {
     if (Object.keys(this.activities).length === 0) {
       const timeout = this._idleTimeout;
       // We need to add the timeout here to have the real endtimestamp of the transaction
-      // Remember timestampWithMs is in seconds, timeout is in ms
-      const end = timestampWithMs() + timeout / 1000;
+      // Remember dateTimestampInSeconds is in seconds, timeout is in ms
+      const end = dateTimestampInSeconds() + timeout / 1000;
 
       setTimeout(() => {
         if (!this._finished) {
@@ -272,20 +267,5 @@ export class IdleTransaction extends Transaction {
     setTimeout(() => {
       this._beat();
     }, HEARTBEAT_INTERVAL);
-  }
-}
-
-/**
- * Reset transaction on scope to `undefined`
- */
-function clearActiveTransaction(hub?: Hub): void {
-  if (hub) {
-    const scope = hub.getScope();
-    if (scope) {
-      const transaction = scope.getTransaction();
-      if (transaction) {
-        scope.setSpan(undefined);
-      }
-    }
   }
 }

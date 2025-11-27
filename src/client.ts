@@ -1,5 +1,14 @@
-import { applySdkMetadata, BaseClient, Scope } from '@sentry/core';
-import { DsnLike, Event, EventHint, ParameterizedString, Severity, SeverityLevel, StackParser } from '@sentry/types';
+import {
+  applySdkMetadata,
+  BaseClient,
+  Scope,
+  type DsnLike,
+  type Event,
+  type EventHint,
+  type ParameterizedString,
+  type SeverityLevel,
+  type StackParser,
+} from '@sentry/core';
 
 import { MiniappOptions } from './backend';
 import { SDK_NAME, SDK_VERSION } from "./version";
@@ -120,8 +129,7 @@ export class MiniappClient extends BaseClient<MiniappOptions> {
   // eslint-disable-next-line deprecation/deprecation
   public eventFromMessage(
     message: ParameterizedString,
-    // eslint-disable-next-line deprecation/deprecation
-    level: Severity | SeverityLevel = 'info',
+    level: SeverityLevel = 'info',
     hint?: EventHint,
   ): PromiseLike<Event> {
     const syntheticException = hint && hint.syntheticException ? hint.syntheticException : undefined;

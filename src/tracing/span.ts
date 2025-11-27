@@ -4,14 +4,14 @@ import {
   Span as SpanInterface,
   SpanAttributeValue,
   SpanAttributes,
-  SpanContext,
-  SpanTimeInput,
   SpanOrigin,
+  SpanStatus,
+  SpanTimeInput,
   TraceFlag,
-  Instrumenter,
-  Transaction,
 } from '@sentry/types';
-import { dropUndefinedKeys, timestampWithMs, uuid4 } from '@sentry/utils';
+import { dateTimestampInSeconds, dropUndefinedKeys, uuid4 } from '@sentry/utils';
+import type { SpanContext, SpanStatusType } from './types';
+import type { Transaction } from './transaction';
 import { msToSec } from './utils';
 
 /**
@@ -71,7 +71,7 @@ export class Span implements SpanInterface {
   /**
    * Internal keeper of the status
    */
-  public status?: SpanStatusType | string;
+  public status?: SpanStatusType | string | number;
 
   /**
    * @inheritDoc
@@ -81,7 +81,7 @@ export class Span implements SpanInterface {
   /**
    * Timestamp in seconds when the span was created.
    */
-  public startTimestamp: number = timestampWithMs();
+  public startTimestamp: number = dateTimestampInSeconds();
 
   /**
    * Timestamp in seconds when the span ended.
@@ -127,7 +127,7 @@ export class Span implements SpanInterface {
   /**
    * Instrumenter that created the span.
    */
-  public instrumenter: Instrumenter = 'sentry';
+  public instrumenter: 'sentry' | 'otel' = 'sentry';
 
   /**
    * Origin of the span.
@@ -218,27 +218,29 @@ export class Span implements SpanInterface {
   /**
    * @inheritDoc
    */
-  public setAttribute(key: string, value: SpanAttributeValue | undefined): void {
+  public setAttribute(key: string, value: SpanAttributeValue | undefined): this {
     if (value === undefined) {
       // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete this.attributes[key];
     } else {
       this.attributes[key] = value;
     }
+    return this;
   }
 
   /**
    * @inheritDoc
    */
-  public setAttributes(attributes: SpanAttributes): void {
+  public setAttributes(attributes: SpanAttributes): this {
     Object.keys(attributes).forEach(attributeKey => this.setAttribute(attributeKey, attributes[attributeKey]));
+    return this;
   }
 
   /**
    * @inheritDoc
    */
-  public setStatus(value: SpanStatusType): this {
-    this.status = value;
+  public setStatus(value: SpanStatus | SpanStatusType): this {
+    this.status = typeof value === 'string' ? value : value.message ?? value.code;
     return this;
   }
 
@@ -252,6 +254,37 @@ export class Span implements SpanInterface {
       this.setStatus(spanStatus);
     }
     return this;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public addEvent(_name: string, _attributesOrStartTime?: SpanAttributes | SpanTimeInput, _startTime?: SpanTimeInput): this {
+    return this;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public addLink(_link: unknown): this {
+    return this;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public addLinks(_links: unknown): this {
+    return this;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public recordException(_exception: unknown): void {
+    // no-op for legacy span implementation
   }
 
   /**
@@ -288,7 +321,7 @@ export class Span implements SpanInterface {
    * @inheritDoc
    */
   public finish(endTimestamp?: number): void {
-    this.endTimestamp = typeof endTimestamp === 'number' ? endTimestamp : timestampWithMs();
+    this.endTimestamp = typeof endTimestamp === 'number' ? endTimestamp : dateTimestampInSeconds();
   }
 
   /**
@@ -317,7 +350,7 @@ export class Span implements SpanInterface {
       sampled: this.sampled,
       spanId: this.spanId,
       startTimestamp: this.startTimestamp,
-      status: this.status,
+      status: typeof this.status === 'number' ? String(this.status) : this.status,
       tags: this.tags,
       traceId: this.traceId,
     });
@@ -364,7 +397,7 @@ export class Span implements SpanInterface {
       op: this.op,
       parent_span_id: this.parentSpanId,
       span_id: this.spanId,
-      status: this.status,
+      status: typeof this.status === 'number' ? String(this.status) : this.status,
       tags: Object.keys(this.tags).length > 0 ? this.tags : undefined,
       trace_id: this.traceId,
     });
@@ -394,7 +427,7 @@ export class Span implements SpanInterface {
       parent_span_id: this.parentSpanId,
       span_id: this.spanId,
       start_timestamp: this.startTimestamp,
-      status: this.status,
+      status: typeof this.status === 'number' ? String(this.status) : this.status,
       tags: Object.keys(this.tags).length > 0 ? this.tags : undefined,
       attributes: Object.keys(this.attributes).length > 0 ? this.attributes : undefined,
       timestamp: this.endTimestamp,
@@ -423,7 +456,7 @@ export class Span implements SpanInterface {
 
 function spanTimeInputToSeconds(input?: SpanTimeInput): number | undefined {
   if (input === undefined) {
-    return timestampWithMs();
+    return dateTimestampInSeconds();
   }
 
   if (Array.isArray(input) && input.length === 2) {
@@ -440,44 +473,8 @@ function spanTimeInputToSeconds(input?: SpanTimeInput): number | undefined {
     return input > 1e12 ? msToSec(input) : input;
   }
 
-  return timestampWithMs();
+  return dateTimestampInSeconds();
 }
-
-export type SpanStatusType =
-  /** The operation completed successfully. */
-  | 'ok'
-  /** Deadline expired before operation could complete. */
-  | 'deadline_exceeded'
-  /** 401 Unauthorized (actually does mean unauthenticated according to RFC 7235) */
-  | 'unauthenticated'
-  /** 403 Forbidden */
-  | 'permission_denied'
-  /** 404 Not Found. Some requested entity (file or directory) was not found. */
-  | 'not_found'
-  /** 429 Too Many Requests */
-  | 'resource_exhausted'
-  /** Client specified an invalid argument. 4xx. */
-  | 'invalid_argument'
-  /** 501 Not Implemented */
-  | 'unimplemented'
-  /** 503 Service Unavailable */
-  | 'unavailable'
-  /** Other/generic 5xx. */
-  | 'internal_error'
-  /** Unknown. Any non-standard HTTP status code. */
-  | 'unknown_error'
-  /** The operation was cancelled (typically by the user). */
-  | 'cancelled'
-  /** Already exists (409) */
-  | 'already_exists'
-  /** Operation was rejected because the system is not in a state required for the operation's */
-  | 'failed_precondition'
-  /** The operation was aborted, typically due to a concurrency issue. */
-  | 'aborted'
-  /** Operation was attempted past the valid range. */
-  | 'out_of_range'
-  /** Unrecoverable data loss or corruption */
-  | 'data_loss';
 
 /**
  * Converts a HTTP status code into a {@link SpanStatusType}.

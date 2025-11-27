@@ -1,5 +1,8 @@
-import { getCurrentHub, Hub } from '@sentry/core';
-import { Options, Transaction } from '@sentry/types';
+import { getClient } from '@sentry/core';
+import { Options } from '@sentry/types';
+import type { Transaction } from './transaction';
+
+let activeTransaction: Transaction | undefined;
 
 /**
  * The `extractTraceparentData` function and `TRACEPARENT_REGEXP` constant used
@@ -21,16 +24,18 @@ export { TRACEPARENT_REGEXP, extractTraceparentData } from '@sentry/utils';
  * Tracing is enabled when at least one of `tracesSampleRate` and `tracesSampler` is defined in the SDK config.
  */
 export function hasTracingEnabled(maybeOptions?: Options | undefined): boolean {
-  const client = getCurrentHub().getClient();
-  const options = maybeOptions || (client && client.getOptions());
+  const client = getClient();
+  const options = maybeOptions || (client && client.getOptions && client.getOptions());
   return !!options && ('tracesSampleRate' in options || 'tracesSampler' in options);
 }
 
-/** Grabs active transaction off scope, if any */
-export function getActiveTransaction<T extends Transaction>(maybeHub?: Hub): T | undefined {
-  const hub = maybeHub || getCurrentHub();
-  const scope = hub.getScope();
-  return scope && (scope.getTransaction() as T | undefined);
+/** Grabs active transaction, if any */
+export function getActiveTransaction<T extends Transaction>(): T | undefined {
+  return activeTransaction as T | undefined;
+}
+
+export function setActiveTransaction(transaction?: Transaction): void {
+  activeTransaction = transaction;
 }
 
 /**

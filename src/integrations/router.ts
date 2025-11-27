@@ -1,5 +1,5 @@
-import { addGlobalEventProcessor, getCurrentHub } from "@sentry/core";
-import { Event, Integration } from "@sentry/types";
+import { addEventProcessor, getCurrentHub } from '@sentry/core';
+import { Event, Integration } from '@sentry/types';
 
 declare const getCurrentPages: any;
 
@@ -35,7 +35,7 @@ export class Router implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
-    addGlobalEventProcessor((event: Event) => {
+    addEventProcessor((event: Event) => {
       if (getCurrentHub().getIntegration(Router)) {
         if (this._options.enable) {
           try {

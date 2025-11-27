@@ -1,5 +1,5 @@
-import { TransactionContext } from '@sentry/types';
-import { getGlobalObject } from '@sentry/utils';
+import { GLOBAL_OBJ } from '@sentry/utils';
+import type { TransactionContext } from '../types';
 import { sdk } from '../../crossPlatform';
 
 type StartTransactionCallback<T> = (context: TransactionContext) => T | undefined;
@@ -13,7 +13,7 @@ export function instrumentRoutingWithDefaults<T extends { finish?: () => void }>
   startTransactionOnPageLoad: boolean = true,
   startTransactionOnLocationChange: boolean = true,
 ): void {
-  const globalObj = getGlobalObject<{ wx?: any }>();
+  const globalObj = GLOBAL_OBJ as { wx?: any; getCurrentPages?: () => any[] };
   const onAppRoute: ((callback: (options: any) => void) => void) | undefined =
     (sdk as any).onAppRoute || (globalObj.wx && globalObj.wx.onAppRoute);
 

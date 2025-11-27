@@ -1,21 +1,14 @@
-import { getCurrentHub, Hub } from '@sentry/core';
-import {
-  Event,
-  DynamicSamplingContext,
-  MeasurementUnit,
-  Measurements,
-  Transaction as TransactionInterface,
-  TransactionContext,
-  TransactionMetadata,
-} from '@sentry/types';
-import { dropUndefinedKeys, isInstanceOf, logger } from '@sentry/utils';
+import { captureEvent } from '@sentry/core';
+import { DynamicSamplingContext, Event, MeasurementUnit, Measurements } from '@sentry/types';
+import { dropUndefinedKeys, logger } from '@sentry/utils';
 
 import { IS_DEBUG_BUILD } from './flags';
 import { Span as SpanClass, SpanRecorder } from './span';
+import type { TransactionContext, TransactionMetadata } from './types';
 
 
 /** JSDoc */
-export class Transaction extends SpanClass implements TransactionInterface {
+export class Transaction extends SpanClass {
   public name: string;
 
   public metadata: TransactionMetadata;
@@ -23,11 +16,6 @@ export class Transaction extends SpanClass implements TransactionInterface {
   private _measurements: Measurements = {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _contexts: Record<string, any> = {};
-
-  /**
-   * The reference to the current hub.
-   */
-  private readonly _hub: Hub = getCurrentHub() as unknown as Hub;
 
   private _trimEnd?: boolean;
 
@@ -38,12 +26,8 @@ export class Transaction extends SpanClass implements TransactionInterface {
    * @hideconstructor
    * @hidden
    */
-  public constructor(transactionContext: TransactionContext, hub?: Hub) {
+  public constructor(transactionContext: TransactionContext) {
     super(transactionContext);
-
-    if (isInstanceOf(hub, Hub)) {
-      this._hub = hub as Hub;
-    }
 
     this.name = transactionContext.name || '';
 
@@ -149,6 +133,7 @@ export class Transaction extends SpanClass implements TransactionInterface {
     }
 
     const finishedSpans = this.spanRecorder ? this.spanRecorder.spans.filter(s => s !== this && s.endTimestamp) : [];
+    const serializedSpans = finishedSpans.map(span => span.toJSON());
 
     if (this._trimEnd && finishedSpans.length > 0) {
       this.endTimestamp = finishedSpans.reduce((prev: SpanClass, current: SpanClass) => {
@@ -164,7 +149,7 @@ export class Transaction extends SpanClass implements TransactionInterface {
         trace: this.getTraceContext(),
         ...this._contexts,
       },
-      spans: finishedSpans,
+      spans: serializedSpans,
       start_timestamp: this.startTimestamp,
       tags: this.tags,
       timestamp: this.endTimestamp,
@@ -186,7 +171,7 @@ export class Transaction extends SpanClass implements TransactionInterface {
 
     IS_DEBUG_BUILD && logger.log(`[Tracing] Finishing ${this.op} transaction: ${this.name}.`);
 
-    return this._hub.captureEvent(transaction);
+    return captureEvent(transaction);
   }
 
   /**

@@ -1,5 +1,6 @@
 
-import { Measurements, SpanContext } from '@sentry/types';
+import { Measurements } from '@sentry/types';
+import type { SpanContext } from '../types';
 import { Span } from '../span';
 import { Transaction } from '../transaction';
 import { msToSec } from '../utils';

@@ -1,3 +1,5 @@
+import './polyfills/urlsearchparams';
+
 export type {
   Breadcrumb,
   BreadcrumbHint,
@@ -11,31 +13,30 @@ export type {
   Thread,
   User,
   Integration,
-} from "@sentry/types";
+} from '@sentry/types';
 
-export type { Severity, SeverityLevel } from "@sentry/types";
-
+export type { SeverityLevel } from '@sentry/types';
 
 export {
-  addGlobalEventProcessor,
+  addEventProcessor,
   addBreadcrumb,
   captureException,
   captureEvent,
   captureMessage,
-  configureScope,
-  getHubFromCarrier,
   getCurrentHub,
-  Hub,
-  Scope,
+  getCurrentScope,
   setContext,
   setExtra,
   setExtras,
   setTag,
   setTags,
   setUser,
-  startTransaction,
   withScope,
-} from "@sentry/core";
+} from '@sentry/core';
+
+export type { Hub, Scope } from '@sentry/core';
+export { configureScope } from './scope';
+export { startTransaction } from './tracing/hubextensions';
 
 export { SDK_NAME, SDK_VERSION } from "./version";
 export {
