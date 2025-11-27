@@ -77,4 +77,4 @@ Sentry.captureEvent({
 1. **fix:**  微信小程序异常信息栈的解析
 2. **chore:** 升级 sentry 核心依赖至 6.19.7
 3. **feat:** 增加小程序Transaction性能指标
-4. **chore:** 用tsup优化打包
+4. **chore:** 用 Vite 优化打包

@@ -1,4 +1,4 @@
-import * as Sentry from "./sentry/index";
+import * as Sentry from "./vender/sentry-miniapp";
 // 初始化 Sentry
 Sentry.init({
   dsn: "https://90ac29a4615f090525ea9f732038d105@sentry.inf.17usoft.com/293",

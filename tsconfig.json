@@ -15,7 +15,7 @@
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "noImplicitAny": false,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

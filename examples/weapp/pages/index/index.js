@@ -1,5 +1,5 @@
 //index.js
-import * as Sentry from "../../sentry/index";
+import * as Sentry from "../../vender/sentry-miniapp";
 //获取应用实例
 const app = getApp();
 

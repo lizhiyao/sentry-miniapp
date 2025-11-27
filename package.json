@@ -20,9 +20,9 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npx tsup --minify terser",
-    "dev:weapp": "npx tsup --platform browser --target chrome58 --out-dir examples/weapp/sentry --watch",
-    "prepack": "npx tsup",
+    "build": "vite build",
+    "dev:weapp": "vite build --watch --outDir examples/weapp/vender",
+    "prepack": "vite build",
     "lint": "tsc --noEmit",
     "version": "node ./scripts/versionbump.js src/version.ts"
   },
@@ -45,6 +45,7 @@
     "node": ">=16"
   },
   "devDependencies": {
+    "@swc/core": "^1.15.3",
     "@types/node": "^12.7.1",
     "change-case": "^5.4.4",
     "install": "^0.13.0",
@@ -52,8 +53,9 @@
     "miniprogram-api-typings": "^4.0.4",
     "replace-in-file": "^8.3.0",
     "terser": "^5.37.0",
-    "tsup": "^8.3.6",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vite": "^7.2.0",
+    "vite-plugin-dts": "^4.5.4"
   },
   "dependencies": {
     "@sentry/core": "8.55.0",
