@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "vite build",
+    "build": "vite build --minify terser",
     "dev:weapp": "vite build --watch --outDir examples/weapp/vender",
     "prepack": "vite build",
     "lint": "tsc --noEmit",
