@@ -55,7 +55,7 @@
    npm install sentry-miniapp@beta --save
    ```
 
-> **注意：** v1.0.1-beta.2 版本修复了事件上报中 `undefined` 值的问题，建议使用最新的 beta 版本。
+> **注意：** v1.0.1-beta.3 版本修复了构建问题并升级了核心依赖，建议使用最新的 beta 版本。
 
 ### 重要提示
 
