@@ -8,21 +8,6 @@ const baseConfig = {
     sourcemap: true,
     minify: false, // 保持代码可读性，便于调试
     target: 'es2015',
-    rollupOptions: {
-      external: [
-        // 标记外部依赖，不打包进最终文件
-        '@sentry/core',
-        '@sentry/utils',
-        '@sentry/types'
-      ],
-      output: {
-        globals: {
-          '@sentry/core': 'SentryCore',
-          '@sentry/utils': 'SentryUtils',
-          '@sentry/types': 'SentryTypes'
-        }
-      }
-    }
   },
   resolve: {
     alias: {
@@ -59,7 +44,7 @@ export default defineConfig(({ mode }) => {
       }
     };
   }
-  
+
   // 标准 npm 包构建配置
   return {
     ...baseConfig,
@@ -73,7 +58,12 @@ export default defineConfig(({ mode }) => {
       },
       outDir: 'dist',
       rollupOptions: {
-        ...baseConfig.build.rollupOptions,
+        external: [
+          // 标记外部依赖，不打包进最终文件
+          '@sentry/core',
+          '@sentry/utils',
+          '@sentry/types'
+        ],
         output: [
           {
             format: 'es',
@@ -90,7 +80,11 @@ export default defineConfig(({ mode }) => {
             entryFileNames: 'sentry-miniapp.umd.js',
             name: 'SentryMiniapp',
             exports: 'auto',
-            globals: baseConfig.build.rollupOptions.output.globals
+            globals: {
+              '@sentry/core': 'SentryCore',
+              '@sentry/utils': 'SentryUtils',
+              '@sentry/types': 'SentryTypes'
+            }
           }
         ]
       }
