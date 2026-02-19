@@ -66,16 +66,14 @@ Page({
 
     this.setData({
       systemInfo: {
-        SDKVersion: sys.SDKVersion,
-        platform: sys.platform,
-        brand: sys.brand
+        SDKVersion: sys.SDKVersion || '--',
+        platform: sys.platform || '--',
+        brand: sys.brand || '--'
       },
-      sdkStatus: {
-        connected: isConnected,
-        version: '1.1.0', // 硬编码或从 SDK 获取
-        dsnConfigured: !!dsn,
-        initTime: timeString
-      }
+      'sdkStatus.connected': isConnected,
+      'sdkStatus.version': '1.1.0', // 硬编码或从 SDK 获取
+      'sdkStatus.dsnConfigured': !!dsn,
+      'sdkStatus.initTime': timeString
     });
 
     // 记录面包屑
