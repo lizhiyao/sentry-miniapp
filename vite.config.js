@@ -58,12 +58,7 @@ export default defineConfig(({ mode }) => {
       },
       outDir: 'dist',
       rollupOptions: {
-        external: [
-          // 标记外部依赖，不打包进最终文件
-          '@sentry/core',
-          '@sentry/utils',
-          '@sentry/types'
-        ],
+        external: [],
         output: [
           {
             format: 'es',
@@ -80,11 +75,7 @@ export default defineConfig(({ mode }) => {
             entryFileNames: 'sentry-miniapp.umd.js',
             name: 'SentryMiniapp',
             exports: 'auto',
-            globals: {
-              '@sentry/core': 'SentryCore',
-              '@sentry/utils': 'SentryUtils',
-              '@sentry/types': 'SentryTypes'
-            }
+            globals: {}
           }
         ]
       }
