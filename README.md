@@ -46,16 +46,12 @@
 推荐使用 npm 方式。
 
 **稳定版本：**
+
    ```bash
    npm install sentry-miniapp --save
    ```
 
-**Beta 版本（包含最新修复）：**
-   ```bash
-   npm install sentry-miniapp@beta --save
-   ```
-
-> **注意：** v1.0.1-beta.3 版本修复了构建问题并升级了核心依赖，建议使用最新的 beta 版本。
+> **注意：** v1.1.0 版本升级了核心依赖 `@sentry/core` 至 10.39.0，并优化了构建策略（内联依赖），不再需要额外安装 `@sentry/core`。
 
 ### 重要提示
 
