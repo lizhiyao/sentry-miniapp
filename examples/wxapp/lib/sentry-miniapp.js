@@ -5996,7 +5996,7 @@ const _PerformanceIntegration = class _PerformanceIntegration {
       enableNavigation: true,
       enableRender: true,
       enableResource: true,
-      enableUserTiming: true,
+      enableUserTiming: false,
       sampleRate: 1,
       bufferSize: 100,
       reportInterval: 3e4
@@ -6050,7 +6050,26 @@ const _PerformanceIntegration = class _PerformanceIntegration {
       if (this._options.enableResource) {
         entryTypes.push("resource");
       }
-      if (this._options.enableUserTiming) {
+      let canObserveUserTiming = this._options.enableUserTiming;
+      if (canObserveUserTiming) {
+        try {
+          const systemInfo = getSystemInfo();
+          if (systemInfo && systemInfo.platform === "devtools") {
+            canObserveUserTiming = false;
+          }
+          if (canObserveUserTiming) {
+            const globalObj = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : {};
+            const performanceObserverCtor = globalObj.PerformanceObserver;
+            const supportedTypes = performanceObserverCtor && Array.isArray(performanceObserverCtor.supportedEntryTypes) ? performanceObserverCtor.supportedEntryTypes : void 0;
+            if (!supportedTypes || !supportedTypes.includes("measure") || !supportedTypes.includes("mark")) {
+              canObserveUserTiming = false;
+            }
+          }
+        } catch (e) {
+          canObserveUserTiming = false;
+        }
+      }
+      if (canObserveUserTiming) {
         entryTypes.push("measure", "mark");
       }
       if (entryTypes.length === 0) {
@@ -6073,7 +6092,10 @@ const _PerformanceIntegration = class _PerformanceIntegration {
         }
       }
       this._observers.push(observer);
-      console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
+      const globalProcess = typeof globalThis !== "undefined" ? globalThis.process : void 0;
+      if (globalProcess && globalProcess.env && globalProcess.env.NODE_ENV !== "production") {
+        console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
+      }
     } catch (error2) {
       console.warn("[Sentry Performance] Failed to setup performance observers:", error2);
     }

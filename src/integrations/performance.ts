@@ -4,6 +4,7 @@ import { startSpan } from '@sentry/core';
 
 import {
   getPerformanceManager,
+  getSystemInfo,
   sdk,
   type PerformanceEntry,
   type NavigationPerformanceEntry,
@@ -124,14 +125,10 @@ export class PerformanceIntegration implements Integration {
 
       if (canObserveUserTiming) {
         try {
-          const currentSdk = sdk();
+          const systemInfo = getSystemInfo();
 
-          if (currentSdk && typeof currentSdk.getSystemInfoSync === 'function') {
-            const systemInfo = currentSdk.getSystemInfoSync();
-
-            if (systemInfo && systemInfo.platform === 'devtools') {
-              canObserveUserTiming = false;
-            }
+          if (systemInfo && systemInfo.platform === 'devtools') {
+            canObserveUserTiming = false;
           }
 
           if (canObserveUserTiming) {
@@ -191,7 +188,10 @@ export class PerformanceIntegration implements Integration {
 
       this._observers.push(observer);
 
-      console.log('[Sentry Performance] Performance observers setup for:', entryTypes);
+      const globalProcess = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
+      if (globalProcess && globalProcess.env && globalProcess.env.NODE_ENV !== 'production') {
+        console.log('[Sentry Performance] Performance observers setup for:', entryTypes);
+      }
     } catch (error) {
       console.warn('[Sentry Performance] Failed to setup performance observers:', error);
     }
