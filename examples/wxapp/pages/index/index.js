@@ -7,12 +7,20 @@ Page({
       connected: false,
       version: '--',
       dsnConfigured: false,
-      initTime: '--'
+      initTime: '--',
+      releaseDate: '--'
     },
     systemInfo: {
       SDKVersion: '--',
       platform: '--',
       brand: '--'
+    },
+    usageStats: {
+      npmDownloads: '--',
+      npmDownloadsMonth: '--',
+      githubStars: '--',
+      githubForks: '--',
+      githubOpenIssues: '--'
     }
   },
 
@@ -75,6 +83,89 @@ Page({
       category: 'ui.lifecycle',
       message: 'Index page loaded',
       level: 'info'
+    });
+
+    this.fetchUsageStats();
+    this.fetchReleaseInfo();
+  },
+
+  fetchUsageStats() {
+    const that = this;
+
+    wx.request({
+      url: 'https://api.npmjs.org/downloads/point/last-week/sentry-miniapp',
+      method: 'GET',
+      success(res) {
+        if (res && res.data && typeof res.data.downloads === 'number') {
+          that.setData({
+            'usageStats.npmDownloads': res.data.downloads.toString()
+          });
+        }
+      }
+    });
+
+    wx.request({
+      url: 'https://api.npmjs.org/downloads/point/last-month/sentry-miniapp',
+      method: 'GET',
+      success(res) {
+        if (res && res.data && typeof res.data.downloads === 'number') {
+          that.setData({
+            'usageStats.npmDownloadsMonth': res.data.downloads.toString()
+          });
+        }
+      }
+    });
+
+    wx.request({
+      url: 'https://api.github.com/repos/lizhiyao/sentry-miniapp',
+      method: 'GET',
+      success(res) {
+        if (res && res.data) {
+          const stars = res.data.stargazers_count;
+          const forks = res.data.forks_count;
+          const openIssues = res.data.open_issues_count;
+
+          const dataToUpdate = {};
+
+          if (typeof stars === 'number') {
+            dataToUpdate['usageStats.githubStars'] = stars.toString();
+          }
+
+          if (typeof forks === 'number') {
+            dataToUpdate['usageStats.githubForks'] = forks.toString();
+          }
+
+          if (typeof openIssues === 'number') {
+            dataToUpdate['usageStats.githubOpenIssues'] = openIssues.toString();
+          }
+
+          if (Object.keys(dataToUpdate).length > 0) {
+            that.setData(dataToUpdate);
+          }
+        }
+      }
+    });
+  },
+
+  fetchReleaseInfo() {
+    const that = this;
+
+    wx.request({
+      url: 'https://registry.npmjs.org/sentry-miniapp',
+      method: 'GET',
+      success(res) {
+        if (res && res.data && res.data['dist-tags'] && res.data.time) {
+          const latest = res.data['dist-tags'].latest;
+          const releaseTime = res.data.time[latest];
+
+          if (typeof releaseTime === 'string') {
+            const dateString = releaseTime.split('T')[0];
+            that.setData({
+              'sdkStatus.releaseDate': dateString
+            });
+          }
+        }
+      }
     });
   },
 

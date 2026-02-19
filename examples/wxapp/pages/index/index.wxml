@@ -18,7 +18,7 @@
         <text>{{sdkStatus.connected ? '运行中' : '未连接'}}</text>
       </view>
     </view>
-    
+
     <view class="info-list">
       <view class="info-item">
         <text class="label">版本号</text>
@@ -31,6 +31,10 @@
       <view class="info-item">
         <text class="label">初始化时间</text>
         <text class="value">{{sdkStatus.initTime}}</text>
+      </view>
+      <view class="info-item">
+        <text class="label">最近发布日期</text>
+        <text class="value">{{sdkStatus.releaseDate}}</text>
       </view>
     </view>
   </view>
@@ -56,9 +60,39 @@
     </view>
   </view>
 
+  <!-- 使用数据卡片 -->
+  <view class="card usage-card">
+    <view class="card-header">
+      <text class="card-title">使用数据</text>
+    </view>
+    <view class="grid-info">
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.npmDownloads}}</text>
+        <text class="grid-label">NPM 周下载量</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.npmDownloadsMonth}}</text>
+        <text class="grid-label">NPM 月下载量</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.githubStars}}</text>
+        <text class="grid-label">GitHub Stars</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.githubForks}}</text>
+        <text class="grid-label">GitHub Forks</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.githubOpenIssues}}</text>
+        <text class="grid-label">GitHub Open Issues</text>
+      </view>
+    </view>
+  </view>
+
   <!-- 快捷入口 -->
   <view class="action-area">
-    <button class="btn-primary" bindtap="goToTest">
+    <button class="btn-primary"
+            bindtap="goToTest">
       开始测试监控功能 →
     </button>
   </view>
