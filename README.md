@@ -8,7 +8,7 @@
 ![github license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
 ![test coverage](https://img.shields.io/badge/test%20coverage-286%20tests-brightgreen.svg)
 
-基于 `@sentry/core` 10.5.0 的微信小程序异常监控 SDK。
+基于 `@sentry/core` 10.39.0 的微信小程序异常监控 SDK。
 
 > 注意：
 1、sentry-miniapp v1.x.x 版本暂时只支持微信小程序和微信小游戏。
