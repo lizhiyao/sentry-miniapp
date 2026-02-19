@@ -12,6 +12,7 @@ interface SDK {
   request: Function;
   httpRequest?: Function; // 针对钉钉小程序
   getSystemInfoSync?: Function; // 已弃用，保留兼容性
+  canIUse?: Function; // 检查API是否可用
   getSystemSetting?: Function; // 新 API
   getAppAuthorizeSetting?: Function; // 新 API
   getDeviceInfo?: Function; // 新 API
@@ -86,13 +87,13 @@ export interface SystemInfo {
 const getSDK = (): SDK => {
   let currentSdk: SDK = {
     // tslint:disable-next-line: no-empty
-    request: () => {},
+    request: () => { },
     // tslint:disable-next-line: no-empty
-    httpRequest: () => {},
+    httpRequest: () => { },
     // tslint:disable-next-line: no-empty
     getSystemInfoSync: () => ({}),
     // tslint:disable-next-line: no-empty
-    URLSearchParams: () =>{}
+    URLSearchParams: () => { }
   };
 
   if (typeof wx === 'object' && wx !== null) {
@@ -194,7 +195,7 @@ const getSystemInfo = (): SystemInfo | null => {
     if (hasNewApi) {
       return result as SystemInfo;
     }
-    
+
     // 兜底使用旧的 API（已弃用但保持兼容性）
     if (currentSdk.getSystemInfoSync) {
       return currentSdk.getSystemInfoSync() as SystemInfo;
@@ -321,15 +322,15 @@ export interface PerformanceManager {
   getEntries(): PerformanceEntry[];
   getEntriesByType(type: string): PerformanceEntry[];
   getEntriesByName(name: string, type?: string): PerformanceEntry[];
-  
+
   // 标记和测量
   mark(name: string): void;
   measure(name: string, startMark?: string, endMark?: string): void;
-  
+
   // 清除
   clearMarks(name?: string): void;
   clearMeasures(name?: string): void;
-  
+
   // 观察者
   createObserver(callback: PerformanceObserverCallback): PerformanceObserver;
 }

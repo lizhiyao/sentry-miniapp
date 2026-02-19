@@ -23,13 +23,27 @@ Page({
   initData() {
     // 获取系统信息 (兼容新 API)
     let sys = {};
-    if (wx.getAppBaseInfo && wx.getDeviceInfo) {
-      sys = {
-        ...wx.getAppBaseInfo(),
-        ...wx.getDeviceInfo()
-      };
-    } else {
-      sys = wx.getSystemInfoSync();
+    const canUseNewApi = (wx.getAppBaseInfo && wx.getDeviceInfo) ||
+      (wx.canIUse && wx.canIUse('getAppBaseInfo') && wx.canIUse('getDeviceInfo'));
+
+    if (canUseNewApi) {
+      try {
+        sys = {
+          ...(wx.getAppBaseInfo ? wx.getAppBaseInfo() : {}),
+          ...(wx.getDeviceInfo ? wx.getDeviceInfo() : {})
+        };
+      } catch (e) {
+        console.warn('Failed to get system info via new API', e);
+      }
+    }
+
+    // 如果没有获取到足够的信息，且没有使用新API，或者新API失败
+    if (!sys.SDKVersion) {
+      try {
+        sys = wx.getSystemInfoSync();
+      } catch (e) {
+        console.warn('Failed to get system info sync', e);
+      }
     }
 
     // 检查 Sentry 状态
