@@ -1,115 +1,97 @@
 <!--index.wxml-->
 <view class="container">
-  <!-- 顶部装饰背景 -->
-  <view class="bg-decoration"></view>
-  
-  <!-- 头部区域 -->
-  <view class="header">
-    <text class="title">Sentry 小程序 SDK</text>
-    <text class="subtitle">实时错误监控 · 性能追踪 · 数据分析</text>
+  <!-- 头部欢迎区域 -->
+  <view class="header-section">
+    <view class="brand">
+      <view class="logo-box">S</view>
+      <text class="brand-name">Sentry Miniapp</text>
+    </view>
+    <text class="welcome-text">实时监控您的小程序异常与性能</text>
   </view>
 
+  <!-- SDK 状态卡片 -->
+  <view class="card status-card">
+    <view class="card-header">
+      <text class="card-title">SDK 状态</text>
+      <view class="status-badge {{sdkStatus.connected ? 'active' : ''}}">
+        <view class="dot"></view>
+        <text>{{sdkStatus.connected ? '运行中' : '未连接'}}</text>
+      </view>
+    </view>
 
-
-  <!-- 统计数据区域 -->
-  <view class="stats-section">
-    <view class="stats-header">
-      <text class="stats-title">📊 使用统计</text>
-      <text class="stats-desc">npm 包下载数据 & GitHub 数据</text>
-    </view>
-    
-    <view class="stats-grid">
-      <view class="stat-item">
-        <view class="stat-icon">📦</view>
-        <view class="stat-content">
-          <text class="stat-number">{{stats.totalDownloads || '--'}}</text>
-          <text class="stat-label">总下载量</text>
-        </view>
+    <view class="info-list">
+      <view class="info-item">
+        <text class="label">版本号</text>
+        <text class="value">{{sdkStatus.version}}</text>
       </view>
-      
-      <view class="stat-item">
-        <view class="stat-icon">📅</view>
-        <view class="stat-content">
-          <text class="stat-number">{{stats.lastMonthDownloads || '--'}}</text>
-          <text class="stat-label">本月下载</text>
-        </view>
+      <view class="info-item">
+        <text class="label">DSN 配置</text>
+        <text class="value highlight">{{sdkStatus.dsnConfigured ? '已配置' : '未配置'}}</text>
       </view>
-      
-      <view class="stat-item">
-        <view class="stat-icon">🔥</view>
-        <view class="stat-content">
-          <text class="stat-number">{{stats.lastDayDownloads || '--'}}</text>
-          <text class="stat-label">今日下载</text>
-        </view>
+      <view class="info-item">
+        <text class="label">初始化时间</text>
+        <text class="value">{{sdkStatus.initTime}}</text>
       </view>
-      
-      <view class="stat-item">
-        <view class="stat-icon">⭐</view>
-        <view class="stat-content">
-          <text class="stat-number">{{stats.githubStars || '--'}}</text>
-          <text class="stat-label">GitHub Stars</text>
-        </view>
-      </view>
-      
-      <view class="stat-item">
-        <view class="stat-icon">🍴</view>
-        <view class="stat-content">
-          <text class="stat-number">{{stats.githubForks || '--'}}</text>
-          <text class="stat-label">GitHub Forks</text>
-        </view>
-      </view>
-      
-      <view class="stat-item">
-        <view class="stat-icon">📈</view>
-        <view class="stat-content">
-          <text class="stat-number">{{stats.version || 'v1.0.0'}}</text>
-          <text class="stat-label">当前版本</text>
-        </view>
-      </view>
-    </view>
-    
-    <view class="stats-footer">
-      <text class="stats-update">数据更新时间: {{stats.lastUpdate || '加载中...'}}</text>
-      <button class="clear-cache-btn" bindtap="clearStatsCache" size="mini" type="default">清除缓存</button>
-    </view>
-  </view>
-
-  <!-- 速率限制监控区域 -->
-  <view class="rate-limit-section">
-    <view class="rate-limit-header">
-      <text class="rate-limit-title">🚦 API 速率限制监控</text>
-      <text class="rate-limit-desc">GitHub API 配额使用情况</text>
-    </view>
-    
-    <view class="rate-limit-content">
-      <view class="rate-limit-item">
-        <view class="rate-limit-label">剩余配额</view>
-        <view class="rate-limit-value {{rateLimitStatus.status === '警告' ? 'warning' : ''}}">
-          {{rateLimitStatus.remaining || '--'}} / {{rateLimitStatus.limit || '--'}}
-        </view>
-      </view>
-      
-      <view class="rate-limit-item">
-        <view class="rate-limit-label">使用率</view>
-        <view class="rate-limit-value">
-          {{rateLimitStatus.percentage !== null ? rateLimitStatus.percentage + '%' : '--'}}
-        </view>
-      </view>
-      
-      <view class="rate-limit-item">
-        <view class="rate-limit-label">状态</view>
-        <view class="rate-limit-status {{rateLimitStatus.status === '警告' ? 'warning' : 'normal'}}">
-          {{rateLimitStatus.status}}
-        </view>
-      </view>
-      
-      <view class="rate-limit-item" wx:if="{{rateLimitStatus.resetTime}}">
-        <view class="rate-limit-label">重置时间</view>
-        <view class="rate-limit-value small">
-          {{rateLimitStatus.resetTime}}
-        </view>
+      <view class="info-item">
+        <text class="label">最近发布日期</text>
+        <text class="value">{{sdkStatus.releaseDate}}</text>
       </view>
     </view>
   </view>
 
+  <!-- 环境信息卡片 -->
+  <view class="card env-card">
+    <view class="card-header">
+      <text class="card-title">运行环境</text>
+    </view>
+    <view class="grid-info">
+      <view class="grid-item">
+        <text class="grid-value">{{systemInfo.SDKVersion}}</text>
+        <text class="grid-label">基础库</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{systemInfo.platform}}</text>
+        <text class="grid-label">平台</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{systemInfo.brand}}</text>
+        <text class="grid-label">设备</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 使用数据卡片 -->
+  <view class="card usage-card">
+    <view class="card-header">
+      <text class="card-title">使用数据</text>
+    </view>
+    <view class="grid-info">
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.npmDownloads}}</text>
+        <text class="grid-label">NPM 周下载量</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.npmDownloadsMonth}}</text>
+        <text class="grid-label">NPM 月下载量</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.githubStars}}</text>
+        <text class="grid-label">GitHub Stars</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.githubForks}}</text>
+        <text class="grid-label">GitHub Forks</text>
+      </view>
+      <view class="grid-item">
+        <text class="grid-value">{{usageStats.githubOpenIssues}}</text>
+        <text class="grid-label">GitHub Open Issues</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 快捷入口 -->
+  <view class="action-area">
+    <button class="btn-primary"
+            bindtap="goToTest">开始测试监控功能 →</button>
+  </view>
 </view>

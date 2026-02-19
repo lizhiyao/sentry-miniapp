@@ -247,7 +247,7 @@ function ensurePolyfills() {
 ensurePolyfills();
 const DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
 const GLOBAL_OBJ = globalThis;
-const SDK_VERSION$1 = "10.5.0";
+const SDK_VERSION$1 = "10.39.0";
 function getMainCarrier() {
   getSentryCarrier(GLOBAL_OBJ);
   return GLOBAL_OBJ;
@@ -343,6 +343,10 @@ function getFunctionName$1(fn) {
     return defaultFunctionName;
   }
 }
+function getVueInternalName(value) {
+  const isVNode = "__v_isVNode" in value && value.__v_isVNode;
+  return isVNode ? "[VueVNode]" : "[VueViewModel]";
+}
 const objectToString = Object.prototype.toString;
 function isError(wat) {
   switch (objectToString.call(wat)) {
@@ -393,7 +397,7 @@ function isInstanceOf$1(wat, base) {
   }
 }
 function isVueViewModel(wat) {
-  return !!(typeof wat === "object" && wat !== null && (wat.__isVue || wat._isVue));
+  return !!(typeof wat === "object" && wat !== null && (wat.__isVue || wat._isVue || wat.__v_isVNode));
 }
 const WINDOW = GLOBAL_OBJ;
 const DEFAULT_MAX_STRING_LENGTH = 80;
@@ -469,24 +473,6 @@ function _htmlElementAsString(el, keyAttrs) {
   }
   return out.join("");
 }
-function truncate(str, max = 0) {
-  if (typeof str !== "string" || max === 0) {
-    return str;
-  }
-  return str.length <= max ? str : `${str.slice(0, max)}...`;
-}
-function isMatchingPattern(value, pattern, requireExactStringMatch = false) {
-  if (!isString(value)) {
-    return false;
-  }
-  if (isRegExp(pattern)) {
-    return pattern.test(value);
-  }
-  if (isString(pattern)) {
-    return requireExactStringMatch ? value === pattern : value.includes(pattern);
-  }
-  return false;
-}
 function addNonEnumerableProperty(obj, name, value) {
   try {
     Object.defineProperty(obj, name, {
@@ -540,26 +526,63 @@ function getOwnProperties(obj) {
     return {};
   }
 }
+let RESOLVED_RUNNER;
+function withRandomSafeContext(cb) {
+  if (RESOLVED_RUNNER !== void 0) {
+    return RESOLVED_RUNNER ? RESOLVED_RUNNER(cb) : cb();
+  }
+  const sym = Symbol.for("__SENTRY_SAFE_RANDOM_ID_WRAPPER__");
+  const globalWithSymbol = GLOBAL_OBJ;
+  if (sym in globalWithSymbol && typeof globalWithSymbol[sym] === "function") {
+    RESOLVED_RUNNER = globalWithSymbol[sym];
+    return RESOLVED_RUNNER(cb);
+  }
+  RESOLVED_RUNNER = null;
+  return cb();
+}
+function safeMathRandom() {
+  return withRandomSafeContext(() => Math.random());
+}
+function safeDateNow() {
+  return withRandomSafeContext(() => Date.now());
+}
+function truncate(str, max = 0) {
+  if (typeof str !== "string" || max === 0) {
+    return str;
+  }
+  return str.length <= max ? str : `${str.slice(0, max)}...`;
+}
+function isMatchingPattern(value, pattern, requireExactStringMatch = false) {
+  if (!isString(value)) {
+    return false;
+  }
+  if (isRegExp(pattern)) {
+    return pattern.test(value);
+  }
+  if (isString(pattern)) {
+    return requireExactStringMatch ? value === pattern : value.includes(pattern);
+  }
+  return false;
+}
 function getCrypto() {
   const gbl = GLOBAL_OBJ;
   return gbl.crypto || gbl.msCrypto;
 }
+let emptyUuid;
+function getRandomByte() {
+  return safeMathRandom() * 16;
+}
 function uuid4(crypto = getCrypto()) {
-  let getRandomByte = () => Math.random() * 16;
   try {
     if (crypto == null ? void 0 : crypto.randomUUID) {
-      return crypto.randomUUID().replace(/-/g, "");
-    }
-    if (crypto == null ? void 0 : crypto.getRandomValues) {
-      getRandomByte = () => {
-        const typedArray = new Uint8Array(1);
-        crypto.getRandomValues(typedArray);
-        return typedArray[0];
-      };
+      return withRandomSafeContext(() => crypto.randomUUID()).replace(/-/g, "");
     }
   } catch (e) {
   }
-  return ("10000000100040008000" + 1e11).replace(
+  if (!emptyUuid) {
+    emptyUuid = "10000000100040008000" + 1e11;
+  }
+  return emptyUuid.replace(
     /[018]/g,
     (c) => (
       // eslint-disable-next-line no-bitwise
@@ -602,7 +625,7 @@ function isAlreadyCaptured(exception) {
 }
 const ONE_SECOND_IN_MS = 1e3;
 function dateTimestampInSeconds() {
-  return Date.now() / ONE_SECOND_IN_MS;
+  return safeDateNow() / ONE_SECOND_IN_MS;
 }
 function createUnixTimestampInSecondsFunc() {
   const { performance } = GLOBAL_OBJ;
@@ -611,7 +634,7 @@ function createUnixTimestampInSecondsFunc() {
   }
   const timeOrigin = performance.timeOrigin;
   return () => {
-    return (timeOrigin + performance.now()) / ONE_SECOND_IN_MS;
+    return (timeOrigin + withRandomSafeContext(() => performance.now())) / ONE_SECOND_IN_MS;
   };
 }
 let _cachedTimestampInSeconds;
@@ -761,6 +784,7 @@ class Scope {
   /** Array of breadcrumbs. */
   /** User */
   /** Tags */
+  /** Attributes */
   /** Extra */
   /** Contexts */
   /** Attachments */
@@ -780,6 +804,7 @@ class Scope {
   /** Session */
   /** The client on this scope */
   /** Contains the last event id of a captured event.  */
+  /** Conversation ID */
   // NOTE: Any field which gets added here should get added not only to the constructor but also to the `clone` method.
   constructor() {
     this._notifyingListeners = false;
@@ -789,12 +814,13 @@ class Scope {
     this._attachments = [];
     this._user = {};
     this._tags = {};
+    this._attributes = {};
     this._extra = {};
     this._contexts = {};
     this._sdkProcessingMetadata = {};
     this._propagationContext = {
       traceId: generateTraceId(),
-      sampleRand: Math.random()
+      sampleRand: safeMathRandom()
     };
   }
   /**
@@ -804,6 +830,7 @@ class Scope {
     const newScope = new Scope();
     newScope._breadcrumbs = [...this._breadcrumbs];
     newScope._tags = __spreadValues({}, this._tags);
+    newScope._attributes = __spreadValues({}, this._attributes);
     newScope._extra = __spreadValues({}, this._extra);
     newScope._contexts = __spreadValues({}, this._contexts);
     if (this._contexts.flags) {
@@ -822,6 +849,7 @@ class Scope {
     newScope._propagationContext = __spreadValues({}, this._propagationContext);
     newScope._client = this._client;
     newScope._lastEventId = this._lastEventId;
+    newScope._conversationId = this._conversationId;
     _setSpanForScope(newScope, _getSpanForScope(this));
     return newScope;
   }
@@ -890,6 +918,15 @@ class Scope {
     return this._user;
   }
   /**
+   * Set the conversation ID for this scope.
+   * Set to `null` to unset the conversation ID.
+   */
+  setConversationId(conversationId) {
+    this._conversationId = conversationId || void 0;
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
    * Set an object that will be merged into existing tags on the scope,
    * and will be sent as tags data with the event.
    */
@@ -902,8 +939,74 @@ class Scope {
    * Set a single tag that will be sent as tags data with the event.
    */
   setTag(key, value) {
-    this._tags = __spreadProps(__spreadValues({}, this._tags), { [key]: value });
+    return this.setTags({ [key]: value });
+  }
+  /**
+   * Sets attributes onto the scope.
+   *
+   * These attributes are currently applied to logs and metrics.
+   * In the future, they will also be applied to spans.
+   *
+   * Important: For now, only strings, numbers and boolean attributes are supported, despite types allowing for
+   * more complex attribute types. We'll add this support in the future but already specify the wider type to
+   * avoid a breaking change in the future.
+   *
+   * @param newAttributes - The attributes to set on the scope. You can either pass in key-value pairs, or
+   * an object with a `value` and an optional `unit` (if applicable to your attribute).
+   *
+   * @example
+   * ```typescript
+   * scope.setAttributes({
+   *   is_admin: true,
+   *   payment_selection: 'credit_card',
+   *   render_duration: { value: 'render_duration', unit: 'ms' },
+   * });
+   * ```
+   */
+  setAttributes(newAttributes) {
+    this._attributes = __spreadValues(__spreadValues({}, this._attributes), newAttributes);
     this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Sets an attribute onto the scope.
+   *
+   * These attributes are currently applied to logs and metrics.
+   * In the future, they will also be applied to spans.
+   *
+   * Important: For now, only strings, numbers and boolean attributes are supported, despite types allowing for
+   * more complex attribute types. We'll add this support in the future but already specify the wider type to
+   * avoid a breaking change in the future.
+   *
+   * @param key - The attribute key.
+   * @param value - the attribute value. You can either pass in a raw value, or an attribute
+   * object with a `value` and an optional `unit` (if applicable to your attribute).
+   *
+   * @example
+   * ```typescript
+   * scope.setAttribute('is_admin', true);
+   * scope.setAttribute('render_duration', { value: 'render_duration', unit: 'ms' });
+   * ```
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setAttribute(key, value) {
+    return this.setAttributes({ [key]: value });
+  }
+  /**
+   * Removes the attribute with the given key from the scope.
+   *
+   * @param key - The attribute key.
+   *
+   * @example
+   * ```typescript
+   * scope.removeAttribute('is_admin');
+   * ```
+   */
+  removeAttribute(key) {
+    if (key in this._attributes) {
+      delete this._attributes[key];
+      this._notifyScopeListeners();
+    }
     return this;
   }
   /**
@@ -1000,8 +1103,19 @@ class Scope {
     }
     const scopeToMerge = typeof captureContext === "function" ? captureContext(this) : captureContext;
     const scopeInstance = scopeToMerge instanceof Scope ? scopeToMerge.getScopeData() : isPlainObject(scopeToMerge) ? captureContext : void 0;
-    const { tags, extra, user, contexts, level, fingerprint = [], propagationContext } = scopeInstance || {};
+    const {
+      tags,
+      attributes,
+      extra,
+      user,
+      contexts,
+      level,
+      fingerprint = [],
+      propagationContext,
+      conversationId
+    } = scopeInstance || {};
     this._tags = __spreadValues(__spreadValues({}, this._tags), tags);
+    this._attributes = __spreadValues(__spreadValues({}, this._attributes), attributes);
     this._extra = __spreadValues(__spreadValues({}, this._extra), extra);
     this._contexts = __spreadValues(__spreadValues({}, this._contexts), contexts);
     if (user && Object.keys(user).length) {
@@ -1016,6 +1130,9 @@ class Scope {
     if (propagationContext) {
       this._propagationContext = propagationContext;
     }
+    if (conversationId) {
+      this._conversationId = conversationId;
+    }
     return this;
   }
   /**
@@ -1025,6 +1142,7 @@ class Scope {
   clear() {
     this._breadcrumbs = [];
     this._tags = {};
+    this._attributes = {};
     this._extra = {};
     this._user = {};
     this._contexts = {};
@@ -1032,9 +1150,13 @@ class Scope {
     this._transactionName = void 0;
     this._fingerprint = void 0;
     this._session = void 0;
+    this._conversationId = void 0;
     _setSpanForScope(this, void 0);
     this._attachments = [];
-    this.setPropagationContext({ traceId: generateTraceId(), sampleRand: Math.random() });
+    this.setPropagationContext({
+      traceId: generateTraceId(),
+      sampleRand: safeMathRandom()
+    });
     this._notifyScopeListeners();
     return this;
   }
@@ -1099,6 +1221,7 @@ class Scope {
       attachments: this._attachments,
       contexts: this._contexts,
       tags: this._tags,
+      attributes: this._attributes,
       extra: this._extra,
       user: this._user,
       level: this._level,
@@ -1107,7 +1230,8 @@ class Scope {
       propagationContext: this._propagationContext,
       sdkProcessingMetadata: this._sdkProcessingMetadata,
       transactionName: this._transactionName,
-      span: _getSpanForScope(this)
+      span: _getSpanForScope(this),
+      conversationId: this._conversationId
     };
   }
   /**
@@ -1160,12 +1284,13 @@ class Scope {
    * @returns {string} The id of the captured message.
    */
   captureMessage(message, level, hint) {
+    var _a;
     const eventId = (hint == null ? void 0 : hint.event_id) || uuid4();
     if (!this._client) {
       DEBUG_BUILD && debug.warn("No client configured on scope - will not capture message!");
       return eventId;
     }
-    const syntheticException = new Error(message);
+    const syntheticException = (_a = hint == null ? void 0 : hint.syntheticException) != null ? _a : new Error(message);
     this._client.captureMessage(
       message,
       level,
@@ -1185,7 +1310,7 @@ class Scope {
    * @returns {string} The id of the captured event.
    */
   captureEvent(event, hint) {
-    const eventId = (hint == null ? void 0 : hint.event_id) || uuid4();
+    const eventId = event.event_id || (hint == null ? void 0 : hint.event_id) || uuid4();
     if (!this._client) {
       DEBUG_BUILD && debug.warn("No client configured on scope - will not capture event!");
       return eventId;
@@ -1393,16 +1518,40 @@ const SPAN_STATUS_OK = 1;
 const SPAN_STATUS_ERROR = 2;
 const SCOPE_ON_START_SPAN_FIELD = "_sentryScope";
 const ISOLATION_SCOPE_ON_START_SPAN_FIELD = "_sentryIsolationScope";
+function wrapScopeWithWeakRef(scope) {
+  try {
+    const WeakRefClass = GLOBAL_OBJ.WeakRef;
+    if (typeof WeakRefClass === "function") {
+      return new WeakRefClass(scope);
+    }
+  } catch (e) {
+  }
+  return scope;
+}
+function unwrapScopeFromWeakRef(scopeRef) {
+  if (!scopeRef) {
+    return void 0;
+  }
+  if (typeof scopeRef === "object" && "deref" in scopeRef && typeof scopeRef.deref === "function") {
+    try {
+      return scopeRef.deref();
+    } catch (e) {
+      return void 0;
+    }
+  }
+  return scopeRef;
+}
 function setCapturedScopesOnSpan(span, scope, isolationScope) {
   if (span) {
-    addNonEnumerableProperty(span, ISOLATION_SCOPE_ON_START_SPAN_FIELD, isolationScope);
+    addNonEnumerableProperty(span, ISOLATION_SCOPE_ON_START_SPAN_FIELD, wrapScopeWithWeakRef(isolationScope));
     addNonEnumerableProperty(span, SCOPE_ON_START_SPAN_FIELD, scope);
   }
 }
 function getCapturedScopesOnSpan(span) {
+  const spanWithScopes = span;
   return {
-    scope: span[SCOPE_ON_START_SPAN_FIELD],
-    isolationScope: span[ISOLATION_SCOPE_ON_START_SPAN_FIELD]
+    scope: spanWithScopes[SCOPE_ON_START_SPAN_FIELD],
+    isolationScope: unwrapScopeFromWeakRef(spanWithScopes[ISOLATION_SCOPE_ON_START_SPAN_FIELD])
   };
 }
 const SENTRY_BAGGAGE_KEY_PREFIX = "sentry-";
@@ -1441,15 +1590,21 @@ function parseBaggageHeader(baggageHeader) {
   return baggageHeaderToObject(baggageHeader);
 }
 function baggageHeaderToObject(baggageHeader) {
-  return baggageHeader.split(",").map(
-    (baggageEntry) => baggageEntry.split("=").map((keyOrValue) => {
+  return baggageHeader.split(",").map((baggageEntry) => {
+    const eqIdx = baggageEntry.indexOf("=");
+    if (eqIdx === -1) {
+      return [];
+    }
+    const key = baggageEntry.slice(0, eqIdx);
+    const value = baggageEntry.slice(eqIdx + 1);
+    return [key, value].map((keyOrValue) => {
       try {
         return decodeURIComponent(keyOrValue.trim());
       } catch (e) {
         return;
       }
-    })
-  ).reduce((acc, [key, value]) => {
+    });
+  }).reduce((acc, [key, value]) => {
     if (key && value) {
       acc[key] = value;
     }
@@ -1457,7 +1612,7 @@ function baggageHeaderToObject(baggageHeader) {
   }, {});
 }
 const ORG_ID_REGEX = /^o(\d+)\./;
-const DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)([\w.-]+)(?::(\d+))?\/(.+)/;
+const DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)((?:\[[:.%\w]+\]|[\w.-]+))(?::(\d+))?\/(.+)/;
 function isValidProtocol(protocol) {
   return protocol === "http" || protocol === "https";
 }
@@ -1670,7 +1825,7 @@ function getStatusMessage(status) {
   if (status.code === SPAN_STATUS_OK) {
     return "ok";
   }
-  return status.message || "unknown_error";
+  return status.message || "internal_error";
 }
 const CHILD_SPANS_FIELD = "_sentryChildSpans";
 const ROOT_SPAN_FIELD = "_sentryRootSpan";
@@ -1706,7 +1861,7 @@ function showSpanDropWarning() {
   if (!hasShownSpanDropWarning) {
     consoleSandbox(() => {
       console.warn(
-        "[Sentry] Returning null from `beforeSendSpan` is disallowed. To drop certain spans, configure the respective integrations directly."
+        "[Sentry] Returning null from `beforeSendSpan` is disallowed. To drop certain spans, configure the respective integrations directly or use `ignoreSpans`."
       );
     });
     hasShownSpanDropWarning = true;
@@ -1720,6 +1875,48 @@ function hasSpansEnabled(maybeOptions) {
   const options = maybeOptions || ((_a = getClient()) == null ? void 0 : _a.getOptions());
   return !!options && // Note: This check is `!= null`, meaning "nullish". `0` is not "nullish", `undefined` and `null` are. (This comment was brought to you by 15 minutes of questioning life)
   (options.tracesSampleRate != null || !!options.tracesSampler);
+}
+function logIgnoredSpan(droppedSpan) {
+  debug.log(`Ignoring span ${droppedSpan.op} - ${droppedSpan.description} because it matches \`ignoreSpans\`.`);
+}
+function shouldIgnoreSpan(span, ignoreSpans) {
+  if (!(ignoreSpans == null ? void 0 : ignoreSpans.length) || !span.description) {
+    return false;
+  }
+  for (const pattern of ignoreSpans) {
+    if (isStringOrRegExp(pattern)) {
+      if (isMatchingPattern(span.description, pattern)) {
+        DEBUG_BUILD && logIgnoredSpan(span);
+        return true;
+      }
+      continue;
+    }
+    if (!pattern.name && !pattern.op) {
+      continue;
+    }
+    const nameMatches = pattern.name ? isMatchingPattern(span.description, pattern.name) : true;
+    const opMatches = pattern.op ? span.op && isMatchingPattern(span.op, pattern.op) : true;
+    if (nameMatches && opMatches) {
+      DEBUG_BUILD && logIgnoredSpan(span);
+      return true;
+    }
+  }
+  return false;
+}
+function reparentChildSpans(spans, dropSpan) {
+  const droppedSpanParentId = dropSpan.parent_span_id;
+  const droppedSpanId = dropSpan.span_id;
+  if (!droppedSpanParentId) {
+    return;
+  }
+  for (const span of spans) {
+    if (span.parent_span_id === droppedSpanId) {
+      span.parent_span_id = droppedSpanParentId;
+    }
+  }
+}
+function isStringOrRegExp(value) {
+  return typeof value === "string" || value instanceof RegExp;
 }
 const DEFAULT_ENVIRONMENT = "production";
 const FROZEN_DSC_FIELD = "_frozenDsc";
@@ -1918,7 +2115,7 @@ function stringifyValue(key, value) {
       return "[Document]";
     }
     if (isVueViewModel(value)) {
-      return "[VueViewModel]";
+      return getVueInternalName(value);
     }
     if (isSyntheticEvent(value)) {
       return "[SyntheticEvent]";
@@ -1979,6 +2176,9 @@ function forEachEnvelopeItem(envelope, callback) {
     }
   }
   return false;
+}
+function envelopeContainsItemType(envelope, types) {
+  return forEachEnvelopeItem(envelope, (_, type) => types.includes(type));
 }
 function encodeUTF8(input) {
   const carrier = getSentryCarrier(GLOBAL_OBJ);
@@ -2058,7 +2258,9 @@ const ITEM_TYPE_TO_DATA_CATEGORY_MAP = {
   feedback: "feedback",
   span: "span",
   raw_security: "security",
-  log: "log_item"
+  log: "log_item",
+  metric: "metric",
+  trace_metric: "metric"
 };
 function envelopeItemTypeToDataCategory(type) {
   return ITEM_TYPE_TO_DATA_CATEGORY_MAP[type];
@@ -2079,43 +2281,6 @@ function createEventEnvelopeHeaders(event, sdkInfo, tunnel, dsn) {
   }, sdkInfo && { sdk: sdkInfo }), !!tunnel && dsn && { dsn: dsnToString(dsn) }), dynamicSamplingContext && {
     trace: dynamicSamplingContext
   });
-}
-function shouldIgnoreSpan(span, ignoreSpans) {
-  if (!(ignoreSpans == null ? void 0 : ignoreSpans.length) || !span.description) {
-    return false;
-  }
-  for (const pattern of ignoreSpans) {
-    if (isStringOrRegExp(pattern)) {
-      if (isMatchingPattern(span.description, pattern)) {
-        return true;
-      }
-      continue;
-    }
-    if (!pattern.name && !pattern.op) {
-      continue;
-    }
-    const nameMatches = pattern.name ? isMatchingPattern(span.description, pattern.name) : true;
-    const opMatches = pattern.op ? span.op && isMatchingPattern(span.op, pattern.op) : true;
-    if (nameMatches && opMatches) {
-      return true;
-    }
-  }
-  return false;
-}
-function reparentChildSpans(spans, dropSpan) {
-  const droppedSpanParentId = dropSpan.parent_span_id;
-  const droppedSpanId = dropSpan.span_id;
-  if (!droppedSpanParentId) {
-    return;
-  }
-  for (const span of spans) {
-    if (span.parent_span_id === droppedSpanId) {
-      span.parent_span_id = droppedSpanParentId;
-    }
-  }
-}
-function isStringOrRegExp(value) {
-  return typeof value === "string" || value instanceof RegExp;
 }
 function _enhanceEventWithSdkInfo(event, newSdkInfo) {
   var _a, _b, _c, _d;
@@ -2524,6 +2689,7 @@ function sendSpanEnvelope(envelope) {
   client.sendEnvelope(envelope);
 }
 function handleCallbackErrors(fn, onError, onFinally = () => {
+}, onSuccess = () => {
 }) {
   let maybePromiseResult;
   try {
@@ -2533,13 +2699,14 @@ function handleCallbackErrors(fn, onError, onFinally = () => {
     onFinally();
     throw e;
   }
-  return maybeHandlePromiseRejection(maybePromiseResult, onError, onFinally);
+  return maybeHandlePromiseRejection(maybePromiseResult, onError, onFinally, onSuccess);
 }
-function maybeHandlePromiseRejection(value, onError, onFinally) {
+function maybeHandlePromiseRejection(value, onError, onFinally, onSuccess) {
   if (isThenable(value)) {
     return value.then(
       (res) => {
         onFinally();
+        onSuccess(res);
         return res;
       },
       (e) => {
@@ -2550,6 +2717,7 @@ function maybeHandlePromiseRejection(value, onError, onFinally) {
     );
   }
   onFinally();
+  onSuccess(value);
   return value;
 }
 function sampleSpan(options, samplingContext, sampleRand) {
@@ -2636,6 +2804,29 @@ function startSpan(options, callback) {
           activeSpan.end();
         }
       );
+    });
+  });
+}
+function startInactiveSpan(options) {
+  const acs = getAcs();
+  if (acs.startInactiveSpan) {
+    return acs.startInactiveSpan(options);
+  }
+  const spanArguments = parseSentrySpanArguments(options);
+  const { forceTransaction, parentSpan: customParentSpan } = options;
+  const wrapper = options.scope ? (callback) => withScope(options.scope, callback) : customParentSpan !== void 0 ? (callback) => withActiveSpan(customParentSpan, callback) : (callback) => callback();
+  return wrapper(() => {
+    const scope = getCurrentScope();
+    const parentSpan = getParentSpan(scope, customParentSpan);
+    const shouldSkipSpan = options.onlyIfParent && !parentSpan;
+    if (shouldSkipSpan) {
+      return new SentryNonRecordingSpan();
+    }
+    return createChildOrRootSpan({
+      parentSpan,
+      spanArguments,
+      forceTransaction,
+      scope
     });
   });
 }
@@ -2933,20 +3124,76 @@ class SyncPromise {
   }
 }
 function notifyEventProcessors(processors, event, hint, index2 = 0) {
-  return new SyncPromise((resolve, reject) => {
-    const processor = processors[index2];
-    if (event === null || typeof processor !== "function") {
-      resolve(event);
-    } else {
-      const result = processor(__spreadValues({}, event), hint);
-      DEBUG_BUILD && processor.id && result === null && debug.log(`Event processor "${processor.id}" dropped event`);
-      if (isThenable(result)) {
-        void result.then((final) => notifyEventProcessors(processors, final, hint, index2 + 1).then(resolve)).then(null, reject);
-      } else {
-        void notifyEventProcessors(processors, result, hint, index2 + 1).then(resolve).then(null, reject);
+  try {
+    const result = _notifyEventProcessors(event, hint, processors, index2);
+    return isThenable(result) ? result : resolvedSyncPromise(result);
+  } catch (error2) {
+    return rejectedSyncPromise(error2);
+  }
+}
+function _notifyEventProcessors(event, hint, processors, index2) {
+  const processor = processors[index2];
+  if (!event || !processor) {
+    return event;
+  }
+  const result = processor(__spreadValues({}, event), hint);
+  DEBUG_BUILD && result === null && debug.log(`Event processor "${processor.id || "?"}" dropped event`);
+  if (isThenable(result)) {
+    return result.then((final) => _notifyEventProcessors(final, hint, processors, index2 + 1));
+  }
+  return _notifyEventProcessors(result, hint, processors, index2 + 1);
+}
+let parsedStackResults;
+let lastSentryKeysCount;
+let lastNativeKeysCount;
+let cachedFilenameDebugIds;
+function getFilenameToDebugIdMap(stackParser) {
+  const sentryDebugIdMap = GLOBAL_OBJ._sentryDebugIds;
+  const nativeDebugIdMap = GLOBAL_OBJ._debugIds;
+  if (!sentryDebugIdMap && !nativeDebugIdMap) {
+    return {};
+  }
+  const sentryDebugIdKeys = sentryDebugIdMap ? Object.keys(sentryDebugIdMap) : [];
+  const nativeDebugIdKeys = nativeDebugIdMap ? Object.keys(nativeDebugIdMap) : [];
+  if (cachedFilenameDebugIds && sentryDebugIdKeys.length === lastSentryKeysCount && nativeDebugIdKeys.length === lastNativeKeysCount) {
+    return cachedFilenameDebugIds;
+  }
+  lastSentryKeysCount = sentryDebugIdKeys.length;
+  lastNativeKeysCount = nativeDebugIdKeys.length;
+  cachedFilenameDebugIds = {};
+  if (!parsedStackResults) {
+    parsedStackResults = {};
+  }
+  const processDebugIds = (debugIdKeys, debugIdMap) => {
+    for (const key of debugIdKeys) {
+      const debugId = debugIdMap[key];
+      const result = parsedStackResults == null ? void 0 : parsedStackResults[key];
+      if (result && cachedFilenameDebugIds && debugId) {
+        cachedFilenameDebugIds[result[0]] = debugId;
+        if (parsedStackResults) {
+          parsedStackResults[key] = [result[0], debugId];
+        }
+      } else if (debugId) {
+        const parsedStack = stackParser(key);
+        for (let i = parsedStack.length - 1; i >= 0; i--) {
+          const stackFrame = parsedStack[i];
+          const filename = stackFrame == null ? void 0 : stackFrame.filename;
+          if (filename && cachedFilenameDebugIds && parsedStackResults) {
+            cachedFilenameDebugIds[filename] = debugId;
+            parsedStackResults[key] = [filename, debugId];
+            break;
+          }
+        }
       }
     }
-  });
+  };
+  if (sentryDebugIdMap) {
+    processDebugIds(sentryDebugIdKeys, sentryDebugIdMap);
+  }
+  if (nativeDebugIdMap) {
+    processDebugIds(nativeDebugIdKeys, nativeDebugIdMap);
+  }
+  return cachedFilenameDebugIds;
 }
 function applyScopeDataToEvent(event, data) {
   const { fingerprint, span, breadcrumbs, sdkProcessingMetadata } = data;
@@ -2962,6 +3209,7 @@ function mergeScopeData(data, mergeData) {
   const {
     extra,
     tags,
+    attributes,
     user,
     contexts,
     level,
@@ -2976,6 +3224,7 @@ function mergeScopeData(data, mergeData) {
   } = mergeData;
   mergeAndOverwriteScopeData(data, "extra", extra);
   mergeAndOverwriteScopeData(data, "tags", tags);
+  mergeAndOverwriteScopeData(data, "attributes", attributes);
   mergeAndOverwriteScopeData(data, "user", user);
   mergeAndOverwriteScopeData(data, "contexts", contexts);
   data.sdkProcessingMetadata = merge(data.sdkProcessingMetadata, sdkProcessingMetadata, 2);
@@ -3004,6 +3253,12 @@ function mergeScopeData(data, mergeData) {
 }
 function mergeAndOverwriteScopeData(data, prop, mergeVal) {
   data[prop] = merge(data[prop], mergeVal, 1);
+}
+function getCombinedScopeData(isolationScope, currentScope) {
+  const scopeData = getGlobalScope().getScopeData();
+  isolationScope && mergeScopeData(scopeData, isolationScope.getScopeData());
+  currentScope && mergeScopeData(scopeData, currentScope.getScopeData());
+  return scopeData;
 }
 function applyDataToEvent(event, data) {
   const { extra, tags, user, contexts, level, transactionName } = data;
@@ -3055,43 +3310,6 @@ function applyFingerprintToEvent(event, fingerprint) {
     delete event.fingerprint;
   }
 }
-let parsedStackResults;
-let lastKeysCount;
-let cachedFilenameDebugIds;
-function getFilenameToDebugIdMap(stackParser) {
-  const debugIdMap = GLOBAL_OBJ._sentryDebugIds;
-  if (!debugIdMap) {
-    return {};
-  }
-  const debugIdKeys = Object.keys(debugIdMap);
-  if (cachedFilenameDebugIds && debugIdKeys.length === lastKeysCount) {
-    return cachedFilenameDebugIds;
-  }
-  lastKeysCount = debugIdKeys.length;
-  cachedFilenameDebugIds = debugIdKeys.reduce((acc, stackKey) => {
-    if (!parsedStackResults) {
-      parsedStackResults = {};
-    }
-    const result = parsedStackResults[stackKey];
-    if (result) {
-      acc[result[0]] = result[1];
-    } else {
-      const parsedStack = stackParser(stackKey);
-      for (let i = parsedStack.length - 1; i >= 0; i--) {
-        const stackFrame = parsedStack[i];
-        const filename = stackFrame == null ? void 0 : stackFrame.filename;
-        const debugId = debugIdMap[stackKey];
-        if (filename && debugId) {
-          acc[filename] = debugId;
-          parsedStackResults[stackKey] = [filename, debugId];
-          break;
-        }
-      }
-    }
-    return acc;
-  }, {});
-  return cachedFilenameDebugIds;
-}
 function prepareEvent(options, event, hint, scope, client, isolationScope) {
   const { normalizeDepth = 3, normalizeMaxBreadth = 1e3 } = options;
   const prepared = __spreadProps(__spreadValues({}, event), {
@@ -3112,15 +3330,7 @@ function prepareEvent(options, event, hint, scope, client, isolationScope) {
     addExceptionMechanism(prepared, hint.mechanism);
   }
   const clientEventProcessors = client ? client.getEventProcessors() : [];
-  const data = getGlobalScope().getScopeData();
-  if (isolationScope) {
-    const isolationData = isolationScope.getScopeData();
-    mergeScopeData(data, isolationData);
-  }
-  if (finalScope) {
-    const finalScopeData = finalScope.getScopeData();
-    mergeScopeData(data, finalScopeData);
-  }
+  const data = getCombinedScopeData(isolationScope, finalScope);
   const attachments = [...hint.attachments || [], ...data.attachments];
   if (attachments.length) {
     hint.attachments = attachments;
@@ -3131,7 +3341,8 @@ function prepareEvent(options, event, hint, scope, client, isolationScope) {
     // Run scope event processors _after_ all other processors
     ...data.eventProcessors
   ];
-  const result = notifyEventProcessors(eventProcessors, prepared, hint);
+  const isInternalException = hint.data && hint.data.__sentry__ === true;
+  const result = isInternalException ? resolvedSyncPromise(prepared) : notifyEventProcessors(eventProcessors, prepared, hint);
   return result.then((evt) => {
     if (evt) {
       applyDebugMeta(evt);
@@ -3143,7 +3354,8 @@ function prepareEvent(options, event, hint, scope, client, isolationScope) {
   });
 }
 function applyClientOptions(event, options) {
-  const { environment, release, dist, maxValueLength = 250 } = options;
+  var _a, _b;
+  const { environment, release, dist, maxValueLength } = options;
   event.environment = event.environment || environment || DEFAULT_ENVIRONMENT;
   if (!event.release && release) {
     event.release = release;
@@ -3152,8 +3364,15 @@ function applyClientOptions(event, options) {
     event.dist = dist;
   }
   const request = event.request;
-  if (request == null ? void 0 : request.url) {
+  if ((request == null ? void 0 : request.url) && maxValueLength) {
     request.url = truncate(request.url, maxValueLength);
+  }
+  if (maxValueLength) {
+    (_b = (_a = event.exception) == null ? void 0 : _a.values) == null ? void 0 : _b.forEach((exception) => {
+      if (exception.value) {
+        exception.value = truncate(exception.value, maxValueLength);
+      }
+    });
   }
 }
 function applyDebugIds(event, stackParser) {
@@ -3280,8 +3499,8 @@ function captureException(exception, hint) {
 }
 function captureMessage(message, captureContext) {
   const level = typeof captureContext === "string" ? captureContext : void 0;
-  const context = typeof captureContext !== "string" ? { captureContext } : void 0;
-  return getCurrentScope().captureMessage(message, level, context);
+  const hint = typeof captureContext !== "string" ? { captureContext } : void 0;
+  return getCurrentScope().captureMessage(message, level, hint);
 }
 function captureEvent(event, hint) {
   return getCurrentScope().captureEvent(event, hint);
@@ -3421,7 +3640,7 @@ function setupIntegration(client, integration, integrationIndex) {
     return;
   }
   integrationIndex[integration.name] = integration;
-  if (installedIntegrations.indexOf(integration.name) === -1 && typeof integration.setupOnce === "function") {
+  if (!installedIntegrations.includes(integration.name) && typeof integration.setupOnce === "function") {
     integration.setupOnce();
     installedIntegrations.push(integration.name);
   }
@@ -3448,6 +3667,257 @@ function addIntegration(integration) {
     return;
   }
   client.addIntegration(integration);
+}
+function createLogContainerEnvelopeItem(items) {
+  return [
+    {
+      type: "log",
+      item_count: items.length,
+      content_type: "application/vnd.sentry.items.log+json"
+    },
+    {
+      items
+    }
+  ];
+}
+function createLogEnvelope(logs, metadata, tunnel, dsn) {
+  const headers = {};
+  if (metadata == null ? void 0 : metadata.sdk) {
+    headers.sdk = {
+      name: metadata.sdk.name,
+      version: metadata.sdk.version
+    };
+  }
+  if (!!tunnel && !!dsn) {
+    headers.dsn = dsnToString(dsn);
+  }
+  return createEnvelope(headers, [createLogContainerEnvelopeItem(logs)]);
+}
+function _INTERNAL_flushLogsBuffer(client, maybeLogBuffer) {
+  var _a;
+  const logBuffer = (_a = maybeLogBuffer != null ? maybeLogBuffer : _INTERNAL_getLogBuffer(client)) != null ? _a : [];
+  if (logBuffer.length === 0) {
+    return;
+  }
+  const clientOptions = client.getOptions();
+  const envelope = createLogEnvelope(logBuffer, clientOptions._metadata, clientOptions.tunnel, client.getDsn());
+  _getBufferMap$1().set(client, []);
+  client.emit("flushLogs");
+  client.sendEnvelope(envelope);
+}
+function _INTERNAL_getLogBuffer(client) {
+  return _getBufferMap$1().get(client);
+}
+function _getBufferMap$1() {
+  return getGlobalSingleton("clientToLogBufferMap", () => /* @__PURE__ */ new WeakMap());
+}
+function createMetricContainerEnvelopeItem(items) {
+  return [
+    {
+      type: "trace_metric",
+      item_count: items.length,
+      content_type: "application/vnd.sentry.items.trace-metric+json"
+    },
+    {
+      items
+    }
+  ];
+}
+function createMetricEnvelope(metrics, metadata, tunnel, dsn) {
+  const headers = {};
+  if (metadata == null ? void 0 : metadata.sdk) {
+    headers.sdk = {
+      name: metadata.sdk.name,
+      version: metadata.sdk.version
+    };
+  }
+  if (!!tunnel && !!dsn) {
+    headers.dsn = dsnToString(dsn);
+  }
+  return createEnvelope(headers, [createMetricContainerEnvelopeItem(metrics)]);
+}
+function _INTERNAL_flushMetricsBuffer(client, maybeMetricBuffer) {
+  var _a;
+  const metricBuffer = (_a = maybeMetricBuffer != null ? maybeMetricBuffer : _INTERNAL_getMetricBuffer(client)) != null ? _a : [];
+  if (metricBuffer.length === 0) {
+    return;
+  }
+  const clientOptions = client.getOptions();
+  const envelope = createMetricEnvelope(metricBuffer, clientOptions._metadata, clientOptions.tunnel, client.getDsn());
+  _getBufferMap().set(client, []);
+  client.emit("flushMetrics");
+  client.sendEnvelope(envelope);
+}
+function _INTERNAL_getMetricBuffer(client) {
+  return _getBufferMap().get(client);
+}
+function _getBufferMap() {
+  return getGlobalSingleton("clientToMetricBufferMap", () => /* @__PURE__ */ new WeakMap());
+}
+function safeUnref(timer) {
+  if (typeof timer === "object" && typeof timer.unref === "function") {
+    timer.unref();
+  }
+  return timer;
+}
+const SENTRY_BUFFER_FULL_ERROR = Symbol.for("SentryBufferFullError");
+function makePromiseBuffer(limit = 100) {
+  const buffer = /* @__PURE__ */ new Set();
+  function isReady() {
+    return buffer.size < limit;
+  }
+  function remove(task) {
+    buffer.delete(task);
+  }
+  function add(taskProducer) {
+    if (!isReady()) {
+      return rejectedSyncPromise(SENTRY_BUFFER_FULL_ERROR);
+    }
+    const task = taskProducer();
+    buffer.add(task);
+    void task.then(
+      () => remove(task),
+      () => remove(task)
+    );
+    return task;
+  }
+  function drain(timeout) {
+    if (!buffer.size) {
+      return resolvedSyncPromise(true);
+    }
+    const drainPromise = Promise.allSettled(Array.from(buffer)).then(() => true);
+    if (!timeout) {
+      return drainPromise;
+    }
+    const promises = [
+      drainPromise,
+      new Promise((resolve) => safeUnref(setTimeout(() => resolve(false), timeout)))
+    ];
+    return Promise.race(promises);
+  }
+  return {
+    get $() {
+      return Array.from(buffer);
+    },
+    add,
+    drain
+  };
+}
+const DEFAULT_RETRY_AFTER = 60 * 1e3;
+function parseRetryAfterHeader(header, now = safeDateNow()) {
+  const headerDelay = parseInt(`${header}`, 10);
+  if (!isNaN(headerDelay)) {
+    return headerDelay * 1e3;
+  }
+  const headerDate = Date.parse(`${header}`);
+  if (!isNaN(headerDate)) {
+    return headerDate - now;
+  }
+  return DEFAULT_RETRY_AFTER;
+}
+function disabledUntil(limits, dataCategory) {
+  return limits[dataCategory] || limits.all || 0;
+}
+function isRateLimited(limits, dataCategory, now = safeDateNow()) {
+  return disabledUntil(limits, dataCategory) > now;
+}
+function updateRateLimits(limits, { statusCode, headers }, now = safeDateNow()) {
+  const updatedRateLimits = __spreadValues({}, limits);
+  const rateLimitHeader = headers == null ? void 0 : headers["x-sentry-rate-limits"];
+  const retryAfterHeader = headers == null ? void 0 : headers["retry-after"];
+  if (rateLimitHeader) {
+    for (const limit of rateLimitHeader.trim().split(",")) {
+      const [retryAfter, categories, , , namespaces] = limit.split(":", 5);
+      const headerDelay = parseInt(retryAfter, 10);
+      const delay = (!isNaN(headerDelay) ? headerDelay : 60) * 1e3;
+      if (!categories) {
+        updatedRateLimits.all = now + delay;
+      } else {
+        for (const category of categories.split(";")) {
+          if (category === "metric_bucket") {
+            if (!namespaces || namespaces.split(";").includes("custom")) {
+              updatedRateLimits[category] = now + delay;
+            }
+          } else {
+            updatedRateLimits[category] = now + delay;
+          }
+        }
+      }
+    }
+  } else if (retryAfterHeader) {
+    updatedRateLimits.all = now + parseRetryAfterHeader(retryAfterHeader, now);
+  } else if (statusCode === 429) {
+    updatedRateLimits.all = now + 60 * 1e3;
+  }
+  return updatedRateLimits;
+}
+const DEFAULT_TRANSPORT_BUFFER_SIZE = 64;
+function createTransport(options, makeRequest, buffer = makePromiseBuffer(
+  options.bufferSize || DEFAULT_TRANSPORT_BUFFER_SIZE
+)) {
+  let rateLimits = {};
+  const flush2 = (timeout) => buffer.drain(timeout);
+  function send(envelope) {
+    const filteredEnvelopeItems = [];
+    forEachEnvelopeItem(envelope, (item, type) => {
+      const dataCategory = envelopeItemTypeToDataCategory(type);
+      if (isRateLimited(rateLimits, dataCategory)) {
+        options.recordDroppedEvent("ratelimit_backoff", dataCategory);
+      } else {
+        filteredEnvelopeItems.push(item);
+      }
+    });
+    if (filteredEnvelopeItems.length === 0) {
+      return Promise.resolve({});
+    }
+    const filteredEnvelope = createEnvelope(envelope[0], filteredEnvelopeItems);
+    const recordEnvelopeLoss = (reason) => {
+      if (envelopeContainsItemType(filteredEnvelope, ["client_report"])) {
+        DEBUG_BUILD && debug.warn(`Dropping client report. Will not send outcomes (reason: ${reason}).`);
+        return;
+      }
+      forEachEnvelopeItem(filteredEnvelope, (item, type) => {
+        options.recordDroppedEvent(reason, envelopeItemTypeToDataCategory(type));
+      });
+    };
+    const requestTask = () => makeRequest({ body: serializeEnvelope(filteredEnvelope) }).then(
+      (response) => {
+        if (response.statusCode === 413) {
+          DEBUG_BUILD && debug.error(
+            "Sentry responded with status code 413. Envelope was discarded due to exceeding size limits."
+          );
+          recordEnvelopeLoss("send_error");
+          return response;
+        }
+        if (DEBUG_BUILD && response.statusCode !== void 0 && (response.statusCode < 200 || response.statusCode >= 300)) {
+          debug.warn(`Sentry responded with status code ${response.statusCode} to sent event.`);
+        }
+        rateLimits = updateRateLimits(rateLimits, response);
+        return response;
+      },
+      (error2) => {
+        recordEnvelopeLoss("network_error");
+        DEBUG_BUILD && debug.error("Encountered error running transport request:", error2);
+        throw error2;
+      }
+    );
+    return buffer.add(requestTask).then(
+      (result) => result,
+      (error2) => {
+        if (error2 === SENTRY_BUFFER_FULL_ERROR) {
+          DEBUG_BUILD && debug.error("Skipped sending event because buffer is full.");
+          recordEnvelopeLoss("queue_overflow");
+          return Promise.resolve({});
+        } else {
+          throw error2;
+        }
+      }
+    );
+  }
+  return {
+    send,
+    flush: flush2
+  };
 }
 function createClientReportEnvelope(discarded_events, dsn, timestamp) {
   const clientReportItem = [
@@ -3520,6 +3990,7 @@ const ALREADY_SEEN_ERROR = "Not capturing exception because it's already been ca
 const MISSING_RELEASE_FOR_SESSION_ERROR = "Discarded session because of missing or non-string release";
 const INTERNAL_ERROR_SYMBOL = Symbol.for("SentryInternalError");
 const DO_NOT_SEND_EVENT_SYMBOL = Symbol.for("SentryDoNotSendEventError");
+const DEFAULT_FLUSH_INTERVAL = 5e3;
 function _makeInternalError(message) {
   return {
     message,
@@ -3538,6 +4009,32 @@ function _isInternalError(error2) {
 function _isDoNotSendEventError(error2) {
   return !!error2 && typeof error2 === "object" && DO_NOT_SEND_EVENT_SYMBOL in error2;
 }
+function setupWeightBasedFlushing(client, afterCaptureHook, flushHook, estimateSizeFn, flushFn) {
+  let weight = 0;
+  let flushTimeout;
+  let isTimerActive = false;
+  client.on(flushHook, () => {
+    weight = 0;
+    clearTimeout(flushTimeout);
+    isTimerActive = false;
+  });
+  client.on(afterCaptureHook, (item) => {
+    weight += estimateSizeFn(item);
+    if (weight >= 8e5) {
+      flushFn(client);
+    } else if (!isTimerActive) {
+      isTimerActive = true;
+      flushTimeout = safeUnref(
+        setTimeout(() => {
+          flushFn(client);
+        }, DEFAULT_FLUSH_INTERVAL)
+      );
+    }
+  });
+  client.on("flush", () => {
+    flushFn(client);
+  });
+}
 class Client {
   /** Options passed to the SDK. */
   /** The client Dsn, if specified in options. Without this Dsn, the SDK will be disabled. */
@@ -3551,12 +4048,14 @@ class Client {
    * @param options Options for the client.
    */
   constructor(options) {
+    var _a, _b, _c, _d, _e, _f, _g;
     this._options = options;
     this._integrations = {};
     this._numProcessing = 0;
     this._outcomes = {};
     this._hooks = {};
     this._eventProcessors = [];
+    this._promiseBuffer = makePromiseBuffer((_b = (_a = options.transportOptions) == null ? void 0 : _a.bufferSize) != null ? _b : DEFAULT_TRANSPORT_BUFFER_SIZE);
     if (options.dsn) {
       this._dsn = makeDsn(options.dsn);
     } else {
@@ -3575,6 +4074,20 @@ class Client {
         url
       }));
     }
+    this._options.enableLogs = (_d = this._options.enableLogs) != null ? _d : (_c = this._options._experiments) == null ? void 0 : _c.enableLogs;
+    if (this._options.enableLogs) {
+      setupWeightBasedFlushing(this, "afterCaptureLog", "flushLogs", estimateLogSizeInBytes, _INTERNAL_flushLogsBuffer);
+    }
+    const enableMetrics = (_g = (_f = this._options.enableMetrics) != null ? _f : (_e = this._options._experiments) == null ? void 0 : _e.enableMetrics) != null ? _g : true;
+    if (enableMetrics) {
+      setupWeightBasedFlushing(
+        this,
+        "afterCaptureMetric",
+        "flushMetrics",
+        estimateMetricSizeInBytes,
+        _INTERNAL_flushMetricsBuffer
+      );
+    }
   }
   /**
    * Captures an exception event and sends it to Sentry.
@@ -3591,9 +4104,8 @@ class Client {
       event_id: eventId
     }, hint);
     this._process(
-      this.eventFromException(exception, hintWithEventId).then(
-        (event) => this._captureEvent(event, hintWithEventId, scope)
-      )
+      () => this.eventFromException(exception, hintWithEventId).then((event) => this._captureEvent(event, hintWithEventId, scope)).then((res) => res),
+      "error"
     );
     return hintWithEventId.event_id;
   }
@@ -3607,8 +4119,12 @@ class Client {
       event_id: uuid4()
     }, hint);
     const eventMessage = isParameterizedString(message) ? message : String(message);
-    const promisedEvent = isPrimitive(message) ? this.eventFromMessage(eventMessage, level, hintWithEventId) : this.eventFromException(message, hintWithEventId);
-    this._process(promisedEvent.then((event) => this._captureEvent(event, hintWithEventId, currentScope)));
+    const isMessage = isPrimitive(message);
+    const promisedEvent = isMessage ? this.eventFromMessage(eventMessage, level, hintWithEventId) : this.eventFromException(message, hintWithEventId);
+    this._process(
+      () => promisedEvent.then((event) => this._captureEvent(event, hintWithEventId, currentScope)),
+      isMessage ? "unknown" : "error"
+    );
     return hintWithEventId.event_id;
   }
   /**
@@ -3628,8 +4144,10 @@ class Client {
     const sdkProcessingMetadata = event.sdkProcessingMetadata || {};
     const capturedSpanScope = sdkProcessingMetadata.capturedSpanScope;
     const capturedSpanIsolationScope = sdkProcessingMetadata.capturedSpanIsolationScope;
+    const dataCategory = getDataCategoryByType(event.type);
     this._process(
-      this._captureEvent(event, hintWithEventId, capturedSpanScope || currentScope, capturedSpanIsolationScope)
+      () => this._captureEvent(event, hintWithEventId, capturedSpanScope || currentScope, capturedSpanIsolationScope),
+      dataCategory
     );
     return hintWithEventId.event_id;
   }
@@ -3683,16 +4201,18 @@ class Client {
    * @returns A promise that will resolve with `true` if all events are sent before the timeout, or `false` if there are
    * still events in the queue when the timeout is reached.
    */
+  // @ts-expect-error - PromiseLike is a subset of Promise
   flush(timeout) {
-    const transport = this._transport;
-    if (transport) {
+    return __async(this, null, function* () {
+      const transport = this._transport;
+      if (!transport) {
+        return true;
+      }
       this.emit("flush");
-      return this._isClientDoneProcessing(timeout).then((clientFinished) => {
-        return transport.flush(timeout).then((transportFlushed) => clientFinished && transportFlushed);
-      });
-    } else {
-      return resolvedSyncPromise(true);
-    }
+      const clientFinished = yield this._isClientDoneProcessing(timeout);
+      const transportFlushed = yield transport.flush(timeout);
+      return clientFinished && transportFlushed;
+    });
   }
   /**
    * Flush the event queue and set the client to `enabled = false`. See {@link Client.flush}.
@@ -3702,8 +4222,10 @@ class Client {
    * @returns {Promise<boolean>} A promise which resolves to `true` if the flush completes successfully before the timeout, or `false` if
    * it doesn't.
    */
+  // @ts-expect-error - PromiseLike is a subset of Promise
   close(timeout) {
-    return this.flush(timeout).then((result) => {
+    return __async(this, null, function* () {
+      const result = yield this.flush(timeout);
       this.getOptions().enabled = false;
       this.emit("close");
       return result;
@@ -3766,10 +4288,7 @@ class Client {
     for (const attachment of hint.attachments || []) {
       env = addItemToEnvelope(env, createAttachmentEnvelopeItem(attachment));
     }
-    const promise = this.sendEnvelope(env);
-    if (promise) {
-      promise.then((sendResponse) => this.emit("afterSendEvent", event, sendResponse), null);
-    }
+    this.sendEnvelope(env).then((sendResponse) => this.emit("afterSendEvent", event, sendResponse));
   }
   /**
    * Send a session or session aggregrates to Sentry.
@@ -3817,13 +4336,11 @@ class Client {
    * Register a hook on this client.
    */
   on(hook, callback) {
-    const hooks = this._hooks[hook] = this._hooks[hook] || [];
-    hooks.push(callback);
+    const hookCallbacks = this._hooks[hook] = this._hooks[hook] || /* @__PURE__ */ new Set();
+    const uniqueCallback = (...args) => callback(...args);
+    hookCallbacks.add(uniqueCallback);
     return () => {
-      const cbIndex = hooks.indexOf(callback);
-      if (cbIndex > -1) {
-        hooks.splice(cbIndex, 1);
-      }
+      hookCallbacks.delete(uniqueCallback);
     };
   }
   /** Fire a hook whenever a span starts. */
@@ -3839,16 +4356,21 @@ class Client {
   /**
    * Send an envelope to Sentry.
    */
+  // @ts-expect-error - PromiseLike is a subset of Promise
   sendEnvelope(envelope) {
-    this.emit("beforeEnvelope", envelope);
-    if (this._isEnabled() && this._transport) {
-      return this._transport.send(envelope).then(null, (reason) => {
-        DEBUG_BUILD && debug.error("Error while sending envelope:", reason);
-        return reason;
-      });
-    }
-    DEBUG_BUILD && debug.error("Transport disabled");
-    return resolvedSyncPromise({});
+    return __async(this, null, function* () {
+      this.emit("beforeEnvelope", envelope);
+      if (this._isEnabled() && this._transport) {
+        try {
+          return yield this._transport.send(envelope);
+        } catch (reason) {
+          DEBUG_BUILD && debug.error("Error while sending envelope:", reason);
+          return {};
+        }
+      }
+      DEBUG_BUILD && debug.error("Transport disabled");
+      return {};
+    });
   }
   /* eslint-enable @typescript-eslint/unified-signatures */
   /** Setup integrations for this client. */
@@ -3859,15 +4381,15 @@ class Client {
   }
   /** Updates existing session based on the provided event */
   _updateSessionFromEvent(session, event) {
-    var _a;
+    var _a, _b;
     let crashed = event.level === "fatal";
     let errored = false;
     const exceptions = (_a = event.exception) == null ? void 0 : _a.values;
     if (exceptions) {
       errored = true;
+      crashed = false;
       for (const ex of exceptions) {
-        const mechanism = ex.mechanism;
-        if ((mechanism == null ? void 0 : mechanism.handled) === false) {
+        if (((_b = ex.mechanism) == null ? void 0 : _b.handled) === false) {
           crashed = true;
           break;
         }
@@ -3893,21 +4415,16 @@ class Client {
    * `false` otherwise
    */
   _isClientDoneProcessing(timeout) {
-    return new SyncPromise((resolve) => {
+    return __async(this, null, function* () {
       let ticked = 0;
-      const tick = 1;
-      const interval = setInterval(() => {
-        if (this._numProcessing == 0) {
-          clearInterval(interval);
-          resolve(true);
-        } else {
-          ticked += tick;
-          if (timeout && ticked >= timeout) {
-            clearInterval(interval);
-            resolve(false);
-          }
+      while (!timeout || ticked < timeout) {
+        yield new Promise((resolve) => setTimeout(resolve, 1));
+        if (!this._numProcessing) {
+          return true;
         }
-      }, tick);
+        ticked++;
+      }
+      return false;
     });
   }
   /** Determines whether this SDK is enabled and a transport is present. */
@@ -4002,7 +4519,7 @@ class Client {
     const eventType = event.type || "error";
     const beforeSendLabel = `before send for type \`${eventType}\``;
     const parsedSampleRate = typeof sampleRate === "undefined" ? void 0 : parseSampleRate(sampleRate);
-    if (isError2 && typeof parsedSampleRate === "number" && Math.random() > parsedSampleRate) {
+    if (isError2 && typeof parsedSampleRate === "number" && safeMathRandom() > parsedSampleRate) {
       this.recordDroppedEvent("sample_rate", "error");
       return rejectedSyncPromise(
         _makeDoNotSendEventError(
@@ -4010,7 +4527,7 @@ class Client {
         )
       );
     }
-    const dataCategory = eventType === "replay_event" ? "replay" : eventType;
+    const dataCategory = getDataCategoryByType(event.type);
     return this._prepareEvent(event, hint, currentScope, isolationScope).then((prepared) => {
       if (prepared === null) {
         this.recordDroppedEvent("event_processor", dataCategory);
@@ -4077,15 +4594,18 @@ Reason: ${reason}`
   /**
    * Occupies the client with processing and event
    */
-  _process(promise) {
+  _process(taskProducer, dataCategory) {
     this._numProcessing++;
-    void promise.then(
+    void this._promiseBuffer.add(taskProducer).then(
       (value) => {
         this._numProcessing--;
         return value;
       },
       (reason) => {
         this._numProcessing--;
+        if (reason === SENTRY_BUFFER_FULL_ERROR) {
+          this.recordDroppedEvent("queue_overflow", dataCategory);
+        }
         return reason;
       }
     );
@@ -4126,6 +4646,9 @@ Reason: ${reason}`
   /**
    * Creates an {@link Event} from all inputs to `captureException` and non-primitive inputs to `captureMessage`.
    */
+}
+function getDataCategoryByType(type) {
+  return type === "replay_event" ? "replay" : type || "error";
 }
 function _validateBeforeSendResult(beforeSendResult, beforeSendLabel) {
   const invalidValueError = `${beforeSendLabel} must return \`null\` or a valid event.`;
@@ -4211,13 +4734,63 @@ function isErrorEvent(event) {
 function isTransactionEvent(event) {
   return event.type === "transaction";
 }
+function estimateMetricSizeInBytes(metric) {
+  let weight = 0;
+  if (metric.name) {
+    weight += metric.name.length * 2;
+  }
+  weight += 8;
+  return weight + estimateAttributesSizeInBytes(metric.attributes);
+}
+function estimateLogSizeInBytes(log2) {
+  let weight = 0;
+  if (log2.message) {
+    weight += log2.message.length * 2;
+  }
+  return weight + estimateAttributesSizeInBytes(log2.attributes);
+}
+function estimateAttributesSizeInBytes(attributes) {
+  if (!attributes) {
+    return 0;
+  }
+  let weight = 0;
+  Object.values(attributes).forEach((value) => {
+    if (Array.isArray(value)) {
+      weight += value.length * estimatePrimitiveSizeInBytes(value[0]);
+    } else if (isPrimitive(value)) {
+      weight += estimatePrimitiveSizeInBytes(value);
+    } else {
+      weight += 100;
+    }
+  });
+  return weight;
+}
+function estimatePrimitiveSizeInBytes(value) {
+  if (typeof value === "string") {
+    return value.length * 2;
+  } else if (typeof value === "number") {
+    return 8;
+  } else if (typeof value === "boolean") {
+    return 4;
+  }
+  return 0;
+}
 function parseStackFrames(stackParser, error2) {
   return stackParser(error2.stack || "", 1);
+}
+function hasSentryFetchUrlHost(error2) {
+  return isError(error2) && "__sentry_fetch_url_host__" in error2 && typeof error2.__sentry_fetch_url_host__ === "string";
+}
+function _enhanceErrorWithSentryInfo(error2) {
+  if (hasSentryFetchUrlHost(error2)) {
+    return `${error2.message} (${error2.__sentry_fetch_url_host__})`;
+  }
+  return error2.message;
 }
 function exceptionFromError(stackParser, error2) {
   const exception = {
     type: error2.name || error2.constructor.name,
-    value: error2.message
+    value: _enhanceErrorWithSentryInfo(error2)
   };
   const frames = parseStackFrames(stackParser, error2);
   if (frames.length) {
@@ -4244,162 +4817,6 @@ function initAndBind(clientClass, options) {
 }
 function setCurrentClient(client) {
   getCurrentScope().setClient(client);
-}
-const SENTRY_BUFFER_FULL_ERROR = Symbol.for("SentryBufferFullError");
-function makePromiseBuffer(limit) {
-  const buffer = [];
-  function isReady() {
-    return limit === void 0 || buffer.length < limit;
-  }
-  function remove(task) {
-    return buffer.splice(buffer.indexOf(task), 1)[0] || Promise.resolve(void 0);
-  }
-  function add(taskProducer) {
-    if (!isReady()) {
-      return rejectedSyncPromise(SENTRY_BUFFER_FULL_ERROR);
-    }
-    const task = taskProducer();
-    if (buffer.indexOf(task) === -1) {
-      buffer.push(task);
-    }
-    void task.then(() => remove(task)).then(
-      null,
-      () => remove(task).then(null, () => {
-      })
-    );
-    return task;
-  }
-  function drain(timeout) {
-    return new SyncPromise((resolve, reject) => {
-      let counter = buffer.length;
-      if (!counter) {
-        return resolve(true);
-      }
-      const capturedSetTimeout = setTimeout(() => {
-        if (timeout && timeout > 0) {
-          resolve(false);
-        }
-      }, timeout);
-      buffer.forEach((item) => {
-        void resolvedSyncPromise(item).then(() => {
-          if (!--counter) {
-            clearTimeout(capturedSetTimeout);
-            resolve(true);
-          }
-        }, reject);
-      });
-    });
-  }
-  return {
-    $: buffer,
-    add,
-    drain
-  };
-}
-const DEFAULT_RETRY_AFTER = 60 * 1e3;
-function parseRetryAfterHeader(header, now = Date.now()) {
-  const headerDelay = parseInt(`${header}`, 10);
-  if (!isNaN(headerDelay)) {
-    return headerDelay * 1e3;
-  }
-  const headerDate = Date.parse(`${header}`);
-  if (!isNaN(headerDate)) {
-    return headerDate - now;
-  }
-  return DEFAULT_RETRY_AFTER;
-}
-function disabledUntil(limits, dataCategory) {
-  return limits[dataCategory] || limits.all || 0;
-}
-function isRateLimited(limits, dataCategory, now = Date.now()) {
-  return disabledUntil(limits, dataCategory) > now;
-}
-function updateRateLimits(limits, { statusCode, headers }, now = Date.now()) {
-  const updatedRateLimits = __spreadValues({}, limits);
-  const rateLimitHeader = headers == null ? void 0 : headers["x-sentry-rate-limits"];
-  const retryAfterHeader = headers == null ? void 0 : headers["retry-after"];
-  if (rateLimitHeader) {
-    for (const limit of rateLimitHeader.trim().split(",")) {
-      const [retryAfter, categories, , , namespaces] = limit.split(":", 5);
-      const headerDelay = parseInt(retryAfter, 10);
-      const delay = (!isNaN(headerDelay) ? headerDelay : 60) * 1e3;
-      if (!categories) {
-        updatedRateLimits.all = now + delay;
-      } else {
-        for (const category of categories.split(";")) {
-          if (category === "metric_bucket") {
-            if (!namespaces || namespaces.split(";").includes("custom")) {
-              updatedRateLimits[category] = now + delay;
-            }
-          } else {
-            updatedRateLimits[category] = now + delay;
-          }
-        }
-      }
-    }
-  } else if (retryAfterHeader) {
-    updatedRateLimits.all = now + parseRetryAfterHeader(retryAfterHeader, now);
-  } else if (statusCode === 429) {
-    updatedRateLimits.all = now + 60 * 1e3;
-  }
-  return updatedRateLimits;
-}
-const DEFAULT_TRANSPORT_BUFFER_SIZE = 64;
-function createTransport(options, makeRequest, buffer = makePromiseBuffer(
-  options.bufferSize || DEFAULT_TRANSPORT_BUFFER_SIZE
-)) {
-  let rateLimits = {};
-  const flush2 = (timeout) => buffer.drain(timeout);
-  function send(envelope) {
-    const filteredEnvelopeItems = [];
-    forEachEnvelopeItem(envelope, (item, type) => {
-      const dataCategory = envelopeItemTypeToDataCategory(type);
-      if (isRateLimited(rateLimits, dataCategory)) {
-        options.recordDroppedEvent("ratelimit_backoff", dataCategory);
-      } else {
-        filteredEnvelopeItems.push(item);
-      }
-    });
-    if (filteredEnvelopeItems.length === 0) {
-      return resolvedSyncPromise({});
-    }
-    const filteredEnvelope = createEnvelope(envelope[0], filteredEnvelopeItems);
-    const recordEnvelopeLoss = (reason) => {
-      forEachEnvelopeItem(filteredEnvelope, (item, type) => {
-        options.recordDroppedEvent(reason, envelopeItemTypeToDataCategory(type));
-      });
-    };
-    const requestTask = () => makeRequest({ body: serializeEnvelope(filteredEnvelope) }).then(
-      (response) => {
-        if (response.statusCode !== void 0 && (response.statusCode < 200 || response.statusCode >= 300)) {
-          DEBUG_BUILD && debug.warn(`Sentry responded with status code ${response.statusCode} to sent event.`);
-        }
-        rateLimits = updateRateLimits(rateLimits, response);
-        return response;
-      },
-      (error2) => {
-        recordEnvelopeLoss("network_error");
-        DEBUG_BUILD && debug.error("Encountered error running transport request:", error2);
-        throw error2;
-      }
-    );
-    return buffer.add(requestTask).then(
-      (result) => result,
-      (error2) => {
-        if (error2 === SENTRY_BUFFER_FULL_ERROR) {
-          DEBUG_BUILD && debug.error("Skipped sending event because buffer is full.");
-          recordEnvelopeLoss("queue_overflow");
-          return resolvedSyncPromise({});
-        } else {
-          throw error2;
-        }
-      }
-    );
-  }
-  return {
-    send,
-    flush: flush2
-  };
 }
 const DEFAULT_BREADCRUMBS = 100;
 function addBreadcrumb(breadcrumb, hint) {
@@ -4470,52 +4887,46 @@ const getAppName = () => {
 const getSystemInfo = () => {
   try {
     const currentSdk = getSDK();
-    if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo && currentSdk.getAppBaseInfo) {
-      const deviceInfo = currentSdk.getDeviceInfo();
+    const result = {};
+    let hasNewApi = false;
+    if (currentSdk.getAppBaseInfo) {
+      const baseInfo = currentSdk.getAppBaseInfo();
+      Object.assign(result, baseInfo);
+      hasNewApi = true;
+    }
+    if (currentSdk.getWindowInfo) {
       const windowInfo = currentSdk.getWindowInfo();
-      const appBaseInfo = currentSdk.getAppBaseInfo();
-      return {
-        brand: deviceInfo.brand || "",
-        model: deviceInfo.model || "",
-        pixelRatio: windowInfo.pixelRatio || 1,
-        screenWidth: windowInfo.screenWidth || 0,
-        screenHeight: windowInfo.screenHeight || 0,
-        windowWidth: windowInfo.windowWidth || 0,
-        windowHeight: windowInfo.windowHeight || 0,
-        statusBarHeight: windowInfo.statusBarHeight || 0,
-        language: appBaseInfo.language || "",
-        version: appBaseInfo.version || deviceInfo.system || "",
-        system: deviceInfo.system || "",
-        platform: deviceInfo.platform || "",
-        fontSizeSetting: appBaseInfo.fontSizeSetting || 0,
-        SDKVersion: appBaseInfo.SDKVersion || "",
-        benchmarkLevel: deviceInfo.benchmarkLevel || 0,
-        albumAuthorized: deviceInfo.albumAuthorized || false,
-        cameraAuthorized: deviceInfo.cameraAuthorized || false,
-        locationAuthorized: deviceInfo.locationAuthorized || false,
-        microphoneAuthorized: deviceInfo.microphoneAuthorized || false,
-        notificationAuthorized: deviceInfo.notificationAuthorized || false,
-        bluetoothEnabled: deviceInfo.bluetoothEnabled || false,
-        locationEnabled: deviceInfo.locationEnabled || false,
-        wifiEnabled: deviceInfo.wifiEnabled || false,
-        safeArea: windowInfo.safeArea || {
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: windowInfo.windowWidth || 0,
-          height: windowInfo.windowHeight || 0
-        }
-      };
+      Object.assign(result, windowInfo);
+      hasNewApi = true;
+    }
+    if (currentSdk.getDeviceInfo) {
+      const deviceInfo = currentSdk.getDeviceInfo();
+      Object.assign(result, deviceInfo);
+      hasNewApi = true;
+    }
+    if (currentSdk.getAppAuthorizeSetting) {
+      const authSetting = currentSdk.getAppAuthorizeSetting();
+      result.albumAuthorized = authSetting.albumAuthorized === "authorized";
+      result.cameraAuthorized = authSetting.cameraAuthorized === "authorized";
+      result.locationAuthorized = authSetting.locationAuthorized === "authorized";
+      result.microphoneAuthorized = authSetting.microphoneAuthorized === "authorized";
+      result.notificationAuthorized = authSetting.notificationAuthorized === "authorized";
+    }
+    if (currentSdk.getSystemSetting) {
+      const sysSetting = currentSdk.getSystemSetting();
+      Object.assign(result, sysSetting);
+    }
+    if (hasNewApi) {
+      return result;
     }
     if (currentSdk.getSystemInfoSync) {
-      console.warn("[Sentry] getSystemInfoSync is deprecated. Please update to use getDeviceInfo/getWindowInfo/getAppBaseInfo.");
       return currentSdk.getSystemInfoSync();
     }
+    return null;
   } catch (error2) {
-    console.warn("Failed to get system info:", error2);
+    console.warn("[Sentry] Failed to get system info:", error2);
+    return null;
   }
-  return null;
 };
 const isMiniappEnvironment = () => {
   try {
@@ -5133,20 +5544,8 @@ const _HttpContext = class _HttpContext {
    * Get miniapp version
    */
   _getMiniappVersion() {
-    var _a;
-    try {
-      const currentSdk = sdk();
-      if (currentSdk.getAppBaseInfo) {
-        const appBaseInfo = currentSdk.getAppBaseInfo();
-        return (appBaseInfo == null ? void 0 : appBaseInfo.version) || (appBaseInfo == null ? void 0 : appBaseInfo.SDKVersion) || "unknown";
-      }
-      if (currentSdk.getSystemInfoSync) {
-        const systemInfo = (_a = currentSdk.getSystemInfoSync) == null ? void 0 : _a.call(currentSdk);
-        return systemInfo.version || systemInfo.SDKVersion || "unknown";
-      }
-    } catch (e) {
-    }
-    return "unknown";
+    const sys = getSystemInfo();
+    return (sys == null ? void 0 : sys.version) || (sys == null ? void 0 : sys.SDKVersion) || "unknown";
   }
   /**
    * Get app name
@@ -5180,38 +5579,20 @@ const _HttpContext = class _HttpContext {
    * Get device information
    */
   _getDeviceInfo() {
-    try {
-      const currentSdk = sdk();
-      if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo) {
-        const deviceInfo = currentSdk.getDeviceInfo();
-        const windowInfo = currentSdk.getWindowInfo();
-        return {
-          brand: deviceInfo == null ? void 0 : deviceInfo.brand,
-          model: deviceInfo == null ? void 0 : deviceInfo.model,
-          system: deviceInfo == null ? void 0 : deviceInfo.system,
-          platform: deviceInfo == null ? void 0 : deviceInfo.platform,
-          screenWidth: windowInfo == null ? void 0 : windowInfo.screenWidth,
-          screenHeight: windowInfo == null ? void 0 : windowInfo.screenHeight,
-          windowWidth: windowInfo == null ? void 0 : windowInfo.windowWidth,
-          windowHeight: windowInfo == null ? void 0 : windowInfo.windowHeight
-        };
-      }
-      if (currentSdk.getSystemInfoSync) {
-        const systemInfo = currentSdk.getSystemInfoSync();
-        return {
-          brand: systemInfo == null ? void 0 : systemInfo.brand,
-          model: systemInfo == null ? void 0 : systemInfo.model,
-          system: systemInfo == null ? void 0 : systemInfo.system,
-          platform: systemInfo == null ? void 0 : systemInfo.platform,
-          screenWidth: systemInfo == null ? void 0 : systemInfo.screenWidth,
-          screenHeight: systemInfo == null ? void 0 : systemInfo.screenHeight,
-          pixelRatio: systemInfo == null ? void 0 : systemInfo.pixelRatio,
-          language: systemInfo == null ? void 0 : systemInfo.language
-        };
-      }
-    } catch (e) {
-    }
-    return {};
+    const sys = getSystemInfo();
+    if (!sys) return {};
+    return {
+      brand: sys.brand,
+      model: sys.model,
+      system: sys.system,
+      platform: sys.platform,
+      screenWidth: sys.screenWidth,
+      screenHeight: sys.screenHeight,
+      windowWidth: sys.windowWidth,
+      windowHeight: sys.windowHeight,
+      pixelRatio: sys.pixelRatio,
+      language: sys.language
+    };
   }
   /**
    * Get network information
@@ -5615,7 +5996,7 @@ const _PerformanceIntegration = class _PerformanceIntegration {
       enableNavigation: true,
       enableRender: true,
       enableResource: true,
-      enableUserTiming: true,
+      enableUserTiming: false,
       sampleRate: 1,
       bufferSize: 100,
       reportInterval: 3e4
@@ -5669,7 +6050,26 @@ const _PerformanceIntegration = class _PerformanceIntegration {
       if (this._options.enableResource) {
         entryTypes.push("resource");
       }
-      if (this._options.enableUserTiming) {
+      let canObserveUserTiming = this._options.enableUserTiming;
+      if (canObserveUserTiming) {
+        try {
+          const systemInfo = getSystemInfo();
+          if (systemInfo && systemInfo.platform === "devtools") {
+            canObserveUserTiming = false;
+          }
+          if (canObserveUserTiming) {
+            const globalObj = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : {};
+            const performanceObserverCtor = globalObj.PerformanceObserver;
+            const supportedTypes = performanceObserverCtor && Array.isArray(performanceObserverCtor.supportedEntryTypes) ? performanceObserverCtor.supportedEntryTypes : void 0;
+            if (!supportedTypes || !supportedTypes.includes("measure") || !supportedTypes.includes("mark")) {
+              canObserveUserTiming = false;
+            }
+          }
+        } catch (e) {
+          canObserveUserTiming = false;
+        }
+      }
+      if (canObserveUserTiming) {
         entryTypes.push("measure", "mark");
       }
       if (entryTypes.length === 0) {
@@ -5678,9 +6078,24 @@ const _PerformanceIntegration = class _PerformanceIntegration {
       const observer = this._performanceManager.createObserver((entries) => {
         this._handlePerformanceEntries(entries);
       });
-      observer.observe({ entryTypes });
+      try {
+        observer.observe({ entryTypes });
+      } catch (e) {
+        const safeTypes = entryTypes.filter((t) => t !== "measure" && t !== "mark");
+        if (safeTypes.length < entryTypes.length && safeTypes.length > 0) {
+          observer.observe({ entryTypes: safeTypes });
+          console.warn("[Sentry Performance] Failed to observe all types, falling back to:", safeTypes);
+          entryTypes.length = 0;
+          entryTypes.push(...safeTypes);
+        } else {
+          throw e;
+        }
+      }
       this._observers.push(observer);
-      console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
+      const globalProcess = typeof globalThis !== "undefined" ? globalThis.process : void 0;
+      if (globalProcess && globalProcess.env && globalProcess.env.NODE_ENV !== "production") {
+        console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
+      }
     } catch (error2) {
       console.warn("[Sentry Performance] Failed to setup performance observers:", error2);
     }
@@ -6149,6 +6564,7 @@ exports.closeSession = closeSession;
 exports.defaultIntegrations = defaultIntegrations;
 exports.endSession = endSession;
 exports.flush = flush;
+exports.getClient = getClient;
 exports.getCurrentScope = getCurrentScope;
 exports.getDefaultIntegrations = getDefaultIntegrations;
 exports.getIsolationScope = getIsolationScope;
@@ -6165,6 +6581,7 @@ exports.setTag = setTag;
 exports.setTags = setTags;
 exports.setUser = setUser;
 exports.showReportDialog = showReportDialog;
+exports.startInactiveSpan = startInactiveSpan;
 exports.startSession = startSession;
 exports.startSpan = startSpan;
 exports.updateSession = updateSession;

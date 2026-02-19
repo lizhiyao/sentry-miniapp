@@ -13,7 +13,7 @@ describe('CrossPlatform', () => {
       qq: (global as any).qq,
       swan: (global as any).swan
     };
-    
+
     // 清理全局对象
     delete (global as any).wx;
     delete (global as any).my;
@@ -21,10 +21,10 @@ describe('CrossPlatform', () => {
     delete (global as any).dd;
     delete (global as any).qq;
     delete (global as any).swan;
-    
+
     // 重置缓存的 appName - 通过重新导入模块来清理缓存
     jest.resetModules();
-    
+
     jest.clearAllMocks();
   });
 
@@ -149,10 +149,10 @@ describe('CrossPlatform', () => {
     it('should return combined info from new APIs when available', async () => {
       const mockDeviceInfo = {
         brand: 'Apple',
-        model: 'iPhone 12',
-        pixelRatio: 3
+        model: 'iPhone 12'
       };
       const mockWindowInfo = {
+        pixelRatio: 3,
         screenWidth: 390,
         screenHeight: 844,
         windowWidth: 390,
@@ -182,7 +182,7 @@ describe('CrossPlatform', () => {
       expect(result).toEqual({
         brand: 'Apple',
         model: 'iPhone 12',
-        pixelRatio: 1,
+        pixelRatio: 3,
         screenWidth: 390,
         screenHeight: 844,
         windowWidth: 390,
@@ -190,27 +190,10 @@ describe('CrossPlatform', () => {
         statusBarHeight: 44,
         language: 'zh_CN',
         version: '8.0.5',
-        system: '',
-        platform: '',
-        fontSizeSetting: 0,
         SDKVersion: '2.19.4',
-        benchmarkLevel: 0,
-        albumAuthorized: false,
-        cameraAuthorized: false,
-        locationAuthorized: false,
-        microphoneAuthorized: false,
-        notificationAuthorized: false,
-        bluetoothEnabled: false,
-        locationEnabled: false,
-        wifiEnabled: false,
-        safeArea: {
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          width: 390,
-          height: 844
-        }
+        bluetoothEnabled: true,
+        locationEnabled: true,
+        wifiEnabled: true
       });
     });
 
@@ -286,7 +269,7 @@ describe('CrossPlatform', () => {
       const { sdk } = await import('../src/crossPlatform');
       const result1 = sdk();
       const result2 = sdk();
-      
+
       expect(result1).toBe(mockWx);
       expect(result2).toBe(result1);
     });
@@ -336,12 +319,12 @@ describe('CrossPlatform', () => {
 
     it('should cache app name', async () => {
       (global as any).wx = { request: jest.fn() };
-      
+
       const { appName } = await import('../src/crossPlatform');
       const result1 = appName();
       delete (global as any).wx;
       const result2 = appName();
-      
+
       expect(result1).toBe('wechat');
       expect(result2).toBe('wechat'); // Should return cached value
     });

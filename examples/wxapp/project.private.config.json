@@ -1,5 +1,5 @@
 {
-  "libVersion": "3.8.11",
+  "libVersion": "3.14.2",
   "projectname": "wxapp",
   "setting": {
     "urlCheck": false,
@@ -9,6 +9,13 @@
     "preloadBackgroundData": false,
     "autoAudits": false,
     "showShadowRootInWxmlPanel": true,
-    "compileHotReLoad": true
+    "compileHotReLoad": true,
+    "useApiHook": true,
+    "useStaticServer": false,
+    "useLanDebug": false,
+    "showES6CompileOption": false,
+    "checkInvalidKey": true,
+    "ignoreDevUnusedFiles": true,
+    "bigPackageSizeSupport": false
   }
 }

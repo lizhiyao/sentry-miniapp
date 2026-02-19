@@ -4,14 +4,14 @@ const path = require('path');
 
 // 模拟微信小程序环境
 global.wx = {
-  request: function(options) {
+  request: function (options) {
     console.log('\n🌐 微信小程序 wx.request 被调用:');
     console.log('  URL:', options.url);
     console.log('  Method:', options.method);
     console.log('  Headers:', JSON.stringify(options.header, null, 2));
     console.log('  Data type:', typeof options.data);
     console.log('  Data length:', options.data ? options.data.length : 0);
-    
+
     if (options.data) {
       try {
         const parsed = JSON.parse(options.data);
@@ -26,7 +26,7 @@ global.wx = {
         console.log('  Raw data preview:', options.data.substring(0, 200) + '...');
       }
     }
-    
+
     // 模拟成功响应
     setTimeout(() => {
       if (options.success) {
@@ -41,8 +41,8 @@ global.wx = {
       }
     }, 100);
   },
-  
-  getSystemInfoSync: function() {
+
+  getSystemInfoSync: function () {
     return {
       brand: 'iPhone',
       model: 'iPhone 12',
@@ -60,14 +60,53 @@ global.wx = {
       pixelRatio: 3
     };
   },
-  
-  showToast: function(options) {
+
+  // 模拟新 API 以支持 getSystemInfo 重构
+  getAppBaseInfo: function () {
+    return {
+      version: '8.0.5',
+      SDKVersion: '2.19.4',
+      language: 'zh_CN',
+      enableDebug: true,
+      host: { env: 'WeChat' },
+      theme: 'light',
+      fontSizeSetting: 16
+    };
+  },
+
+  getDeviceInfo: function () {
+    return {
+      brand: 'iPhone',
+      model: 'iPhone 12',
+      system: 'iOS 15.0',
+      platform: 'ios',
+      benchmarkLevel: 1,
+      memorySize: 2048
+    };
+  },
+
+  getWindowInfo: function () {
+    return {
+      pixelRatio: 3,
+      screenWidth: 375,
+      screenHeight: 812,
+      windowWidth: 375,
+      windowHeight: 812,
+      statusBarHeight: 44,
+      safeArea: {
+        left: 0, right: 0, top: 44, bottom: 0, width: 375, height: 768
+      },
+      screenTop: 0
+    };
+  },
+
+  showToast: function (options) {
     console.log('📱 wx.showToast:', options.title);
   }
 };
 
 // 加载 Sentry SDK
-const Sentry = require('./dist/sentry-miniapp.cjs.js');
+const Sentry = require('../dist/sentry-miniapp.cjs.js');
 
 console.log('📱 Sentry SDK 加载成功');
 console.log('可用方法:', Object.keys(Sentry).filter(key => typeof Sentry[key] === 'function'));
@@ -77,24 +116,24 @@ Sentry.init({
   dsn: 'https://47703e01ba4344b8b252c15e8fd980fd@o113510.ingest.us.sentry.io/1528228',
   environment: 'debug',
   debug: true, // 启用调试模式
-  
+
   // 小程序特有配置
   platform: 'wechat',
   enableSystemInfo: true,
   enableUserInteractionBreadcrumbs: true,
   enableConsoleBreadcrumbs: true,
   enableNavigationBreadcrumbs: true,
-  
+
   // 采样率配置
   sampleRate: 1.0,
-  
+
   // 过滤敏感信息
   beforeSend(event) {
     console.log('\n🔍 beforeSend 被调用:');
     console.log('  Event type:', event.exception ? 'exception' : event.message ? 'message' : 'unknown');
     console.log('  Event level:', event.level);
     console.log('  Event tags:', JSON.stringify(event.tags));
-    
+
     // 过滤包含敏感信息的事件
     if (event.message && event.message.includes('password')) {
       console.log('  ❌ 事件被过滤 (包含敏感信息)');
@@ -103,7 +142,7 @@ Sentry.init({
     console.log('  ✅ 事件通过过滤');
     return event;
   },
-  
+
   // 自定义集成
   integrations: [
     // 使用默认集成
@@ -127,7 +166,7 @@ console.log('\n🔧 Sentry 初始化完成');
 console.log('\n🚨 模拟点击测试异常捕获按钮...');
 
 // 使用与示例项目相同的代码
-const testException = Sentry.wrap(function() {
+const testException = Sentry.wrap(function () {
   try {
     // 故意抛出一个错误
     throw new Error('这是一个测试异常');
@@ -144,7 +183,7 @@ const testException = Sentry.wrap(function() {
         userAgent: 'miniapp',
       },
     });
-    
+
     console.log('📱 模拟 wx.showToast: 异常已捕获并上报');
   }
 });

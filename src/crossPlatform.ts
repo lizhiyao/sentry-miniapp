@@ -12,6 +12,7 @@ interface SDK {
   request: Function;
   httpRequest?: Function; // 针对钉钉小程序
   getSystemInfoSync?: Function; // 已弃用，保留兼容性
+  canIUse?: Function; // 检查API是否可用
   getSystemSetting?: Function; // 新 API
   getAppAuthorizeSetting?: Function; // 新 API
   getDeviceInfo?: Function; // 新 API
@@ -86,13 +87,13 @@ export interface SystemInfo {
 const getSDK = (): SDK => {
   let currentSdk: SDK = {
     // tslint:disable-next-line: no-empty
-    request: () => {},
+    request: () => { },
     // tslint:disable-next-line: no-empty
-    httpRequest: () => {},
+    httpRequest: () => { },
     // tslint:disable-next-line: no-empty
     getSystemInfoSync: () => ({}),
     // tslint:disable-next-line: no-empty
-    URLSearchParams: () =>{}
+    URLSearchParams: () => { }
   };
 
   if (typeof wx === 'object' && wx !== null) {
@@ -150,57 +151,61 @@ const getAppName = (): AppName => {
 const getSystemInfo = (): SystemInfo | null => {
   try {
     const currentSdk = getSDK();
-    
-    // 优先使用新的 API 组合
-    if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo && currentSdk.getAppBaseInfo) {
-      const deviceInfo = currentSdk.getDeviceInfo();
-      const windowInfo = currentSdk.getWindowInfo();
-      const appBaseInfo = currentSdk.getAppBaseInfo();
-      
-      return {
-        brand: deviceInfo.brand || '',
-        model: deviceInfo.model || '',
-        pixelRatio: windowInfo.pixelRatio || 1,
-        screenWidth: windowInfo.screenWidth || 0,
-        screenHeight: windowInfo.screenHeight || 0,
-        windowWidth: windowInfo.windowWidth || 0,
-        windowHeight: windowInfo.windowHeight || 0,
-        statusBarHeight: windowInfo.statusBarHeight || 0,
-        language: appBaseInfo.language || '',
-        version: appBaseInfo.version || deviceInfo.system || '',
-        system: deviceInfo.system || '',
-        platform: deviceInfo.platform || '',
-        fontSizeSetting: appBaseInfo.fontSizeSetting || 0,
-        SDKVersion: appBaseInfo.SDKVersion || '',
-        benchmarkLevel: deviceInfo.benchmarkLevel || 0,
-        albumAuthorized: deviceInfo.albumAuthorized || false,
-        cameraAuthorized: deviceInfo.cameraAuthorized || false,
-        locationAuthorized: deviceInfo.locationAuthorized || false,
-        microphoneAuthorized: deviceInfo.microphoneAuthorized || false,
-        notificationAuthorized: deviceInfo.notificationAuthorized || false,
-        bluetoothEnabled: deviceInfo.bluetoothEnabled || false,
-        locationEnabled: deviceInfo.locationEnabled || false,
-        wifiEnabled: deviceInfo.wifiEnabled || false,
-        safeArea: windowInfo.safeArea || {
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: windowInfo.windowWidth || 0,
-          height: windowInfo.windowHeight || 0
-        }
-      };
+    const result: any = {};
+    let hasNewApi = false;
+
+    // 1. 基础信息
+    if (currentSdk.getAppBaseInfo) {
+      const baseInfo = currentSdk.getAppBaseInfo();
+      Object.assign(result, baseInfo);
+      hasNewApi = true;
     }
-    
+
+    // 2. 窗口信息
+    if (currentSdk.getWindowInfo) {
+      const windowInfo = currentSdk.getWindowInfo();
+      Object.assign(result, windowInfo);
+      hasNewApi = true;
+    }
+
+    // 3. 设备信息
+    if (currentSdk.getDeviceInfo) {
+      const deviceInfo = currentSdk.getDeviceInfo();
+      Object.assign(result, deviceInfo);
+      hasNewApi = true;
+    }
+
+    // 4. 授权设置 (需要转换类型)
+    if (currentSdk.getAppAuthorizeSetting) {
+      const authSetting = currentSdk.getAppAuthorizeSetting();
+      result.albumAuthorized = authSetting.albumAuthorized === 'authorized';
+      result.cameraAuthorized = authSetting.cameraAuthorized === 'authorized';
+      result.locationAuthorized = authSetting.locationAuthorized === 'authorized';
+      result.microphoneAuthorized = authSetting.microphoneAuthorized === 'authorized';
+      result.notificationAuthorized = authSetting.notificationAuthorized === 'authorized';
+    }
+
+    // 5. 系统设置
+    if (currentSdk.getSystemSetting) {
+      const sysSetting = currentSdk.getSystemSetting();
+      Object.assign(result, sysSetting);
+    }
+
+    // 如果成功获取了主要信息，则返回结果
+    if (hasNewApi) {
+      return result as SystemInfo;
+    }
+
     // 兜底使用旧的 API（已弃用但保持兼容性）
     if (currentSdk.getSystemInfoSync) {
-      console.warn('[Sentry] getSystemInfoSync is deprecated. Please update to use getDeviceInfo/getWindowInfo/getAppBaseInfo.');
       return currentSdk.getSystemInfoSync() as SystemInfo;
     }
+
+    return null;
   } catch (error) {
-    console.warn('Failed to get system info:', error);
+    console.warn('[Sentry] Failed to get system info:', error);
+    return null;
   }
-  return null;
 };
 
 /**
@@ -317,15 +322,15 @@ export interface PerformanceManager {
   getEntries(): PerformanceEntry[];
   getEntriesByType(type: string): PerformanceEntry[];
   getEntriesByName(name: string, type?: string): PerformanceEntry[];
-  
+
   // 标记和测量
   mark(name: string): void;
   measure(name: string, startMark?: string, endMark?: string): void;
-  
+
   // 清除
   clearMarks(name?: string): void;
   clearMeasures(name?: string): void;
-  
+
   // 观察者
   createObserver(callback: PerformanceObserverCallback): PerformanceObserver;
 }

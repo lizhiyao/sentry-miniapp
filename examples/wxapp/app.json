@@ -4,28 +4,29 @@
     "pages/test/test"
   ],
   "window": {
-    "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#fff",
-    "navigationBarTitleText": "sentry-miniapp 示例",
-    "navigationBarTextStyle": "black"
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "navigationBarTitleText": "Sentry 监控",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F5F7FA"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json",
   "tabBar": {
-    "color": "#666666",
-    "selectedColor": "#000000",
-    "backgroundColor": "#ffffff",
-    "borderStyle": "black",
+    "color": "#94A3B8",
+    "selectedColor": "#6C5FC7",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "首页",
+        "text": "概览",
         "iconPath": "images/home.png",
         "selectedIconPath": "images/home-active.png"
       },
       {
         "pagePath": "pages/test/test",
-        "text": "试用",
+        "text": "实验室",
         "iconPath": "images/test.png",
         "selectedIconPath": "images/test-active.png"
       }

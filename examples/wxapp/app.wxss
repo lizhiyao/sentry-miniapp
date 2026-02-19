@@ -1,30 +1,93 @@
 /**app.wxss**/
 page {
-  background-color: #ffffff;
+  background-color: #F5F7FA;
+  --primary-color: #6C5FC7;
+  --primary-light: #E0DBF9;
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --text-tertiary: #94A3B8;
+  --bg-color: #F5F7FA;
+  --card-bg: #FFFFFF;
+  --success-color: #10B981;
+  --warning-color: #F59E0B;
+  --danger-color: #EF4444;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Segoe UI, Arial, Roboto, 'PingFang SC', 'miui', 'Hiragino Sans GB', 'Microsoft Yahei', sans-serif;
-}
-
-.container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
   box-sizing: border-box;
 }
 
-/* 通用按钮样式 */
+.container {
+  min-height: 100vh;
+  padding: 32rpx;
+  box-sizing: border-box;
+}
+
+/* 卡片容器 */
+.card {
+  background: var(--card-bg);
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:active {
+  transform: scale(0.995);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 标题样式 */
+.section-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 24rpx;
+  display: flex;
+  align-items: center;
+}
+
+.section-title::before {
+  content: '';
+  width: 8rpx;
+  height: 32rpx;
+  background: var(--primary-color);
+  border-radius: 4rpx;
+  margin-right: 16rpx;
+}
+
+/* 按钮重置 */
 button {
-  border: none;
-  outline: none;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  line-height: inherit;
 }
 
 button::after {
   border: none;
 }
 
-/* 通用文本样式 */
-text {
-  font-size: 28rpx;
-  color: #1a1a1a;
+.btn-primary {
+  background: var(--primary-color);
+  color: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx 48rpx;
+  font-weight: 600;
+  font-size: 30rpx;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.btn-primary:active {
+  opacity: 0.9;
+  transform: translateY(2rpx);
 }

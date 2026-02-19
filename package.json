@@ -1,8 +1,11 @@
 {
   "name": "sentry-miniapp",
-  "version": "1.0.1-beta.2",
+  "version": "1.1.0",
   "description": "用于小程序平台的 Sentry SDK",
-  "repository": "git://github.com/lizhiyao/sentry-miniapp.git",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/lizhiyao/sentry-miniapp.git"
+  },
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
     "build": "vite build",
@@ -54,12 +57,14 @@
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
     "jest": "^29.0.0",
+    "js-yaml": "3.14.2",
+    "lodash": "4.17.23",
     "ts-jest": "^29.4.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5",
+    "vite": "^6.4.1",
     "vite-plugin-dts": "^4.5.4"
   },
   "dependencies": {
-    "@sentry/core": "10.5.0"
+    "@sentry/core": "10.39.0"
   }
 }

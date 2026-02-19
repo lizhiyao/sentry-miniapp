@@ -8,7 +8,7 @@
 ![github license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
 ![test coverage](https://img.shields.io/badge/test%20coverage-286%20tests-brightgreen.svg)
 
-基于 `@sentry/core` 10.5.0 的微信小程序异常监控 SDK。
+基于 `@sentry/core` 10.39.0 的微信小程序异常监控 SDK。
 
 > 注意：
 1、sentry-miniapp v1.x.x 版本暂时只支持微信小程序和微信小游戏。
@@ -46,16 +46,12 @@
 推荐使用 npm 方式。
 
 **稳定版本：**
+
    ```bash
    npm install sentry-miniapp --save
    ```
 
-**Beta 版本（包含最新修复）：**
-   ```bash
-   npm install sentry-miniapp@beta --save
-   ```
-
-> **注意：** v1.0.1-beta.2 版本修复了事件上报中 `undefined` 值的问题，建议使用最新的 beta 版本。
+> **注意：** v1.1.0 版本升级了核心依赖 `@sentry/core` 至 10.39.0，并优化了构建策略（内联依赖），不再需要额外安装 `@sentry/core`。
 
 ### 重要提示
 
