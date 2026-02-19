@@ -2807,6 +2807,29 @@ function startSpan(options, callback) {
     });
   });
 }
+function startInactiveSpan(options) {
+  const acs = getAcs();
+  if (acs.startInactiveSpan) {
+    return acs.startInactiveSpan(options);
+  }
+  const spanArguments = parseSentrySpanArguments(options);
+  const { forceTransaction, parentSpan: customParentSpan } = options;
+  const wrapper = options.scope ? (callback) => withScope(options.scope, callback) : customParentSpan !== void 0 ? (callback) => withActiveSpan(customParentSpan, callback) : (callback) => callback();
+  return wrapper(() => {
+    const scope = getCurrentScope();
+    const parentSpan = getParentSpan(scope, customParentSpan);
+    const shouldSkipSpan = options.onlyIfParent && !parentSpan;
+    if (shouldSkipSpan) {
+      return new SentryNonRecordingSpan();
+    }
+    return createChildOrRootSpan({
+      parentSpan,
+      spanArguments,
+      forceTransaction,
+      scope
+    });
+  });
+}
 function withActiveSpan(span, callback) {
   const acs = getAcs();
   if (acs.withActiveSpan) {
@@ -6543,6 +6566,7 @@ exports.closeSession = closeSession;
 exports.defaultIntegrations = defaultIntegrations;
 exports.endSession = endSession;
 exports.flush = flush;
+exports.getClient = getClient;
 exports.getCurrentScope = getCurrentScope;
 exports.getDefaultIntegrations = getDefaultIntegrations;
 exports.getIsolationScope = getIsolationScope;
@@ -6559,6 +6583,7 @@ exports.setTag = setTag;
 exports.setTags = setTags;
 exports.setUser = setUser;
 exports.showReportDialog = showReportDialog;
+exports.startInactiveSpan = startInactiveSpan;
 exports.startSession = startSession;
 exports.startSpan = startSpan;
 exports.updateSession = updateSession;

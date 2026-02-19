@@ -1,165 +1,90 @@
 <!--test.wxml-->
 <view class="container">
-  <!-- 顶部装饰背景 -->
-  <view class="bg-decoration"></view>
+  <view class="header-section">
+    <text class="page-title">功能实验室</text>
+    <text class="page-desc">触发不同类型的事件以测试 Sentry 监控能力</text>
+  </view>
+
+  <!-- 用户身份卡片 -->
+  <view class="card user-card">
+    <view class="user-info">
+      <view class="avatar-placeholder" style="background: {{hasUserInfo ? '#6C5FC7' : '#E2E8F0'}}">
+        <text>{{hasUserInfo ? 'U' : '?'}}</text>
+      </view>
+      <view class="user-meta">
+        <text class="user-name">{{hasUserInfo ? userInfo.nickName : '未登录用户'}}</text>
+        <text class="user-status">{{hasUserInfo ? 'ID: ' + userInfo.id : '匿名访问'}}</text>
+      </view>
+    </view>
+    <button class="btn-sm {{hasUserInfo ? 'btn-outline-danger' : 'btn-primary'}}" bindtap="{{hasUserInfo ? 'clearUserProfile' : 'getUserProfile'}}">
+      {{hasUserInfo ? '注销' : '模拟登录'}}
+    </button>
+  </view>
+
+  <!-- 错误捕获测试 -->
+  <view class="section-title">错误捕获</view>
+  <view class="card action-list">
+    <view class="action-item" bindtap="testException">
+      <view class="icon-box error">💥</view>
+      <view class="action-content">
+        <text class="action-name">JS 异常</text>
+        <text class="action-desc">触发一个未捕获的 JavaScript 错误</text>
+      </view>
+      <view class="action-btn">测试</view>
+    </view>
+    
+    <view class="action-item" bindtap="testAsyncError">
+      <view class="icon-box warning">⏱️</view>
+      <view class="action-content">
+        <text class="action-name">异步异常</text>
+        <text class="action-desc">在 Promise 或定时器中抛出错误</text>
+      </view>
+      <view class="action-btn">测试</view>
+    </view>
+
+    <view class="action-item" bindtap="testMessage">
+      <view class="icon-box info">📝</view>
+      <view class="action-content">
+        <text class="action-name">消息上报</text>
+        <text class="action-desc">Sentry.captureMessage()</text>
+      </view>
+      <view class="action-btn">测试</view>
+    </view>
+  </view>
+
+  <!-- 性能与网络 -->
+  <view class="section-title">性能与网络</view>
+  <view class="card action-list">
+    <view class="action-item" bindtap="testRequest">
+      <view class="icon-box success">🌐</view>
+      <view class="action-content">
+        <text class="action-name">网络请求</text>
+        <text class="action-desc">发起一个 XHR 请求并监控耗时</text>
+      </view>
+      <view class="action-btn">测试</view>
+    </view>
+
+    <view class="action-item" bindtap="testNetworkPerformance">
+      <view class="icon-box success">📊</view>
+      <view class="action-content">
+        <text class="action-name">网络性能追踪</text>
+        <text class="action-desc">生成 Transaction 记录请求性能</text>
+      </view>
+      <view class="action-btn">测试</view>
+    </view>
+  </view>
   
-  <!-- 用户信息区域 - 右上角 -->
-  <view class="user-info-corner" wx:if="{{hasUserInfo}}">
-    <image class="corner-avatar" src="{{userInfo.avatarUrl}}" mode="cover"></image>
-    <text class="corner-nickname">{{userInfo.nickName}}</text>
-  </view>
-
-  <!-- 头部区域 -->
-  <view class="header">
-    <text class="title">Sentry 小程序监控</text>
-    <text class="subtitle">{{hasUserInfo ? '欢迎，' + userInfo.nickName  : '登录后体验完整的信息捕获&上报功能'}}</text>
-  </view>
-
-  <!-- 用户状态提示 -->
-  <view class="user-status-section" wx:if="{{!hasUserInfo}}">
-    <view class="status-content">
-      <text class="status-icon">🔐</text>
-      <text class="status-text">请先登录以体验完整功能</text>
-      <button class="login-btn" bindtap="getUserProfile">
-        <text class="btn-icon">👤</text>
-        <text class="btn-text">立即登录</text>
-      </button>
+  <!-- 高级功能 -->
+  <view class="section-title">高级功能</view>
+  <view class="card action-list">
+     <view class="action-item" bindtap="testUserFeedback">
+      <view class="icon-box primary">💬</view>
+      <view class="action-content">
+        <text class="action-name">用户反馈</text>
+        <text class="action-desc">提交带有上下文的用户反馈</text>
+      </view>
+      <view class="action-btn">测试</view>
     </view>
   </view>
 
-
-
-  <!-- 功能测试区域 -->
-  <view class="test-functions-section">
-    <view class="section-header">
-      <text class="section-title">🧪 监控功能测试</text>
-      <text class="section-desc">选择下方按钮测试不同类型的信息监控上报</text>
-    </view>
-    
-    <view class="test-grid">
-      <button bindtap="testException" class="test-btn exception {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">💥</view>
-        <text class="btn-title">异常测试</text>
-        <text class="btn-desc">测试 JavaScript 异常捕获</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-      
-      <button bindtap="testMessage" class="test-btn message {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">📝</view>
-        <text class="btn-title">消息上报</text>
-        <text class="btn-desc">测试自定义消息发送</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-      
-      <button bindtap="testRequest" class="test-btn network {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">🌐</view>
-        <text class="btn-title">网络监控</text>
-        <text class="btn-desc">测试网络请求监控</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-      
-      <button bindtap="testAsyncError" class="test-btn async {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">⏱️</view>
-        <text class="btn-title">异步错误</text>
-        <text class="btn-desc">测试异步异常处理</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-      
-      <button bindtap="testUserFeedback" class="test-btn feedback {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">💬</view>
-        <text class="btn-title">用户反馈</text>
-        <text class="btn-desc">测试错误关联反馈</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-      
-      <button bindtap="testCaptureFeedback" class="test-btn capture-feedback {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">📝</view>
-        <text class="btn-title">独立反馈</text>
-        <text class="btn-desc">测试独立用户反馈</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-      
-      <button bindtap="testPagePerformance" class="test-btn performance {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">⚡</view>
-        <text class="btn-title">页面性能</text>
-        <text class="btn-desc">测试页面操作性能追踪</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-      
-      <button bindtap="testNetworkPerformance" class="test-btn network-performance {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">📊</view>
-        <text class="btn-title">网络性能</text>
-        <text class="btn-desc">测试网络请求性能追踪</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-      
-      <button bindtap="testPerformanceAPI" class="test-btn performance-api {{hasUserInfo ? '' : 'disabled'}}" disabled="{{!hasUserInfo}}">
-        <view class="btn-icon">🚀</view>
-        <text class="btn-title">Performance API</text>
-        <text class="btn-desc">测试 Performance API 集成</text>
-        <text class="btn-status" wx:if="{{!hasUserInfo}}">需要登录</text>
-      </button>
-    </view>
-  </view>
-
-  <!-- 测试结果区域 -->
-  <view class="test-results-section" wx:if="{{testResults.length > 0}}">
-    <view class="results-header">
-      <text class="results-title">📊 测试结果</text>
-      <text class="results-desc">查看您的测试执行记录</text>
-    </view>
-    
-    <view class="test-stats">
-      <view class="stat-item">
-        <text class="stat-number">{{testResults.length}}</text>
-        <text class="stat-label">总测试数</text>
-      </view>
-      <view class="stat-item">
-        <text class="stat-number">{{successCount}}</text>
-        <text class="stat-label">成功次数</text>
-      </view>
-      <view class="stat-item">
-        <text class="stat-number">{{errorCount}}</text>
-        <text class="stat-label">错误次数</text>
-      </view>
-    </view>
-    
-    <view class="test-list">
-      <view class="test-item" wx:for="{{testResults}}" wx:key="index">
-        <view class="test-item-content">
-          <text class="test-item-title">{{item.type}} - {{item.status}}</text>
-          <text class="test-item-time">{{item.timestamp}}</text>
-        </view>
-        <view class="test-item-actions">
-          <button class="detail-btn" wx:if="{{item.sentryRequestData}}" bindtap="showTestDetail" data-index="{{index}}">查看详情</button>
-        </view>
-      </view>
-    </view>
-    
-    <view class="results-tip">
-      <text class="tip-text">💡 完整的错误分析数据可在 Sentry 后台查看</text>
-    </view>
-  </view>
-
-  <!-- 详情弹窗 -->
-  <view class="detail-modal" wx:if="{{showDetailModal}}" bindtap="hideTestDetail">
-    <view class="detail-content" catchtap="">
-      <view class="detail-header">
-        <text class="detail-title">Sentry 上报请求详情</text>
-        <button class="close-btn" bindtap="hideTestDetail">×</button>
-      </view>
-      <view class="detail-body">
-        <scroll-view scroll-y class="detail-scroll">
-          <view class="detail-section" wx:for="{{detailSections}}" wx:key="key">
-            <view class="section-header">
-              <text class="section-title">{{item.title}}</text>
-            </view>
-            <view class="section-content">
-              <text class="section-text">{{item.content}}</text>
-            </view>
-          </view>
-        </scroll-view>
-      </view>
-    </view>
-  </view>
 </view>
