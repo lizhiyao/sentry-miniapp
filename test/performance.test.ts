@@ -358,8 +358,23 @@ describe('PerformanceIntegration', () => {
       }));
       expect(mockPerformanceManager.createObserver).toHaveBeenCalled();
       expect(mockObserver.observe).toHaveBeenCalledWith({
-        entryTypes: ['navigation', 'render', 'resource', 'measure', 'mark']
+        entryTypes: ['navigation', 'render', 'resource']
       });
+    });
+
+    it('should not include user timing types when unsupported', () => {
+      const originalPerformanceObserver = (global as any).PerformanceObserver;
+      (global as any).PerformanceObserver = undefined;
+
+      const integrationWithUserTiming = new PerformanceIntegration({ enableUserTiming: true });
+      integrationWithUserTiming.setupOnce();
+
+      expect(mockObserver.observe).toHaveBeenCalledWith({
+        entryTypes: ['navigation', 'render', 'resource']
+      });
+
+      integrationWithUserTiming.cleanup();
+      (global as any).PerformanceObserver = originalPerformanceObserver;
     });
 
     it('should handle missing performance API gracefully', () => {

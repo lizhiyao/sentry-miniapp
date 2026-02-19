@@ -2,8 +2,8 @@ import { getCurrentScope } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 import { startSpan } from '@sentry/core';
 
-import { 
-  getPerformanceManager, 
+import {
+  getPerformanceManager,
   sdk,
   type PerformanceEntry,
   type NavigationPerformanceEntry,
@@ -57,7 +57,7 @@ export class PerformanceIntegration implements Integration {
       enableNavigation: true,
       enableRender: true,
       enableResource: true,
-      enableUserTiming: true,
+      enableUserTiming: false,
       sampleRate: 1.0,
       bufferSize: 100,
       reportInterval: 30000, // 30秒
@@ -109,7 +109,7 @@ export class PerformanceIntegration implements Integration {
 
     try {
       const entryTypes: string[] = [];
-      
+
       if (this._options.enableNavigation) {
         entryTypes.push('navigation');
       }
@@ -119,7 +119,45 @@ export class PerformanceIntegration implements Integration {
       if (this._options.enableResource) {
         entryTypes.push('resource');
       }
-      if (this._options.enableUserTiming) {
+
+      let canObserveUserTiming = this._options.enableUserTiming;
+
+      if (canObserveUserTiming) {
+        try {
+          const currentSdk = sdk();
+
+          if (currentSdk && typeof currentSdk.getSystemInfoSync === 'function') {
+            const systemInfo = currentSdk.getSystemInfoSync();
+
+            if (systemInfo && systemInfo.platform === 'devtools') {
+              canObserveUserTiming = false;
+            }
+          }
+
+          if (canObserveUserTiming) {
+            const globalObj: any =
+              typeof globalThis !== 'undefined'
+                ? globalThis
+                : typeof window !== 'undefined'
+                  ? window
+                  : {};
+
+            const performanceObserverCtor: any = (globalObj as any).PerformanceObserver;
+            const supportedTypes: string[] | undefined =
+              performanceObserverCtor && Array.isArray((performanceObserverCtor as any).supportedEntryTypes)
+                ? (performanceObserverCtor as any).supportedEntryTypes
+                : undefined;
+
+            if (!supportedTypes || !supportedTypes.includes('measure') || !supportedTypes.includes('mark')) {
+              canObserveUserTiming = false;
+            }
+          }
+        } catch {
+          canObserveUserTiming = false;
+        }
+      }
+
+      if (canObserveUserTiming) {
         entryTypes.push('measure', 'mark');
       }
 
@@ -137,12 +175,12 @@ export class PerformanceIntegration implements Integration {
       } catch (e) {
         // 如果失败（例如微信小程序不支持 measure/mark），尝试移除这些类型后重试
         const safeTypes = entryTypes.filter(t => t !== 'measure' && t !== 'mark');
-        
+
         if (safeTypes.length < entryTypes.length && safeTypes.length > 0) {
           // 降级重试
           observer.observe({ entryTypes: safeTypes });
           console.warn('[Sentry Performance] Failed to observe all types, falling back to:', safeTypes);
-          
+
           // 更新 entryTypes 以便日志记录正确
           entryTypes.length = 0;
           entryTypes.push(...safeTypes);
@@ -349,7 +387,7 @@ export class PerformanceIntegration implements Integration {
    */
   private _addToBuffer(entry: PerformanceEntry): void {
     this._entryBuffer.push(entry);
-    
+
     // 缓冲区溢出处理
     if (this._entryBuffer.length > this._options.bufferSize) {
       this._entryBuffer = this._entryBuffer.slice(-this._options.bufferSize);
@@ -379,10 +417,10 @@ export class PerformanceIntegration implements Integration {
 
     try {
       const scope = getCurrentScope();
-      
+
       // 计算性能统计
       const stats = this._calculatePerformanceStats();
-      
+
       scope.setContext('performance_summary', {
         total_entries: this._entryBuffer.length,
         navigation_count: this._entryBuffer.filter(e => e.entryType === 'navigation').length,
@@ -414,44 +452,44 @@ export class PerformanceIntegration implements Integration {
     const navigationEntries = this._entryBuffer.filter(e => e.entryType === 'navigation');
     const renderEntries = this._entryBuffer.filter(e => e.entryType === 'render');
     const resourceEntries = this._entryBuffer.filter(e => e.entryType === 'resource');
-    
+
     const stats: Record<string, any> = {};
-    
+
     // 导航性能统计
-     if (navigationEntries.length > 0) {
-       const durations = navigationEntries.map(e => e.duration);
-       stats['navigation_stats'] = {
-         avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
-         max_duration: Math.max(...durations),
-         min_duration: Math.min(...durations),
-       };
-     }
-     
-     // 渲染性能统计
-     if (renderEntries.length > 0) {
-       const durations = renderEntries.map(e => e.duration);
-       stats['render_stats'] = {
-         avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
-         max_duration: Math.max(...durations),
-         min_duration: Math.min(...durations),
-       };
-     }
-     
-     // 资源加载统计
-     if (resourceEntries.length > 0) {
-       const durations = resourceEntries.map(e => e.duration);
-       const sizes = resourceEntries
-         .map(e => (e as ResourcePerformanceEntry).transferSize || 0)
-         .filter(size => size > 0);
-       
-       stats['resource_stats'] = {
-         avg_load_time: durations.reduce((a, b) => a + b, 0) / durations.length,
-         max_load_time: Math.max(...durations),
-         total_transfer_size: sizes.reduce((a, b) => a + b, 0),
-         avg_transfer_size: sizes.length > 0 ? sizes.reduce((a, b) => a + b, 0) / sizes.length : 0,
-       };
-     }
-    
+    if (navigationEntries.length > 0) {
+      const durations = navigationEntries.map(e => e.duration);
+      stats['navigation_stats'] = {
+        avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_duration: Math.max(...durations),
+        min_duration: Math.min(...durations),
+      };
+    }
+
+    // 渲染性能统计
+    if (renderEntries.length > 0) {
+      const durations = renderEntries.map(e => e.duration);
+      stats['render_stats'] = {
+        avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_duration: Math.max(...durations),
+        min_duration: Math.min(...durations),
+      };
+    }
+
+    // 资源加载统计
+    if (resourceEntries.length > 0) {
+      const durations = resourceEntries.map(e => e.duration);
+      const sizes = resourceEntries
+        .map(e => (e as ResourcePerformanceEntry).transferSize || 0)
+        .filter(size => size > 0);
+
+      stats['resource_stats'] = {
+        avg_load_time: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_load_time: Math.max(...durations),
+        total_transfer_size: sizes.reduce((a, b) => a + b, 0),
+        avg_transfer_size: sizes.length > 0 ? sizes.reduce((a, b) => a + b, 0) / sizes.length : 0,
+      };
+    }
+
     return stats;
   }
 
@@ -460,45 +498,45 @@ export class PerformanceIntegration implements Integration {
    */
   private _checkPerformanceThresholds(stats: Record<string, any>): void {
     const scope = getCurrentScope();
-    
+
     // 检查导航性能
-     if (stats['navigation_stats']?.avg_duration > 3000) {
-       scope.addBreadcrumb({
-         message: '页面导航性能较慢',
-         category: 'performance.warning',
-         level: 'warning',
-         data: {
-           avg_duration: stats['navigation_stats'].avg_duration,
-           threshold: 3000,
-         },
-       });
-     }
-     
-     // 检查渲染性能
-     if (stats['render_stats']?.avg_duration > 1000) {
-       scope.addBreadcrumb({
-         message: '页面渲染性能较慢',
-         category: 'performance.warning',
-         level: 'warning',
-         data: {
-           avg_duration: stats['render_stats'].avg_duration,
-           threshold: 1000,
-         },
-       });
-     }
-     
-     // 检查资源加载
-     if (stats['resource_stats']?.avg_load_time > 2000) {
-       scope.addBreadcrumb({
-         message: '资源加载性能较慢',
-         category: 'performance.warning',
-         level: 'warning',
-         data: {
-           avg_load_time: stats['resource_stats'].avg_load_time,
-           threshold: 2000,
-         },
-       });
-     }
+    if (stats['navigation_stats']?.avg_duration > 3000) {
+      scope.addBreadcrumb({
+        message: '页面导航性能较慢',
+        category: 'performance.warning',
+        level: 'warning',
+        data: {
+          avg_duration: stats['navigation_stats'].avg_duration,
+          threshold: 3000,
+        },
+      });
+    }
+
+    // 检查渲染性能
+    if (stats['render_stats']?.avg_duration > 1000) {
+      scope.addBreadcrumb({
+        message: '页面渲染性能较慢',
+        category: 'performance.warning',
+        level: 'warning',
+        data: {
+          avg_duration: stats['render_stats'].avg_duration,
+          threshold: 1000,
+        },
+      });
+    }
+
+    // 检查资源加载
+    if (stats['resource_stats']?.avg_load_time > 2000) {
+      scope.addBreadcrumb({
+        message: '资源加载性能较慢',
+        category: 'performance.warning',
+        level: 'warning',
+        data: {
+          avg_load_time: stats['resource_stats'].avg_load_time,
+          threshold: 2000,
+        },
+      });
+    }
   }
 
   /**
@@ -518,7 +556,7 @@ export class PerformanceIntegration implements Integration {
           timestamp: Date.now(),
           sampleRate: this._options.sampleRate,
         };
-        
+
         currentSdk.reportPerformance(performanceData);
       }
     } catch (error) {
@@ -533,11 +571,11 @@ export class PerformanceIntegration implements Integration {
     try {
       const scope = getCurrentScope();
       const currentSdk = sdk();
-      
+
       // 检查 Performance API 支持情况
       const hasPerformanceAPI = !!(currentSdk.getPerformance);
       const hasReportAPI = !!(currentSdk.reportPerformance);
-      
+
       scope.setContext('performance_support', {
         has_performance_api: hasPerformanceAPI,
         has_report_api: hasReportAPI,
