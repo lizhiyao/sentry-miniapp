@@ -1,7 +1,5 @@
-(function(global2, factory) {
-  typeof exports === "object" && typeof module !== "undefined" ? factory(exports, require("@sentry/core")) : typeof define === "function" && define.amd ? define(["exports", "@sentry/core"], factory) : (global2 = typeof globalThis !== "undefined" ? globalThis : global2 || self, factory(global2.SentryMiniapp = {}, global2.SentryCore));
-})(this, (function(exports2, core) {
-  "use strict";var __defProp = Object.defineProperty;
+"use strict";
+var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
 var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
 var __getOwnPropSymbols = Object.getOwnPropertySymbols;
@@ -24,6 +22,38 @@ var __spreadValues = (a, b) => {
   return a;
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var __objRest = (source, exclude) => {
+  var target = {};
+  for (var prop in source)
+    if (__hasOwnProp.call(source, prop) && exclude.indexOf(prop) < 0)
+      target[prop] = source[prop];
+  if (source != null && __getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(source)) {
+      if (exclude.indexOf(prop) < 0 && __propIsEnum.call(source, prop))
+        target[prop] = source[prop];
+    }
+  return target;
+};
+var __async = (__this, __arguments, generator) => {
+  return new Promise((resolve, reject) => {
+    var fulfilled = (value) => {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var rejected = (value) => {
+      try {
+        step(generator.throw(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    step((generator = generator.apply(__this, __arguments)).next());
+  });
+};
 var __await = function(promise, isYieldStar) {
   this[0] = promise;
   this[1] = isYieldStar;
@@ -56,1996 +86,6482 @@ var __yieldStar = (value) => {
     throw x;
   }, "return" in obj && method("return"), it;
 };
-
-  class URLSearchParamsPolyfill {
-    constructor(init2) {
-      this.params = {};
-      if (typeof init2 === "string") {
-        this.parseString(init2);
-      } else if (Array.isArray(init2)) {
-        for (const pair of init2) {
-          if (Array.isArray(pair) && pair.length >= 2) {
-            this.append(pair[0] || "", pair[1] || "");
-          }
-        }
-      } else if (init2 && typeof init2 === "object") {
-        if (init2 instanceof URLSearchParamsPolyfill) {
-          this.params = __spreadValues({}, init2.params);
-        } else {
-          this.params = __spreadValues({}, init2);
+Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+class URLSearchParamsPolyfill {
+  constructor(init2) {
+    this.params = {};
+    if (typeof init2 === "string") {
+      this.parseString(init2);
+    } else if (Array.isArray(init2)) {
+      for (const pair of init2) {
+        if (Array.isArray(pair) && pair.length >= 2) {
+          this.append(pair[0] || "", pair[1] || "");
         }
       }
-    }
-    get size() {
-      return Object.keys(this.params).length;
-    }
-    parseString(str) {
-      if (str.startsWith("?")) {
-        str = str.slice(1);
-      }
-      if (!str) {
-        return;
-      }
-      const pairs = str.split("&");
-      for (const pair of pairs) {
-        const [key, value = ""] = pair.split("=");
-        if (key) {
-          this.params[decodeURIComponent(key)] = decodeURIComponent(value);
-        }
-      }
-    }
-    append(name, value) {
-      const existing = this.params[name];
-      if (existing) {
-        this.params[name] = existing + "," + value;
+    } else if (init2 && typeof init2 === "object") {
+      if (init2 instanceof URLSearchParamsPolyfill) {
+        this.params = __spreadValues({}, init2.params);
       } else {
-        this.params[name] = value;
+        this.params = __spreadValues({}, init2);
       }
-    }
-    delete(name) {
-      delete this.params[name];
-    }
-    get(name) {
-      var _a;
-      return (_a = this.params[name]) != null ? _a : null;
-    }
-    getAll(name) {
-      const value = this.params[name];
-      return value ? [value] : [];
-    }
-    has(name) {
-      return name in this.params;
-    }
-    set(name, value) {
-      this.params[name] = String(value);
-    }
-    sort() {
-      const sortedKeys = Object.keys(this.params).sort();
-      const sortedParams = {};
-      for (const key of sortedKeys) {
-        sortedParams[key] = this.params[key] || "";
-      }
-      this.params = sortedParams;
-    }
-    toString() {
-      const pairs = [];
-      for (const [key, value] of Object.entries(this.params)) {
-        pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-      }
-      return pairs.join("&");
-    }
-    forEach(callback) {
-      for (const [key, value] of Object.entries(this.params)) {
-        callback(value, key, this);
-      }
-    }
-    *keys() {
-      for (const key of Object.keys(this.params)) {
-        yield key;
-      }
-    }
-    *values() {
-      for (const value of Object.values(this.params)) {
-        yield value;
-      }
-    }
-    *entries() {
-      for (const [key, value] of Object.entries(this.params)) {
-        yield [key, value];
-      }
-    }
-    // Symbol.iterator to make it iterable
-    *[Symbol.iterator]() {
-      yield* __yieldStar(this.entries());
     }
   }
-  function getGlobalObject() {
+  get size() {
+    return Object.keys(this.params).length;
+  }
+  parseString(str) {
+    if (str.startsWith("?")) {
+      str = str.slice(1);
+    }
+    if (!str) {
+      return;
+    }
+    const pairs = str.split("&");
+    for (const pair of pairs) {
+      const [key, value = ""] = pair.split("=");
+      if (key) {
+        this.params[decodeURIComponent(key)] = decodeURIComponent(value);
+      }
+    }
+  }
+  append(name, value) {
+    const existing = this.params[name];
+    if (existing) {
+      this.params[name] = existing + "," + value;
+    } else {
+      this.params[name] = value;
+    }
+  }
+  delete(name) {
+    delete this.params[name];
+  }
+  get(name) {
+    var _a;
+    return (_a = this.params[name]) != null ? _a : null;
+  }
+  getAll(name) {
+    const value = this.params[name];
+    return value ? [value] : [];
+  }
+  has(name) {
+    return name in this.params;
+  }
+  set(name, value) {
+    this.params[name] = String(value);
+  }
+  sort() {
+    const sortedKeys = Object.keys(this.params).sort();
+    const sortedParams = {};
+    for (const key of sortedKeys) {
+      sortedParams[key] = this.params[key] || "";
+    }
+    this.params = sortedParams;
+  }
+  toString() {
+    const pairs = [];
+    for (const [key, value] of Object.entries(this.params)) {
+      pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+    }
+    return pairs.join("&");
+  }
+  forEach(callback) {
+    for (const [key, value] of Object.entries(this.params)) {
+      callback(value, key, this);
+    }
+  }
+  *keys() {
+    for (const key of Object.keys(this.params)) {
+      yield key;
+    }
+  }
+  *values() {
+    for (const value of Object.values(this.params)) {
+      yield value;
+    }
+  }
+  *entries() {
+    for (const [key, value] of Object.entries(this.params)) {
+      yield [key, value];
+    }
+  }
+  // Symbol.iterator to make it iterable
+  *[Symbol.iterator]() {
+    yield* __yieldStar(this.entries());
+  }
+}
+function getGlobalObject() {
+  const globalScope = Function("return this")();
+  if (globalScope && typeof globalScope.wx !== "undefined" && globalScope.wx) {
+    return globalScope.wx;
+  }
+  if (globalScope && typeof globalScope.my !== "undefined" && globalScope.my) {
+    return globalScope.my;
+  }
+  if (globalScope && typeof globalScope.swan !== "undefined" && globalScope.swan) {
+    return globalScope.swan;
+  }
+  if (globalScope && typeof globalScope.tt !== "undefined" && globalScope.tt) {
+    return globalScope.tt;
+  }
+  if (globalScope && typeof globalScope.qq !== "undefined" && globalScope.qq) {
+    return globalScope.qq;
+  }
+  if (typeof globalThis !== "undefined") {
+    return globalThis;
+  }
+  if (typeof window !== "undefined") {
+    return window;
+  }
+  if (typeof global !== "undefined") {
+    return global;
+  }
+  if (typeof self !== "undefined") {
+    return self;
+  }
+  return globalScope;
+}
+function installPolyfills() {
+  try {
+    const globalObj = getGlobalObject();
+    if (!globalObj) {
+      console.warn("[Sentry] Unable to detect global object, polyfills may not work correctly");
+      return;
+    }
+    if (typeof globalObj.URLSearchParams === "undefined") {
+      globalObj.URLSearchParams = URLSearchParamsPolyfill;
+    }
     const globalScope = Function("return this")();
-    if (globalScope && typeof globalScope.wx !== "undefined" && globalScope.wx) {
-      return globalScope.wx;
+    if (globalScope && typeof globalScope.URLSearchParams === "undefined") {
+      globalScope.URLSearchParams = URLSearchParamsPolyfill;
     }
-    if (globalScope && typeof globalScope.my !== "undefined" && globalScope.my) {
-      return globalScope.my;
+    if (typeof globalThis !== "undefined" && typeof globalThis.URLSearchParams === "undefined") {
+      globalThis.URLSearchParams = URLSearchParamsPolyfill;
     }
-    if (globalScope && typeof globalScope.swan !== "undefined" && globalScope.swan) {
-      return globalScope.swan;
-    }
-    if (globalScope && typeof globalScope.tt !== "undefined" && globalScope.tt) {
-      return globalScope.tt;
-    }
-    if (globalScope && typeof globalScope.qq !== "undefined" && globalScope.qq) {
-      return globalScope.qq;
-    }
-    if (typeof globalThis !== "undefined") {
-      return globalThis;
-    }
-    if (typeof window !== "undefined") {
-      return window;
-    }
-    if (typeof global !== "undefined") {
-      return global;
-    }
-    if (typeof self !== "undefined") {
-      return self;
-    }
-    return globalScope;
+  } catch (error2) {
+    console.warn("[Sentry] Failed to install polyfills:", error2);
   }
-  function installPolyfills() {
+}
+function ensurePolyfills() {
+  installPolyfills();
+}
+ensurePolyfills();
+const DEBUG_BUILD = typeof __SENTRY_DEBUG__ === "undefined" || __SENTRY_DEBUG__;
+const GLOBAL_OBJ = globalThis;
+const SDK_VERSION$1 = "10.39.0";
+function getMainCarrier() {
+  getSentryCarrier(GLOBAL_OBJ);
+  return GLOBAL_OBJ;
+}
+function getSentryCarrier(carrier) {
+  const __SENTRY__ = carrier.__SENTRY__ = carrier.__SENTRY__ || {};
+  __SENTRY__.version = __SENTRY__.version || SDK_VERSION$1;
+  return __SENTRY__[SDK_VERSION$1] = __SENTRY__[SDK_VERSION$1] || {};
+}
+function getGlobalSingleton(name, creator, obj = GLOBAL_OBJ) {
+  const __SENTRY__ = obj.__SENTRY__ = obj.__SENTRY__ || {};
+  const carrier = __SENTRY__[SDK_VERSION$1] = __SENTRY__[SDK_VERSION$1] || {};
+  return carrier[name] || (carrier[name] = creator());
+}
+const PREFIX = "Sentry Logger ";
+const originalConsoleMethods = {};
+function consoleSandbox(callback) {
+  if (!("console" in GLOBAL_OBJ)) {
+    return callback();
+  }
+  const console2 = GLOBAL_OBJ.console;
+  const wrappedFuncs = {};
+  const wrappedLevels = Object.keys(originalConsoleMethods);
+  wrappedLevels.forEach((level) => {
+    const originalConsoleMethod = originalConsoleMethods[level];
+    wrappedFuncs[level] = console2[level];
+    console2[level] = originalConsoleMethod;
+  });
+  try {
+    return callback();
+  } finally {
+    wrappedLevels.forEach((level) => {
+      console2[level] = wrappedFuncs[level];
+    });
+  }
+}
+function enable() {
+  _getLoggerSettings().enabled = true;
+}
+function disable() {
+  _getLoggerSettings().enabled = false;
+}
+function isEnabled$1() {
+  return _getLoggerSettings().enabled;
+}
+function log(...args) {
+  _maybeLog("log", ...args);
+}
+function warn(...args) {
+  _maybeLog("warn", ...args);
+}
+function error(...args) {
+  _maybeLog("error", ...args);
+}
+function _maybeLog(level, ...args) {
+  if (!DEBUG_BUILD) {
+    return;
+  }
+  if (isEnabled$1()) {
+    consoleSandbox(() => {
+      GLOBAL_OBJ.console[level](`${PREFIX}[${level}]:`, ...args);
+    });
+  }
+}
+function _getLoggerSettings() {
+  if (!DEBUG_BUILD) {
+    return { enabled: false };
+  }
+  return getGlobalSingleton("loggerSettings", () => ({ enabled: false }));
+}
+const debug = {
+  /** Enable logging. */
+  enable,
+  /** Disable logging. */
+  disable,
+  /** Check if logging is enabled. */
+  isEnabled: isEnabled$1,
+  /** Log a message. */
+  log,
+  /** Log a warning. */
+  warn,
+  /** Log an error. */
+  error
+};
+const defaultFunctionName = "<anonymous>";
+function getFunctionName$1(fn) {
+  try {
+    if (!fn || typeof fn !== "function") {
+      return defaultFunctionName;
+    }
+    return fn.name || defaultFunctionName;
+  } catch (e) {
+    return defaultFunctionName;
+  }
+}
+function getVueInternalName(value) {
+  const isVNode = "__v_isVNode" in value && value.__v_isVNode;
+  return isVNode ? "[VueVNode]" : "[VueViewModel]";
+}
+const objectToString = Object.prototype.toString;
+function isError(wat) {
+  switch (objectToString.call(wat)) {
+    case "[object Error]":
+    case "[object Exception]":
+    case "[object DOMException]":
+    case "[object WebAssembly.Exception]":
+      return true;
+    default:
+      return isInstanceOf$1(wat, Error);
+  }
+}
+function isBuiltin(wat, className) {
+  return objectToString.call(wat) === `[object ${className}]`;
+}
+function isString(wat) {
+  return isBuiltin(wat, "String");
+}
+function isParameterizedString(wat) {
+  return typeof wat === "object" && wat !== null && "__sentry_template_string__" in wat && "__sentry_template_values__" in wat;
+}
+function isPrimitive(wat) {
+  return wat === null || isParameterizedString(wat) || typeof wat !== "object" && typeof wat !== "function";
+}
+function isPlainObject(wat) {
+  return isBuiltin(wat, "Object");
+}
+function isEvent(wat) {
+  return typeof Event !== "undefined" && isInstanceOf$1(wat, Event);
+}
+function isElement(wat) {
+  return typeof Element !== "undefined" && isInstanceOf$1(wat, Element);
+}
+function isRegExp(wat) {
+  return isBuiltin(wat, "RegExp");
+}
+function isThenable(wat) {
+  return Boolean((wat == null ? void 0 : wat.then) && typeof wat.then === "function");
+}
+function isSyntheticEvent(wat) {
+  return isPlainObject(wat) && "nativeEvent" in wat && "preventDefault" in wat && "stopPropagation" in wat;
+}
+function isInstanceOf$1(wat, base) {
+  try {
+    return wat instanceof base;
+  } catch (e) {
+    return false;
+  }
+}
+function isVueViewModel(wat) {
+  return !!(typeof wat === "object" && wat !== null && (wat.__isVue || wat._isVue || wat.__v_isVNode));
+}
+const WINDOW = GLOBAL_OBJ;
+const DEFAULT_MAX_STRING_LENGTH = 80;
+function htmlTreeAsString(elem, options = {}) {
+  if (!elem) {
+    return "<unknown>";
+  }
+  try {
+    let currentElem = elem;
+    const MAX_TRAVERSE_HEIGHT = 5;
+    const out = [];
+    let height = 0;
+    let len = 0;
+    const separator = " > ";
+    const sepLength = separator.length;
+    let nextStr;
+    const keyAttrs = Array.isArray(options) ? options : options.keyAttrs;
+    const maxStringLength = !Array.isArray(options) && options.maxStringLength || DEFAULT_MAX_STRING_LENGTH;
+    while (currentElem && height++ < MAX_TRAVERSE_HEIGHT) {
+      nextStr = _htmlElementAsString(currentElem, keyAttrs);
+      if (nextStr === "html" || height > 1 && len + out.length * sepLength + nextStr.length >= maxStringLength) {
+        break;
+      }
+      out.push(nextStr);
+      len += nextStr.length;
+      currentElem = currentElem.parentNode;
+    }
+    return out.reverse().join(separator);
+  } catch (e) {
+    return "<unknown>";
+  }
+}
+function _htmlElementAsString(el, keyAttrs) {
+  const elem = el;
+  const out = [];
+  if (!(elem == null ? void 0 : elem.tagName)) {
+    return "";
+  }
+  if (WINDOW.HTMLElement) {
+    if (elem instanceof HTMLElement && elem.dataset) {
+      if (elem.dataset["sentryComponent"]) {
+        return elem.dataset["sentryComponent"];
+      }
+      if (elem.dataset["sentryElement"]) {
+        return elem.dataset["sentryElement"];
+      }
+    }
+  }
+  out.push(elem.tagName.toLowerCase());
+  const keyAttrPairs = (keyAttrs == null ? void 0 : keyAttrs.length) ? keyAttrs.filter((keyAttr) => elem.getAttribute(keyAttr)).map((keyAttr) => [keyAttr, elem.getAttribute(keyAttr)]) : null;
+  if (keyAttrPairs == null ? void 0 : keyAttrPairs.length) {
+    keyAttrPairs.forEach((keyAttrPair) => {
+      out.push(`[${keyAttrPair[0]}="${keyAttrPair[1]}"]`);
+    });
+  } else {
+    if (elem.id) {
+      out.push(`#${elem.id}`);
+    }
+    const className = elem.className;
+    if (className && isString(className)) {
+      const classes = className.split(/\s+/);
+      for (const c of classes) {
+        out.push(`.${c}`);
+      }
+    }
+  }
+  const allowedAttrs = ["aria-label", "type", "name", "title", "alt"];
+  for (const k of allowedAttrs) {
+    const attr = elem.getAttribute(k);
+    if (attr) {
+      out.push(`[${k}="${attr}"]`);
+    }
+  }
+  return out.join("");
+}
+function addNonEnumerableProperty(obj, name, value) {
+  try {
+    Object.defineProperty(obj, name, {
+      // enumerable: false, // the default, so we can save on bundle size by not explicitly setting it
+      value,
+      writable: true,
+      configurable: true
+    });
+  } catch (e) {
+    DEBUG_BUILD && debug.log(`Failed to add non-enumerable property "${name}" to object`, obj);
+  }
+}
+function convertToPlainObject(value) {
+  if (isError(value)) {
+    return __spreadValues({
+      message: value.message,
+      name: value.name,
+      stack: value.stack
+    }, getOwnProperties(value));
+  } else if (isEvent(value)) {
+    const newObj = __spreadValues({
+      type: value.type,
+      target: serializeEventTarget(value.target),
+      currentTarget: serializeEventTarget(value.currentTarget)
+    }, getOwnProperties(value));
+    if (typeof CustomEvent !== "undefined" && isInstanceOf$1(value, CustomEvent)) {
+      newObj.detail = value.detail;
+    }
+    return newObj;
+  } else {
+    return value;
+  }
+}
+function serializeEventTarget(target) {
+  try {
+    return isElement(target) ? htmlTreeAsString(target) : Object.prototype.toString.call(target);
+  } catch (e) {
+    return "<unknown>";
+  }
+}
+function getOwnProperties(obj) {
+  if (typeof obj === "object" && obj !== null) {
+    const extractedProps = {};
+    for (const property in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, property)) {
+        extractedProps[property] = obj[property];
+      }
+    }
+    return extractedProps;
+  } else {
+    return {};
+  }
+}
+let RESOLVED_RUNNER;
+function withRandomSafeContext(cb) {
+  if (RESOLVED_RUNNER !== void 0) {
+    return RESOLVED_RUNNER ? RESOLVED_RUNNER(cb) : cb();
+  }
+  const sym = Symbol.for("__SENTRY_SAFE_RANDOM_ID_WRAPPER__");
+  const globalWithSymbol = GLOBAL_OBJ;
+  if (sym in globalWithSymbol && typeof globalWithSymbol[sym] === "function") {
+    RESOLVED_RUNNER = globalWithSymbol[sym];
+    return RESOLVED_RUNNER(cb);
+  }
+  RESOLVED_RUNNER = null;
+  return cb();
+}
+function safeMathRandom() {
+  return withRandomSafeContext(() => Math.random());
+}
+function safeDateNow() {
+  return withRandomSafeContext(() => Date.now());
+}
+function truncate(str, max = 0) {
+  if (typeof str !== "string" || max === 0) {
+    return str;
+  }
+  return str.length <= max ? str : `${str.slice(0, max)}...`;
+}
+function isMatchingPattern(value, pattern, requireExactStringMatch = false) {
+  if (!isString(value)) {
+    return false;
+  }
+  if (isRegExp(pattern)) {
+    return pattern.test(value);
+  }
+  if (isString(pattern)) {
+    return requireExactStringMatch ? value === pattern : value.includes(pattern);
+  }
+  return false;
+}
+function getCrypto() {
+  const gbl = GLOBAL_OBJ;
+  return gbl.crypto || gbl.msCrypto;
+}
+let emptyUuid;
+function getRandomByte() {
+  return safeMathRandom() * 16;
+}
+function uuid4(crypto = getCrypto()) {
+  try {
+    if (crypto == null ? void 0 : crypto.randomUUID) {
+      return withRandomSafeContext(() => crypto.randomUUID()).replace(/-/g, "");
+    }
+  } catch (e) {
+  }
+  if (!emptyUuid) {
+    emptyUuid = "10000000100040008000" + 1e11;
+  }
+  return emptyUuid.replace(
+    /[018]/g,
+    (c) => (
+      // eslint-disable-next-line no-bitwise
+      (c ^ (getRandomByte() & 15) >> c / 4).toString(16)
+    )
+  );
+}
+function getFirstException(event) {
+  var _a, _b;
+  return (_b = (_a = event.exception) == null ? void 0 : _a.values) == null ? void 0 : _b[0];
+}
+function addExceptionMechanism(event, newMechanism) {
+  const firstException = getFirstException(event);
+  if (!firstException) {
+    return;
+  }
+  const defaultMechanism = { type: "generic", handled: true };
+  const currentMechanism = firstException.mechanism;
+  firstException.mechanism = __spreadValues(__spreadValues(__spreadValues({}, defaultMechanism), currentMechanism), newMechanism);
+  if (newMechanism && "data" in newMechanism) {
+    const mergedData = __spreadValues(__spreadValues({}, currentMechanism == null ? void 0 : currentMechanism.data), newMechanism.data);
+    firstException.mechanism.data = mergedData;
+  }
+}
+function checkOrSetAlreadyCaught(exception) {
+  if (isAlreadyCaptured(exception)) {
+    return true;
+  }
+  try {
+    addNonEnumerableProperty(exception, "__sentry_captured__", true);
+  } catch (e) {
+  }
+  return false;
+}
+function isAlreadyCaptured(exception) {
+  try {
+    return exception.__sentry_captured__;
+  } catch (e) {
+  }
+}
+const ONE_SECOND_IN_MS = 1e3;
+function dateTimestampInSeconds() {
+  return safeDateNow() / ONE_SECOND_IN_MS;
+}
+function createUnixTimestampInSecondsFunc() {
+  const { performance } = GLOBAL_OBJ;
+  if (!(performance == null ? void 0 : performance.now) || !performance.timeOrigin) {
+    return dateTimestampInSeconds;
+  }
+  const timeOrigin = performance.timeOrigin;
+  return () => {
+    return (timeOrigin + withRandomSafeContext(() => performance.now())) / ONE_SECOND_IN_MS;
+  };
+}
+let _cachedTimestampInSeconds;
+function timestampInSeconds() {
+  const func = _cachedTimestampInSeconds != null ? _cachedTimestampInSeconds : _cachedTimestampInSeconds = createUnixTimestampInSecondsFunc();
+  return func();
+}
+function makeSession(context) {
+  const startingTime = timestampInSeconds();
+  const session = {
+    sid: uuid4(),
+    init: true,
+    timestamp: startingTime,
+    started: startingTime,
+    duration: 0,
+    status: "ok",
+    errors: 0,
+    ignoreDuration: false,
+    toJSON: () => sessionToJSON(session)
+  };
+  if (context) {
+    updateSession(session, context);
+  }
+  return session;
+}
+function updateSession(session, context = {}) {
+  if (context.user) {
+    if (!session.ipAddress && context.user.ip_address) {
+      session.ipAddress = context.user.ip_address;
+    }
+    if (!session.did && !context.did) {
+      session.did = context.user.id || context.user.email || context.user.username;
+    }
+  }
+  session.timestamp = context.timestamp || timestampInSeconds();
+  if (context.abnormal_mechanism) {
+    session.abnormal_mechanism = context.abnormal_mechanism;
+  }
+  if (context.ignoreDuration) {
+    session.ignoreDuration = context.ignoreDuration;
+  }
+  if (context.sid) {
+    session.sid = context.sid.length === 32 ? context.sid : uuid4();
+  }
+  if (context.init !== void 0) {
+    session.init = context.init;
+  }
+  if (!session.did && context.did) {
+    session.did = `${context.did}`;
+  }
+  if (typeof context.started === "number") {
+    session.started = context.started;
+  }
+  if (session.ignoreDuration) {
+    session.duration = void 0;
+  } else if (typeof context.duration === "number") {
+    session.duration = context.duration;
+  } else {
+    const duration = session.timestamp - session.started;
+    session.duration = duration >= 0 ? duration : 0;
+  }
+  if (context.release) {
+    session.release = context.release;
+  }
+  if (context.environment) {
+    session.environment = context.environment;
+  }
+  if (!session.ipAddress && context.ipAddress) {
+    session.ipAddress = context.ipAddress;
+  }
+  if (!session.userAgent && context.userAgent) {
+    session.userAgent = context.userAgent;
+  }
+  if (typeof context.errors === "number") {
+    session.errors = context.errors;
+  }
+  if (context.status) {
+    session.status = context.status;
+  }
+}
+function closeSession(session, status) {
+  let context = {};
+  if (status) {
+    context = { status };
+  } else if (session.status === "ok") {
+    context = { status: "exited" };
+  }
+  updateSession(session, context);
+}
+function sessionToJSON(session) {
+  return {
+    sid: `${session.sid}`,
+    init: session.init,
+    // Make sure that sec is converted to ms for date constructor
+    started: new Date(session.started * 1e3).toISOString(),
+    timestamp: new Date(session.timestamp * 1e3).toISOString(),
+    status: session.status,
+    errors: session.errors,
+    did: typeof session.did === "number" || typeof session.did === "string" ? `${session.did}` : void 0,
+    duration: session.duration,
+    abnormal_mechanism: session.abnormal_mechanism,
+    attrs: {
+      release: session.release,
+      environment: session.environment,
+      ip_address: session.ipAddress,
+      user_agent: session.userAgent
+    }
+  };
+}
+function merge(initialObj, mergeObj, levels = 2) {
+  if (!mergeObj || typeof mergeObj !== "object" || levels <= 0) {
+    return mergeObj;
+  }
+  if (initialObj && Object.keys(mergeObj).length === 0) {
+    return initialObj;
+  }
+  const output = __spreadValues({}, initialObj);
+  for (const key in mergeObj) {
+    if (Object.prototype.hasOwnProperty.call(mergeObj, key)) {
+      output[key] = merge(output[key], mergeObj[key], levels - 1);
+    }
+  }
+  return output;
+}
+function generateTraceId() {
+  return uuid4();
+}
+function generateSpanId() {
+  return uuid4().substring(16);
+}
+const SCOPE_SPAN_FIELD = "_sentrySpan";
+function _setSpanForScope(scope, span) {
+  if (span) {
+    addNonEnumerableProperty(scope, SCOPE_SPAN_FIELD, span);
+  } else {
+    delete scope[SCOPE_SPAN_FIELD];
+  }
+}
+function _getSpanForScope(scope) {
+  return scope[SCOPE_SPAN_FIELD];
+}
+const DEFAULT_MAX_BREADCRUMBS = 100;
+class Scope {
+  /** Flag if notifying is happening. */
+  /** Callback for client to receive scope changes. */
+  /** Callback list that will be called during event processing. */
+  /** Array of breadcrumbs. */
+  /** User */
+  /** Tags */
+  /** Attributes */
+  /** Extra */
+  /** Contexts */
+  /** Attachments */
+  /** Propagation Context for distributed tracing */
+  /**
+   * A place to stash data which is needed at some point in the SDK's event processing pipeline but which shouldn't get
+   * sent to Sentry
+   */
+  /** Fingerprint */
+  /** Severity */
+  /**
+   * Transaction Name
+   *
+   * IMPORTANT: The transaction name on the scope has nothing to do with root spans/transaction objects.
+   * It's purpose is to assign a transaction to the scope that's added to non-transaction events.
+   */
+  /** Session */
+  /** The client on this scope */
+  /** Contains the last event id of a captured event.  */
+  /** Conversation ID */
+  // NOTE: Any field which gets added here should get added not only to the constructor but also to the `clone` method.
+  constructor() {
+    this._notifyingListeners = false;
+    this._scopeListeners = [];
+    this._eventProcessors = [];
+    this._breadcrumbs = [];
+    this._attachments = [];
+    this._user = {};
+    this._tags = {};
+    this._attributes = {};
+    this._extra = {};
+    this._contexts = {};
+    this._sdkProcessingMetadata = {};
+    this._propagationContext = {
+      traceId: generateTraceId(),
+      sampleRand: safeMathRandom()
+    };
+  }
+  /**
+   * Clone all data from this scope into a new scope.
+   */
+  clone() {
+    const newScope = new Scope();
+    newScope._breadcrumbs = [...this._breadcrumbs];
+    newScope._tags = __spreadValues({}, this._tags);
+    newScope._attributes = __spreadValues({}, this._attributes);
+    newScope._extra = __spreadValues({}, this._extra);
+    newScope._contexts = __spreadValues({}, this._contexts);
+    if (this._contexts.flags) {
+      newScope._contexts.flags = {
+        values: [...this._contexts.flags.values]
+      };
+    }
+    newScope._user = this._user;
+    newScope._level = this._level;
+    newScope._session = this._session;
+    newScope._transactionName = this._transactionName;
+    newScope._fingerprint = this._fingerprint;
+    newScope._eventProcessors = [...this._eventProcessors];
+    newScope._attachments = [...this._attachments];
+    newScope._sdkProcessingMetadata = __spreadValues({}, this._sdkProcessingMetadata);
+    newScope._propagationContext = __spreadValues({}, this._propagationContext);
+    newScope._client = this._client;
+    newScope._lastEventId = this._lastEventId;
+    newScope._conversationId = this._conversationId;
+    _setSpanForScope(newScope, _getSpanForScope(this));
+    return newScope;
+  }
+  /**
+   * Update the client assigned to this scope.
+   * Note that not every scope will have a client assigned - isolation scopes & the global scope will generally not have a client,
+   * as well as manually created scopes.
+   */
+  setClient(client) {
+    this._client = client;
+  }
+  /**
+   * Set the ID of the last captured error event.
+   * This is generally only captured on the isolation scope.
+   */
+  setLastEventId(lastEventId2) {
+    this._lastEventId = lastEventId2;
+  }
+  /**
+   * Get the client assigned to this scope.
+   */
+  getClient() {
+    return this._client;
+  }
+  /**
+   * Get the ID of the last captured error event.
+   * This is generally only available on the isolation scope.
+   */
+  lastEventId() {
+    return this._lastEventId;
+  }
+  /**
+   * @inheritDoc
+   */
+  addScopeListener(callback) {
+    this._scopeListeners.push(callback);
+  }
+  /**
+   * Add an event processor that will be called before an event is sent.
+   */
+  addEventProcessor(callback) {
+    this._eventProcessors.push(callback);
+    return this;
+  }
+  /**
+   * Set the user for this scope.
+   * Set to `null` to unset the user.
+   */
+  setUser(user) {
+    this._user = user || {
+      email: void 0,
+      id: void 0,
+      ip_address: void 0,
+      username: void 0
+    };
+    if (this._session) {
+      updateSession(this._session, { user });
+    }
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Get the user from this scope.
+   */
+  getUser() {
+    return this._user;
+  }
+  /**
+   * Set the conversation ID for this scope.
+   * Set to `null` to unset the conversation ID.
+   */
+  setConversationId(conversationId) {
+    this._conversationId = conversationId || void 0;
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Set an object that will be merged into existing tags on the scope,
+   * and will be sent as tags data with the event.
+   */
+  setTags(tags) {
+    this._tags = __spreadValues(__spreadValues({}, this._tags), tags);
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Set a single tag that will be sent as tags data with the event.
+   */
+  setTag(key, value) {
+    return this.setTags({ [key]: value });
+  }
+  /**
+   * Sets attributes onto the scope.
+   *
+   * These attributes are currently applied to logs and metrics.
+   * In the future, they will also be applied to spans.
+   *
+   * Important: For now, only strings, numbers and boolean attributes are supported, despite types allowing for
+   * more complex attribute types. We'll add this support in the future but already specify the wider type to
+   * avoid a breaking change in the future.
+   *
+   * @param newAttributes - The attributes to set on the scope. You can either pass in key-value pairs, or
+   * an object with a `value` and an optional `unit` (if applicable to your attribute).
+   *
+   * @example
+   * ```typescript
+   * scope.setAttributes({
+   *   is_admin: true,
+   *   payment_selection: 'credit_card',
+   *   render_duration: { value: 'render_duration', unit: 'ms' },
+   * });
+   * ```
+   */
+  setAttributes(newAttributes) {
+    this._attributes = __spreadValues(__spreadValues({}, this._attributes), newAttributes);
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Sets an attribute onto the scope.
+   *
+   * These attributes are currently applied to logs and metrics.
+   * In the future, they will also be applied to spans.
+   *
+   * Important: For now, only strings, numbers and boolean attributes are supported, despite types allowing for
+   * more complex attribute types. We'll add this support in the future but already specify the wider type to
+   * avoid a breaking change in the future.
+   *
+   * @param key - The attribute key.
+   * @param value - the attribute value. You can either pass in a raw value, or an attribute
+   * object with a `value` and an optional `unit` (if applicable to your attribute).
+   *
+   * @example
+   * ```typescript
+   * scope.setAttribute('is_admin', true);
+   * scope.setAttribute('render_duration', { value: 'render_duration', unit: 'ms' });
+   * ```
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setAttribute(key, value) {
+    return this.setAttributes({ [key]: value });
+  }
+  /**
+   * Removes the attribute with the given key from the scope.
+   *
+   * @param key - The attribute key.
+   *
+   * @example
+   * ```typescript
+   * scope.removeAttribute('is_admin');
+   * ```
+   */
+  removeAttribute(key) {
+    if (key in this._attributes) {
+      delete this._attributes[key];
+      this._notifyScopeListeners();
+    }
+    return this;
+  }
+  /**
+   * Set an object that will be merged into existing extra on the scope,
+   * and will be sent as extra data with the event.
+   */
+  setExtras(extras) {
+    this._extra = __spreadValues(__spreadValues({}, this._extra), extras);
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Set a single key:value extra entry that will be sent as extra data with the event.
+   */
+  setExtra(key, extra) {
+    this._extra = __spreadProps(__spreadValues({}, this._extra), { [key]: extra });
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Sets the fingerprint on the scope to send with the events.
+   * @param {string[]} fingerprint Fingerprint to group events in Sentry.
+   */
+  setFingerprint(fingerprint) {
+    this._fingerprint = fingerprint;
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Sets the level on the scope for future events.
+   */
+  setLevel(level) {
+    this._level = level;
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Sets the transaction name on the scope so that the name of e.g. taken server route or
+   * the page location is attached to future events.
+   *
+   * IMPORTANT: Calling this function does NOT change the name of the currently active
+   * root span. If you want to change the name of the active root span, use
+   * `Sentry.updateSpanName(rootSpan, 'new name')` instead.
+   *
+   * By default, the SDK updates the scope's transaction name automatically on sensible
+   * occasions, such as a page navigation or when handling a new request on the server.
+   */
+  setTransactionName(name) {
+    this._transactionName = name;
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Sets context data with the given name.
+   * Data passed as context will be normalized. You can also pass `null` to unset the context.
+   * Note that context data will not be merged - calling `setContext` will overwrite an existing context with the same key.
+   */
+  setContext(key, context) {
+    if (context === null) {
+      delete this._contexts[key];
+    } else {
+      this._contexts[key] = context;
+    }
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Set the session for the scope.
+   */
+  setSession(session) {
+    if (!session) {
+      delete this._session;
+    } else {
+      this._session = session;
+    }
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Get the session from the scope.
+   */
+  getSession() {
+    return this._session;
+  }
+  /**
+   * Updates the scope with provided data. Can work in three variations:
+   * - plain object containing updatable attributes
+   * - Scope instance that'll extract the attributes from
+   * - callback function that'll receive the current scope as an argument and allow for modifications
+   */
+  update(captureContext) {
+    if (!captureContext) {
+      return this;
+    }
+    const scopeToMerge = typeof captureContext === "function" ? captureContext(this) : captureContext;
+    const scopeInstance = scopeToMerge instanceof Scope ? scopeToMerge.getScopeData() : isPlainObject(scopeToMerge) ? captureContext : void 0;
+    const {
+      tags,
+      attributes,
+      extra,
+      user,
+      contexts,
+      level,
+      fingerprint = [],
+      propagationContext,
+      conversationId
+    } = scopeInstance || {};
+    this._tags = __spreadValues(__spreadValues({}, this._tags), tags);
+    this._attributes = __spreadValues(__spreadValues({}, this._attributes), attributes);
+    this._extra = __spreadValues(__spreadValues({}, this._extra), extra);
+    this._contexts = __spreadValues(__spreadValues({}, this._contexts), contexts);
+    if (user && Object.keys(user).length) {
+      this._user = user;
+    }
+    if (level) {
+      this._level = level;
+    }
+    if (fingerprint.length) {
+      this._fingerprint = fingerprint;
+    }
+    if (propagationContext) {
+      this._propagationContext = propagationContext;
+    }
+    if (conversationId) {
+      this._conversationId = conversationId;
+    }
+    return this;
+  }
+  /**
+   * Clears the current scope and resets its properties.
+   * Note: The client will not be cleared.
+   */
+  clear() {
+    this._breadcrumbs = [];
+    this._tags = {};
+    this._attributes = {};
+    this._extra = {};
+    this._user = {};
+    this._contexts = {};
+    this._level = void 0;
+    this._transactionName = void 0;
+    this._fingerprint = void 0;
+    this._session = void 0;
+    this._conversationId = void 0;
+    _setSpanForScope(this, void 0);
+    this._attachments = [];
+    this.setPropagationContext({
+      traceId: generateTraceId(),
+      sampleRand: safeMathRandom()
+    });
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Adds a breadcrumb to the scope.
+   * By default, the last 100 breadcrumbs are kept.
+   */
+  addBreadcrumb(breadcrumb, maxBreadcrumbs) {
+    var _a;
+    const maxCrumbs = typeof maxBreadcrumbs === "number" ? maxBreadcrumbs : DEFAULT_MAX_BREADCRUMBS;
+    if (maxCrumbs <= 0) {
+      return this;
+    }
+    const mergedBreadcrumb = __spreadProps(__spreadValues({
+      timestamp: dateTimestampInSeconds()
+    }, breadcrumb), {
+      // Breadcrumb messages can theoretically be infinitely large and they're held in memory so we truncate them not to leak (too much) memory
+      message: breadcrumb.message ? truncate(breadcrumb.message, 2048) : breadcrumb.message
+    });
+    this._breadcrumbs.push(mergedBreadcrumb);
+    if (this._breadcrumbs.length > maxCrumbs) {
+      this._breadcrumbs = this._breadcrumbs.slice(-maxCrumbs);
+      (_a = this._client) == null ? void 0 : _a.recordDroppedEvent("buffer_overflow", "log_item");
+    }
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Get the last breadcrumb of the scope.
+   */
+  getLastBreadcrumb() {
+    return this._breadcrumbs[this._breadcrumbs.length - 1];
+  }
+  /**
+   * Clear all breadcrumbs from the scope.
+   */
+  clearBreadcrumbs() {
+    this._breadcrumbs = [];
+    this._notifyScopeListeners();
+    return this;
+  }
+  /**
+   * Add an attachment to the scope.
+   */
+  addAttachment(attachment) {
+    this._attachments.push(attachment);
+    return this;
+  }
+  /**
+   * Clear all attachments from the scope.
+   */
+  clearAttachments() {
+    this._attachments = [];
+    return this;
+  }
+  /**
+   * Get the data of this scope, which should be applied to an event during processing.
+   */
+  getScopeData() {
+    return {
+      breadcrumbs: this._breadcrumbs,
+      attachments: this._attachments,
+      contexts: this._contexts,
+      tags: this._tags,
+      attributes: this._attributes,
+      extra: this._extra,
+      user: this._user,
+      level: this._level,
+      fingerprint: this._fingerprint || [],
+      eventProcessors: this._eventProcessors,
+      propagationContext: this._propagationContext,
+      sdkProcessingMetadata: this._sdkProcessingMetadata,
+      transactionName: this._transactionName,
+      span: _getSpanForScope(this),
+      conversationId: this._conversationId
+    };
+  }
+  /**
+   * Add data which will be accessible during event processing but won't get sent to Sentry.
+   */
+  setSDKProcessingMetadata(newData) {
+    this._sdkProcessingMetadata = merge(this._sdkProcessingMetadata, newData, 2);
+    return this;
+  }
+  /**
+   * Add propagation context to the scope, used for distributed tracing
+   */
+  setPropagationContext(context) {
+    this._propagationContext = context;
+    return this;
+  }
+  /**
+   * Get propagation context from the scope, used for distributed tracing
+   */
+  getPropagationContext() {
+    return this._propagationContext;
+  }
+  /**
+   * Capture an exception for this scope.
+   *
+   * @returns {string} The id of the captured Sentry event.
+   */
+  captureException(exception, hint) {
+    const eventId = (hint == null ? void 0 : hint.event_id) || uuid4();
+    if (!this._client) {
+      DEBUG_BUILD && debug.warn("No client configured on scope - will not capture exception!");
+      return eventId;
+    }
+    const syntheticException = new Error("Sentry syntheticException");
+    this._client.captureException(
+      exception,
+      __spreadProps(__spreadValues({
+        originalException: exception,
+        syntheticException
+      }, hint), {
+        event_id: eventId
+      }),
+      this
+    );
+    return eventId;
+  }
+  /**
+   * Capture a message for this scope.
+   *
+   * @returns {string} The id of the captured message.
+   */
+  captureMessage(message, level, hint) {
+    var _a;
+    const eventId = (hint == null ? void 0 : hint.event_id) || uuid4();
+    if (!this._client) {
+      DEBUG_BUILD && debug.warn("No client configured on scope - will not capture message!");
+      return eventId;
+    }
+    const syntheticException = (_a = hint == null ? void 0 : hint.syntheticException) != null ? _a : new Error(message);
+    this._client.captureMessage(
+      message,
+      level,
+      __spreadProps(__spreadValues({
+        originalException: message,
+        syntheticException
+      }, hint), {
+        event_id: eventId
+      }),
+      this
+    );
+    return eventId;
+  }
+  /**
+   * Capture a Sentry event for this scope.
+   *
+   * @returns {string} The id of the captured event.
+   */
+  captureEvent(event, hint) {
+    const eventId = event.event_id || (hint == null ? void 0 : hint.event_id) || uuid4();
+    if (!this._client) {
+      DEBUG_BUILD && debug.warn("No client configured on scope - will not capture event!");
+      return eventId;
+    }
+    this._client.captureEvent(event, __spreadProps(__spreadValues({}, hint), { event_id: eventId }), this);
+    return eventId;
+  }
+  /**
+   * This will be called on every set call.
+   */
+  _notifyScopeListeners() {
+    if (!this._notifyingListeners) {
+      this._notifyingListeners = true;
+      this._scopeListeners.forEach((callback) => {
+        callback(this);
+      });
+      this._notifyingListeners = false;
+    }
+  }
+}
+function getDefaultCurrentScope() {
+  return getGlobalSingleton("defaultCurrentScope", () => new Scope());
+}
+function getDefaultIsolationScope() {
+  return getGlobalSingleton("defaultIsolationScope", () => new Scope());
+}
+class AsyncContextStack {
+  constructor(scope, isolationScope) {
+    let assignedScope;
+    if (!scope) {
+      assignedScope = new Scope();
+    } else {
+      assignedScope = scope;
+    }
+    let assignedIsolationScope;
+    if (!isolationScope) {
+      assignedIsolationScope = new Scope();
+    } else {
+      assignedIsolationScope = isolationScope;
+    }
+    this._stack = [{ scope: assignedScope }];
+    this._isolationScope = assignedIsolationScope;
+  }
+  /**
+   * Fork a scope for the stack.
+   */
+  withScope(callback) {
+    const scope = this._pushScope();
+    let maybePromiseResult;
     try {
-      const globalObj = getGlobalObject();
-      if (!globalObj) {
-        console.warn("[Sentry] Unable to detect global object, polyfills may not work correctly");
+      maybePromiseResult = callback(scope);
+    } catch (e) {
+      this._popScope();
+      throw e;
+    }
+    if (isThenable(maybePromiseResult)) {
+      return maybePromiseResult.then(
+        (res) => {
+          this._popScope();
+          return res;
+        },
+        (e) => {
+          this._popScope();
+          throw e;
+        }
+      );
+    }
+    this._popScope();
+    return maybePromiseResult;
+  }
+  /**
+   * Get the client of the stack.
+   */
+  getClient() {
+    return this.getStackTop().client;
+  }
+  /**
+   * Returns the scope of the top stack.
+   */
+  getScope() {
+    return this.getStackTop().scope;
+  }
+  /**
+   * Get the isolation scope for the stack.
+   */
+  getIsolationScope() {
+    return this._isolationScope;
+  }
+  /**
+   * Returns the topmost scope layer in the order domain > local > process.
+   */
+  getStackTop() {
+    return this._stack[this._stack.length - 1];
+  }
+  /**
+   * Push a scope to the stack.
+   */
+  _pushScope() {
+    const scope = this.getScope().clone();
+    this._stack.push({
+      client: this.getClient(),
+      scope
+    });
+    return scope;
+  }
+  /**
+   * Pop a scope from the stack.
+   */
+  _popScope() {
+    if (this._stack.length <= 1) return false;
+    return !!this._stack.pop();
+  }
+}
+function getAsyncContextStack() {
+  const registry = getMainCarrier();
+  const sentry = getSentryCarrier(registry);
+  return sentry.stack = sentry.stack || new AsyncContextStack(getDefaultCurrentScope(), getDefaultIsolationScope());
+}
+function withScope$1(callback) {
+  return getAsyncContextStack().withScope(callback);
+}
+function withSetScope(scope, callback) {
+  const stack = getAsyncContextStack();
+  return stack.withScope(() => {
+    stack.getStackTop().scope = scope;
+    return callback(scope);
+  });
+}
+function withIsolationScope(callback) {
+  return getAsyncContextStack().withScope(() => {
+    return callback(getAsyncContextStack().getIsolationScope());
+  });
+}
+function getStackAsyncContextStrategy() {
+  return {
+    withIsolationScope,
+    withScope: withScope$1,
+    withSetScope,
+    withSetIsolationScope: (_isolationScope, callback) => {
+      return withIsolationScope(callback);
+    },
+    getCurrentScope: () => getAsyncContextStack().getScope(),
+    getIsolationScope: () => getAsyncContextStack().getIsolationScope()
+  };
+}
+function getAsyncContextStrategy(carrier) {
+  const sentry = getSentryCarrier(carrier);
+  if (sentry.acs) {
+    return sentry.acs;
+  }
+  return getStackAsyncContextStrategy();
+}
+function getCurrentScope() {
+  const carrier = getMainCarrier();
+  const acs = getAsyncContextStrategy(carrier);
+  return acs.getCurrentScope();
+}
+function getIsolationScope() {
+  const carrier = getMainCarrier();
+  const acs = getAsyncContextStrategy(carrier);
+  return acs.getIsolationScope();
+}
+function getGlobalScope() {
+  return getGlobalSingleton("globalScope", () => new Scope());
+}
+function withScope(...rest) {
+  const carrier = getMainCarrier();
+  const acs = getAsyncContextStrategy(carrier);
+  if (rest.length === 2) {
+    const [scope, callback] = rest;
+    if (!scope) {
+      return acs.withScope(callback);
+    }
+    return acs.withSetScope(scope, callback);
+  }
+  return acs.withScope(rest[0]);
+}
+function getClient() {
+  return getCurrentScope().getClient();
+}
+function getTraceContextFromScope(scope) {
+  const propagationContext = scope.getPropagationContext();
+  const { traceId, parentSpanId, propagationSpanId } = propagationContext;
+  const traceContext = {
+    trace_id: traceId,
+    span_id: propagationSpanId || generateSpanId()
+  };
+  if (parentSpanId) {
+    traceContext.parent_span_id = parentSpanId;
+  }
+  return traceContext;
+}
+const SEMANTIC_ATTRIBUTE_SENTRY_SOURCE = "sentry.source";
+const SEMANTIC_ATTRIBUTE_SENTRY_SAMPLE_RATE = "sentry.sample_rate";
+const SEMANTIC_ATTRIBUTE_SENTRY_PREVIOUS_TRACE_SAMPLE_RATE = "sentry.previous_trace_sample_rate";
+const SEMANTIC_ATTRIBUTE_SENTRY_OP = "sentry.op";
+const SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN = "sentry.origin";
+const SEMANTIC_ATTRIBUTE_SENTRY_MEASUREMENT_UNIT = "sentry.measurement_unit";
+const SEMANTIC_ATTRIBUTE_SENTRY_MEASUREMENT_VALUE = "sentry.measurement_value";
+const SEMANTIC_ATTRIBUTE_SENTRY_CUSTOM_SPAN_NAME = "sentry.custom_span_name";
+const SEMANTIC_ATTRIBUTE_PROFILE_ID = "sentry.profile_id";
+const SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME = "sentry.exclusive_time";
+const SPAN_STATUS_UNSET = 0;
+const SPAN_STATUS_OK = 1;
+const SPAN_STATUS_ERROR = 2;
+const SCOPE_ON_START_SPAN_FIELD = "_sentryScope";
+const ISOLATION_SCOPE_ON_START_SPAN_FIELD = "_sentryIsolationScope";
+function wrapScopeWithWeakRef(scope) {
+  try {
+    const WeakRefClass = GLOBAL_OBJ.WeakRef;
+    if (typeof WeakRefClass === "function") {
+      return new WeakRefClass(scope);
+    }
+  } catch (e) {
+  }
+  return scope;
+}
+function unwrapScopeFromWeakRef(scopeRef) {
+  if (!scopeRef) {
+    return void 0;
+  }
+  if (typeof scopeRef === "object" && "deref" in scopeRef && typeof scopeRef.deref === "function") {
+    try {
+      return scopeRef.deref();
+    } catch (e) {
+      return void 0;
+    }
+  }
+  return scopeRef;
+}
+function setCapturedScopesOnSpan(span, scope, isolationScope) {
+  if (span) {
+    addNonEnumerableProperty(span, ISOLATION_SCOPE_ON_START_SPAN_FIELD, wrapScopeWithWeakRef(isolationScope));
+    addNonEnumerableProperty(span, SCOPE_ON_START_SPAN_FIELD, scope);
+  }
+}
+function getCapturedScopesOnSpan(span) {
+  const spanWithScopes = span;
+  return {
+    scope: spanWithScopes[SCOPE_ON_START_SPAN_FIELD],
+    isolationScope: unwrapScopeFromWeakRef(spanWithScopes[ISOLATION_SCOPE_ON_START_SPAN_FIELD])
+  };
+}
+const SENTRY_BAGGAGE_KEY_PREFIX = "sentry-";
+const SENTRY_BAGGAGE_KEY_PREFIX_REGEX = /^sentry-/;
+function baggageHeaderToDynamicSamplingContext(baggageHeader) {
+  const baggageObject = parseBaggageHeader(baggageHeader);
+  if (!baggageObject) {
+    return void 0;
+  }
+  const dynamicSamplingContext = Object.entries(baggageObject).reduce((acc, [key, value]) => {
+    if (key.match(SENTRY_BAGGAGE_KEY_PREFIX_REGEX)) {
+      const nonPrefixedKey = key.slice(SENTRY_BAGGAGE_KEY_PREFIX.length);
+      acc[nonPrefixedKey] = value;
+    }
+    return acc;
+  }, {});
+  if (Object.keys(dynamicSamplingContext).length > 0) {
+    return dynamicSamplingContext;
+  } else {
+    return void 0;
+  }
+}
+function parseBaggageHeader(baggageHeader) {
+  if (!baggageHeader || !isString(baggageHeader) && !Array.isArray(baggageHeader)) {
+    return void 0;
+  }
+  if (Array.isArray(baggageHeader)) {
+    return baggageHeader.reduce((acc, curr) => {
+      const currBaggageObject = baggageHeaderToObject(curr);
+      Object.entries(currBaggageObject).forEach(([key, value]) => {
+        acc[key] = value;
+      });
+      return acc;
+    }, {});
+  }
+  return baggageHeaderToObject(baggageHeader);
+}
+function baggageHeaderToObject(baggageHeader) {
+  return baggageHeader.split(",").map((baggageEntry) => {
+    const eqIdx = baggageEntry.indexOf("=");
+    if (eqIdx === -1) {
+      return [];
+    }
+    const key = baggageEntry.slice(0, eqIdx);
+    const value = baggageEntry.slice(eqIdx + 1);
+    return [key, value].map((keyOrValue) => {
+      try {
+        return decodeURIComponent(keyOrValue.trim());
+      } catch (e) {
         return;
       }
-      if (typeof globalObj.URLSearchParams === "undefined") {
-        globalObj.URLSearchParams = URLSearchParamsPolyfill;
-      }
-      const globalScope = Function("return this")();
-      if (globalScope && typeof globalScope.URLSearchParams === "undefined") {
-        globalScope.URLSearchParams = URLSearchParamsPolyfill;
-      }
-      if (typeof globalThis !== "undefined" && typeof globalThis.URLSearchParams === "undefined") {
-        globalThis.URLSearchParams = URLSearchParamsPolyfill;
-      }
-    } catch (error) {
-      console.warn("[Sentry] Failed to install polyfills:", error);
+    });
+  }).reduce((acc, [key, value]) => {
+    if (key && value) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+const ORG_ID_REGEX = /^o(\d+)\./;
+const DSN_REGEX = /^(?:(\w+):)\/\/(?:(\w+)(?::(\w+)?)?@)((?:\[[:.%\w]+\]|[\w.-]+))(?::(\d+))?\/(.+)/;
+function isValidProtocol(protocol) {
+  return protocol === "http" || protocol === "https";
+}
+function dsnToString(dsn, withPassword = false) {
+  const { host, path, pass, port, projectId, protocol, publicKey } = dsn;
+  return `${protocol}://${publicKey}${withPassword && pass ? `:${pass}` : ""}@${host}${port ? `:${port}` : ""}/${path ? `${path}/` : path}${projectId}`;
+}
+function dsnFromString(str) {
+  const match = DSN_REGEX.exec(str);
+  if (!match) {
+    consoleSandbox(() => {
+      console.error(`Invalid Sentry Dsn: ${str}`);
+    });
+    return void 0;
+  }
+  const [protocol, publicKey, pass = "", host = "", port = "", lastPath = ""] = match.slice(1);
+  let path = "";
+  let projectId = lastPath;
+  const split = projectId.split("/");
+  if (split.length > 1) {
+    path = split.slice(0, -1).join("/");
+    projectId = split.pop();
+  }
+  if (projectId) {
+    const projectMatch = projectId.match(/^\d+/);
+    if (projectMatch) {
+      projectId = projectMatch[0];
     }
   }
-  function ensurePolyfills() {
-    installPolyfills();
+  return dsnFromComponents({ host, pass, path, projectId, port, protocol, publicKey });
+}
+function dsnFromComponents(components) {
+  return {
+    protocol: components.protocol,
+    publicKey: components.publicKey || "",
+    pass: components.pass || "",
+    host: components.host,
+    port: components.port || "",
+    path: components.path || "",
+    projectId: components.projectId
+  };
+}
+function validateDsn(dsn) {
+  if (!DEBUG_BUILD) {
+    return true;
   }
-  ensurePolyfills();
-  const SDK_VERSION = "1.0.0-beta.1";
-  const SDK_NAME = "sentry.javascript.miniapp";
-  const getSDK = () => {
-    let currentSdk = {
-      // tslint:disable-next-line: no-empty
-      request: () => {
-      },
-      // tslint:disable-next-line: no-empty
-      httpRequest: () => {
-      },
-      // tslint:disable-next-line: no-empty
-      getSystemInfoSync: () => ({}),
-      // tslint:disable-next-line: no-empty
-      URLSearchParams: () => {
-      }
-    };
-    if (typeof wx === "object" && wx !== null) {
-      currentSdk = wx;
-    } else if (typeof my === "object" && my !== null) {
-      currentSdk = my;
-    } else if (typeof tt === "object" && tt !== null) {
-      currentSdk = tt;
-    } else if (typeof dd === "object" && dd !== null) {
-      currentSdk = dd;
-    } else if (typeof qq === "object" && qq !== null) {
-      currentSdk = qq;
-    } else if (typeof swan === "object" && swan !== null) {
-      currentSdk = swan;
-    } else {
-      throw new Error("sentry-miniapp 暂不支持此平台");
-    }
-    return currentSdk;
-  };
-  const getAppName = () => {
-    let currentAppName = "unknown";
-    if (typeof wx === "object" && wx !== null) {
-      currentAppName = "wechat";
-    } else if (typeof my === "object" && my !== null) {
-      currentAppName = "alipay";
-    } else if (typeof tt === "object" && tt !== null) {
-      currentAppName = "bytedance";
-    } else if (typeof dd === "object" && dd !== null) {
-      currentAppName = "dingtalk";
-    } else if (typeof qq === "object" && qq !== null) {
-      currentAppName = "qq";
-    } else if (typeof swan === "object" && swan !== null) {
-      currentAppName = "swan";
-    }
-    return currentAppName;
-  };
-  const getSystemInfo = () => {
-    try {
-      const currentSdk = getSDK();
-      if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo && currentSdk.getAppBaseInfo) {
-        const deviceInfo = currentSdk.getDeviceInfo();
-        const windowInfo = currentSdk.getWindowInfo();
-        const appBaseInfo = currentSdk.getAppBaseInfo();
-        return {
-          brand: deviceInfo.brand || "",
-          model: deviceInfo.model || "",
-          pixelRatio: windowInfo.pixelRatio || 1,
-          screenWidth: windowInfo.screenWidth || 0,
-          screenHeight: windowInfo.screenHeight || 0,
-          windowWidth: windowInfo.windowWidth || 0,
-          windowHeight: windowInfo.windowHeight || 0,
-          statusBarHeight: windowInfo.statusBarHeight || 0,
-          language: appBaseInfo.language || "",
-          version: appBaseInfo.version || deviceInfo.system || "",
-          system: deviceInfo.system || "",
-          platform: deviceInfo.platform || "",
-          fontSizeSetting: appBaseInfo.fontSizeSetting || 0,
-          SDKVersion: appBaseInfo.SDKVersion || "",
-          benchmarkLevel: deviceInfo.benchmarkLevel || 0,
-          albumAuthorized: deviceInfo.albumAuthorized || false,
-          cameraAuthorized: deviceInfo.cameraAuthorized || false,
-          locationAuthorized: deviceInfo.locationAuthorized || false,
-          microphoneAuthorized: deviceInfo.microphoneAuthorized || false,
-          notificationAuthorized: deviceInfo.notificationAuthorized || false,
-          bluetoothEnabled: deviceInfo.bluetoothEnabled || false,
-          locationEnabled: deviceInfo.locationEnabled || false,
-          wifiEnabled: deviceInfo.wifiEnabled || false,
-          safeArea: windowInfo.safeArea || {
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: windowInfo.windowWidth || 0,
-            height: windowInfo.windowHeight || 0
-          }
-        };
-      }
-      if (currentSdk.getSystemInfoSync) {
-        console.warn("[Sentry] getSystemInfoSync is deprecated. Please update to use getDeviceInfo/getWindowInfo/getAppBaseInfo.");
-        return currentSdk.getSystemInfoSync();
-      }
-    } catch (error) {
-      console.warn("Failed to get system info:", error);
-    }
-    return null;
-  };
-  const isMiniappEnvironment = () => {
-    try {
-      getSDK();
+  const { port, projectId, protocol } = dsn;
+  const requiredComponents = ["protocol", "publicKey", "host", "projectId"];
+  const hasMissingRequiredComponent = requiredComponents.find((component) => {
+    if (!dsn[component]) {
+      debug.error(`Invalid Sentry Dsn: ${component} missing`);
       return true;
-    } catch (e) {
-      return false;
     }
-  };
-  let _sdk = null;
-  let _appName = null;
-  const sdk = () => {
-    if (_sdk === null) {
-      _sdk = getSDK();
-    }
-    return _sdk;
-  };
-  const appName = () => {
-    if (_appName === null) {
-      _appName = getAppName();
-    }
-    return _appName;
-  };
-  const getPerformanceManager = () => {
-    try {
-      const currentSdk = sdk();
-      if (currentSdk.getPerformance && typeof currentSdk.getPerformance === "function") {
-        return currentSdk.getPerformance();
-      }
-    } catch (error) {
-      console.warn("Failed to get performance manager:", error);
-    }
-    return null;
-  };
-  function createMiniappTransport(options) {
-    const transportUrl = options.url;
-    function makeRequest(request) {
-      return new Promise((resolve, reject) => {
-        var _a, _b, _c, _d;
-        const requestOptions = {
-          url: transportUrl,
-          method: "POST",
-          data: request.body,
-          header: __spreadValues({
-            "Content-Type": "application/json"
-          }, request.headers),
-          timeout: 1e4,
-          success: (res) => {
-            var _a2, _b2;
-            const status = res.statusCode;
-            resolve({
-              statusCode: status,
-              headers: {
-                "x-sentry-rate-limits": (_a2 = res.header) == null ? void 0 : _a2["x-sentry-rate-limits"],
-                "retry-after": (_b2 = res.header) == null ? void 0 : _b2["retry-after"]
-              }
-            });
-          },
-          fail: (error) => {
-            reject(new Error(`Network request failed: ${error.errMsg || error.message || "Unknown error"}`));
-          }
-        };
-        if (sdk().request) {
-          (_b = (_a = sdk()).request) == null ? void 0 : _b.call(_a, requestOptions);
-        } else if (sdk().httpRequest) {
-          (_d = (_c = sdk()).httpRequest) == null ? void 0 : _d.call(_c, requestOptions);
-        } else {
-          reject(new Error("No request method available in current miniapp environment"));
-        }
-      });
-    }
-    return core.createTransport(options, makeRequest);
+    return false;
+  });
+  if (hasMissingRequiredComponent) {
+    return false;
   }
-  const index$1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    createMiniappTransport
-  }, Symbol.toStringTag, { value: "Module" }));
-  class MiniappClient extends core.Client {
-    /**
-     * Creates a new Miniapp SDK instance.
-     *
-     * @param options Configuration options for this SDK.
-     */
-    constructor(options = {}) {
-      super(__spreadProps(__spreadValues({}, options), {
-        transport: options.transport || ((transportOptions) => {
-          return createMiniappTransport(__spreadProps(__spreadValues({}, transportOptions), {
-            headers: {}
-          }));
-        })
+  if (!projectId.match(/^\d+$/)) {
+    debug.error(`Invalid Sentry Dsn: Invalid projectId ${projectId}`);
+    return false;
+  }
+  if (!isValidProtocol(protocol)) {
+    debug.error(`Invalid Sentry Dsn: Invalid protocol ${protocol}`);
+    return false;
+  }
+  if (port && isNaN(parseInt(port, 10))) {
+    debug.error(`Invalid Sentry Dsn: Invalid port ${port}`);
+    return false;
+  }
+  return true;
+}
+function extractOrgIdFromDsnHost(host) {
+  const match = host.match(ORG_ID_REGEX);
+  return match == null ? void 0 : match[1];
+}
+function extractOrgIdFromClient(client) {
+  const options = client.getOptions();
+  const { host } = client.getDsn() || {};
+  let org_id;
+  if (options.orgId) {
+    org_id = String(options.orgId);
+  } else if (host) {
+    org_id = extractOrgIdFromDsnHost(host);
+  }
+  return org_id;
+}
+function makeDsn(from) {
+  const components = typeof from === "string" ? dsnFromString(from) : dsnFromComponents(from);
+  if (!components || !validateDsn(components)) {
+    return void 0;
+  }
+  return components;
+}
+function parseSampleRate(sampleRate) {
+  if (typeof sampleRate === "boolean") {
+    return Number(sampleRate);
+  }
+  const rate = typeof sampleRate === "string" ? parseFloat(sampleRate) : sampleRate;
+  if (typeof rate !== "number" || isNaN(rate) || rate < 0 || rate > 1) {
+    return void 0;
+  }
+  return rate;
+}
+const TRACE_FLAG_NONE = 0;
+const TRACE_FLAG_SAMPLED = 1;
+let hasShownSpanDropWarning = false;
+function spanToTransactionTraceContext(span) {
+  const { spanId: span_id, traceId: trace_id } = span.spanContext();
+  const { data, op, parent_span_id, status, origin, links } = spanToJSON(span);
+  return {
+    parent_span_id,
+    span_id,
+    trace_id,
+    data,
+    op,
+    status,
+    origin,
+    links
+  };
+}
+function spanToTraceContext(span) {
+  const { spanId, traceId: trace_id, isRemote } = span.spanContext();
+  const parent_span_id = isRemote ? spanId : spanToJSON(span).parent_span_id;
+  const scope = getCapturedScopesOnSpan(span).scope;
+  const span_id = isRemote ? (scope == null ? void 0 : scope.getPropagationContext().propagationSpanId) || generateSpanId() : spanId;
+  return {
+    parent_span_id,
+    span_id,
+    trace_id
+  };
+}
+function convertSpanLinksForEnvelope(links) {
+  if (links && links.length > 0) {
+    return links.map((_a) => {
+      var _b = _a, { context: _c } = _b, _d = _c, { spanId, traceId, traceFlags } = _d, restContext = __objRest(_d, ["spanId", "traceId", "traceFlags"]), { attributes } = _b;
+      return __spreadValues({
+        span_id: spanId,
+        trace_id: traceId,
+        sampled: traceFlags === TRACE_FLAG_SAMPLED,
+        attributes
+      }, restContext);
+    });
+  } else {
+    return void 0;
+  }
+}
+function spanTimeInputToSeconds(input) {
+  if (typeof input === "number") {
+    return ensureTimestampInSeconds(input);
+  }
+  if (Array.isArray(input)) {
+    return input[0] + input[1] / 1e9;
+  }
+  if (input instanceof Date) {
+    return ensureTimestampInSeconds(input.getTime());
+  }
+  return timestampInSeconds();
+}
+function ensureTimestampInSeconds(timestamp) {
+  const isMs = timestamp > 9999999999;
+  return isMs ? timestamp / 1e3 : timestamp;
+}
+function spanToJSON(span) {
+  var _a;
+  if (spanIsSentrySpan(span)) {
+    return span.getSpanJSON();
+  }
+  const { spanId: span_id, traceId: trace_id } = span.spanContext();
+  if (spanIsOpenTelemetrySdkTraceBaseSpan(span)) {
+    const { attributes, startTime, name, endTime, status, links } = span;
+    const parentSpanId = "parentSpanId" in span ? span.parentSpanId : "parentSpanContext" in span ? (_a = span.parentSpanContext) == null ? void 0 : _a.spanId : void 0;
+    return {
+      span_id,
+      trace_id,
+      data: attributes,
+      description: name,
+      parent_span_id: parentSpanId,
+      start_timestamp: spanTimeInputToSeconds(startTime),
+      // This is [0,0] by default in OTEL, in which case we want to interpret this as no end time
+      timestamp: spanTimeInputToSeconds(endTime) || void 0,
+      status: getStatusMessage(status),
+      op: attributes[SEMANTIC_ATTRIBUTE_SENTRY_OP],
+      origin: attributes[SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN],
+      links: convertSpanLinksForEnvelope(links)
+    };
+  }
+  return {
+    span_id,
+    trace_id,
+    start_timestamp: 0,
+    data: {}
+  };
+}
+function spanIsOpenTelemetrySdkTraceBaseSpan(span) {
+  const castSpan = span;
+  return !!castSpan.attributes && !!castSpan.startTime && !!castSpan.name && !!castSpan.endTime && !!castSpan.status;
+}
+function spanIsSentrySpan(span) {
+  return typeof span.getSpanJSON === "function";
+}
+function spanIsSampled(span) {
+  const { traceFlags } = span.spanContext();
+  return traceFlags === TRACE_FLAG_SAMPLED;
+}
+function getStatusMessage(status) {
+  if (!status || status.code === SPAN_STATUS_UNSET) {
+    return void 0;
+  }
+  if (status.code === SPAN_STATUS_OK) {
+    return "ok";
+  }
+  return status.message || "internal_error";
+}
+const CHILD_SPANS_FIELD = "_sentryChildSpans";
+const ROOT_SPAN_FIELD = "_sentryRootSpan";
+function addChildSpanToSpan(span, childSpan) {
+  const rootSpan = span[ROOT_SPAN_FIELD] || span;
+  addNonEnumerableProperty(childSpan, ROOT_SPAN_FIELD, rootSpan);
+  if (span[CHILD_SPANS_FIELD]) {
+    span[CHILD_SPANS_FIELD].add(childSpan);
+  } else {
+    addNonEnumerableProperty(span, CHILD_SPANS_FIELD, /* @__PURE__ */ new Set([childSpan]));
+  }
+}
+function getSpanDescendants(span) {
+  const resultSet = /* @__PURE__ */ new Set();
+  function addSpanChildren(span2) {
+    if (resultSet.has(span2)) {
+      return;
+    } else if (spanIsSampled(span2)) {
+      resultSet.add(span2);
+      const childSpans = span2[CHILD_SPANS_FIELD] ? Array.from(span2[CHILD_SPANS_FIELD]) : [];
+      for (const childSpan of childSpans) {
+        addSpanChildren(childSpan);
+      }
+    }
+  }
+  addSpanChildren(span);
+  return Array.from(resultSet);
+}
+function getRootSpan(span) {
+  return span[ROOT_SPAN_FIELD] || span;
+}
+function showSpanDropWarning() {
+  if (!hasShownSpanDropWarning) {
+    consoleSandbox(() => {
+      console.warn(
+        "[Sentry] Returning null from `beforeSendSpan` is disallowed. To drop certain spans, configure the respective integrations directly or use `ignoreSpans`."
+      );
+    });
+    hasShownSpanDropWarning = true;
+  }
+}
+function hasSpansEnabled(maybeOptions) {
+  var _a;
+  if (typeof __SENTRY_TRACING__ === "boolean" && !__SENTRY_TRACING__) {
+    return false;
+  }
+  const options = maybeOptions || ((_a = getClient()) == null ? void 0 : _a.getOptions());
+  return !!options && // Note: This check is `!= null`, meaning "nullish". `0` is not "nullish", `undefined` and `null` are. (This comment was brought to you by 15 minutes of questioning life)
+  (options.tracesSampleRate != null || !!options.tracesSampler);
+}
+function logIgnoredSpan(droppedSpan) {
+  debug.log(`Ignoring span ${droppedSpan.op} - ${droppedSpan.description} because it matches \`ignoreSpans\`.`);
+}
+function shouldIgnoreSpan(span, ignoreSpans) {
+  if (!(ignoreSpans == null ? void 0 : ignoreSpans.length) || !span.description) {
+    return false;
+  }
+  for (const pattern of ignoreSpans) {
+    if (isStringOrRegExp(pattern)) {
+      if (isMatchingPattern(span.description, pattern)) {
+        DEBUG_BUILD && logIgnoredSpan(span);
+        return true;
+      }
+      continue;
+    }
+    if (!pattern.name && !pattern.op) {
+      continue;
+    }
+    const nameMatches = pattern.name ? isMatchingPattern(span.description, pattern.name) : true;
+    const opMatches = pattern.op ? span.op && isMatchingPattern(span.op, pattern.op) : true;
+    if (nameMatches && opMatches) {
+      DEBUG_BUILD && logIgnoredSpan(span);
+      return true;
+    }
+  }
+  return false;
+}
+function reparentChildSpans(spans, dropSpan) {
+  const droppedSpanParentId = dropSpan.parent_span_id;
+  const droppedSpanId = dropSpan.span_id;
+  if (!droppedSpanParentId) {
+    return;
+  }
+  for (const span of spans) {
+    if (span.parent_span_id === droppedSpanId) {
+      span.parent_span_id = droppedSpanParentId;
+    }
+  }
+}
+function isStringOrRegExp(value) {
+  return typeof value === "string" || value instanceof RegExp;
+}
+const DEFAULT_ENVIRONMENT = "production";
+const FROZEN_DSC_FIELD = "_frozenDsc";
+function freezeDscOnSpan(span, dsc) {
+  const spanWithMaybeDsc = span;
+  addNonEnumerableProperty(spanWithMaybeDsc, FROZEN_DSC_FIELD, dsc);
+}
+function getDynamicSamplingContextFromClient(trace_id, client) {
+  const options = client.getOptions();
+  const { publicKey: public_key } = client.getDsn() || {};
+  const dsc = {
+    environment: options.environment || DEFAULT_ENVIRONMENT,
+    release: options.release,
+    public_key,
+    trace_id,
+    org_id: extractOrgIdFromClient(client)
+  };
+  client.emit("createDsc", dsc);
+  return dsc;
+}
+function getDynamicSamplingContextFromScope(client, scope) {
+  const propagationContext = scope.getPropagationContext();
+  return propagationContext.dsc || getDynamicSamplingContextFromClient(propagationContext.traceId, client);
+}
+function getDynamicSamplingContextFromSpan(span) {
+  var _a, _b, _c, _d;
+  const client = getClient();
+  if (!client) {
+    return {};
+  }
+  const rootSpan = getRootSpan(span);
+  const rootSpanJson = spanToJSON(rootSpan);
+  const rootSpanAttributes = rootSpanJson.data;
+  const traceState = rootSpan.spanContext().traceState;
+  const rootSpanSampleRate = (_b = (_a = traceState == null ? void 0 : traceState.get("sentry.sample_rate")) != null ? _a : rootSpanAttributes[SEMANTIC_ATTRIBUTE_SENTRY_SAMPLE_RATE]) != null ? _b : rootSpanAttributes[SEMANTIC_ATTRIBUTE_SENTRY_PREVIOUS_TRACE_SAMPLE_RATE];
+  function applyLocalSampleRateToDsc(dsc2) {
+    if (typeof rootSpanSampleRate === "number" || typeof rootSpanSampleRate === "string") {
+      dsc2.sample_rate = `${rootSpanSampleRate}`;
+    }
+    return dsc2;
+  }
+  const frozenDsc = rootSpan[FROZEN_DSC_FIELD];
+  if (frozenDsc) {
+    return applyLocalSampleRateToDsc(frozenDsc);
+  }
+  const traceStateDsc = traceState == null ? void 0 : traceState.get("sentry.dsc");
+  const dscOnTraceState = traceStateDsc && baggageHeaderToDynamicSamplingContext(traceStateDsc);
+  if (dscOnTraceState) {
+    return applyLocalSampleRateToDsc(dscOnTraceState);
+  }
+  const dsc = getDynamicSamplingContextFromClient(span.spanContext().traceId, client);
+  const source = rootSpanAttributes[SEMANTIC_ATTRIBUTE_SENTRY_SOURCE];
+  const name = rootSpanJson.description;
+  if (source !== "url" && name) {
+    dsc.transaction = name;
+  }
+  if (hasSpansEnabled()) {
+    dsc.sampled = String(spanIsSampled(rootSpan));
+    dsc.sample_rand = // In OTEL we store the sample rand on the trace state because we cannot access scopes for NonRecordingSpans
+    // The Sentry OTEL SpanSampler takes care of writing the sample rand on the root span
+    (_d = traceState == null ? void 0 : traceState.get("sentry.sample_rand")) != null ? _d : (
+      // On all other platforms we can actually get the scopes from a root span (we use this as a fallback)
+      (_c = getCapturedScopesOnSpan(rootSpan).scope) == null ? void 0 : _c.getPropagationContext().sampleRand.toString()
+    );
+  }
+  applyLocalSampleRateToDsc(dsc);
+  client.emit("createDsc", dsc, rootSpan);
+  return dsc;
+}
+class SentryNonRecordingSpan {
+  constructor(spanContext = {}) {
+    this._traceId = spanContext.traceId || generateTraceId();
+    this._spanId = spanContext.spanId || generateSpanId();
+  }
+  /** @inheritdoc */
+  spanContext() {
+    return {
+      spanId: this._spanId,
+      traceId: this._traceId,
+      traceFlags: TRACE_FLAG_NONE
+    };
+  }
+  /** @inheritdoc */
+  end(_timestamp) {
+  }
+  /** @inheritdoc */
+  setAttribute(_key, _value) {
+    return this;
+  }
+  /** @inheritdoc */
+  setAttributes(_values) {
+    return this;
+  }
+  /** @inheritdoc */
+  setStatus(_status) {
+    return this;
+  }
+  /** @inheritdoc */
+  updateName(_name) {
+    return this;
+  }
+  /** @inheritdoc */
+  isRecording() {
+    return false;
+  }
+  /** @inheritdoc */
+  addEvent(_name, _attributesOrStartTime, _startTime) {
+    return this;
+  }
+  /** @inheritDoc */
+  addLink(_link) {
+    return this;
+  }
+  /** @inheritDoc */
+  addLinks(_links) {
+    return this;
+  }
+  /**
+   * This should generally not be used,
+   * but we need it for being compliant with the OTEL Span interface.
+   *
+   * @hidden
+   * @internal
+   */
+  recordException(_exception, _time) {
+  }
+}
+function normalize(input, depth = 100, maxProperties = Infinity) {
+  try {
+    return visit("", input, depth, maxProperties);
+  } catch (err) {
+    return { ERROR: `**non-serializable** (${err})` };
+  }
+}
+function visit(key, value, depth = Infinity, maxProperties = Infinity, memo = memoBuilder()) {
+  const [memoize, unmemoize] = memo;
+  if (value == null || // this matches null and undefined -> eqeq not eqeqeq
+  ["boolean", "string"].includes(typeof value) || typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const stringified = stringifyValue(key, value);
+  if (!stringified.startsWith("[object ")) {
+    return stringified;
+  }
+  if (value["__sentry_skip_normalization__"]) {
+    return value;
+  }
+  const remainingDepth = typeof value["__sentry_override_normalization_depth__"] === "number" ? value["__sentry_override_normalization_depth__"] : depth;
+  if (remainingDepth === 0) {
+    return stringified.replace("object ", "");
+  }
+  if (memoize(value)) {
+    return "[Circular ~]";
+  }
+  const valueWithToJSON = value;
+  if (valueWithToJSON && typeof valueWithToJSON.toJSON === "function") {
+    try {
+      const jsonValue = valueWithToJSON.toJSON();
+      return visit("", jsonValue, remainingDepth - 1, maxProperties, memo);
+    } catch (e) {
+    }
+  }
+  const normalized = Array.isArray(value) ? [] : {};
+  let numAdded = 0;
+  const visitable = convertToPlainObject(value);
+  for (const visitKey in visitable) {
+    if (!Object.prototype.hasOwnProperty.call(visitable, visitKey)) {
+      continue;
+    }
+    if (numAdded >= maxProperties) {
+      normalized[visitKey] = "[MaxProperties ~]";
+      break;
+    }
+    const visitValue = visitable[visitKey];
+    normalized[visitKey] = visit(visitKey, visitValue, remainingDepth - 1, maxProperties, memo);
+    numAdded++;
+  }
+  unmemoize(value);
+  return normalized;
+}
+function stringifyValue(key, value) {
+  try {
+    if (key === "domain" && value && typeof value === "object" && value._events) {
+      return "[Domain]";
+    }
+    if (key === "domainEmitter") {
+      return "[DomainEmitter]";
+    }
+    if (typeof global !== "undefined" && value === global) {
+      return "[Global]";
+    }
+    if (typeof window !== "undefined" && value === window) {
+      return "[Window]";
+    }
+    if (typeof document !== "undefined" && value === document) {
+      return "[Document]";
+    }
+    if (isVueViewModel(value)) {
+      return getVueInternalName(value);
+    }
+    if (isSyntheticEvent(value)) {
+      return "[SyntheticEvent]";
+    }
+    if (typeof value === "number" && !Number.isFinite(value)) {
+      return `[${value}]`;
+    }
+    if (typeof value === "function") {
+      return `[Function: ${getFunctionName$1(value)}]`;
+    }
+    if (typeof value === "symbol") {
+      return `[${String(value)}]`;
+    }
+    if (typeof value === "bigint") {
+      return `[BigInt: ${String(value)}]`;
+    }
+    const objName = getConstructorName(value);
+    if (/^HTML(\w*)Element$/.test(objName)) {
+      return `[HTMLElement: ${objName}]`;
+    }
+    return `[object ${objName}]`;
+  } catch (err) {
+    return `**non-serializable** (${err})`;
+  }
+}
+function getConstructorName(value) {
+  const prototype = Object.getPrototypeOf(value);
+  return (prototype == null ? void 0 : prototype.constructor) ? prototype.constructor.name : "null prototype";
+}
+function memoBuilder() {
+  const inner = /* @__PURE__ */ new WeakSet();
+  function memoize(obj) {
+    if (inner.has(obj)) {
+      return true;
+    }
+    inner.add(obj);
+    return false;
+  }
+  function unmemoize(obj) {
+    inner.delete(obj);
+  }
+  return [memoize, unmemoize];
+}
+function createEnvelope(headers, items = []) {
+  return [headers, items];
+}
+function addItemToEnvelope(envelope, newItem) {
+  const [headers, items] = envelope;
+  return [headers, [...items, newItem]];
+}
+function forEachEnvelopeItem(envelope, callback) {
+  const envelopeItems = envelope[1];
+  for (const envelopeItem of envelopeItems) {
+    const envelopeItemType = envelopeItem[0].type;
+    const result = callback(envelopeItem, envelopeItemType);
+    if (result) {
+      return true;
+    }
+  }
+  return false;
+}
+function envelopeContainsItemType(envelope, types) {
+  return forEachEnvelopeItem(envelope, (_, type) => types.includes(type));
+}
+function encodeUTF8(input) {
+  const carrier = getSentryCarrier(GLOBAL_OBJ);
+  return carrier.encodePolyfill ? carrier.encodePolyfill(input) : new TextEncoder().encode(input);
+}
+function serializeEnvelope(envelope) {
+  const [envHeaders, items] = envelope;
+  let parts = JSON.stringify(envHeaders);
+  function append(next) {
+    if (typeof parts === "string") {
+      parts = typeof next === "string" ? parts + next : [encodeUTF8(parts), next];
+    } else {
+      parts.push(typeof next === "string" ? encodeUTF8(next) : next);
+    }
+  }
+  for (const item of items) {
+    const [itemHeaders, payload] = item;
+    append(`
+${JSON.stringify(itemHeaders)}
+`);
+    if (typeof payload === "string" || payload instanceof Uint8Array) {
+      append(payload);
+    } else {
+      let stringifiedPayload;
+      try {
+        stringifiedPayload = JSON.stringify(payload);
+      } catch (e) {
+        stringifiedPayload = JSON.stringify(normalize(payload));
+      }
+      append(stringifiedPayload);
+    }
+  }
+  return typeof parts === "string" ? parts : concatBuffers(parts);
+}
+function concatBuffers(buffers) {
+  const totalLength = buffers.reduce((acc, buf) => acc + buf.length, 0);
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const buffer of buffers) {
+    merged.set(buffer, offset);
+    offset += buffer.length;
+  }
+  return merged;
+}
+function createSpanEnvelopeItem(spanJson) {
+  const spanHeaders = {
+    type: "span"
+  };
+  return [spanHeaders, spanJson];
+}
+function createAttachmentEnvelopeItem(attachment) {
+  const buffer = typeof attachment.data === "string" ? encodeUTF8(attachment.data) : attachment.data;
+  return [
+    {
+      type: "attachment",
+      length: buffer.length,
+      filename: attachment.filename,
+      content_type: attachment.contentType,
+      attachment_type: attachment.attachmentType
+    },
+    buffer
+  ];
+}
+const ITEM_TYPE_TO_DATA_CATEGORY_MAP = {
+  session: "session",
+  sessions: "session",
+  attachment: "attachment",
+  transaction: "transaction",
+  event: "error",
+  client_report: "internal",
+  user_report: "default",
+  profile: "profile",
+  profile_chunk: "profile",
+  replay_event: "replay",
+  replay_recording: "replay",
+  check_in: "monitor",
+  feedback: "feedback",
+  span: "span",
+  raw_security: "security",
+  log: "log_item",
+  metric: "metric",
+  trace_metric: "metric"
+};
+function envelopeItemTypeToDataCategory(type) {
+  return ITEM_TYPE_TO_DATA_CATEGORY_MAP[type];
+}
+function getSdkMetadataForEnvelopeHeader(metadataOrEvent) {
+  if (!(metadataOrEvent == null ? void 0 : metadataOrEvent.sdk)) {
+    return;
+  }
+  const { name, version } = metadataOrEvent.sdk;
+  return { name, version };
+}
+function createEventEnvelopeHeaders(event, sdkInfo, tunnel, dsn) {
+  var _a;
+  const dynamicSamplingContext = (_a = event.sdkProcessingMetadata) == null ? void 0 : _a.dynamicSamplingContext;
+  return __spreadValues(__spreadValues(__spreadValues({
+    event_id: event.event_id,
+    sent_at: (/* @__PURE__ */ new Date()).toISOString()
+  }, sdkInfo && { sdk: sdkInfo }), !!tunnel && dsn && { dsn: dsnToString(dsn) }), dynamicSamplingContext && {
+    trace: dynamicSamplingContext
+  });
+}
+function _enhanceEventWithSdkInfo(event, newSdkInfo) {
+  var _a, _b, _c, _d;
+  if (!newSdkInfo) {
+    return event;
+  }
+  const eventSdkInfo = event.sdk || {};
+  event.sdk = __spreadProps(__spreadValues({}, eventSdkInfo), {
+    name: eventSdkInfo.name || newSdkInfo.name,
+    version: eventSdkInfo.version || newSdkInfo.version,
+    integrations: [...((_a = event.sdk) == null ? void 0 : _a.integrations) || [], ...newSdkInfo.integrations || []],
+    packages: [...((_b = event.sdk) == null ? void 0 : _b.packages) || [], ...newSdkInfo.packages || []],
+    settings: ((_c = event.sdk) == null ? void 0 : _c.settings) || newSdkInfo.settings ? __spreadValues(__spreadValues({}, (_d = event.sdk) == null ? void 0 : _d.settings), newSdkInfo.settings) : void 0
+  });
+  return event;
+}
+function createSessionEnvelope(session, dsn, metadata, tunnel) {
+  const sdkInfo = getSdkMetadataForEnvelopeHeader(metadata);
+  const envelopeHeaders = __spreadValues(__spreadValues({
+    sent_at: (/* @__PURE__ */ new Date()).toISOString()
+  }, sdkInfo && { sdk: sdkInfo }), !!tunnel && dsn && { dsn: dsnToString(dsn) });
+  const envelopeItem = "aggregates" in session ? [{ type: "sessions" }, session] : [{ type: "session" }, session.toJSON()];
+  return createEnvelope(envelopeHeaders, [envelopeItem]);
+}
+function createEventEnvelope(event, dsn, metadata, tunnel) {
+  const sdkInfo = getSdkMetadataForEnvelopeHeader(metadata);
+  const eventType = event.type && event.type !== "replay_event" ? event.type : "event";
+  _enhanceEventWithSdkInfo(event, metadata == null ? void 0 : metadata.sdk);
+  const envelopeHeaders = createEventEnvelopeHeaders(event, sdkInfo, tunnel, dsn);
+  delete event.sdkProcessingMetadata;
+  const eventItem = [{ type: eventType }, event];
+  return createEnvelope(envelopeHeaders, [eventItem]);
+}
+function createSpanEnvelope(spans, client) {
+  function dscHasRequiredProps(dsc2) {
+    return !!dsc2.trace_id && !!dsc2.public_key;
+  }
+  const dsc = getDynamicSamplingContextFromSpan(spans[0]);
+  const dsn = client == null ? void 0 : client.getDsn();
+  const tunnel = client == null ? void 0 : client.getOptions().tunnel;
+  const headers = __spreadValues(__spreadValues({
+    sent_at: (/* @__PURE__ */ new Date()).toISOString()
+  }, dscHasRequiredProps(dsc) && { trace: dsc }), !!tunnel && dsn && { dsn: dsnToString(dsn) });
+  const { beforeSendSpan, ignoreSpans } = (client == null ? void 0 : client.getOptions()) || {};
+  const filteredSpans = (ignoreSpans == null ? void 0 : ignoreSpans.length) ? spans.filter((span) => !shouldIgnoreSpan(spanToJSON(span), ignoreSpans)) : spans;
+  const droppedSpans = spans.length - filteredSpans.length;
+  if (droppedSpans) {
+    client == null ? void 0 : client.recordDroppedEvent("before_send", "span", droppedSpans);
+  }
+  const convertToSpanJSON = beforeSendSpan ? (span) => {
+    const spanJson = spanToJSON(span);
+    const processedSpan = beforeSendSpan(spanJson);
+    if (!processedSpan) {
+      showSpanDropWarning();
+      return spanJson;
+    }
+    return processedSpan;
+  } : spanToJSON;
+  const items = [];
+  for (const span of filteredSpans) {
+    const spanJson = convertToSpanJSON(span);
+    if (spanJson) {
+      items.push(createSpanEnvelopeItem(spanJson));
+    }
+  }
+  return createEnvelope(headers, items);
+}
+function logSpanStart(span) {
+  if (!DEBUG_BUILD) return;
+  const { description = "< unknown name >", op = "< unknown op >", parent_span_id: parentSpanId } = spanToJSON(span);
+  const { spanId } = span.spanContext();
+  const sampled = spanIsSampled(span);
+  const rootSpan = getRootSpan(span);
+  const isRootSpan = rootSpan === span;
+  const header = `[Tracing] Starting ${sampled ? "sampled" : "unsampled"} ${isRootSpan ? "root " : ""}span`;
+  const infoParts = [`op: ${op}`, `name: ${description}`, `ID: ${spanId}`];
+  if (parentSpanId) {
+    infoParts.push(`parent ID: ${parentSpanId}`);
+  }
+  if (!isRootSpan) {
+    const { op: op2, description: description2 } = spanToJSON(rootSpan);
+    infoParts.push(`root ID: ${rootSpan.spanContext().spanId}`);
+    if (op2) {
+      infoParts.push(`root op: ${op2}`);
+    }
+    if (description2) {
+      infoParts.push(`root description: ${description2}`);
+    }
+  }
+  debug.log(`${header}
+  ${infoParts.join("\n  ")}`);
+}
+function logSpanEnd(span) {
+  if (!DEBUG_BUILD) return;
+  const { description = "< unknown name >", op = "< unknown op >" } = spanToJSON(span);
+  const { spanId } = span.spanContext();
+  const rootSpan = getRootSpan(span);
+  const isRootSpan = rootSpan === span;
+  const msg = `[Tracing] Finishing "${op}" ${isRootSpan ? "root " : ""}span "${description}" with ID ${spanId}`;
+  debug.log(msg);
+}
+function timedEventsToMeasurements(events) {
+  if (!events || events.length === 0) {
+    return void 0;
+  }
+  const measurements = {};
+  events.forEach((event) => {
+    const attributes = event.attributes || {};
+    const unit = attributes[SEMANTIC_ATTRIBUTE_SENTRY_MEASUREMENT_UNIT];
+    const value = attributes[SEMANTIC_ATTRIBUTE_SENTRY_MEASUREMENT_VALUE];
+    if (typeof unit === "string" && typeof value === "number") {
+      measurements[event.name] = { value, unit };
+    }
+  });
+  return measurements;
+}
+const MAX_SPAN_COUNT = 1e3;
+class SentrySpan {
+  /** Epoch timestamp in seconds when the span started. */
+  /** Epoch timestamp in seconds when the span ended. */
+  /** Internal keeper of the status */
+  /** The timed events added to this span. */
+  /** if true, treat span as a standalone span (not part of a transaction) */
+  /**
+   * You should never call the constructor manually, always use `Sentry.startSpan()`
+   * or other span methods.
+   * @internal
+   * @hideconstructor
+   * @hidden
+   */
+  constructor(spanContext = {}) {
+    this._traceId = spanContext.traceId || generateTraceId();
+    this._spanId = spanContext.spanId || generateSpanId();
+    this._startTime = spanContext.startTimestamp || timestampInSeconds();
+    this._links = spanContext.links;
+    this._attributes = {};
+    this.setAttributes(__spreadValues({
+      [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: "manual",
+      [SEMANTIC_ATTRIBUTE_SENTRY_OP]: spanContext.op
+    }, spanContext.attributes));
+    this._name = spanContext.name;
+    if (spanContext.parentSpanId) {
+      this._parentSpanId = spanContext.parentSpanId;
+    }
+    if ("sampled" in spanContext) {
+      this._sampled = spanContext.sampled;
+    }
+    if (spanContext.endTimestamp) {
+      this._endTime = spanContext.endTimestamp;
+    }
+    this._events = [];
+    this._isStandaloneSpan = spanContext.isStandalone;
+    if (this._endTime) {
+      this._onSpanEnded();
+    }
+  }
+  /** @inheritDoc */
+  addLink(link) {
+    if (this._links) {
+      this._links.push(link);
+    } else {
+      this._links = [link];
+    }
+    return this;
+  }
+  /** @inheritDoc */
+  addLinks(links) {
+    if (this._links) {
+      this._links.push(...links);
+    } else {
+      this._links = links;
+    }
+    return this;
+  }
+  /**
+   * This should generally not be used,
+   * but it is needed for being compliant with the OTEL Span interface.
+   *
+   * @hidden
+   * @internal
+   */
+  recordException(_exception, _time) {
+  }
+  /** @inheritdoc */
+  spanContext() {
+    const { _spanId: spanId, _traceId: traceId, _sampled: sampled } = this;
+    return {
+      spanId,
+      traceId,
+      traceFlags: sampled ? TRACE_FLAG_SAMPLED : TRACE_FLAG_NONE
+    };
+  }
+  /** @inheritdoc */
+  setAttribute(key, value) {
+    if (value === void 0) {
+      delete this._attributes[key];
+    } else {
+      this._attributes[key] = value;
+    }
+    return this;
+  }
+  /** @inheritdoc */
+  setAttributes(attributes) {
+    Object.keys(attributes).forEach((key) => this.setAttribute(key, attributes[key]));
+    return this;
+  }
+  /**
+   * This should generally not be used,
+   * but we need it for browser tracing where we want to adjust the start time afterwards.
+   * USE THIS WITH CAUTION!
+   *
+   * @hidden
+   * @internal
+   */
+  updateStartTime(timeInput) {
+    this._startTime = spanTimeInputToSeconds(timeInput);
+  }
+  /**
+   * @inheritDoc
+   */
+  setStatus(value) {
+    this._status = value;
+    return this;
+  }
+  /**
+   * @inheritDoc
+   */
+  updateName(name) {
+    this._name = name;
+    this.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_SOURCE, "custom");
+    return this;
+  }
+  /** @inheritdoc */
+  end(endTimestamp) {
+    if (this._endTime) {
+      return;
+    }
+    this._endTime = spanTimeInputToSeconds(endTimestamp);
+    logSpanEnd(this);
+    this._onSpanEnded();
+  }
+  /**
+   * Get JSON representation of this span.
+   *
+   * @hidden
+   * @internal This method is purely for internal purposes and should not be used outside
+   * of SDK code. If you need to get a JSON representation of a span,
+   * use `spanToJSON(span)` instead.
+   */
+  getSpanJSON() {
+    return {
+      data: this._attributes,
+      description: this._name,
+      op: this._attributes[SEMANTIC_ATTRIBUTE_SENTRY_OP],
+      parent_span_id: this._parentSpanId,
+      span_id: this._spanId,
+      start_timestamp: this._startTime,
+      status: getStatusMessage(this._status),
+      timestamp: this._endTime,
+      trace_id: this._traceId,
+      origin: this._attributes[SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN],
+      profile_id: this._attributes[SEMANTIC_ATTRIBUTE_PROFILE_ID],
+      exclusive_time: this._attributes[SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME],
+      measurements: timedEventsToMeasurements(this._events),
+      is_segment: this._isStandaloneSpan && getRootSpan(this) === this || void 0,
+      segment_id: this._isStandaloneSpan ? getRootSpan(this).spanContext().spanId : void 0,
+      links: convertSpanLinksForEnvelope(this._links)
+    };
+  }
+  /** @inheritdoc */
+  isRecording() {
+    return !this._endTime && !!this._sampled;
+  }
+  /**
+   * @inheritdoc
+   */
+  addEvent(name, attributesOrStartTime, startTime) {
+    DEBUG_BUILD && debug.log("[Tracing] Adding an event to span:", name);
+    const time = isSpanTimeInput(attributesOrStartTime) ? attributesOrStartTime : startTime || timestampInSeconds();
+    const attributes = isSpanTimeInput(attributesOrStartTime) ? {} : attributesOrStartTime || {};
+    const event = {
+      name,
+      time: spanTimeInputToSeconds(time),
+      attributes
+    };
+    this._events.push(event);
+    return this;
+  }
+  /**
+   * This method should generally not be used,
+   * but for now we need a way to publicly check if the `_isStandaloneSpan` flag is set.
+   * USE THIS WITH CAUTION!
+   * @internal
+   * @hidden
+   * @experimental
+   */
+  isStandaloneSpan() {
+    return !!this._isStandaloneSpan;
+  }
+  /** Emit `spanEnd` when the span is ended. */
+  _onSpanEnded() {
+    const client = getClient();
+    if (client) {
+      client.emit("spanEnd", this);
+    }
+    const isSegmentSpan = this._isStandaloneSpan || this === getRootSpan(this);
+    if (!isSegmentSpan) {
+      return;
+    }
+    if (this._isStandaloneSpan) {
+      if (this._sampled) {
+        sendSpanEnvelope(createSpanEnvelope([this], client));
+      } else {
+        DEBUG_BUILD && debug.log("[Tracing] Discarding standalone span because its trace was not chosen to be sampled.");
+        if (client) {
+          client.recordDroppedEvent("sample_rate", "span");
+        }
+      }
+      return;
+    }
+    const transactionEvent = this._convertSpanToTransaction();
+    if (transactionEvent) {
+      const scope = getCapturedScopesOnSpan(this).scope || getCurrentScope();
+      scope.captureEvent(transactionEvent);
+    }
+  }
+  /**
+   * Finish the transaction & prepare the event to send to Sentry.
+   */
+  _convertSpanToTransaction() {
+    var _a;
+    if (!isFullFinishedSpan(spanToJSON(this))) {
+      return void 0;
+    }
+    if (!this._name) {
+      DEBUG_BUILD && debug.warn("Transaction has no name, falling back to `<unlabeled transaction>`.");
+      this._name = "<unlabeled transaction>";
+    }
+    const { scope: capturedSpanScope, isolationScope: capturedSpanIsolationScope } = getCapturedScopesOnSpan(this);
+    const normalizedRequest = (_a = capturedSpanScope == null ? void 0 : capturedSpanScope.getScopeData().sdkProcessingMetadata) == null ? void 0 : _a.normalizedRequest;
+    if (this._sampled !== true) {
+      return void 0;
+    }
+    const finishedSpans = getSpanDescendants(this).filter((span) => span !== this && !isStandaloneSpan(span));
+    const spans = finishedSpans.map((span) => spanToJSON(span)).filter(isFullFinishedSpan);
+    const source = this._attributes[SEMANTIC_ATTRIBUTE_SENTRY_SOURCE];
+    delete this._attributes[SEMANTIC_ATTRIBUTE_SENTRY_CUSTOM_SPAN_NAME];
+    spans.forEach((span) => {
+      delete span.data[SEMANTIC_ATTRIBUTE_SENTRY_CUSTOM_SPAN_NAME];
+    });
+    const transaction = __spreadValues({
+      contexts: {
+        trace: spanToTransactionTraceContext(this)
+      },
+      spans: (
+        // spans.sort() mutates the array, but `spans` is already a copy so we can safely do this here
+        // we do not use spans anymore after this point
+        spans.length > MAX_SPAN_COUNT ? spans.sort((a, b) => a.start_timestamp - b.start_timestamp).slice(0, MAX_SPAN_COUNT) : spans
+      ),
+      start_timestamp: this._startTime,
+      timestamp: this._endTime,
+      transaction: this._name,
+      type: "transaction",
+      sdkProcessingMetadata: {
+        capturedSpanScope,
+        capturedSpanIsolationScope,
+        dynamicSamplingContext: getDynamicSamplingContextFromSpan(this)
+      },
+      request: normalizedRequest
+    }, source && {
+      transaction_info: {
+        source
+      }
+    });
+    const measurements = timedEventsToMeasurements(this._events);
+    const hasMeasurements = measurements && Object.keys(measurements).length;
+    if (hasMeasurements) {
+      DEBUG_BUILD && debug.log(
+        "[Measurements] Adding measurements to transaction event",
+        JSON.stringify(measurements, void 0, 2)
+      );
+      transaction.measurements = measurements;
+    }
+    return transaction;
+  }
+}
+function isSpanTimeInput(value) {
+  return value && typeof value === "number" || value instanceof Date || Array.isArray(value);
+}
+function isFullFinishedSpan(input) {
+  return !!input.start_timestamp && !!input.timestamp && !!input.span_id && !!input.trace_id;
+}
+function isStandaloneSpan(span) {
+  return span instanceof SentrySpan && span.isStandaloneSpan();
+}
+function sendSpanEnvelope(envelope) {
+  const client = getClient();
+  if (!client) {
+    return;
+  }
+  const spanItems = envelope[1];
+  if (!spanItems || spanItems.length === 0) {
+    client.recordDroppedEvent("before_send", "span");
+    return;
+  }
+  client.sendEnvelope(envelope);
+}
+function handleCallbackErrors(fn, onError, onFinally = () => {
+}, onSuccess = () => {
+}) {
+  let maybePromiseResult;
+  try {
+    maybePromiseResult = fn();
+  } catch (e) {
+    onError(e);
+    onFinally();
+    throw e;
+  }
+  return maybeHandlePromiseRejection(maybePromiseResult, onError, onFinally, onSuccess);
+}
+function maybeHandlePromiseRejection(value, onError, onFinally, onSuccess) {
+  if (isThenable(value)) {
+    return value.then(
+      (res) => {
+        onFinally();
+        onSuccess(res);
+        return res;
+      },
+      (e) => {
+        onError(e);
+        onFinally();
+        throw e;
+      }
+    );
+  }
+  onFinally();
+  onSuccess(value);
+  return value;
+}
+function sampleSpan(options, samplingContext, sampleRand) {
+  if (!hasSpansEnabled(options)) {
+    return [false];
+  }
+  let localSampleRateWasApplied = void 0;
+  let sampleRate;
+  if (typeof options.tracesSampler === "function") {
+    sampleRate = options.tracesSampler(__spreadProps(__spreadValues({}, samplingContext), {
+      inheritOrSampleWith: (fallbackSampleRate) => {
+        if (typeof samplingContext.parentSampleRate === "number") {
+          return samplingContext.parentSampleRate;
+        }
+        if (typeof samplingContext.parentSampled === "boolean") {
+          return Number(samplingContext.parentSampled);
+        }
+        return fallbackSampleRate;
+      }
+    }));
+    localSampleRateWasApplied = true;
+  } else if (samplingContext.parentSampled !== void 0) {
+    sampleRate = samplingContext.parentSampled;
+  } else if (typeof options.tracesSampleRate !== "undefined") {
+    sampleRate = options.tracesSampleRate;
+    localSampleRateWasApplied = true;
+  }
+  const parsedSampleRate = parseSampleRate(sampleRate);
+  if (parsedSampleRate === void 0) {
+    DEBUG_BUILD && debug.warn(
+      `[Tracing] Discarding root span because of invalid sample rate. Sample rate must be a boolean or a number between 0 and 1. Got ${JSON.stringify(
+        sampleRate
+      )} of type ${JSON.stringify(typeof sampleRate)}.`
+    );
+    return [false];
+  }
+  if (!parsedSampleRate) {
+    DEBUG_BUILD && debug.log(
+      `[Tracing] Discarding transaction because ${typeof options.tracesSampler === "function" ? "tracesSampler returned 0 or false" : "a negative sampling decision was inherited or tracesSampleRate is set to 0"}`
+    );
+    return [false, parsedSampleRate, localSampleRateWasApplied];
+  }
+  const shouldSample = sampleRand < parsedSampleRate;
+  if (!shouldSample) {
+    DEBUG_BUILD && debug.log(
+      `[Tracing] Discarding transaction because it's not included in the random sample (sampling rate = ${Number(
+        sampleRate
+      )})`
+    );
+  }
+  return [shouldSample, parsedSampleRate, localSampleRateWasApplied];
+}
+const SUPPRESS_TRACING_KEY = "__SENTRY_SUPPRESS_TRACING__";
+function startSpan(options, callback) {
+  const acs = getAcs();
+  if (acs.startSpan) {
+    return acs.startSpan(options, callback);
+  }
+  const spanArguments = parseSentrySpanArguments(options);
+  const { forceTransaction, parentSpan: customParentSpan, scope: customScope } = options;
+  const customForkedScope = customScope == null ? void 0 : customScope.clone();
+  return withScope(customForkedScope, () => {
+    const wrapper = getActiveSpanWrapper(customParentSpan);
+    return wrapper(() => {
+      const scope = getCurrentScope();
+      const parentSpan = getParentSpan(scope, customParentSpan);
+      const shouldSkipSpan = options.onlyIfParent && !parentSpan;
+      const activeSpan = shouldSkipSpan ? new SentryNonRecordingSpan() : createChildOrRootSpan({
+        parentSpan,
+        spanArguments,
+        forceTransaction,
+        scope
+      });
+      _setSpanForScope(scope, activeSpan);
+      return handleCallbackErrors(
+        () => callback(activeSpan),
+        () => {
+          const { status } = spanToJSON(activeSpan);
+          if (activeSpan.isRecording() && (!status || status === "ok")) {
+            activeSpan.setStatus({ code: SPAN_STATUS_ERROR, message: "internal_error" });
+          }
+        },
+        () => {
+          activeSpan.end();
+        }
+      );
+    });
+  });
+}
+function withActiveSpan(span, callback) {
+  const acs = getAcs();
+  if (acs.withActiveSpan) {
+    return acs.withActiveSpan(span, callback);
+  }
+  return withScope((scope) => {
+    _setSpanForScope(scope, span || void 0);
+    return callback(scope);
+  });
+}
+function createChildOrRootSpan({
+  parentSpan,
+  spanArguments,
+  forceTransaction,
+  scope
+}) {
+  if (!hasSpansEnabled()) {
+    const span2 = new SentryNonRecordingSpan();
+    if (forceTransaction || !parentSpan) {
+      const dsc = __spreadValues({
+        sampled: "false",
+        sample_rate: "0",
+        transaction: spanArguments.name
+      }, getDynamicSamplingContextFromSpan(span2));
+      freezeDscOnSpan(span2, dsc);
+    }
+    return span2;
+  }
+  const isolationScope = getIsolationScope();
+  let span;
+  if (parentSpan && !forceTransaction) {
+    span = _startChildSpan(parentSpan, scope, spanArguments);
+    addChildSpanToSpan(parentSpan, span);
+  } else if (parentSpan) {
+    const dsc = getDynamicSamplingContextFromSpan(parentSpan);
+    const { traceId, spanId: parentSpanId } = parentSpan.spanContext();
+    const parentSampled = spanIsSampled(parentSpan);
+    span = _startRootSpan(
+      __spreadValues({
+        traceId,
+        parentSpanId
+      }, spanArguments),
+      scope,
+      parentSampled
+    );
+    freezeDscOnSpan(span, dsc);
+  } else {
+    const {
+      traceId,
+      dsc,
+      parentSpanId,
+      sampled: parentSampled
+    } = __spreadValues(__spreadValues({}, isolationScope.getPropagationContext()), scope.getPropagationContext());
+    span = _startRootSpan(
+      __spreadValues({
+        traceId,
+        parentSpanId
+      }, spanArguments),
+      scope,
+      parentSampled
+    );
+    if (dsc) {
+      freezeDscOnSpan(span, dsc);
+    }
+  }
+  logSpanStart(span);
+  setCapturedScopesOnSpan(span, scope, isolationScope);
+  return span;
+}
+function parseSentrySpanArguments(options) {
+  const exp = options.experimental || {};
+  const initialCtx = __spreadValues({
+    isStandalone: exp.standalone
+  }, options);
+  if (options.startTime) {
+    const ctx = __spreadValues({}, initialCtx);
+    ctx.startTimestamp = spanTimeInputToSeconds(options.startTime);
+    delete ctx.startTime;
+    return ctx;
+  }
+  return initialCtx;
+}
+function getAcs() {
+  const carrier = getMainCarrier();
+  return getAsyncContextStrategy(carrier);
+}
+function _startRootSpan(spanArguments, scope, parentSampled) {
+  var _a, _b;
+  const client = getClient();
+  const options = (client == null ? void 0 : client.getOptions()) || {};
+  const { name = "" } = spanArguments;
+  const mutableSpanSamplingData = { spanAttributes: __spreadValues({}, spanArguments.attributes), spanName: name, parentSampled };
+  client == null ? void 0 : client.emit("beforeSampling", mutableSpanSamplingData, { decision: false });
+  const finalParentSampled = (_a = mutableSpanSamplingData.parentSampled) != null ? _a : parentSampled;
+  const finalAttributes = mutableSpanSamplingData.spanAttributes;
+  const currentPropagationContext = scope.getPropagationContext();
+  const [sampled, sampleRate, localSampleRateWasApplied] = scope.getScopeData().sdkProcessingMetadata[SUPPRESS_TRACING_KEY] ? [false] : sampleSpan(
+    options,
+    {
+      name,
+      parentSampled: finalParentSampled,
+      attributes: finalAttributes,
+      parentSampleRate: parseSampleRate((_b = currentPropagationContext.dsc) == null ? void 0 : _b.sample_rate)
+    },
+    currentPropagationContext.sampleRand
+  );
+  const rootSpan = new SentrySpan(__spreadProps(__spreadValues({}, spanArguments), {
+    attributes: __spreadValues({
+      [SEMANTIC_ATTRIBUTE_SENTRY_SOURCE]: "custom",
+      [SEMANTIC_ATTRIBUTE_SENTRY_SAMPLE_RATE]: sampleRate !== void 0 && localSampleRateWasApplied ? sampleRate : void 0
+    }, finalAttributes),
+    sampled
+  }));
+  if (!sampled && client) {
+    DEBUG_BUILD && debug.log("[Tracing] Discarding root span because its trace was not chosen to be sampled.");
+    client.recordDroppedEvent("sample_rate", "transaction");
+  }
+  if (client) {
+    client.emit("spanStart", rootSpan);
+  }
+  return rootSpan;
+}
+function _startChildSpan(parentSpan, scope, spanArguments) {
+  const { spanId, traceId } = parentSpan.spanContext();
+  const sampled = scope.getScopeData().sdkProcessingMetadata[SUPPRESS_TRACING_KEY] ? false : spanIsSampled(parentSpan);
+  const childSpan = sampled ? new SentrySpan(__spreadProps(__spreadValues({}, spanArguments), {
+    parentSpanId: spanId,
+    traceId,
+    sampled
+  })) : new SentryNonRecordingSpan({ traceId });
+  addChildSpanToSpan(parentSpan, childSpan);
+  const client = getClient();
+  if (client) {
+    client.emit("spanStart", childSpan);
+    if (spanArguments.endTimestamp) {
+      client.emit("spanEnd", childSpan);
+    }
+  }
+  return childSpan;
+}
+function getParentSpan(scope, customParentSpan) {
+  if (customParentSpan) {
+    return customParentSpan;
+  }
+  if (customParentSpan === null) {
+    return void 0;
+  }
+  const span = _getSpanForScope(scope);
+  if (!span) {
+    return void 0;
+  }
+  const client = getClient();
+  const options = client ? client.getOptions() : {};
+  if (options.parentSpanIsAlwaysRootSpan) {
+    return getRootSpan(span);
+  }
+  return span;
+}
+function getActiveSpanWrapper(parentSpan) {
+  return parentSpan !== void 0 ? (callback) => {
+    return withActiveSpan(parentSpan, callback);
+  } : (callback) => callback();
+}
+const STATE_PENDING = 0;
+const STATE_RESOLVED = 1;
+const STATE_REJECTED = 2;
+function resolvedSyncPromise(value) {
+  return new SyncPromise((resolve) => {
+    resolve(value);
+  });
+}
+function rejectedSyncPromise(reason) {
+  return new SyncPromise((_, reject) => {
+    reject(reason);
+  });
+}
+class SyncPromise {
+  constructor(executor) {
+    this._state = STATE_PENDING;
+    this._handlers = [];
+    this._runExecutor(executor);
+  }
+  /** @inheritdoc */
+  then(onfulfilled, onrejected) {
+    return new SyncPromise((resolve, reject) => {
+      this._handlers.push([
+        false,
+        (result) => {
+          if (!onfulfilled) {
+            resolve(result);
+          } else {
+            try {
+              resolve(onfulfilled(result));
+            } catch (e) {
+              reject(e);
+            }
+          }
+        },
+        (reason) => {
+          if (!onrejected) {
+            reject(reason);
+          } else {
+            try {
+              resolve(onrejected(reason));
+            } catch (e) {
+              reject(e);
+            }
+          }
+        }
+      ]);
+      this._executeHandlers();
+    });
+  }
+  /** @inheritdoc */
+  catch(onrejected) {
+    return this.then((val) => val, onrejected);
+  }
+  /** @inheritdoc */
+  finally(onfinally) {
+    return new SyncPromise((resolve, reject) => {
+      let val;
+      let isRejected;
+      return this.then(
+        (value) => {
+          isRejected = false;
+          val = value;
+          if (onfinally) {
+            onfinally();
+          }
+        },
+        (reason) => {
+          isRejected = true;
+          val = reason;
+          if (onfinally) {
+            onfinally();
+          }
+        }
+      ).then(() => {
+        if (isRejected) {
+          reject(val);
+          return;
+        }
+        resolve(val);
+      });
+    });
+  }
+  /** Excute the resolve/reject handlers. */
+  _executeHandlers() {
+    if (this._state === STATE_PENDING) {
+      return;
+    }
+    const cachedHandlers = this._handlers.slice();
+    this._handlers = [];
+    cachedHandlers.forEach((handler) => {
+      if (handler[0]) {
+        return;
+      }
+      if (this._state === STATE_RESOLVED) {
+        handler[1](this._value);
+      }
+      if (this._state === STATE_REJECTED) {
+        handler[2](this._value);
+      }
+      handler[0] = true;
+    });
+  }
+  /** Run the executor for the SyncPromise. */
+  _runExecutor(executor) {
+    const setResult = (state, value) => {
+      if (this._state !== STATE_PENDING) {
+        return;
+      }
+      if (isThenable(value)) {
+        void value.then(resolve, reject);
+        return;
+      }
+      this._state = state;
+      this._value = value;
+      this._executeHandlers();
+    };
+    const resolve = (value) => {
+      setResult(STATE_RESOLVED, value);
+    };
+    const reject = (reason) => {
+      setResult(STATE_REJECTED, reason);
+    };
+    try {
+      executor(resolve, reject);
+    } catch (e) {
+      reject(e);
+    }
+  }
+}
+function notifyEventProcessors(processors, event, hint, index2 = 0) {
+  try {
+    const result = _notifyEventProcessors(event, hint, processors, index2);
+    return isThenable(result) ? result : resolvedSyncPromise(result);
+  } catch (error2) {
+    return rejectedSyncPromise(error2);
+  }
+}
+function _notifyEventProcessors(event, hint, processors, index2) {
+  const processor = processors[index2];
+  if (!event || !processor) {
+    return event;
+  }
+  const result = processor(__spreadValues({}, event), hint);
+  DEBUG_BUILD && result === null && debug.log(`Event processor "${processor.id || "?"}" dropped event`);
+  if (isThenable(result)) {
+    return result.then((final) => _notifyEventProcessors(final, hint, processors, index2 + 1));
+  }
+  return _notifyEventProcessors(result, hint, processors, index2 + 1);
+}
+let parsedStackResults;
+let lastSentryKeysCount;
+let lastNativeKeysCount;
+let cachedFilenameDebugIds;
+function getFilenameToDebugIdMap(stackParser) {
+  const sentryDebugIdMap = GLOBAL_OBJ._sentryDebugIds;
+  const nativeDebugIdMap = GLOBAL_OBJ._debugIds;
+  if (!sentryDebugIdMap && !nativeDebugIdMap) {
+    return {};
+  }
+  const sentryDebugIdKeys = sentryDebugIdMap ? Object.keys(sentryDebugIdMap) : [];
+  const nativeDebugIdKeys = nativeDebugIdMap ? Object.keys(nativeDebugIdMap) : [];
+  if (cachedFilenameDebugIds && sentryDebugIdKeys.length === lastSentryKeysCount && nativeDebugIdKeys.length === lastNativeKeysCount) {
+    return cachedFilenameDebugIds;
+  }
+  lastSentryKeysCount = sentryDebugIdKeys.length;
+  lastNativeKeysCount = nativeDebugIdKeys.length;
+  cachedFilenameDebugIds = {};
+  if (!parsedStackResults) {
+    parsedStackResults = {};
+  }
+  const processDebugIds = (debugIdKeys, debugIdMap) => {
+    for (const key of debugIdKeys) {
+      const debugId = debugIdMap[key];
+      const result = parsedStackResults == null ? void 0 : parsedStackResults[key];
+      if (result && cachedFilenameDebugIds && debugId) {
+        cachedFilenameDebugIds[result[0]] = debugId;
+        if (parsedStackResults) {
+          parsedStackResults[key] = [result[0], debugId];
+        }
+      } else if (debugId) {
+        const parsedStack = stackParser(key);
+        for (let i = parsedStack.length - 1; i >= 0; i--) {
+          const stackFrame = parsedStack[i];
+          const filename = stackFrame == null ? void 0 : stackFrame.filename;
+          if (filename && cachedFilenameDebugIds && parsedStackResults) {
+            cachedFilenameDebugIds[filename] = debugId;
+            parsedStackResults[key] = [filename, debugId];
+            break;
+          }
+        }
+      }
+    }
+  };
+  if (sentryDebugIdMap) {
+    processDebugIds(sentryDebugIdKeys, sentryDebugIdMap);
+  }
+  if (nativeDebugIdMap) {
+    processDebugIds(nativeDebugIdKeys, nativeDebugIdMap);
+  }
+  return cachedFilenameDebugIds;
+}
+function applyScopeDataToEvent(event, data) {
+  const { fingerprint, span, breadcrumbs, sdkProcessingMetadata } = data;
+  applyDataToEvent(event, data);
+  if (span) {
+    applySpanToEvent(event, span);
+  }
+  applyFingerprintToEvent(event, fingerprint);
+  applyBreadcrumbsToEvent(event, breadcrumbs);
+  applySdkMetadataToEvent(event, sdkProcessingMetadata);
+}
+function mergeScopeData(data, mergeData) {
+  const {
+    extra,
+    tags,
+    attributes,
+    user,
+    contexts,
+    level,
+    sdkProcessingMetadata,
+    breadcrumbs,
+    fingerprint,
+    eventProcessors,
+    attachments,
+    propagationContext,
+    transactionName,
+    span
+  } = mergeData;
+  mergeAndOverwriteScopeData(data, "extra", extra);
+  mergeAndOverwriteScopeData(data, "tags", tags);
+  mergeAndOverwriteScopeData(data, "attributes", attributes);
+  mergeAndOverwriteScopeData(data, "user", user);
+  mergeAndOverwriteScopeData(data, "contexts", contexts);
+  data.sdkProcessingMetadata = merge(data.sdkProcessingMetadata, sdkProcessingMetadata, 2);
+  if (level) {
+    data.level = level;
+  }
+  if (transactionName) {
+    data.transactionName = transactionName;
+  }
+  if (span) {
+    data.span = span;
+  }
+  if (breadcrumbs.length) {
+    data.breadcrumbs = [...data.breadcrumbs, ...breadcrumbs];
+  }
+  if (fingerprint.length) {
+    data.fingerprint = [...data.fingerprint, ...fingerprint];
+  }
+  if (eventProcessors.length) {
+    data.eventProcessors = [...data.eventProcessors, ...eventProcessors];
+  }
+  if (attachments.length) {
+    data.attachments = [...data.attachments, ...attachments];
+  }
+  data.propagationContext = __spreadValues(__spreadValues({}, data.propagationContext), propagationContext);
+}
+function mergeAndOverwriteScopeData(data, prop, mergeVal) {
+  data[prop] = merge(data[prop], mergeVal, 1);
+}
+function getCombinedScopeData(isolationScope, currentScope) {
+  const scopeData = getGlobalScope().getScopeData();
+  isolationScope && mergeScopeData(scopeData, isolationScope.getScopeData());
+  currentScope && mergeScopeData(scopeData, currentScope.getScopeData());
+  return scopeData;
+}
+function applyDataToEvent(event, data) {
+  const { extra, tags, user, contexts, level, transactionName } = data;
+  if (Object.keys(extra).length) {
+    event.extra = __spreadValues(__spreadValues({}, extra), event.extra);
+  }
+  if (Object.keys(tags).length) {
+    event.tags = __spreadValues(__spreadValues({}, tags), event.tags);
+  }
+  if (Object.keys(user).length) {
+    event.user = __spreadValues(__spreadValues({}, user), event.user);
+  }
+  if (Object.keys(contexts).length) {
+    event.contexts = __spreadValues(__spreadValues({}, contexts), event.contexts);
+  }
+  if (level) {
+    event.level = level;
+  }
+  if (transactionName && event.type !== "transaction") {
+    event.transaction = transactionName;
+  }
+}
+function applyBreadcrumbsToEvent(event, breadcrumbs) {
+  const mergedBreadcrumbs = [...event.breadcrumbs || [], ...breadcrumbs];
+  event.breadcrumbs = mergedBreadcrumbs.length ? mergedBreadcrumbs : void 0;
+}
+function applySdkMetadataToEvent(event, sdkProcessingMetadata) {
+  event.sdkProcessingMetadata = __spreadValues(__spreadValues({}, event.sdkProcessingMetadata), sdkProcessingMetadata);
+}
+function applySpanToEvent(event, span) {
+  event.contexts = __spreadValues({
+    trace: spanToTraceContext(span)
+  }, event.contexts);
+  event.sdkProcessingMetadata = __spreadValues({
+    dynamicSamplingContext: getDynamicSamplingContextFromSpan(span)
+  }, event.sdkProcessingMetadata);
+  const rootSpan = getRootSpan(span);
+  const transactionName = spanToJSON(rootSpan).description;
+  if (transactionName && !event.transaction && event.type === "transaction") {
+    event.transaction = transactionName;
+  }
+}
+function applyFingerprintToEvent(event, fingerprint) {
+  event.fingerprint = event.fingerprint ? Array.isArray(event.fingerprint) ? event.fingerprint : [event.fingerprint] : [];
+  if (fingerprint) {
+    event.fingerprint = event.fingerprint.concat(fingerprint);
+  }
+  if (!event.fingerprint.length) {
+    delete event.fingerprint;
+  }
+}
+function prepareEvent(options, event, hint, scope, client, isolationScope) {
+  const { normalizeDepth = 3, normalizeMaxBreadth = 1e3 } = options;
+  const prepared = __spreadProps(__spreadValues({}, event), {
+    event_id: event.event_id || hint.event_id || uuid4(),
+    timestamp: event.timestamp || dateTimestampInSeconds()
+  });
+  const integrations = hint.integrations || options.integrations.map((i) => i.name);
+  applyClientOptions(prepared, options);
+  applyIntegrationsMetadata(prepared, integrations);
+  if (client) {
+    client.emit("applyFrameMetadata", event);
+  }
+  if (event.type === void 0) {
+    applyDebugIds(prepared, options.stackParser);
+  }
+  const finalScope = getFinalScope(scope, hint.captureContext);
+  if (hint.mechanism) {
+    addExceptionMechanism(prepared, hint.mechanism);
+  }
+  const clientEventProcessors = client ? client.getEventProcessors() : [];
+  const data = getCombinedScopeData(isolationScope, finalScope);
+  const attachments = [...hint.attachments || [], ...data.attachments];
+  if (attachments.length) {
+    hint.attachments = attachments;
+  }
+  applyScopeDataToEvent(prepared, data);
+  const eventProcessors = [
+    ...clientEventProcessors,
+    // Run scope event processors _after_ all other processors
+    ...data.eventProcessors
+  ];
+  const isInternalException = hint.data && hint.data.__sentry__ === true;
+  const result = isInternalException ? resolvedSyncPromise(prepared) : notifyEventProcessors(eventProcessors, prepared, hint);
+  return result.then((evt) => {
+    if (evt) {
+      applyDebugMeta(evt);
+    }
+    if (typeof normalizeDepth === "number" && normalizeDepth > 0) {
+      return normalizeEvent(evt, normalizeDepth, normalizeMaxBreadth);
+    }
+    return evt;
+  });
+}
+function applyClientOptions(event, options) {
+  var _a, _b;
+  const { environment, release, dist, maxValueLength } = options;
+  event.environment = event.environment || environment || DEFAULT_ENVIRONMENT;
+  if (!event.release && release) {
+    event.release = release;
+  }
+  if (!event.dist && dist) {
+    event.dist = dist;
+  }
+  const request = event.request;
+  if ((request == null ? void 0 : request.url) && maxValueLength) {
+    request.url = truncate(request.url, maxValueLength);
+  }
+  if (maxValueLength) {
+    (_b = (_a = event.exception) == null ? void 0 : _a.values) == null ? void 0 : _b.forEach((exception) => {
+      if (exception.value) {
+        exception.value = truncate(exception.value, maxValueLength);
+      }
+    });
+  }
+}
+function applyDebugIds(event, stackParser) {
+  var _a, _b;
+  const filenameDebugIdMap = getFilenameToDebugIdMap(stackParser);
+  (_b = (_a = event.exception) == null ? void 0 : _a.values) == null ? void 0 : _b.forEach((exception) => {
+    var _a2, _b2;
+    (_b2 = (_a2 = exception.stacktrace) == null ? void 0 : _a2.frames) == null ? void 0 : _b2.forEach((frame) => {
+      if (frame.filename) {
+        frame.debug_id = filenameDebugIdMap[frame.filename];
+      }
+    });
+  });
+}
+function applyDebugMeta(event) {
+  var _a, _b;
+  const filenameDebugIdMap = {};
+  (_b = (_a = event.exception) == null ? void 0 : _a.values) == null ? void 0 : _b.forEach((exception) => {
+    var _a2, _b2;
+    (_b2 = (_a2 = exception.stacktrace) == null ? void 0 : _a2.frames) == null ? void 0 : _b2.forEach((frame) => {
+      if (frame.debug_id) {
+        if (frame.abs_path) {
+          filenameDebugIdMap[frame.abs_path] = frame.debug_id;
+        } else if (frame.filename) {
+          filenameDebugIdMap[frame.filename] = frame.debug_id;
+        }
+        delete frame.debug_id;
+      }
+    });
+  });
+  if (Object.keys(filenameDebugIdMap).length === 0) {
+    return;
+  }
+  event.debug_meta = event.debug_meta || {};
+  event.debug_meta.images = event.debug_meta.images || [];
+  const images = event.debug_meta.images;
+  Object.entries(filenameDebugIdMap).forEach(([filename, debug_id]) => {
+    images.push({
+      type: "sourcemap",
+      code_file: filename,
+      debug_id
+    });
+  });
+}
+function applyIntegrationsMetadata(event, integrationNames) {
+  if (integrationNames.length > 0) {
+    event.sdk = event.sdk || {};
+    event.sdk.integrations = [...event.sdk.integrations || [], ...integrationNames];
+  }
+}
+function normalizeEvent(event, depth, maxBreadth) {
+  var _a, _b;
+  if (!event) {
+    return null;
+  }
+  const normalized = __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({}, event), event.breadcrumbs && {
+    breadcrumbs: event.breadcrumbs.map((b) => __spreadValues(__spreadValues({}, b), b.data && {
+      data: normalize(b.data, depth, maxBreadth)
+    }))
+  }), event.user && {
+    user: normalize(event.user, depth, maxBreadth)
+  }), event.contexts && {
+    contexts: normalize(event.contexts, depth, maxBreadth)
+  }), event.extra && {
+    extra: normalize(event.extra, depth, maxBreadth)
+  });
+  if (((_a = event.contexts) == null ? void 0 : _a.trace) && normalized.contexts) {
+    normalized.contexts.trace = event.contexts.trace;
+    if (event.contexts.trace.data) {
+      normalized.contexts.trace.data = normalize(event.contexts.trace.data, depth, maxBreadth);
+    }
+  }
+  if (event.spans) {
+    normalized.spans = event.spans.map((span) => {
+      return __spreadValues(__spreadValues({}, span), span.data && {
+        data: normalize(span.data, depth, maxBreadth)
+      });
+    });
+  }
+  if (((_b = event.contexts) == null ? void 0 : _b.flags) && normalized.contexts) {
+    normalized.contexts.flags = normalize(event.contexts.flags, 3, maxBreadth);
+  }
+  return normalized;
+}
+function getFinalScope(scope, captureContext) {
+  if (!captureContext) {
+    return scope;
+  }
+  const finalScope = scope ? scope.clone() : new Scope();
+  finalScope.update(captureContext);
+  return finalScope;
+}
+function parseEventHintOrCaptureContext(hint) {
+  if (!hint) {
+    return void 0;
+  }
+  if (hintIsScopeOrFunction(hint)) {
+    return { captureContext: hint };
+  }
+  if (hintIsScopeContext(hint)) {
+    return {
+      captureContext: hint
+    };
+  }
+  return hint;
+}
+function hintIsScopeOrFunction(hint) {
+  return hint instanceof Scope || typeof hint === "function";
+}
+const captureContextKeys = [
+  "user",
+  "level",
+  "extra",
+  "contexts",
+  "tags",
+  "fingerprint",
+  "propagationContext"
+];
+function hintIsScopeContext(hint) {
+  return Object.keys(hint).some((key) => captureContextKeys.includes(key));
+}
+function captureException(exception, hint) {
+  return getCurrentScope().captureException(exception, parseEventHintOrCaptureContext(hint));
+}
+function captureMessage(message, captureContext) {
+  const level = typeof captureContext === "string" ? captureContext : void 0;
+  const hint = typeof captureContext !== "string" ? { captureContext } : void 0;
+  return getCurrentScope().captureMessage(message, level, hint);
+}
+function captureEvent(event, hint) {
+  return getCurrentScope().captureEvent(event, hint);
+}
+function setContext(name, context) {
+  getIsolationScope().setContext(name, context);
+}
+function setExtras(extras) {
+  getIsolationScope().setExtras(extras);
+}
+function setExtra(key, extra) {
+  getIsolationScope().setExtra(key, extra);
+}
+function setTags(tags) {
+  getIsolationScope().setTags(tags);
+}
+function setTag(key, value) {
+  getIsolationScope().setTag(key, value);
+}
+function setUser(user) {
+  getIsolationScope().setUser(user);
+}
+function lastEventId() {
+  return getIsolationScope().lastEventId();
+}
+function flush(timeout) {
+  return __async(this, null, function* () {
+    const client = getClient();
+    if (client) {
+      return client.flush(timeout);
+    }
+    DEBUG_BUILD && debug.warn("Cannot flush events. No client defined.");
+    return Promise.resolve(false);
+  });
+}
+function close(timeout) {
+  return __async(this, null, function* () {
+    const client = getClient();
+    if (client) {
+      return client.close(timeout);
+    }
+    DEBUG_BUILD && debug.warn("Cannot flush events and disable SDK. No client defined.");
+    return Promise.resolve(false);
+  });
+}
+function isEnabled() {
+  const client = getClient();
+  return (client == null ? void 0 : client.getOptions().enabled) !== false && !!(client == null ? void 0 : client.getTransport());
+}
+function addEventProcessor(callback) {
+  getIsolationScope().addEventProcessor(callback);
+}
+function startSession(context) {
+  const isolationScope = getIsolationScope();
+  const currentScope = getCurrentScope();
+  const { userAgent } = GLOBAL_OBJ.navigator || {};
+  const session = makeSession(__spreadValues(__spreadValues({
+    user: currentScope.getUser() || isolationScope.getUser()
+  }, userAgent && { userAgent }), context));
+  const currentSession = isolationScope.getSession();
+  if ((currentSession == null ? void 0 : currentSession.status) === "ok") {
+    updateSession(currentSession, { status: "exited" });
+  }
+  endSession();
+  isolationScope.setSession(session);
+  return session;
+}
+function endSession() {
+  const isolationScope = getIsolationScope();
+  const currentScope = getCurrentScope();
+  const session = currentScope.getSession() || isolationScope.getSession();
+  if (session) {
+    closeSession(session);
+  }
+  _sendSessionUpdate();
+  isolationScope.setSession();
+}
+function _sendSessionUpdate() {
+  const isolationScope = getIsolationScope();
+  const client = getClient();
+  const session = isolationScope.getSession();
+  if (session && client) {
+    client.captureSession(session);
+  }
+}
+function captureSession(end = false) {
+  if (end) {
+    endSession();
+    return;
+  }
+  _sendSessionUpdate();
+}
+const SENTRY_API_VERSION = "7";
+function getBaseApiEndpoint(dsn) {
+  const protocol = dsn.protocol ? `${dsn.protocol}:` : "";
+  const port = dsn.port ? `:${dsn.port}` : "";
+  return `${protocol}//${dsn.host}${port}${dsn.path ? `/${dsn.path}` : ""}/api/`;
+}
+function _getIngestEndpoint(dsn) {
+  return `${getBaseApiEndpoint(dsn)}${dsn.projectId}/envelope/`;
+}
+function _encodedAuth(dsn, sdkInfo) {
+  const params = {
+    sentry_version: SENTRY_API_VERSION
+  };
+  if (dsn.publicKey) {
+    params.sentry_key = dsn.publicKey;
+  }
+  if (sdkInfo) {
+    params.sentry_client = `${sdkInfo.name}/${sdkInfo.version}`;
+  }
+  return new URLSearchParams(params).toString();
+}
+function getEnvelopeEndpointWithUrlEncodedAuth(dsn, tunnel, sdkInfo) {
+  return tunnel ? tunnel : `${_getIngestEndpoint(dsn)}?${_encodedAuth(dsn, sdkInfo)}`;
+}
+const installedIntegrations = [];
+function setupIntegrations(client, integrations) {
+  const integrationIndex = {};
+  integrations.forEach((integration) => {
+    if (integration) {
+      setupIntegration(client, integration, integrationIndex);
+    }
+  });
+  return integrationIndex;
+}
+function afterSetupIntegrations(client, integrations) {
+  for (const integration of integrations) {
+    if (integration == null ? void 0 : integration.afterAllSetup) {
+      integration.afterAllSetup(client);
+    }
+  }
+}
+function setupIntegration(client, integration, integrationIndex) {
+  if (integrationIndex[integration.name]) {
+    DEBUG_BUILD && debug.log(`Integration skipped because it was already installed: ${integration.name}`);
+    return;
+  }
+  integrationIndex[integration.name] = integration;
+  if (!installedIntegrations.includes(integration.name) && typeof integration.setupOnce === "function") {
+    integration.setupOnce();
+    installedIntegrations.push(integration.name);
+  }
+  if (integration.setup && typeof integration.setup === "function") {
+    integration.setup(client);
+  }
+  if (typeof integration.preprocessEvent === "function") {
+    const callback = integration.preprocessEvent.bind(integration);
+    client.on("preprocessEvent", (event, hint) => callback(event, hint, client));
+  }
+  if (typeof integration.processEvent === "function") {
+    const callback = integration.processEvent.bind(integration);
+    const processor = Object.assign((event, hint) => callback(event, hint, client), {
+      id: integration.name
+    });
+    client.addEventProcessor(processor);
+  }
+  DEBUG_BUILD && debug.log(`Integration installed: ${integration.name}`);
+}
+function addIntegration(integration) {
+  const client = getClient();
+  if (!client) {
+    DEBUG_BUILD && debug.warn(`Cannot add integration "${integration.name}" because no SDK Client is available.`);
+    return;
+  }
+  client.addIntegration(integration);
+}
+function createLogContainerEnvelopeItem(items) {
+  return [
+    {
+      type: "log",
+      item_count: items.length,
+      content_type: "application/vnd.sentry.items.log+json"
+    },
+    {
+      items
+    }
+  ];
+}
+function createLogEnvelope(logs, metadata, tunnel, dsn) {
+  const headers = {};
+  if (metadata == null ? void 0 : metadata.sdk) {
+    headers.sdk = {
+      name: metadata.sdk.name,
+      version: metadata.sdk.version
+    };
+  }
+  if (!!tunnel && !!dsn) {
+    headers.dsn = dsnToString(dsn);
+  }
+  return createEnvelope(headers, [createLogContainerEnvelopeItem(logs)]);
+}
+function _INTERNAL_flushLogsBuffer(client, maybeLogBuffer) {
+  var _a;
+  const logBuffer = (_a = maybeLogBuffer != null ? maybeLogBuffer : _INTERNAL_getLogBuffer(client)) != null ? _a : [];
+  if (logBuffer.length === 0) {
+    return;
+  }
+  const clientOptions = client.getOptions();
+  const envelope = createLogEnvelope(logBuffer, clientOptions._metadata, clientOptions.tunnel, client.getDsn());
+  _getBufferMap$1().set(client, []);
+  client.emit("flushLogs");
+  client.sendEnvelope(envelope);
+}
+function _INTERNAL_getLogBuffer(client) {
+  return _getBufferMap$1().get(client);
+}
+function _getBufferMap$1() {
+  return getGlobalSingleton("clientToLogBufferMap", () => /* @__PURE__ */ new WeakMap());
+}
+function createMetricContainerEnvelopeItem(items) {
+  return [
+    {
+      type: "trace_metric",
+      item_count: items.length,
+      content_type: "application/vnd.sentry.items.trace-metric+json"
+    },
+    {
+      items
+    }
+  ];
+}
+function createMetricEnvelope(metrics, metadata, tunnel, dsn) {
+  const headers = {};
+  if (metadata == null ? void 0 : metadata.sdk) {
+    headers.sdk = {
+      name: metadata.sdk.name,
+      version: metadata.sdk.version
+    };
+  }
+  if (!!tunnel && !!dsn) {
+    headers.dsn = dsnToString(dsn);
+  }
+  return createEnvelope(headers, [createMetricContainerEnvelopeItem(metrics)]);
+}
+function _INTERNAL_flushMetricsBuffer(client, maybeMetricBuffer) {
+  var _a;
+  const metricBuffer = (_a = maybeMetricBuffer != null ? maybeMetricBuffer : _INTERNAL_getMetricBuffer(client)) != null ? _a : [];
+  if (metricBuffer.length === 0) {
+    return;
+  }
+  const clientOptions = client.getOptions();
+  const envelope = createMetricEnvelope(metricBuffer, clientOptions._metadata, clientOptions.tunnel, client.getDsn());
+  _getBufferMap().set(client, []);
+  client.emit("flushMetrics");
+  client.sendEnvelope(envelope);
+}
+function _INTERNAL_getMetricBuffer(client) {
+  return _getBufferMap().get(client);
+}
+function _getBufferMap() {
+  return getGlobalSingleton("clientToMetricBufferMap", () => /* @__PURE__ */ new WeakMap());
+}
+function safeUnref(timer) {
+  if (typeof timer === "object" && typeof timer.unref === "function") {
+    timer.unref();
+  }
+  return timer;
+}
+const SENTRY_BUFFER_FULL_ERROR = Symbol.for("SentryBufferFullError");
+function makePromiseBuffer(limit = 100) {
+  const buffer = /* @__PURE__ */ new Set();
+  function isReady() {
+    return buffer.size < limit;
+  }
+  function remove(task) {
+    buffer.delete(task);
+  }
+  function add(taskProducer) {
+    if (!isReady()) {
+      return rejectedSyncPromise(SENTRY_BUFFER_FULL_ERROR);
+    }
+    const task = taskProducer();
+    buffer.add(task);
+    void task.then(
+      () => remove(task),
+      () => remove(task)
+    );
+    return task;
+  }
+  function drain(timeout) {
+    if (!buffer.size) {
+      return resolvedSyncPromise(true);
+    }
+    const drainPromise = Promise.allSettled(Array.from(buffer)).then(() => true);
+    if (!timeout) {
+      return drainPromise;
+    }
+    const promises = [
+      drainPromise,
+      new Promise((resolve) => safeUnref(setTimeout(() => resolve(false), timeout)))
+    ];
+    return Promise.race(promises);
+  }
+  return {
+    get $() {
+      return Array.from(buffer);
+    },
+    add,
+    drain
+  };
+}
+const DEFAULT_RETRY_AFTER = 60 * 1e3;
+function parseRetryAfterHeader(header, now = safeDateNow()) {
+  const headerDelay = parseInt(`${header}`, 10);
+  if (!isNaN(headerDelay)) {
+    return headerDelay * 1e3;
+  }
+  const headerDate = Date.parse(`${header}`);
+  if (!isNaN(headerDate)) {
+    return headerDate - now;
+  }
+  return DEFAULT_RETRY_AFTER;
+}
+function disabledUntil(limits, dataCategory) {
+  return limits[dataCategory] || limits.all || 0;
+}
+function isRateLimited(limits, dataCategory, now = safeDateNow()) {
+  return disabledUntil(limits, dataCategory) > now;
+}
+function updateRateLimits(limits, { statusCode, headers }, now = safeDateNow()) {
+  const updatedRateLimits = __spreadValues({}, limits);
+  const rateLimitHeader = headers == null ? void 0 : headers["x-sentry-rate-limits"];
+  const retryAfterHeader = headers == null ? void 0 : headers["retry-after"];
+  if (rateLimitHeader) {
+    for (const limit of rateLimitHeader.trim().split(",")) {
+      const [retryAfter, categories, , , namespaces] = limit.split(":", 5);
+      const headerDelay = parseInt(retryAfter, 10);
+      const delay = (!isNaN(headerDelay) ? headerDelay : 60) * 1e3;
+      if (!categories) {
+        updatedRateLimits.all = now + delay;
+      } else {
+        for (const category of categories.split(";")) {
+          if (category === "metric_bucket") {
+            if (!namespaces || namespaces.split(";").includes("custom")) {
+              updatedRateLimits[category] = now + delay;
+            }
+          } else {
+            updatedRateLimits[category] = now + delay;
+          }
+        }
+      }
+    }
+  } else if (retryAfterHeader) {
+    updatedRateLimits.all = now + parseRetryAfterHeader(retryAfterHeader, now);
+  } else if (statusCode === 429) {
+    updatedRateLimits.all = now + 60 * 1e3;
+  }
+  return updatedRateLimits;
+}
+const DEFAULT_TRANSPORT_BUFFER_SIZE = 64;
+function createTransport(options, makeRequest, buffer = makePromiseBuffer(
+  options.bufferSize || DEFAULT_TRANSPORT_BUFFER_SIZE
+)) {
+  let rateLimits = {};
+  const flush2 = (timeout) => buffer.drain(timeout);
+  function send(envelope) {
+    const filteredEnvelopeItems = [];
+    forEachEnvelopeItem(envelope, (item, type) => {
+      const dataCategory = envelopeItemTypeToDataCategory(type);
+      if (isRateLimited(rateLimits, dataCategory)) {
+        options.recordDroppedEvent("ratelimit_backoff", dataCategory);
+      } else {
+        filteredEnvelopeItems.push(item);
+      }
+    });
+    if (filteredEnvelopeItems.length === 0) {
+      return Promise.resolve({});
+    }
+    const filteredEnvelope = createEnvelope(envelope[0], filteredEnvelopeItems);
+    const recordEnvelopeLoss = (reason) => {
+      if (envelopeContainsItemType(filteredEnvelope, ["client_report"])) {
+        DEBUG_BUILD && debug.warn(`Dropping client report. Will not send outcomes (reason: ${reason}).`);
+        return;
+      }
+      forEachEnvelopeItem(filteredEnvelope, (item, type) => {
+        options.recordDroppedEvent(reason, envelopeItemTypeToDataCategory(type));
+      });
+    };
+    const requestTask = () => makeRequest({ body: serializeEnvelope(filteredEnvelope) }).then(
+      (response) => {
+        if (response.statusCode === 413) {
+          DEBUG_BUILD && debug.error(
+            "Sentry responded with status code 413. Envelope was discarded due to exceeding size limits."
+          );
+          recordEnvelopeLoss("send_error");
+          return response;
+        }
+        if (DEBUG_BUILD && response.statusCode !== void 0 && (response.statusCode < 200 || response.statusCode >= 300)) {
+          debug.warn(`Sentry responded with status code ${response.statusCode} to sent event.`);
+        }
+        rateLimits = updateRateLimits(rateLimits, response);
+        return response;
+      },
+      (error2) => {
+        recordEnvelopeLoss("network_error");
+        DEBUG_BUILD && debug.error("Encountered error running transport request:", error2);
+        throw error2;
+      }
+    );
+    return buffer.add(requestTask).then(
+      (result) => result,
+      (error2) => {
+        if (error2 === SENTRY_BUFFER_FULL_ERROR) {
+          DEBUG_BUILD && debug.error("Skipped sending event because buffer is full.");
+          recordEnvelopeLoss("queue_overflow");
+          return Promise.resolve({});
+        } else {
+          throw error2;
+        }
+      }
+    );
+  }
+  return {
+    send,
+    flush: flush2
+  };
+}
+function createClientReportEnvelope(discarded_events, dsn, timestamp) {
+  const clientReportItem = [
+    { type: "client_report" },
+    {
+      timestamp: dateTimestampInSeconds(),
+      discarded_events
+    }
+  ];
+  return createEnvelope(dsn ? { dsn } : {}, [clientReportItem]);
+}
+function getPossibleEventMessages(event) {
+  const possibleMessages = [];
+  if (event.message) {
+    possibleMessages.push(event.message);
+  }
+  try {
+    const lastException = event.exception.values[event.exception.values.length - 1];
+    if (lastException == null ? void 0 : lastException.value) {
+      possibleMessages.push(lastException.value);
+      if (lastException.type) {
+        possibleMessages.push(`${lastException.type}: ${lastException.value}`);
+      }
+    }
+  } catch (e) {
+  }
+  return possibleMessages;
+}
+function convertTransactionEventToSpanJson(event) {
+  var _a, _b, _c;
+  const { trace_id, parent_span_id, span_id, status, origin, data, op } = (_b = (_a = event.contexts) == null ? void 0 : _a.trace) != null ? _b : {};
+  return {
+    data: data != null ? data : {},
+    description: event.transaction,
+    op,
+    parent_span_id,
+    span_id: span_id != null ? span_id : "",
+    start_timestamp: (_c = event.start_timestamp) != null ? _c : 0,
+    status,
+    timestamp: event.timestamp,
+    trace_id: trace_id != null ? trace_id : "",
+    origin,
+    profile_id: data == null ? void 0 : data[SEMANTIC_ATTRIBUTE_PROFILE_ID],
+    exclusive_time: data == null ? void 0 : data[SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME],
+    measurements: event.measurements,
+    is_segment: true
+  };
+}
+function convertSpanJsonToTransactionEvent(span) {
+  return {
+    type: "transaction",
+    timestamp: span.timestamp,
+    start_timestamp: span.start_timestamp,
+    transaction: span.description,
+    contexts: {
+      trace: {
+        trace_id: span.trace_id,
+        span_id: span.span_id,
+        parent_span_id: span.parent_span_id,
+        op: span.op,
+        status: span.status,
+        origin: span.origin,
+        data: __spreadValues(__spreadValues(__spreadValues({}, span.data), span.profile_id && { [SEMANTIC_ATTRIBUTE_PROFILE_ID]: span.profile_id }), span.exclusive_time && { [SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME]: span.exclusive_time })
+      }
+    },
+    measurements: span.measurements
+  };
+}
+const ALREADY_SEEN_ERROR = "Not capturing exception because it's already been captured.";
+const MISSING_RELEASE_FOR_SESSION_ERROR = "Discarded session because of missing or non-string release";
+const INTERNAL_ERROR_SYMBOL = Symbol.for("SentryInternalError");
+const DO_NOT_SEND_EVENT_SYMBOL = Symbol.for("SentryDoNotSendEventError");
+const DEFAULT_FLUSH_INTERVAL = 5e3;
+function _makeInternalError(message) {
+  return {
+    message,
+    [INTERNAL_ERROR_SYMBOL]: true
+  };
+}
+function _makeDoNotSendEventError(message) {
+  return {
+    message,
+    [DO_NOT_SEND_EVENT_SYMBOL]: true
+  };
+}
+function _isInternalError(error2) {
+  return !!error2 && typeof error2 === "object" && INTERNAL_ERROR_SYMBOL in error2;
+}
+function _isDoNotSendEventError(error2) {
+  return !!error2 && typeof error2 === "object" && DO_NOT_SEND_EVENT_SYMBOL in error2;
+}
+function setupWeightBasedFlushing(client, afterCaptureHook, flushHook, estimateSizeFn, flushFn) {
+  let weight = 0;
+  let flushTimeout;
+  let isTimerActive = false;
+  client.on(flushHook, () => {
+    weight = 0;
+    clearTimeout(flushTimeout);
+    isTimerActive = false;
+  });
+  client.on(afterCaptureHook, (item) => {
+    weight += estimateSizeFn(item);
+    if (weight >= 8e5) {
+      flushFn(client);
+    } else if (!isTimerActive) {
+      isTimerActive = true;
+      flushTimeout = safeUnref(
+        setTimeout(() => {
+          flushFn(client);
+        }, DEFAULT_FLUSH_INTERVAL)
+      );
+    }
+  });
+  client.on("flush", () => {
+    flushFn(client);
+  });
+}
+class Client {
+  /** Options passed to the SDK. */
+  /** The client Dsn, if specified in options. Without this Dsn, the SDK will be disabled. */
+  /** Array of set up integrations. */
+  /** Number of calls being processed */
+  /** Holds flushable  */
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  /**
+   * Initializes this client instance.
+   *
+   * @param options Options for the client.
+   */
+  constructor(options) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    this._options = options;
+    this._integrations = {};
+    this._numProcessing = 0;
+    this._outcomes = {};
+    this._hooks = {};
+    this._eventProcessors = [];
+    this._promiseBuffer = makePromiseBuffer((_b = (_a = options.transportOptions) == null ? void 0 : _a.bufferSize) != null ? _b : DEFAULT_TRANSPORT_BUFFER_SIZE);
+    if (options.dsn) {
+      this._dsn = makeDsn(options.dsn);
+    } else {
+      DEBUG_BUILD && debug.warn("No DSN provided, client will not send events.");
+    }
+    if (this._dsn) {
+      const url = getEnvelopeEndpointWithUrlEncodedAuth(
+        this._dsn,
+        options.tunnel,
+        options._metadata ? options._metadata.sdk : void 0
+      );
+      this._transport = options.transport(__spreadProps(__spreadValues({
+        tunnel: this._options.tunnel,
+        recordDroppedEvent: this.recordDroppedEvent.bind(this)
+      }, options.transportOptions), {
+        url
       }));
     }
-    /**
-     * @inheritDoc
-     */
-    eventFromException(exception) {
-      return Promise.resolve({
-        exception: {
-          values: [{
-            type: exception.name || "Error",
-            value: exception.message || String(exception)
-          }]
-        },
-        level: "error"
-      });
+    this._options.enableLogs = (_d = this._options.enableLogs) != null ? _d : (_c = this._options._experiments) == null ? void 0 : _c.enableLogs;
+    if (this._options.enableLogs) {
+      setupWeightBasedFlushing(this, "afterCaptureLog", "flushLogs", estimateLogSizeInBytes, _INTERNAL_flushLogsBuffer);
     }
-    eventFromMessage(message, level = "info") {
-      return Promise.resolve({
-        message,
-        level
-      });
-    }
-    _prepareEvent(event, hint, scope) {
-      event.platform = event.platform || this.getOptions().platform || "javascript";
-      event.sdk = __spreadProps(__spreadValues({}, event.sdk), {
-        name: SDK_NAME,
-        packages: [
-          ...event.sdk && event.sdk.packages || [],
-          {
-            name: "npm:@sentry/miniapp",
-            version: SDK_VERSION
-          }
-        ],
-        version: SDK_VERSION
-      });
-      if (!event.contexts) {
-        event.contexts = {};
-      }
-      event.contexts["miniapp"] = {
-        platform: appName(),
-        sdk_version: SDK_VERSION
-      };
-      const systemInfo = getSystemInfo();
-      if (systemInfo) {
-        event.contexts.device = {
-          brand: systemInfo.brand || "unknown",
-          model: systemInfo.model || "unknown",
-          screen_resolution: `${systemInfo.screenWidth || 0}x${systemInfo.screenHeight || 0}`,
-          language: systemInfo.language || "unknown",
-          version: systemInfo.version || "unknown",
-          system: systemInfo.system || "unknown",
-          platform: systemInfo.platform || "unknown"
-        };
-        event.contexts.os = {
-          name: systemInfo.system || "unknown",
-          version: systemInfo.version || "unknown"
-        };
-        event.contexts.app = {
-          app_version: systemInfo.SDKVersion || "unknown"
-        };
-      } else {
-        event.contexts.device = {
-          brand: "unknown",
-          model: "unknown",
-          screen_resolution: "0x0",
-          language: "unknown",
-          version: "unknown",
-          system: "unknown",
-          platform: "unknown"
-        };
-        event.contexts.os = {
-          name: "unknown",
-          version: "unknown"
-        };
-        event.contexts.app = {
-          app_version: "unknown"
-        };
-      }
-      try {
-        const currentScope = scope || core.getCurrentScope();
-        const isolationScope = core.getIsolationScope();
-        return super._prepareEvent(event, hint || {}, currentScope, isolationScope);
-      } catch (error) {
-        return Promise.resolve(event);
-      }
-    }
-    /**
-     * Show a report dialog to the user to send feedback to a specific event.
-     * 向用户显示报告对话框以将反馈发送到特定事件。
-     * 注意：小程序环境使用模态对话框模拟此功能
-     *
-     * @param options Set individual options for the dialog
-     */
-    showReportDialog(options = {}) {
-      const showModal = sdk().showModal;
-      if (showModal) {
-        showModal({
-          title: options.title || "错误反馈",
-          content: options.subtitle || "应用遇到了一个错误，是否要发送错误报告？",
-          confirmText: "发送",
-          cancelText: "取消",
-          success: (res) => {
-            if (res.confirm && options.onLoad) {
-              options.onLoad();
-            }
-          }
-        });
-      } else {
-        console.warn("sentry-miniapp: showModal is not available in current miniapp platform", options);
-      }
-    }
-    /**
-     * Capture feedback using the new feedback API.
-     * 使用新的反馈 API 捕获反馈
-     *
-     * @param params Feedback parameters
-     * @returns Event ID
-     */
-    captureFeedback(params) {
-      const feedbackEvent = {
-        contexts: {
-          feedback: {
-            contact_email: params.email,
-            name: params.name,
-            message: params.message,
-            url: params.url,
-            source: params.source,
-            associated_event_id: params.associatedEventId
-          }
-        },
-        type: "feedback",
-        level: "info",
-        tags: params.tags || {}
-      };
-      const scope = core.getCurrentScope();
-      return scope.captureEvent(feedbackEvent);
+    const enableMetrics = (_g = (_f = this._options.enableMetrics) != null ? _f : (_e = this._options._experiments) == null ? void 0 : _e.enableMetrics) != null ? _g : true;
+    if (enableMetrics) {
+      setupWeightBasedFlushing(
+        this,
+        "afterCaptureMetric",
+        "flushMetrics",
+        estimateMetricSizeInBytes,
+        _INTERNAL_flushMetricsBuffer
+      );
     }
   }
-  const _GlobalHandlers = class _GlobalHandlers {
-    /** JSDoc */
-    constructor(options) {
-      this.name = _GlobalHandlers.id;
-      this._onErrorHandlerInstalled = false;
-      this._onUnhandledRejectionHandlerInstalled = false;
-      this._onPageNotFoundHandlerInstalled = false;
-      this._onMemoryWarningHandlerInstalled = false;
-      this._options = __spreadValues({
-        onerror: true,
-        onunhandledrejection: true,
-        onpagenotfound: true,
-        onmemorywarning: true
-      }, options);
+  /**
+   * Captures an exception event and sends it to Sentry.
+   *
+   * Unlike `captureException` exported from every SDK, this method requires that you pass it the current scope.
+   */
+  captureException(exception, hint, scope) {
+    const eventId = uuid4();
+    if (checkOrSetAlreadyCaught(exception)) {
+      DEBUG_BUILD && debug.log(ALREADY_SEEN_ERROR);
+      return eventId;
     }
-    /**
-     * @inheritDoc
-     */
-    setupOnce() {
-      Error.stackTraceLimit = 50;
-      if (this._options.onerror) {
-        this._installGlobalOnErrorHandler();
-      }
-      if (this._options.onunhandledrejection) {
-        this._installGlobalOnUnhandledRejectionHandler();
-      }
-      if (this._options.onpagenotfound) {
-        this._installGlobalOnPageNotFoundHandler();
-      }
-      if (this._options.onmemorywarning) {
-        this._installGlobalOnMemoryWarningHandler();
-      }
+    const hintWithEventId = __spreadValues({
+      event_id: eventId
+    }, hint);
+    this._process(
+      () => this.eventFromException(exception, hintWithEventId).then((event) => this._captureEvent(event, hintWithEventId, scope)).then((res) => res),
+      "error"
+    );
+    return hintWithEventId.event_id;
+  }
+  /**
+   * Captures a message event and sends it to Sentry.
+   *
+   * Unlike `captureMessage` exported from every SDK, this method requires that you pass it the current scope.
+   */
+  captureMessage(message, level, hint, currentScope) {
+    const hintWithEventId = __spreadValues({
+      event_id: uuid4()
+    }, hint);
+    const eventMessage = isParameterizedString(message) ? message : String(message);
+    const isMessage = isPrimitive(message);
+    const promisedEvent = isMessage ? this.eventFromMessage(eventMessage, level, hintWithEventId) : this.eventFromException(message, hintWithEventId);
+    this._process(
+      () => promisedEvent.then((event) => this._captureEvent(event, hintWithEventId, currentScope)),
+      isMessage ? "unknown" : "error"
+    );
+    return hintWithEventId.event_id;
+  }
+  /**
+   * Captures a manually created event and sends it to Sentry.
+   *
+   * Unlike `captureEvent` exported from every SDK, this method requires that you pass it the current scope.
+   */
+  captureEvent(event, hint, currentScope) {
+    const eventId = uuid4();
+    if ((hint == null ? void 0 : hint.originalException) && checkOrSetAlreadyCaught(hint.originalException)) {
+      DEBUG_BUILD && debug.log(ALREADY_SEEN_ERROR);
+      return eventId;
     }
-    /** JSDoc */
-    _installGlobalOnErrorHandler() {
-      var _a, _b;
-      if (this._onErrorHandlerInstalled) {
+    const hintWithEventId = __spreadValues({
+      event_id: eventId
+    }, hint);
+    const sdkProcessingMetadata = event.sdkProcessingMetadata || {};
+    const capturedSpanScope = sdkProcessingMetadata.capturedSpanScope;
+    const capturedSpanIsolationScope = sdkProcessingMetadata.capturedSpanIsolationScope;
+    const dataCategory = getDataCategoryByType(event.type);
+    this._process(
+      () => this._captureEvent(event, hintWithEventId, capturedSpanScope || currentScope, capturedSpanIsolationScope),
+      dataCategory
+    );
+    return hintWithEventId.event_id;
+  }
+  /**
+   * Captures a session.
+   */
+  captureSession(session) {
+    this.sendSession(session);
+    updateSession(session, { init: false });
+  }
+  /**
+   * Create a cron monitor check in and send it to Sentry. This method is not available on all clients.
+   *
+   * @param checkIn An object that describes a check in.
+   * @param upsertMonitorConfig An optional object that describes a monitor config. Use this if you want
+   * to create a monitor automatically when sending a check in.
+   * @param scope An optional scope containing event metadata.
+   * @returns A string representing the id of the check in.
+   */
+  /**
+   * Get the current Dsn.
+   */
+  getDsn() {
+    return this._dsn;
+  }
+  /**
+   * Get the current options.
+   */
+  getOptions() {
+    return this._options;
+  }
+  /**
+   * Get the SDK metadata.
+   * @see SdkMetadata
+   */
+  getSdkMetadata() {
+    return this._options._metadata;
+  }
+  /**
+   * Returns the transport that is used by the client.
+   * Please note that the transport gets lazy initialized so it will only be there once the first event has been sent.
+   */
+  getTransport() {
+    return this._transport;
+  }
+  /**
+   * Wait for all events to be sent or the timeout to expire, whichever comes first.
+   *
+   * @param timeout Maximum time in ms the client should wait for events to be flushed. Omitting this parameter will
+   *   cause the client to wait until all events are sent before resolving the promise.
+   * @returns A promise that will resolve with `true` if all events are sent before the timeout, or `false` if there are
+   * still events in the queue when the timeout is reached.
+   */
+  // @ts-expect-error - PromiseLike is a subset of Promise
+  flush(timeout) {
+    return __async(this, null, function* () {
+      const transport = this._transport;
+      if (!transport) {
+        return true;
+      }
+      this.emit("flush");
+      const clientFinished = yield this._isClientDoneProcessing(timeout);
+      const transportFlushed = yield transport.flush(timeout);
+      return clientFinished && transportFlushed;
+    });
+  }
+  /**
+   * Flush the event queue and set the client to `enabled = false`. See {@link Client.flush}.
+   *
+   * @param {number} timeout Maximum time in ms the client should wait before shutting down. Omitting this parameter will cause
+   *   the client to wait until all events are sent before disabling itself.
+   * @returns {Promise<boolean>} A promise which resolves to `true` if the flush completes successfully before the timeout, or `false` if
+   * it doesn't.
+   */
+  // @ts-expect-error - PromiseLike is a subset of Promise
+  close(timeout) {
+    return __async(this, null, function* () {
+      const result = yield this.flush(timeout);
+      this.getOptions().enabled = false;
+      this.emit("close");
+      return result;
+    });
+  }
+  /**
+   * Get all installed event processors.
+   */
+  getEventProcessors() {
+    return this._eventProcessors;
+  }
+  /**
+   * Adds an event processor that applies to any event processed by this client.
+   */
+  addEventProcessor(eventProcessor) {
+    this._eventProcessors.push(eventProcessor);
+  }
+  /**
+   * Initialize this client.
+   * Call this after the client was set on a scope.
+   */
+  init() {
+    if (this._isEnabled() || // Force integrations to be setup even if no DSN was set when we have
+    // Spotlight enabled. This is particularly important for browser as we
+    // don't support the `spotlight` option there and rely on the users
+    // adding the `spotlightBrowserIntegration()` to their integrations which
+    // wouldn't get initialized with the check below when there's no DSN set.
+    this._options.integrations.some(({ name }) => name.startsWith("Spotlight"))) {
+      this._setupIntegrations();
+    }
+  }
+  /**
+   * Gets an installed integration by its name.
+   *
+   * @returns {Integration|undefined} The installed integration or `undefined` if no integration with that `name` was installed.
+   */
+  getIntegrationByName(integrationName) {
+    return this._integrations[integrationName];
+  }
+  /**
+   * Add an integration to the client.
+   * This can be used to e.g. lazy load integrations.
+   * In most cases, this should not be necessary,
+   * and you're better off just passing the integrations via `integrations: []` at initialization time.
+   * However, if you find the need to conditionally load & add an integration, you can use `addIntegration` to do so.
+   */
+  addIntegration(integration) {
+    const isAlreadyInstalled = this._integrations[integration.name];
+    setupIntegration(this, integration, this._integrations);
+    if (!isAlreadyInstalled) {
+      afterSetupIntegrations(this, [integration]);
+    }
+  }
+  /**
+   * Send a fully prepared event to Sentry.
+   */
+  sendEvent(event, hint = {}) {
+    this.emit("beforeSendEvent", event, hint);
+    let env = createEventEnvelope(event, this._dsn, this._options._metadata, this._options.tunnel);
+    for (const attachment of hint.attachments || []) {
+      env = addItemToEnvelope(env, createAttachmentEnvelopeItem(attachment));
+    }
+    this.sendEnvelope(env).then((sendResponse) => this.emit("afterSendEvent", event, sendResponse));
+  }
+  /**
+   * Send a session or session aggregrates to Sentry.
+   */
+  sendSession(session) {
+    const { release: clientReleaseOption, environment: clientEnvironmentOption = DEFAULT_ENVIRONMENT } = this._options;
+    if ("aggregates" in session) {
+      const sessionAttrs = session.attrs || {};
+      if (!sessionAttrs.release && !clientReleaseOption) {
+        DEBUG_BUILD && debug.warn(MISSING_RELEASE_FOR_SESSION_ERROR);
         return;
       }
-      if (sdk().onError) {
-        (_b = (_a = sdk()).onError) == null ? void 0 : _b.call(_a, (err) => {
-          const error = typeof err === "string" ? new Error(err) : err;
-          core.captureException(error, {
-            mechanism: {
-              type: "onerror",
-              handled: false
-            }
-          });
-        });
-      }
-      this._onErrorHandlerInstalled = true;
-    }
-    /** JSDoc */
-    _installGlobalOnUnhandledRejectionHandler() {
-      var _a, _b;
-      if (this._onUnhandledRejectionHandlerInstalled) {
+      sessionAttrs.release = sessionAttrs.release || clientReleaseOption;
+      sessionAttrs.environment = sessionAttrs.environment || clientEnvironmentOption;
+      session.attrs = sessionAttrs;
+    } else {
+      if (!session.release && !clientReleaseOption) {
+        DEBUG_BUILD && debug.warn(MISSING_RELEASE_FOR_SESSION_ERROR);
         return;
       }
-      if (sdk().onUnhandledRejection) {
-        (_b = (_a = sdk()).onUnhandledRejection) == null ? void 0 : _b.call(_a, ({ reason, promise }) => {
-          const error = typeof reason === "string" ? new Error(reason) : reason;
-          core.captureException(error, {
-            mechanism: {
-              type: "onunhandledrejection",
-              handled: false
-            },
-            extra: {
-              promise
-            }
-          });
-        });
-      }
-      this._onUnhandledRejectionHandlerInstalled = true;
+      session.release = session.release || clientReleaseOption;
+      session.environment = session.environment || clientEnvironmentOption;
     }
-    /** JSDoc */
-    _installGlobalOnPageNotFoundHandler() {
-      var _a, _b;
-      if (this._onPageNotFoundHandlerInstalled) {
-        return;
-      }
-      if (sdk().onPageNotFound) {
-        (_b = (_a = sdk()).onPageNotFound) == null ? void 0 : _b.call(_a, (res) => {
-          const scope = core.getCurrentScope();
-          const url = res.path.split("?")[0];
-          scope.setTag("pagenotfound", url);
-          scope.setContext("page_not_found", {
-            path: res.path,
-            query: res.query,
-            isEntryPage: res.isEntryPage
-          });
-          core.captureException(new Error(`页面无法找到: ${url}`), {
-            level: "warning",
-            mechanism: {
-              type: "onpagenotfound",
-              handled: true
-            }
-          });
-        });
-      }
-      this._onPageNotFoundHandlerInstalled = true;
+    this.emit("beforeSendSession", session);
+    const env = createSessionEnvelope(session, this._dsn, this._options._metadata, this._options.tunnel);
+    this.sendEnvelope(env);
+  }
+  /**
+   * Record on the client that an event got dropped (ie, an event that will not be sent to Sentry).
+   */
+  recordDroppedEvent(reason, category, count = 1) {
+    if (this._options.sendClientReports) {
+      const key = `${reason}:${category}`;
+      DEBUG_BUILD && debug.log(`Recording outcome: "${key}"${count > 1 ? ` (${count} times)` : ""}`);
+      this._outcomes[key] = (this._outcomes[key] || 0) + count;
     }
-    /** JSDoc */
-    _installGlobalOnMemoryWarningHandler() {
-      var _a, _b;
-      if (this._onMemoryWarningHandlerInstalled) {
-        return;
+  }
+  /* eslint-disable @typescript-eslint/unified-signatures */
+  /**
+   * Register a callback for whenever a span is started.
+   * Receives the span as argument.
+   * @returns {() => void} A function that, when executed, removes the registered callback.
+   */
+  /**
+   * Register a hook on this client.
+   */
+  on(hook, callback) {
+    const hookCallbacks = this._hooks[hook] = this._hooks[hook] || /* @__PURE__ */ new Set();
+    const uniqueCallback = (...args) => callback(...args);
+    hookCallbacks.add(uniqueCallback);
+    return () => {
+      hookCallbacks.delete(uniqueCallback);
+    };
+  }
+  /** Fire a hook whenever a span starts. */
+  /**
+   * Emit a hook that was previously registered via `on()`.
+   */
+  emit(hook, ...rest) {
+    const callbacks = this._hooks[hook];
+    if (callbacks) {
+      callbacks.forEach((callback) => callback(...rest));
+    }
+  }
+  /**
+   * Send an envelope to Sentry.
+   */
+  // @ts-expect-error - PromiseLike is a subset of Promise
+  sendEnvelope(envelope) {
+    return __async(this, null, function* () {
+      this.emit("beforeEnvelope", envelope);
+      if (this._isEnabled() && this._transport) {
+        try {
+          return yield this._transport.send(envelope);
+        } catch (reason) {
+          DEBUG_BUILD && debug.error("Error while sending envelope:", reason);
+          return {};
+        }
       }
-      if (sdk().onMemoryWarning) {
-        (_b = (_a = sdk()).onMemoryWarning) == null ? void 0 : _b.call(_a, ({ level = -1 }) => {
-          let levelMessage = "没有获取到告警级别信息";
-          switch (level) {
-            case 5:
-              levelMessage = "TRIM_MEMORY_RUNNING_MODERATE";
-              break;
-            case 10:
-              levelMessage = "TRIM_MEMORY_RUNNING_LOW";
-              break;
-            case 15:
-              levelMessage = "TRIM_MEMORY_RUNNING_CRITICAL";
-              break;
-            default:
-              return;
+      DEBUG_BUILD && debug.error("Transport disabled");
+      return {};
+    });
+  }
+  /* eslint-enable @typescript-eslint/unified-signatures */
+  /** Setup integrations for this client. */
+  _setupIntegrations() {
+    const { integrations } = this._options;
+    this._integrations = setupIntegrations(this, integrations);
+    afterSetupIntegrations(this, integrations);
+  }
+  /** Updates existing session based on the provided event */
+  _updateSessionFromEvent(session, event) {
+    var _a, _b;
+    let crashed = event.level === "fatal";
+    let errored = false;
+    const exceptions = (_a = event.exception) == null ? void 0 : _a.values;
+    if (exceptions) {
+      errored = true;
+      crashed = false;
+      for (const ex of exceptions) {
+        if (((_b = ex.mechanism) == null ? void 0 : _b.handled) === false) {
+          crashed = true;
+          break;
+        }
+      }
+    }
+    const sessionNonTerminal = session.status === "ok";
+    const shouldUpdateAndSend = sessionNonTerminal && session.errors === 0 || sessionNonTerminal && crashed;
+    if (shouldUpdateAndSend) {
+      updateSession(session, __spreadProps(__spreadValues({}, crashed && { status: "crashed" }), {
+        errors: session.errors || Number(errored || crashed)
+      }));
+      this.captureSession(session);
+    }
+  }
+  /**
+   * Determine if the client is finished processing. Returns a promise because it will wait `timeout` ms before saying
+   * "no" (resolving to `false`) in order to give the client a chance to potentially finish first.
+   *
+   * @param timeout The time, in ms, after which to resolve to `false` if the client is still busy. Passing `0` (or not
+   * passing anything) will make the promise wait as long as it takes for processing to finish before resolving to
+   * `true`.
+   * @returns A promise which will resolve to `true` if processing is already done or finishes before the timeout, and
+   * `false` otherwise
+   */
+  _isClientDoneProcessing(timeout) {
+    return __async(this, null, function* () {
+      let ticked = 0;
+      while (!timeout || ticked < timeout) {
+        yield new Promise((resolve) => setTimeout(resolve, 1));
+        if (!this._numProcessing) {
+          return true;
+        }
+        ticked++;
+      }
+      return false;
+    });
+  }
+  /** Determines whether this SDK is enabled and a transport is present. */
+  _isEnabled() {
+    return this.getOptions().enabled !== false && this._transport !== void 0;
+  }
+  /**
+   * Adds common information to events.
+   *
+   * The information includes release and environment from `options`,
+   * breadcrumbs and context (extra, tags and user) from the scope.
+   *
+   * Information that is already present in the event is never overwritten. For
+   * nested objects, such as the context, keys are merged.
+   *
+   * @param event The original event.
+   * @param hint May contain additional information about the original exception.
+   * @param currentScope A scope containing event metadata.
+   * @returns A new event with more information.
+   */
+  _prepareEvent(event, hint, currentScope, isolationScope) {
+    const options = this.getOptions();
+    const integrations = Object.keys(this._integrations);
+    if (!hint.integrations && (integrations == null ? void 0 : integrations.length)) {
+      hint.integrations = integrations;
+    }
+    this.emit("preprocessEvent", event, hint);
+    if (!event.type) {
+      isolationScope.setLastEventId(event.event_id || hint.event_id);
+    }
+    return prepareEvent(options, event, hint, currentScope, this, isolationScope).then((evt) => {
+      if (evt === null) {
+        return evt;
+      }
+      this.emit("postprocessEvent", evt, hint);
+      evt.contexts = __spreadValues({
+        trace: getTraceContextFromScope(currentScope)
+      }, evt.contexts);
+      const dynamicSamplingContext = getDynamicSamplingContextFromScope(this, currentScope);
+      evt.sdkProcessingMetadata = __spreadValues({
+        dynamicSamplingContext
+      }, evt.sdkProcessingMetadata);
+      return evt;
+    });
+  }
+  /**
+   * Processes the event and logs an error in case of rejection
+   * @param event
+   * @param hint
+   * @param scope
+   */
+  _captureEvent(event, hint = {}, currentScope = getCurrentScope(), isolationScope = getIsolationScope()) {
+    if (DEBUG_BUILD && isErrorEvent(event)) {
+      debug.log(`Captured error event \`${getPossibleEventMessages(event)[0] || "<unknown>"}\``);
+    }
+    return this._processEvent(event, hint, currentScope, isolationScope).then(
+      (finalEvent) => {
+        return finalEvent.event_id;
+      },
+      (reason) => {
+        if (DEBUG_BUILD) {
+          if (_isDoNotSendEventError(reason)) {
+            debug.log(reason.message);
+          } else if (_isInternalError(reason)) {
+            debug.warn(reason.message);
+          } else {
+            debug.warn(reason);
           }
-          const scope = core.getCurrentScope();
-          scope.setTag("memory-warning", String(level));
-          scope.setContext("memory_warning", {
-            level,
-            message: levelMessage
-          });
-          core.captureException(new Error("内存不足告警"), {
-            level: "warning",
-            mechanism: {
-              type: "onmemorywarning",
-              handled: true
-            }
-          });
+        }
+        return void 0;
+      }
+    );
+  }
+  /**
+   * Processes an event (either error or message) and sends it to Sentry.
+   *
+   * This also adds breadcrumbs and context information to the event. However,
+   * platform specific meta data (such as the User's IP address) must be added
+   * by the SDK implementor.
+   *
+   *
+   * @param event The event to send to Sentry.
+   * @param hint May contain additional information about the original exception.
+   * @param currentScope A scope containing event metadata.
+   * @returns A SyncPromise that resolves with the event or rejects in case event was/will not be send.
+   */
+  _processEvent(event, hint, currentScope, isolationScope) {
+    const options = this.getOptions();
+    const { sampleRate } = options;
+    const isTransaction = isTransactionEvent(event);
+    const isError2 = isErrorEvent(event);
+    const eventType = event.type || "error";
+    const beforeSendLabel = `before send for type \`${eventType}\``;
+    const parsedSampleRate = typeof sampleRate === "undefined" ? void 0 : parseSampleRate(sampleRate);
+    if (isError2 && typeof parsedSampleRate === "number" && safeMathRandom() > parsedSampleRate) {
+      this.recordDroppedEvent("sample_rate", "error");
+      return rejectedSyncPromise(
+        _makeDoNotSendEventError(
+          `Discarding event because it's not included in the random sample (sampling rate = ${sampleRate})`
+        )
+      );
+    }
+    const dataCategory = getDataCategoryByType(event.type);
+    return this._prepareEvent(event, hint, currentScope, isolationScope).then((prepared) => {
+      if (prepared === null) {
+        this.recordDroppedEvent("event_processor", dataCategory);
+        throw _makeDoNotSendEventError("An event processor returned `null`, will not send event.");
+      }
+      const isInternalException = hint.data && hint.data.__sentry__ === true;
+      if (isInternalException) {
+        return prepared;
+      }
+      const result = processBeforeSend(this, options, prepared, hint);
+      return _validateBeforeSendResult(result, beforeSendLabel);
+    }).then((processedEvent) => {
+      var _a;
+      if (processedEvent === null) {
+        this.recordDroppedEvent("before_send", dataCategory);
+        if (isTransaction) {
+          const spans = event.spans || [];
+          const spanCount = 1 + spans.length;
+          this.recordDroppedEvent("before_send", "span", spanCount);
+        }
+        throw _makeDoNotSendEventError(`${beforeSendLabel} returned \`null\`, will not send event.`);
+      }
+      const session = currentScope.getSession() || isolationScope.getSession();
+      if (isError2 && session) {
+        this._updateSessionFromEvent(session, processedEvent);
+      }
+      if (isTransaction) {
+        const spanCountBefore = ((_a = processedEvent.sdkProcessingMetadata) == null ? void 0 : _a.spanCountBeforeProcessing) || 0;
+        const spanCountAfter = processedEvent.spans ? processedEvent.spans.length : 0;
+        const droppedSpanCount = spanCountBefore - spanCountAfter;
+        if (droppedSpanCount > 0) {
+          this.recordDroppedEvent("before_send", "span", droppedSpanCount);
+        }
+      }
+      const transactionInfo = processedEvent.transaction_info;
+      if (isTransaction && transactionInfo && processedEvent.transaction !== event.transaction) {
+        const source = "custom";
+        processedEvent.transaction_info = __spreadProps(__spreadValues({}, transactionInfo), {
+          source
         });
       }
-      this._onMemoryWarningHandlerInstalled = true;
+      this.sendEvent(processedEvent, hint);
+      return processedEvent;
+    }).then(null, (reason) => {
+      if (_isDoNotSendEventError(reason) || _isInternalError(reason)) {
+        throw reason;
+      }
+      this.captureException(reason, {
+        mechanism: {
+          handled: false,
+          type: "internal"
+        },
+        data: {
+          __sentry__: true
+        },
+        originalException: reason
+      });
+      throw _makeInternalError(
+        `Event processing pipeline threw an error, original event will not be sent. Details have been sent as a new event.
+Reason: ${reason}`
+      );
+    });
+  }
+  /**
+   * Occupies the client with processing and event
+   */
+  _process(taskProducer, dataCategory) {
+    this._numProcessing++;
+    void this._promiseBuffer.add(taskProducer).then(
+      (value) => {
+        this._numProcessing--;
+        return value;
+      },
+      (reason) => {
+        this._numProcessing--;
+        if (reason === SENTRY_BUFFER_FULL_ERROR) {
+          this.recordDroppedEvent("queue_overflow", dataCategory);
+        }
+        return reason;
+      }
+    );
+  }
+  /**
+   * Clears outcomes on this client and returns them.
+   */
+  _clearOutcomes() {
+    const outcomes = this._outcomes;
+    this._outcomes = {};
+    return Object.entries(outcomes).map(([key, quantity]) => {
+      const [reason, category] = key.split(":");
+      return {
+        reason,
+        category,
+        quantity
+      };
+    });
+  }
+  /**
+   * Sends client reports as an envelope.
+   */
+  _flushOutcomes() {
+    DEBUG_BUILD && debug.log("Flushing outcomes...");
+    const outcomes = this._clearOutcomes();
+    if (outcomes.length === 0) {
+      DEBUG_BUILD && debug.log("No outcomes to send");
+      return;
+    }
+    if (!this._dsn) {
+      DEBUG_BUILD && debug.log("No dsn provided, will not send outcomes");
+      return;
+    }
+    DEBUG_BUILD && debug.log("Sending outcomes:", outcomes);
+    const envelope = createClientReportEnvelope(outcomes, this._options.tunnel && dsnToString(this._dsn));
+    this.sendEnvelope(envelope);
+  }
+  /**
+   * Creates an {@link Event} from all inputs to `captureException` and non-primitive inputs to `captureMessage`.
+   */
+}
+function getDataCategoryByType(type) {
+  return type === "replay_event" ? "replay" : type || "error";
+}
+function _validateBeforeSendResult(beforeSendResult, beforeSendLabel) {
+  const invalidValueError = `${beforeSendLabel} must return \`null\` or a valid event.`;
+  if (isThenable(beforeSendResult)) {
+    return beforeSendResult.then(
+      (event) => {
+        if (!isPlainObject(event) && event !== null) {
+          throw _makeInternalError(invalidValueError);
+        }
+        return event;
+      },
+      (e) => {
+        throw _makeInternalError(`${beforeSendLabel} rejected with ${e}`);
+      }
+    );
+  } else if (!isPlainObject(beforeSendResult) && beforeSendResult !== null) {
+    throw _makeInternalError(invalidValueError);
+  }
+  return beforeSendResult;
+}
+function processBeforeSend(client, options, event, hint) {
+  const { beforeSend, beforeSendTransaction, beforeSendSpan, ignoreSpans } = options;
+  let processedEvent = event;
+  if (isErrorEvent(processedEvent) && beforeSend) {
+    return beforeSend(processedEvent, hint);
+  }
+  if (isTransactionEvent(processedEvent)) {
+    if (beforeSendSpan || ignoreSpans) {
+      const rootSpanJson = convertTransactionEventToSpanJson(processedEvent);
+      if ((ignoreSpans == null ? void 0 : ignoreSpans.length) && shouldIgnoreSpan(rootSpanJson, ignoreSpans)) {
+        return null;
+      }
+      if (beforeSendSpan) {
+        const processedRootSpanJson = beforeSendSpan(rootSpanJson);
+        if (!processedRootSpanJson) {
+          showSpanDropWarning();
+        } else {
+          processedEvent = merge(event, convertSpanJsonToTransactionEvent(processedRootSpanJson));
+        }
+      }
+      if (processedEvent.spans) {
+        const processedSpans = [];
+        const initialSpans = processedEvent.spans;
+        for (const span of initialSpans) {
+          if ((ignoreSpans == null ? void 0 : ignoreSpans.length) && shouldIgnoreSpan(span, ignoreSpans)) {
+            reparentChildSpans(initialSpans, span);
+            continue;
+          }
+          if (beforeSendSpan) {
+            const processedSpan = beforeSendSpan(span);
+            if (!processedSpan) {
+              showSpanDropWarning();
+              processedSpans.push(span);
+            } else {
+              processedSpans.push(processedSpan);
+            }
+          } else {
+            processedSpans.push(span);
+          }
+        }
+        const droppedSpans = processedEvent.spans.length - processedSpans.length;
+        if (droppedSpans) {
+          client.recordDroppedEvent("before_send", "span", droppedSpans);
+        }
+        processedEvent.spans = processedSpans;
+      }
+    }
+    if (beforeSendTransaction) {
+      if (processedEvent.spans) {
+        const spanCountBefore = processedEvent.spans.length;
+        processedEvent.sdkProcessingMetadata = __spreadProps(__spreadValues({}, event.sdkProcessingMetadata), {
+          spanCountBeforeProcessing: spanCountBefore
+        });
+      }
+      return beforeSendTransaction(processedEvent, hint);
+    }
+  }
+  return processedEvent;
+}
+function isErrorEvent(event) {
+  return event.type === void 0;
+}
+function isTransactionEvent(event) {
+  return event.type === "transaction";
+}
+function estimateMetricSizeInBytes(metric) {
+  let weight = 0;
+  if (metric.name) {
+    weight += metric.name.length * 2;
+  }
+  weight += 8;
+  return weight + estimateAttributesSizeInBytes(metric.attributes);
+}
+function estimateLogSizeInBytes(log2) {
+  let weight = 0;
+  if (log2.message) {
+    weight += log2.message.length * 2;
+  }
+  return weight + estimateAttributesSizeInBytes(log2.attributes);
+}
+function estimateAttributesSizeInBytes(attributes) {
+  if (!attributes) {
+    return 0;
+  }
+  let weight = 0;
+  Object.values(attributes).forEach((value) => {
+    if (Array.isArray(value)) {
+      weight += value.length * estimatePrimitiveSizeInBytes(value[0]);
+    } else if (isPrimitive(value)) {
+      weight += estimatePrimitiveSizeInBytes(value);
+    } else {
+      weight += 100;
+    }
+  });
+  return weight;
+}
+function estimatePrimitiveSizeInBytes(value) {
+  if (typeof value === "string") {
+    return value.length * 2;
+  } else if (typeof value === "number") {
+    return 8;
+  } else if (typeof value === "boolean") {
+    return 4;
+  }
+  return 0;
+}
+function parseStackFrames(stackParser, error2) {
+  return stackParser(error2.stack || "", 1);
+}
+function hasSentryFetchUrlHost(error2) {
+  return isError(error2) && "__sentry_fetch_url_host__" in error2 && typeof error2.__sentry_fetch_url_host__ === "string";
+}
+function _enhanceErrorWithSentryInfo(error2) {
+  if (hasSentryFetchUrlHost(error2)) {
+    return `${error2.message} (${error2.__sentry_fetch_url_host__})`;
+  }
+  return error2.message;
+}
+function exceptionFromError(stackParser, error2) {
+  const exception = {
+    type: error2.name || error2.constructor.name,
+    value: _enhanceErrorWithSentryInfo(error2)
+  };
+  const frames = parseStackFrames(stackParser, error2);
+  if (frames.length) {
+    exception.stacktrace = { frames };
+  }
+  return exception;
+}
+function initAndBind(clientClass, options) {
+  if (options.debug === true) {
+    if (DEBUG_BUILD) {
+      debug.enable();
+    } else {
+      consoleSandbox(() => {
+        console.warn("[Sentry] Cannot initialize SDK with `debug` option using a non-debug bundle.");
+      });
+    }
+  }
+  const scope = getCurrentScope();
+  scope.update(options.initialScope);
+  const client = new clientClass(options);
+  setCurrentClient(client);
+  client.init();
+  return client;
+}
+function setCurrentClient(client) {
+  getCurrentScope().setClient(client);
+}
+const DEFAULT_BREADCRUMBS = 100;
+function addBreadcrumb(breadcrumb, hint) {
+  const client = getClient();
+  const isolationScope = getIsolationScope();
+  if (!client) return;
+  const { beforeBreadcrumb = null, maxBreadcrumbs = DEFAULT_BREADCRUMBS } = client.getOptions();
+  if (maxBreadcrumbs <= 0) return;
+  const timestamp = dateTimestampInSeconds();
+  const mergedBreadcrumb = __spreadValues({ timestamp }, breadcrumb);
+  const finalBreadcrumb = beforeBreadcrumb ? consoleSandbox(() => beforeBreadcrumb(mergedBreadcrumb, hint)) : mergedBreadcrumb;
+  if (finalBreadcrumb === null) return;
+  if (client.emit) {
+    client.emit("beforeAddBreadcrumb", finalBreadcrumb, hint);
+  }
+  isolationScope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
+}
+const SDK_VERSION = "1.0.0-beta.1";
+const SDK_NAME = "sentry.javascript.miniapp";
+const getSDK = () => {
+  let currentSdk = {
+    // tslint:disable-next-line: no-empty
+    request: () => {
+    },
+    // tslint:disable-next-line: no-empty
+    httpRequest: () => {
+    },
+    // tslint:disable-next-line: no-empty
+    getSystemInfoSync: () => ({}),
+    // tslint:disable-next-line: no-empty
+    URLSearchParams: () => {
     }
   };
-  _GlobalHandlers.id = "GlobalHandlers";
-  let GlobalHandlers = _GlobalHandlers;
-  const _TryCatch = class _TryCatch {
-    constructor() {
-      this.name = _TryCatch.id;
-      this._ignoreOnError = 0;
+  if (typeof wx === "object" && wx !== null) {
+    currentSdk = wx;
+  } else if (typeof my === "object" && my !== null) {
+    currentSdk = my;
+  } else if (typeof tt === "object" && tt !== null) {
+    currentSdk = tt;
+  } else if (typeof dd === "object" && dd !== null) {
+    currentSdk = dd;
+  } else if (typeof qq === "object" && qq !== null) {
+    currentSdk = qq;
+  } else if (typeof swan === "object" && swan !== null) {
+    currentSdk = swan;
+  } else {
+    throw new Error("sentry-miniapp 暂不支持此平台");
+  }
+  return currentSdk;
+};
+const getAppName = () => {
+  let currentAppName = "unknown";
+  if (typeof wx === "object" && wx !== null) {
+    currentAppName = "wechat";
+  } else if (typeof my === "object" && my !== null) {
+    currentAppName = "alipay";
+  } else if (typeof tt === "object" && tt !== null) {
+    currentAppName = "bytedance";
+  } else if (typeof dd === "object" && dd !== null) {
+    currentAppName = "dingtalk";
+  } else if (typeof qq === "object" && qq !== null) {
+    currentAppName = "qq";
+  } else if (typeof swan === "object" && swan !== null) {
+    currentAppName = "swan";
+  }
+  return currentAppName;
+};
+const getSystemInfo = () => {
+  try {
+    const currentSdk = getSDK();
+    if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo && currentSdk.getAppBaseInfo) {
+      const deviceInfo = currentSdk.getDeviceInfo();
+      const windowInfo = currentSdk.getWindowInfo();
+      const appBaseInfo = currentSdk.getAppBaseInfo();
+      return {
+        brand: deviceInfo.brand || "",
+        model: deviceInfo.model || "",
+        pixelRatio: windowInfo.pixelRatio || 1,
+        screenWidth: windowInfo.screenWidth || 0,
+        screenHeight: windowInfo.screenHeight || 0,
+        windowWidth: windowInfo.windowWidth || 0,
+        windowHeight: windowInfo.windowHeight || 0,
+        statusBarHeight: windowInfo.statusBarHeight || 0,
+        language: appBaseInfo.language || "",
+        version: appBaseInfo.version || deviceInfo.system || "",
+        system: deviceInfo.system || "",
+        platform: deviceInfo.platform || "",
+        fontSizeSetting: appBaseInfo.fontSizeSetting || 0,
+        SDKVersion: appBaseInfo.SDKVersion || "",
+        benchmarkLevel: deviceInfo.benchmarkLevel || 0,
+        albumAuthorized: deviceInfo.albumAuthorized || false,
+        cameraAuthorized: deviceInfo.cameraAuthorized || false,
+        locationAuthorized: deviceInfo.locationAuthorized || false,
+        microphoneAuthorized: deviceInfo.microphoneAuthorized || false,
+        notificationAuthorized: deviceInfo.notificationAuthorized || false,
+        bluetoothEnabled: deviceInfo.bluetoothEnabled || false,
+        locationEnabled: deviceInfo.locationEnabled || false,
+        wifiEnabled: deviceInfo.wifiEnabled || false,
+        safeArea: windowInfo.safeArea || {
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: windowInfo.windowWidth || 0,
+          height: windowInfo.windowHeight || 0
+        }
+      };
     }
-    /** JSDoc */
-    _wrapTimeFunction(original) {
-      return function(...args) {
-        const originalCallback = args[0];
-        args[0] = wrap$1(originalCallback, {
+    if (currentSdk.getSystemInfoSync) {
+      console.warn("[Sentry] getSystemInfoSync is deprecated. Please update to use getDeviceInfo/getWindowInfo/getAppBaseInfo.");
+      return currentSdk.getSystemInfoSync();
+    }
+  } catch (error2) {
+    console.warn("Failed to get system info:", error2);
+  }
+  return null;
+};
+const isMiniappEnvironment = () => {
+  try {
+    getSDK();
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+let _sdk = null;
+let _appName = null;
+const sdk = () => {
+  if (_sdk === null) {
+    _sdk = getSDK();
+  }
+  return _sdk;
+};
+const appName = () => {
+  if (_appName === null) {
+    _appName = getAppName();
+  }
+  return _appName;
+};
+const getPerformanceManager = () => {
+  try {
+    const currentSdk = sdk();
+    if (currentSdk.getPerformance && typeof currentSdk.getPerformance === "function") {
+      return currentSdk.getPerformance();
+    }
+  } catch (error2) {
+    console.warn("Failed to get performance manager:", error2);
+  }
+  return null;
+};
+function createMiniappTransport(options) {
+  const transportUrl = options.url;
+  function makeRequest(request) {
+    return new Promise((resolve, reject) => {
+      var _a, _b, _c, _d;
+      const requestOptions = {
+        url: transportUrl,
+        method: "POST",
+        data: request.body,
+        header: __spreadValues({
+          "Content-Type": "application/json"
+        }, request.headers),
+        timeout: 1e4,
+        success: (res) => {
+          var _a2, _b2;
+          const status = res.statusCode;
+          resolve({
+            statusCode: status,
+            headers: {
+              "x-sentry-rate-limits": (_a2 = res.header) == null ? void 0 : _a2["x-sentry-rate-limits"],
+              "retry-after": (_b2 = res.header) == null ? void 0 : _b2["retry-after"]
+            }
+          });
+        },
+        fail: (error2) => {
+          reject(new Error(`Network request failed: ${error2.errMsg || error2.message || "Unknown error"}`));
+        }
+      };
+      if (sdk().request) {
+        (_b = (_a = sdk()).request) == null ? void 0 : _b.call(_a, requestOptions);
+      } else if (sdk().httpRequest) {
+        (_d = (_c = sdk()).httpRequest) == null ? void 0 : _d.call(_c, requestOptions);
+      } else {
+        reject(new Error("No request method available in current miniapp environment"));
+      }
+    });
+  }
+  return createTransport(options, makeRequest);
+}
+const index$1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  createMiniappTransport
+}, Symbol.toStringTag, { value: "Module" }));
+class MiniappClient extends Client {
+  /**
+   * Creates a new Miniapp SDK instance.
+   *
+   * @param options Configuration options for this SDK.
+   */
+  constructor(options = {}) {
+    super(__spreadProps(__spreadValues({}, options), {
+      transport: options.transport || ((transportOptions) => {
+        return createMiniappTransport(__spreadProps(__spreadValues({}, transportOptions), {
+          headers: {}
+        }));
+      })
+    }));
+  }
+  /**
+   * @inheritDoc
+   */
+  eventFromException(exception) {
+    return Promise.resolve({
+      exception: {
+        values: [{
+          type: exception.name || "Error",
+          value: exception.message || String(exception)
+        }]
+      },
+      level: "error"
+    });
+  }
+  eventFromMessage(message, level = "info") {
+    return Promise.resolve({
+      message,
+      level
+    });
+  }
+  _prepareEvent(event, hint, scope) {
+    event.platform = event.platform || this.getOptions().platform || "javascript";
+    event.sdk = __spreadProps(__spreadValues({}, event.sdk), {
+      name: SDK_NAME,
+      packages: [
+        ...event.sdk && event.sdk.packages || [],
+        {
+          name: "npm:@sentry/miniapp",
+          version: SDK_VERSION
+        }
+      ],
+      version: SDK_VERSION
+    });
+    if (!event.contexts) {
+      event.contexts = {};
+    }
+    event.contexts["miniapp"] = {
+      platform: appName(),
+      sdk_version: SDK_VERSION
+    };
+    const systemInfo = getSystemInfo();
+    if (systemInfo) {
+      event.contexts.device = {
+        brand: systemInfo.brand || "unknown",
+        model: systemInfo.model || "unknown",
+        screen_resolution: `${systemInfo.screenWidth || 0}x${systemInfo.screenHeight || 0}`,
+        language: systemInfo.language || "unknown",
+        version: systemInfo.version || "unknown",
+        system: systemInfo.system || "unknown",
+        platform: systemInfo.platform || "unknown"
+      };
+      event.contexts.os = {
+        name: systemInfo.system || "unknown",
+        version: systemInfo.version || "unknown"
+      };
+      event.contexts.app = {
+        app_version: systemInfo.SDKVersion || "unknown"
+      };
+    } else {
+      event.contexts.device = {
+        brand: "unknown",
+        model: "unknown",
+        screen_resolution: "0x0",
+        language: "unknown",
+        version: "unknown",
+        system: "unknown",
+        platform: "unknown"
+      };
+      event.contexts.os = {
+        name: "unknown",
+        version: "unknown"
+      };
+      event.contexts.app = {
+        app_version: "unknown"
+      };
+    }
+    try {
+      const currentScope = scope || getCurrentScope();
+      const isolationScope = getIsolationScope();
+      return super._prepareEvent(event, hint || {}, currentScope, isolationScope);
+    } catch (error2) {
+      return Promise.resolve(event);
+    }
+  }
+  /**
+   * Show a report dialog to the user to send feedback to a specific event.
+   * 向用户显示报告对话框以将反馈发送到特定事件。
+   * 注意：小程序环境使用模态对话框模拟此功能
+   *
+   * @param options Set individual options for the dialog
+   */
+  showReportDialog(options = {}) {
+    const showModal = sdk().showModal;
+    if (showModal) {
+      showModal({
+        title: options.title || "错误反馈",
+        content: options.subtitle || "应用遇到了一个错误，是否要发送错误报告？",
+        confirmText: "发送",
+        cancelText: "取消",
+        success: (res) => {
+          if (res.confirm && options.onLoad) {
+            options.onLoad();
+          }
+        }
+      });
+    } else {
+      console.warn("sentry-miniapp: showModal is not available in current miniapp platform", options);
+    }
+  }
+  /**
+   * Capture feedback using the new feedback API.
+   * 使用新的反馈 API 捕获反馈
+   *
+   * @param params Feedback parameters
+   * @returns Event ID
+   */
+  captureFeedback(params) {
+    const feedbackEvent = {
+      contexts: {
+        feedback: {
+          contact_email: params.email,
+          name: params.name,
+          message: params.message,
+          url: params.url,
+          source: params.source,
+          associated_event_id: params.associatedEventId
+        }
+      },
+      type: "feedback",
+      level: "info",
+      tags: params.tags || {}
+    };
+    const scope = getCurrentScope();
+    return scope.captureEvent(feedbackEvent);
+  }
+}
+const _GlobalHandlers = class _GlobalHandlers {
+  /** JSDoc */
+  constructor(options) {
+    this.name = _GlobalHandlers.id;
+    this._onErrorHandlerInstalled = false;
+    this._onUnhandledRejectionHandlerInstalled = false;
+    this._onPageNotFoundHandlerInstalled = false;
+    this._onMemoryWarningHandlerInstalled = false;
+    this._options = __spreadValues({
+      onerror: true,
+      onunhandledrejection: true,
+      onpagenotfound: true,
+      onmemorywarning: true
+    }, options);
+  }
+  /**
+   * @inheritDoc
+   */
+  setupOnce() {
+    Error.stackTraceLimit = 50;
+    if (this._options.onerror) {
+      this._installGlobalOnErrorHandler();
+    }
+    if (this._options.onunhandledrejection) {
+      this._installGlobalOnUnhandledRejectionHandler();
+    }
+    if (this._options.onpagenotfound) {
+      this._installGlobalOnPageNotFoundHandler();
+    }
+    if (this._options.onmemorywarning) {
+      this._installGlobalOnMemoryWarningHandler();
+    }
+  }
+  /** JSDoc */
+  _installGlobalOnErrorHandler() {
+    var _a, _b;
+    if (this._onErrorHandlerInstalled) {
+      return;
+    }
+    if (sdk().onError) {
+      (_b = (_a = sdk()).onError) == null ? void 0 : _b.call(_a, (err) => {
+        const error2 = typeof err === "string" ? new Error(err) : err;
+        captureException(error2, {
           mechanism: {
-            data: { function: getFunctionName(original) },
+            type: "onerror",
+            handled: false
+          }
+        });
+      });
+    }
+    this._onErrorHandlerInstalled = true;
+  }
+  /** JSDoc */
+  _installGlobalOnUnhandledRejectionHandler() {
+    var _a, _b;
+    if (this._onUnhandledRejectionHandlerInstalled) {
+      return;
+    }
+    if (sdk().onUnhandledRejection) {
+      (_b = (_a = sdk()).onUnhandledRejection) == null ? void 0 : _b.call(_a, ({ reason, promise }) => {
+        const error2 = typeof reason === "string" ? new Error(reason) : reason;
+        captureException(error2, {
+          mechanism: {
+            type: "onunhandledrejection",
+            handled: false
+          },
+          extra: {
+            promise
+          }
+        });
+      });
+    }
+    this._onUnhandledRejectionHandlerInstalled = true;
+  }
+  /** JSDoc */
+  _installGlobalOnPageNotFoundHandler() {
+    var _a, _b;
+    if (this._onPageNotFoundHandlerInstalled) {
+      return;
+    }
+    if (sdk().onPageNotFound) {
+      (_b = (_a = sdk()).onPageNotFound) == null ? void 0 : _b.call(_a, (res) => {
+        const scope = getCurrentScope();
+        const url = res.path.split("?")[0];
+        scope.setTag("pagenotfound", url);
+        scope.setContext("page_not_found", {
+          path: res.path,
+          query: res.query,
+          isEntryPage: res.isEntryPage
+        });
+        captureException(new Error(`页面无法找到: ${url}`), {
+          level: "warning",
+          mechanism: {
+            type: "onpagenotfound",
+            handled: true
+          }
+        });
+      });
+    }
+    this._onPageNotFoundHandlerInstalled = true;
+  }
+  /** JSDoc */
+  _installGlobalOnMemoryWarningHandler() {
+    var _a, _b;
+    if (this._onMemoryWarningHandlerInstalled) {
+      return;
+    }
+    if (sdk().onMemoryWarning) {
+      (_b = (_a = sdk()).onMemoryWarning) == null ? void 0 : _b.call(_a, ({ level = -1 }) => {
+        let levelMessage = "没有获取到告警级别信息";
+        switch (level) {
+          case 5:
+            levelMessage = "TRIM_MEMORY_RUNNING_MODERATE";
+            break;
+          case 10:
+            levelMessage = "TRIM_MEMORY_RUNNING_LOW";
+            break;
+          case 15:
+            levelMessage = "TRIM_MEMORY_RUNNING_CRITICAL";
+            break;
+          default:
+            return;
+        }
+        const scope = getCurrentScope();
+        scope.setTag("memory-warning", String(level));
+        scope.setContext("memory_warning", {
+          level,
+          message: levelMessage
+        });
+        captureException(new Error("内存不足告警"), {
+          level: "warning",
+          mechanism: {
+            type: "onmemorywarning",
+            handled: true
+          }
+        });
+      });
+    }
+    this._onMemoryWarningHandlerInstalled = true;
+  }
+};
+_GlobalHandlers.id = "GlobalHandlers";
+let GlobalHandlers = _GlobalHandlers;
+const _TryCatch = class _TryCatch {
+  constructor() {
+    this.name = _TryCatch.id;
+    this._ignoreOnError = 0;
+  }
+  /** JSDoc */
+  _wrapTimeFunction(original) {
+    return function(...args) {
+      const originalCallback = args[0];
+      args[0] = wrap$1(originalCallback, {
+        mechanism: {
+          data: { function: getFunctionName(original) },
+          handled: true,
+          type: "instrument"
+        }
+      });
+      return original.apply(this, args);
+    };
+  }
+  /** JSDoc */
+  _wrapRAF(original) {
+    return function(callback) {
+      return original(
+        wrap$1(callback, {
+          mechanism: {
+            data: {
+              function: "requestAnimationFrame",
+              handler: getFunctionName(original)
+            },
             handled: true,
             type: "instrument"
           }
-        });
-        return original.apply(this, args);
-      };
-    }
-    /** JSDoc */
-    _wrapRAF(original) {
-      return function(callback) {
-        return original(
-          wrap$1(callback, {
-            mechanism: {
-              data: {
-                function: "requestAnimationFrame",
-                handler: getFunctionName(original)
-              },
-              handled: true,
-              type: "instrument"
-            }
-          })
-        );
-      };
-    }
-    /**
-     * Wrap timer functions and event targets to catch errors
-     * and provide better metadata.
-     */
-    setupOnce() {
-      this._ignoreOnError = this._ignoreOnError;
-      const global2 = globalThis;
-      if (global2.setTimeout) {
-        fill(global2, "setTimeout", this._wrapTimeFunction.bind(this));
-      }
-      if (global2.setInterval) {
-        fill(global2, "setInterval", this._wrapTimeFunction.bind(this));
-      }
-      if (global2.requestAnimationFrame) {
-        fill(global2, "requestAnimationFrame", this._wrapRAF.bind(this));
-      }
-    }
-  };
-  _TryCatch.id = "TryCatch";
-  let TryCatch = _TryCatch;
-  function wrap$1(fn, options = {}, before) {
-    if (typeof fn !== "function") {
-      return fn;
-    }
-    try {
-      if (fn.__sentry__) {
-        return fn;
-      }
-      if (fn.__sentry_wrapped__) {
-        return fn.__sentry_wrapped__;
-      }
-    } catch (e) {
-      return fn;
-    }
-    const sentryWrapped = function(...args) {
-      try {
-        const wrappedArguments = args.map((arg) => wrap$1(arg, options));
-        if (fn.handleEvent) {
-          return fn.handleEvent.apply(this, wrappedArguments);
-        }
-        return fn.apply(this, wrappedArguments);
-      } catch (ex) {
-        const scope = core.getCurrentScope();
-        scope.addEventProcessor((event) => {
-          const processedEvent = __spreadValues({}, event);
-          if (options.mechanism) {
-            processedEvent.exception = processedEvent.exception || {};
-            processedEvent.exception.mechanism = options.mechanism;
-          }
-          processedEvent.extra = __spreadProps(__spreadValues({}, processedEvent.extra), {
-            arguments: args
-          });
-          return processedEvent;
-        });
-        core.captureException(ex);
-        throw ex;
-      }
+        })
+      );
     };
-    try {
-      for (const property in fn) {
-        if (Object.prototype.hasOwnProperty.call(fn, property)) {
-          sentryWrapped[property] = fn[property];
-        }
-      }
-    } catch (_oO) {
+  }
+  /**
+   * Wrap timer functions and event targets to catch errors
+   * and provide better metadata.
+   */
+  setupOnce() {
+    this._ignoreOnError = this._ignoreOnError;
+    const global2 = globalThis;
+    if (global2.setTimeout) {
+      fill(global2, "setTimeout", this._wrapTimeFunction.bind(this));
     }
-    fn.prototype = fn.prototype || {};
-    sentryWrapped.prototype = fn.prototype;
-    Object.defineProperty(fn, "__sentry_wrapped__", {
-      enumerable: false,
-      value: sentryWrapped
-    });
-    Object.defineProperties(sentryWrapped, {
-      __sentry__: {
-        enumerable: false,
-        value: true
-      },
-      __sentry_original__: {
-        enumerable: false,
-        value: fn
-      }
-    });
+    if (global2.setInterval) {
+      fill(global2, "setInterval", this._wrapTimeFunction.bind(this));
+    }
+    if (global2.requestAnimationFrame) {
+      fill(global2, "requestAnimationFrame", this._wrapRAF.bind(this));
+    }
+  }
+};
+_TryCatch.id = "TryCatch";
+let TryCatch = _TryCatch;
+function wrap$1(fn, options = {}, before) {
+  if (typeof fn !== "function") {
+    return fn;
+  }
+  try {
+    if (fn.__sentry__) {
+      return fn;
+    }
+    if (fn.__sentry_wrapped__) {
+      return fn.__sentry_wrapped__;
+    }
+  } catch (e) {
+    return fn;
+  }
+  const sentryWrapped = function(...args) {
     try {
-      const descriptor = Object.getOwnPropertyDescriptor(sentryWrapped, "name");
-      if (descriptor.configurable) {
-        Object.defineProperty(sentryWrapped, "name", {
-          get() {
-            return fn.name;
+      const wrappedArguments = args.map((arg) => wrap$1(arg, options));
+      if (fn.handleEvent) {
+        return fn.handleEvent.apply(this, wrappedArguments);
+      }
+      return fn.apply(this, wrappedArguments);
+    } catch (ex) {
+      const scope = getCurrentScope();
+      scope.addEventProcessor((event) => {
+        const processedEvent = __spreadValues({}, event);
+        if (options.mechanism) {
+          processedEvent.exception = processedEvent.exception || {};
+          processedEvent.exception.mechanism = options.mechanism;
+        }
+        processedEvent.extra = __spreadProps(__spreadValues({}, processedEvent.extra), {
+          arguments: args
+        });
+        return processedEvent;
+      });
+      captureException(ex);
+      throw ex;
+    }
+  };
+  try {
+    for (const property in fn) {
+      if (Object.prototype.hasOwnProperty.call(fn, property)) {
+        sentryWrapped[property] = fn[property];
+      }
+    }
+  } catch (_oO) {
+  }
+  fn.prototype = fn.prototype || {};
+  sentryWrapped.prototype = fn.prototype;
+  Object.defineProperty(fn, "__sentry_wrapped__", {
+    enumerable: false,
+    value: sentryWrapped
+  });
+  Object.defineProperties(sentryWrapped, {
+    __sentry__: {
+      enumerable: false,
+      value: true
+    },
+    __sentry_original__: {
+      enumerable: false,
+      value: fn
+    }
+  });
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(sentryWrapped, "name");
+    if (descriptor.configurable) {
+      Object.defineProperty(sentryWrapped, "name", {
+        get() {
+          return fn.name;
+        }
+      });
+    }
+  } catch (_oO) {
+  }
+  return sentryWrapped;
+}
+function fill(source, name, replacementFactory) {
+  if (!(name in source)) {
+    return;
+  }
+  const original = source[name];
+  const wrapped = replacementFactory(original);
+  if (typeof wrapped === "function") {
+    try {
+      wrapped.prototype = wrapped.prototype || {};
+      wrapped.prototype.constructor = wrapped;
+    } catch (_Oo) {
+    }
+  }
+  source[name] = wrapped;
+}
+function getFunctionName(fn) {
+  try {
+    return fn && fn.name || "<anonymous>";
+  } catch (e) {
+    return "<anonymous>";
+  }
+}
+const DEFAULT_KEY = "cause";
+const DEFAULT_LIMIT = 5;
+const _LinkedErrors = class _LinkedErrors {
+  /**
+   * @inheritDoc
+   */
+  constructor(options = {}) {
+    this.name = _LinkedErrors.id;
+    this._key = options.key || DEFAULT_KEY;
+    this._limit = options.limit || DEFAULT_LIMIT;
+  }
+  /**
+   * @inheritDoc
+   */
+  setupOnce() {
+  }
+  /**
+   * @inheritDoc
+   */
+  processEvent(event, hint) {
+    const client = getCurrentScope().getClient();
+    if (!client) {
+      return event;
+    }
+    return this._handler(event, hint);
+  }
+  /**
+   * @inheritDoc
+   */
+  _handler(event, hint) {
+    if (!event.exception || !event.exception.values || !hint || !isInstanceOf(hint.originalException, Error)) {
+      return event;
+    }
+    const linkedErrors = this._walkErrorTree(hint.originalException, this._key);
+    event.exception.values = [...linkedErrors, ...event.exception.values];
+    return event;
+  }
+  /**
+   * @inheritDoc
+   */
+  _walkErrorTree(error2, key, stack = []) {
+    if (!isInstanceOf(error2[key], Error) || stack.length + 1 >= this._limit) {
+      return stack;
+    }
+    const exception = exceptionFromError(() => [], error2[key]);
+    return this._walkErrorTree(error2[key], key, [exception, ...stack]);
+  }
+};
+_LinkedErrors.id = "LinkedErrors";
+let LinkedErrors = _LinkedErrors;
+function isInstanceOf(wat, base) {
+  try {
+    return wat instanceof base;
+  } catch (_e) {
+    return false;
+  }
+}
+const _HttpContext = class _HttpContext {
+  constructor() {
+    this.name = _HttpContext.id;
+  }
+  /**
+   * @inheritDoc
+   */
+  setupOnce() {
+  }
+  /**
+   * @inheritDoc
+   */
+  processEvent(event) {
+    const scope = getCurrentScope();
+    const context = {
+      runtime: {
+        name: "miniapp",
+        version: this._getMiniappVersion()
+      },
+      app: {
+        name: this._getAppName(),
+        version: this._getAppVersion()
+      },
+      device: this._getDeviceInfo(),
+      network: this._getNetworkInfo()
+    };
+    scope.setContext("runtime", context.runtime);
+    scope.setContext("app", context.app);
+    scope.setContext("device", context.device);
+    scope.setContext("network", context.network);
+    return event;
+  }
+  /**
+   * Get miniapp version
+   */
+  _getMiniappVersion() {
+    var _a;
+    try {
+      const currentSdk = sdk();
+      if (currentSdk.getAppBaseInfo) {
+        const appBaseInfo = currentSdk.getAppBaseInfo();
+        return (appBaseInfo == null ? void 0 : appBaseInfo.version) || (appBaseInfo == null ? void 0 : appBaseInfo.SDKVersion) || "unknown";
+      }
+      if (currentSdk.getSystemInfoSync) {
+        const systemInfo = (_a = currentSdk.getSystemInfoSync) == null ? void 0 : _a.call(currentSdk);
+        return systemInfo.version || systemInfo.SDKVersion || "unknown";
+      }
+    } catch (e) {
+    }
+    return "unknown";
+  }
+  /**
+   * Get app name
+   */
+  _getAppName() {
+    var _a, _b, _c;
+    try {
+      if (sdk().getAccountInfoSync) {
+        const accountInfo = (_b = (_a = sdk()).getAccountInfoSync) == null ? void 0 : _b.call(_a);
+        return ((_c = accountInfo.miniProgram) == null ? void 0 : _c.appId) || "unknown";
+      }
+    } catch (e) {
+    }
+    return "unknown";
+  }
+  /**
+   * Get app version
+   */
+  _getAppVersion() {
+    var _a, _b, _c;
+    try {
+      if (sdk().getAccountInfoSync) {
+        const accountInfo = (_b = (_a = sdk()).getAccountInfoSync) == null ? void 0 : _b.call(_a);
+        return ((_c = accountInfo == null ? void 0 : accountInfo.miniProgram) == null ? void 0 : _c.version) || "unknown";
+      }
+    } catch (e) {
+    }
+    return "unknown";
+  }
+  /**
+   * Get device information
+   */
+  _getDeviceInfo() {
+    try {
+      const currentSdk = sdk();
+      if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo) {
+        const deviceInfo = currentSdk.getDeviceInfo();
+        const windowInfo = currentSdk.getWindowInfo();
+        return {
+          brand: deviceInfo == null ? void 0 : deviceInfo.brand,
+          model: deviceInfo == null ? void 0 : deviceInfo.model,
+          system: deviceInfo == null ? void 0 : deviceInfo.system,
+          platform: deviceInfo == null ? void 0 : deviceInfo.platform,
+          screenWidth: windowInfo == null ? void 0 : windowInfo.screenWidth,
+          screenHeight: windowInfo == null ? void 0 : windowInfo.screenHeight,
+          windowWidth: windowInfo == null ? void 0 : windowInfo.windowWidth,
+          windowHeight: windowInfo == null ? void 0 : windowInfo.windowHeight
+        };
+      }
+      if (currentSdk.getSystemInfoSync) {
+        const systemInfo = currentSdk.getSystemInfoSync();
+        return {
+          brand: systemInfo == null ? void 0 : systemInfo.brand,
+          model: systemInfo == null ? void 0 : systemInfo.model,
+          system: systemInfo == null ? void 0 : systemInfo.system,
+          platform: systemInfo == null ? void 0 : systemInfo.platform,
+          screenWidth: systemInfo == null ? void 0 : systemInfo.screenWidth,
+          screenHeight: systemInfo == null ? void 0 : systemInfo.screenHeight,
+          pixelRatio: systemInfo == null ? void 0 : systemInfo.pixelRatio,
+          language: systemInfo == null ? void 0 : systemInfo.language
+        };
+      }
+    } catch (e) {
+    }
+    return {};
+  }
+  /**
+   * Get network information
+   */
+  _getNetworkInfo() {
+    try {
+      if (sdk().getNetworkType) {
+        sdk().getNetworkType({
+          success: (res) => {
+            const scope = getCurrentScope();
+            scope.setTag("network.type", res.networkType);
+            scope.setContext("network", {
+              type: res.networkType
+            });
           }
         });
       }
-    } catch (_oO) {
-    }
-    return sentryWrapped;
-  }
-  function fill(source, name, replacementFactory) {
-    if (!(name in source)) {
-      return;
-    }
-    const original = source[name];
-    const wrapped = replacementFactory(original);
-    if (typeof wrapped === "function") {
-      try {
-        wrapped.prototype = wrapped.prototype || {};
-        wrapped.prototype.constructor = wrapped;
-      } catch (_Oo) {
-      }
-    }
-    source[name] = wrapped;
-  }
-  function getFunctionName(fn) {
-    try {
-      return fn && fn.name || "<anonymous>";
     } catch (e) {
-      return "<anonymous>";
     }
+    return {};
   }
-  const DEFAULT_KEY = "cause";
-  const DEFAULT_LIMIT = 5;
-  const _LinkedErrors = class _LinkedErrors {
-    /**
-     * @inheritDoc
-     */
-    constructor(options = {}) {
-      this.name = _LinkedErrors.id;
-      this._key = options.key || DEFAULT_KEY;
-      this._limit = options.limit || DEFAULT_LIMIT;
+};
+_HttpContext.id = "HttpContext";
+let HttpContext = _HttpContext;
+const _Dedupe = class _Dedupe {
+  constructor() {
+    this.name = _Dedupe.id;
+  }
+  /**
+   * @inheritDoc
+   */
+  setupOnce() {
+  }
+  /**
+   * @inheritDoc
+   */
+  processEvent(currentEvent, _hint) {
+    if (currentEvent.type) {
+      return currentEvent;
     }
-    /**
-     * @inheritDoc
-     */
-    setupOnce() {
-    }
-    /**
-     * @inheritDoc
-     */
-    processEvent(event, hint) {
-      const client = core.getCurrentScope().getClient();
-      if (!client) {
-        return event;
-      }
-      return this._handler(event, hint);
-    }
-    /**
-     * @inheritDoc
-     */
-    _handler(event, hint) {
-      if (!event.exception || !event.exception.values || !hint || !isInstanceOf(hint.originalException, Error)) {
-        return event;
-      }
-      const linkedErrors = this._walkErrorTree(hint.originalException, this._key);
-      event.exception.values = [...linkedErrors, ...event.exception.values];
-      return event;
-    }
-    /**
-     * @inheritDoc
-     */
-    _walkErrorTree(error, key, stack = []) {
-      if (!isInstanceOf(error[key], Error) || stack.length + 1 >= this._limit) {
-        return stack;
-      }
-      const exception = core.exceptionFromError(() => [], error[key]);
-      return this._walkErrorTree(error[key], key, [exception, ...stack]);
-    }
-  };
-  _LinkedErrors.id = "LinkedErrors";
-  let LinkedErrors = _LinkedErrors;
-  function isInstanceOf(wat, base) {
     try {
-      return wat instanceof base;
-    } catch (_e) {
-      return false;
-    }
-  }
-  const _HttpContext = class _HttpContext {
-    constructor() {
-      this.name = _HttpContext.id;
-    }
-    /**
-     * @inheritDoc
-     */
-    setupOnce() {
-    }
-    /**
-     * @inheritDoc
-     */
-    processEvent(event) {
-      const scope = core.getCurrentScope();
-      const context = {
-        runtime: {
-          name: "miniapp",
-          version: this._getMiniappVersion()
-        },
-        app: {
-          name: this._getAppName(),
-          version: this._getAppVersion()
-        },
-        device: this._getDeviceInfo(),
-        network: this._getNetworkInfo()
-      };
-      scope.setContext("runtime", context.runtime);
-      scope.setContext("app", context.app);
-      scope.setContext("device", context.device);
-      scope.setContext("network", context.network);
-      return event;
-    }
-    /**
-     * Get miniapp version
-     */
-    _getMiniappVersion() {
-      var _a;
-      try {
-        const currentSdk = sdk();
-        if (currentSdk.getAppBaseInfo) {
-          const appBaseInfo = currentSdk.getAppBaseInfo();
-          return (appBaseInfo == null ? void 0 : appBaseInfo.version) || (appBaseInfo == null ? void 0 : appBaseInfo.SDKVersion) || "unknown";
-        }
-        if (currentSdk.getSystemInfoSync) {
-          const systemInfo = (_a = currentSdk.getSystemInfoSync) == null ? void 0 : _a.call(currentSdk);
-          return systemInfo.version || systemInfo.SDKVersion || "unknown";
-        }
-      } catch (e) {
+      if (this._shouldDropEvent(currentEvent, this._previousEvent)) {
+        return null;
       }
-      return "unknown";
-    }
-    /**
-     * Get app name
-     */
-    _getAppName() {
-      var _a, _b, _c;
-      try {
-        if (sdk().getAccountInfoSync) {
-          const accountInfo = (_b = (_a = sdk()).getAccountInfoSync) == null ? void 0 : _b.call(_a);
-          return ((_c = accountInfo.miniProgram) == null ? void 0 : _c.appId) || "unknown";
-        }
-      } catch (e) {
-      }
-      return "unknown";
-    }
-    /**
-     * Get app version
-     */
-    _getAppVersion() {
-      var _a, _b, _c;
-      try {
-        if (sdk().getAccountInfoSync) {
-          const accountInfo = (_b = (_a = sdk()).getAccountInfoSync) == null ? void 0 : _b.call(_a);
-          return ((_c = accountInfo == null ? void 0 : accountInfo.miniProgram) == null ? void 0 : _c.version) || "unknown";
-        }
-      } catch (e) {
-      }
-      return "unknown";
-    }
-    /**
-     * Get device information
-     */
-    _getDeviceInfo() {
-      try {
-        const currentSdk = sdk();
-        if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo) {
-          const deviceInfo = currentSdk.getDeviceInfo();
-          const windowInfo = currentSdk.getWindowInfo();
-          return {
-            brand: deviceInfo == null ? void 0 : deviceInfo.brand,
-            model: deviceInfo == null ? void 0 : deviceInfo.model,
-            system: deviceInfo == null ? void 0 : deviceInfo.system,
-            platform: deviceInfo == null ? void 0 : deviceInfo.platform,
-            screenWidth: windowInfo == null ? void 0 : windowInfo.screenWidth,
-            screenHeight: windowInfo == null ? void 0 : windowInfo.screenHeight,
-            windowWidth: windowInfo == null ? void 0 : windowInfo.windowWidth,
-            windowHeight: windowInfo == null ? void 0 : windowInfo.windowHeight
-          };
-        }
-        if (currentSdk.getSystemInfoSync) {
-          const systemInfo = currentSdk.getSystemInfoSync();
-          return {
-            brand: systemInfo == null ? void 0 : systemInfo.brand,
-            model: systemInfo == null ? void 0 : systemInfo.model,
-            system: systemInfo == null ? void 0 : systemInfo.system,
-            platform: systemInfo == null ? void 0 : systemInfo.platform,
-            screenWidth: systemInfo == null ? void 0 : systemInfo.screenWidth,
-            screenHeight: systemInfo == null ? void 0 : systemInfo.screenHeight,
-            pixelRatio: systemInfo == null ? void 0 : systemInfo.pixelRatio,
-            language: systemInfo == null ? void 0 : systemInfo.language
-          };
-        }
-      } catch (e) {
-      }
-      return {};
-    }
-    /**
-     * Get network information
-     */
-    _getNetworkInfo() {
-      try {
-        if (sdk().getNetworkType) {
-          sdk().getNetworkType({
-            success: (res) => {
-              const scope = core.getCurrentScope();
-              scope.setTag("network.type", res.networkType);
-              scope.setContext("network", {
-                type: res.networkType
-              });
-            }
-          });
-        }
-      } catch (e) {
-      }
-      return {};
-    }
-  };
-  _HttpContext.id = "HttpContext";
-  let HttpContext = _HttpContext;
-  const _Dedupe = class _Dedupe {
-    constructor() {
-      this.name = _Dedupe.id;
-    }
-    /**
-     * @inheritDoc
-     */
-    setupOnce() {
-    }
-    /**
-     * @inheritDoc
-     */
-    processEvent(currentEvent, _hint) {
-      if (currentEvent.type) {
-        return currentEvent;
-      }
-      try {
-        if (this._shouldDropEvent(currentEvent, this._previousEvent)) {
-          return null;
-        }
-      } catch (_oO) {
-        return this._previousEvent = currentEvent;
-      }
+    } catch (_oO) {
       return this._previousEvent = currentEvent;
     }
-    /** JSDoc */
-    _shouldDropEvent(currentEvent, previousEvent) {
-      if (!previousEvent) {
-        return false;
-      }
-      if (this._isSameMessageEvent(currentEvent, previousEvent)) {
-        return true;
-      }
-      if (this._isSameExceptionEvent(currentEvent, previousEvent)) {
-        return true;
-      }
+    return this._previousEvent = currentEvent;
+  }
+  /** JSDoc */
+  _shouldDropEvent(currentEvent, previousEvent) {
+    if (!previousEvent) {
       return false;
     }
-    /** JSDoc */
-    _isSameMessageEvent(currentEvent, previousEvent) {
-      const currentMessage = currentEvent.message;
-      const previousMessage = previousEvent.message;
-      if (!currentMessage && !previousMessage) {
-        return false;
-      }
-      if (currentMessage && !previousMessage || !currentMessage && previousMessage) {
-        return false;
-      }
-      if (currentMessage !== previousMessage) {
-        return false;
-      }
-      if (!this._isSameFingerprint(currentEvent, previousEvent)) {
-        return false;
-      }
-      if (!this._isSameStacktrace(currentEvent, previousEvent)) {
-        return false;
-      }
+    if (this._isSameMessageEvent(currentEvent, previousEvent)) {
       return true;
     }
-    /** JSDoc */
-    _isSameExceptionEvent(currentEvent, previousEvent) {
-      const currentException = this._getExceptionFromEvent(currentEvent);
-      const previousException = this._getExceptionFromEvent(previousEvent);
-      if (!currentException || !previousException) {
-        return false;
-      }
-      if (currentException.type !== previousException.type || currentException.value !== previousException.value) {
-        return false;
-      }
-      if (!this._isSameFingerprint(currentEvent, previousEvent)) {
-        return false;
-      }
-      if (!this._isSameStacktrace(currentEvent, previousEvent)) {
-        return false;
-      }
+    if (this._isSameExceptionEvent(currentEvent, previousEvent)) {
       return true;
     }
-    /** JSDoc */
-    _isSameStacktrace(currentEvent, previousEvent) {
-      let currentFrames = this._getFramesFromEvent(currentEvent);
-      let previousFrames = this._getFramesFromEvent(previousEvent);
-      if (!currentFrames && !previousFrames) {
-        return true;
-      }
-      if (currentFrames && !previousFrames || !currentFrames && previousFrames) {
-        return false;
-      }
-      currentFrames = currentFrames;
-      previousFrames = previousFrames;
-      if (previousFrames.length !== currentFrames.length) {
-        return false;
-      }
-      for (let i = 0; i < previousFrames.length; i++) {
-        const frameA = previousFrames[i];
-        const frameB = currentFrames[i];
-        if (frameA.filename !== frameB.filename || frameA.lineno !== frameB.lineno || frameA.colno !== frameB.colno || frameA.function !== frameB.function) {
-          return false;
-        }
-      }
+    return false;
+  }
+  /** JSDoc */
+  _isSameMessageEvent(currentEvent, previousEvent) {
+    const currentMessage = currentEvent.message;
+    const previousMessage = previousEvent.message;
+    if (!currentMessage && !previousMessage) {
+      return false;
+    }
+    if (currentMessage && !previousMessage || !currentMessage && previousMessage) {
+      return false;
+    }
+    if (currentMessage !== previousMessage) {
+      return false;
+    }
+    if (!this._isSameFingerprint(currentEvent, previousEvent)) {
+      return false;
+    }
+    if (!this._isSameStacktrace(currentEvent, previousEvent)) {
+      return false;
+    }
+    return true;
+  }
+  /** JSDoc */
+  _isSameExceptionEvent(currentEvent, previousEvent) {
+    const currentException = this._getExceptionFromEvent(currentEvent);
+    const previousException = this._getExceptionFromEvent(previousEvent);
+    if (!currentException || !previousException) {
+      return false;
+    }
+    if (currentException.type !== previousException.type || currentException.value !== previousException.value) {
+      return false;
+    }
+    if (!this._isSameFingerprint(currentEvent, previousEvent)) {
+      return false;
+    }
+    if (!this._isSameStacktrace(currentEvent, previousEvent)) {
+      return false;
+    }
+    return true;
+  }
+  /** JSDoc */
+  _isSameStacktrace(currentEvent, previousEvent) {
+    let currentFrames = this._getFramesFromEvent(currentEvent);
+    let previousFrames = this._getFramesFromEvent(previousEvent);
+    if (!currentFrames && !previousFrames) {
       return true;
     }
-    /** JSDoc */
-    _isSameFingerprint(currentEvent, previousEvent) {
-      let currentFingerprint = currentEvent.fingerprint;
-      let previousFingerprint = previousEvent.fingerprint;
-      if (!currentFingerprint && !previousFingerprint) {
-        return true;
-      }
-      if (currentFingerprint && !previousFingerprint || !currentFingerprint && previousFingerprint) {
+    if (currentFrames && !previousFrames || !currentFrames && previousFrames) {
+      return false;
+    }
+    currentFrames = currentFrames;
+    previousFrames = previousFrames;
+    if (previousFrames.length !== currentFrames.length) {
+      return false;
+    }
+    for (let i = 0; i < previousFrames.length; i++) {
+      const frameA = previousFrames[i];
+      const frameB = currentFrames[i];
+      if (frameA.filename !== frameB.filename || frameA.lineno !== frameB.lineno || frameA.colno !== frameB.colno || frameA.function !== frameB.function) {
         return false;
       }
-      currentFingerprint = currentFingerprint;
-      previousFingerprint = previousFingerprint;
+    }
+    return true;
+  }
+  /** JSDoc */
+  _isSameFingerprint(currentEvent, previousEvent) {
+    let currentFingerprint = currentEvent.fingerprint;
+    let previousFingerprint = previousEvent.fingerprint;
+    if (!currentFingerprint && !previousFingerprint) {
+      return true;
+    }
+    if (currentFingerprint && !previousFingerprint || !currentFingerprint && previousFingerprint) {
+      return false;
+    }
+    currentFingerprint = currentFingerprint;
+    previousFingerprint = previousFingerprint;
+    try {
+      return !!(currentFingerprint.join("") === previousFingerprint.join(""));
+    } catch (_oO) {
+      return false;
+    }
+  }
+  /** JSDoc */
+  _getExceptionFromEvent(event) {
+    return event.exception && event.exception.values && event.exception.values[0];
+  }
+  /** JSDoc */
+  _getFramesFromEvent(event) {
+    const exception = event.exception;
+    if (exception) {
       try {
-        return !!(currentFingerprint.join("") === previousFingerprint.join(""));
+        return exception.values[0].stacktrace.frames;
       } catch (_oO) {
-        return false;
       }
     }
-    /** JSDoc */
-    _getExceptionFromEvent(event) {
-      return event.exception && event.exception.values && event.exception.values[0];
-    }
-    /** JSDoc */
-    _getFramesFromEvent(event) {
-      const exception = event.exception;
-      if (exception) {
-        try {
-          return exception.values[0].stacktrace.frames;
-        } catch (_oO) {
-        }
+    return void 0;
+  }
+};
+_Dedupe.id = "Dedupe";
+let Dedupe = _Dedupe;
+const _System = class _System {
+  constructor() {
+    this.name = _System.id;
+  }
+  /**
+   * @inheritDoc
+   */
+  setupOnce() {
+    this._addSystemContext();
+    this._addNetworkContext();
+    this._addLocationContext();
+  }
+  /**
+   * Add system information to context
+   */
+  _addSystemContext() {
+    var _a, _b, _c, _d;
+    try {
+      const systemInfo = getSystemInfo();
+      if (systemInfo) {
+        const scope = getCurrentScope();
+        scope.setContext("device", {
+          name: systemInfo.model,
+          model: systemInfo.model,
+          brand: systemInfo.brand,
+          family: systemInfo.platform,
+          arch: systemInfo.platform
+        });
+        scope.setContext("os", {
+          name: ((_a = systemInfo.system) == null ? void 0 : _a.split(" ")[0]) || "unknown",
+          version: ((_b = systemInfo.system) == null ? void 0 : _b.split(" ")[1]) || "unknown",
+          kernel_version: systemInfo.version
+        });
+        scope.setContext("app", {
+          app_name: systemInfo.appName || "unknown",
+          app_version: systemInfo.version
+        });
+        scope.setContext("screen", {
+          screen_width: systemInfo.screenWidth,
+          screen_height: systemInfo.screenHeight,
+          screen_density: systemInfo.pixelRatio
+        });
+        scope.setTag("device.model", systemInfo.model);
+        scope.setTag("device.brand", systemInfo.brand);
+        scope.setTag("os.name", ((_c = systemInfo.system) == null ? void 0 : _c.split(" ")[0]) || "unknown");
+        scope.setTag("os.version", ((_d = systemInfo.system) == null ? void 0 : _d.split(" ")[1]) || "unknown");
+        scope.setTag("app.version", systemInfo.version);
+        scope.setTag("language", systemInfo.language);
       }
-      return void 0;
+    } catch (e) {
     }
-  };
-  _Dedupe.id = "Dedupe";
-  let Dedupe = _Dedupe;
-  const _System = class _System {
-    constructor() {
-      this.name = _System.id;
-    }
-    /**
-     * @inheritDoc
-     */
-    setupOnce() {
-      this._addSystemContext();
-      this._addNetworkContext();
-      this._addLocationContext();
-    }
-    /**
-     * Add system information to context
-     */
-    _addSystemContext() {
-      var _a, _b, _c, _d;
-      try {
-        const systemInfo = getSystemInfo();
-        if (systemInfo) {
-          const scope = core.getCurrentScope();
-          scope.setContext("device", {
-            name: systemInfo.model,
-            model: systemInfo.model,
-            brand: systemInfo.brand,
-            family: systemInfo.platform,
-            arch: systemInfo.platform
-          });
-          scope.setContext("os", {
-            name: ((_a = systemInfo.system) == null ? void 0 : _a.split(" ")[0]) || "unknown",
-            version: ((_b = systemInfo.system) == null ? void 0 : _b.split(" ")[1]) || "unknown",
-            kernel_version: systemInfo.version
-          });
-          scope.setContext("app", {
-            app_name: systemInfo.appName || "unknown",
-            app_version: systemInfo.version
-          });
-          scope.setContext("screen", {
-            screen_width: systemInfo.screenWidth,
-            screen_height: systemInfo.screenHeight,
-            screen_density: systemInfo.pixelRatio
-          });
-          scope.setTag("device.model", systemInfo.model);
-          scope.setTag("device.brand", systemInfo.brand);
-          scope.setTag("os.name", ((_c = systemInfo.system) == null ? void 0 : _c.split(" ")[0]) || "unknown");
-          scope.setTag("os.version", ((_d = systemInfo.system) == null ? void 0 : _d.split(" ")[1]) || "unknown");
-          scope.setTag("app.version", systemInfo.version);
-          scope.setTag("language", systemInfo.language);
-        }
-      } catch (e) {
-      }
-    }
-    /**
-     * Add network information to context
-     */
-    _addNetworkContext() {
-      try {
-        if (sdk().getNetworkType) {
-          sdk().getNetworkType({
-            success: (res) => {
-              const scope = core.getCurrentScope();
-              scope.setContext("network", {
-                type: res.networkType,
-                connected: res.isConnected !== false
-              });
-              scope.setTag("network.type", res.networkType);
-            },
-            fail: () => {
-            }
-          });
-        }
-      } catch (e) {
-      }
-    }
-    /**
-     * Add location information to context (if available)
-     */
-    _addLocationContext() {
-      try {
-        if (sdk().getLocation) {
-          sdk().getLocation({
-            type: "gcj02",
-            success: (res) => {
-              const scope = core.getCurrentScope();
-              scope.setContext("location", {
-                latitude: res.latitude,
-                longitude: res.longitude,
-                accuracy: res.accuracy
-              });
-            },
-            fail: () => {
-            }
-          });
-        }
-      } catch (e) {
-      }
-    }
-  };
-  _System.id = "System";
-  let System = _System;
-  const _Router = class _Router {
-    constructor() {
-      this.name = _Router.id;
-      this._lastRoute = "";
-    }
-    /**
-     * @inheritDoc
-     */
-    setupOnce() {
-      this._instrumentNavigation();
-      this._startRouteMonitoring();
-    }
-    /**
-     * Instrument navigation functions
-     */
-    _instrumentNavigation() {
-      const global2 = globalThis;
-      if (global2.wx && global2.wx.navigateTo) {
-        const originalNavigateTo = global2.wx.navigateTo;
-        global2.wx.navigateTo = (options) => {
-          this._recordNavigation("navigateTo", options.url, this._getCurrentRoute());
-          return originalNavigateTo.call(global2.wx, options);
-        };
-      }
-      if (global2.wx && global2.wx.redirectTo) {
-        const originalRedirectTo = global2.wx.redirectTo;
-        global2.wx.redirectTo = (options) => {
-          this._recordNavigation("redirectTo", options.url, this._getCurrentRoute());
-          return originalRedirectTo.call(global2.wx, options);
-        };
-      }
-      if (global2.wx && global2.wx.switchTab) {
-        const originalSwitchTab = global2.wx.switchTab;
-        global2.wx.switchTab = (options) => {
-          this._recordNavigation("switchTab", options.url, this._getCurrentRoute());
-          return originalSwitchTab.call(global2.wx, options);
-        };
-      }
-      if (global2.wx && global2.wx.navigateBack) {
-        const originalNavigateBack = global2.wx.navigateBack;
-        global2.wx.navigateBack = (options = {}) => {
-          this._recordNavigation("navigateBack", "back", this._getCurrentRoute(), options.delta);
-          return originalNavigateBack.call(global2.wx, options);
-        };
-      }
-      if (global2.wx && global2.wx.reLaunch) {
-        const originalReLaunch = global2.wx.reLaunch;
-        global2.wx.reLaunch = (options) => {
-          this._recordNavigation("reLaunch", options.url, this._getCurrentRoute());
-          return originalReLaunch.call(global2.wx, options);
-        };
-      }
-    }
-    /**
-     * Start monitoring route changes
-     */
-    _startRouteMonitoring() {
-      setInterval(() => {
-        const currentRoute = this._getCurrentRoute();
-        if (currentRoute && currentRoute !== this._lastRoute) {
-          this._recordRouteChange(this._lastRoute, currentRoute);
-          this._lastRoute = currentRoute;
-        }
-      }, 1e3);
-    }
-    /**
-     * Get current route
-     */
-    _getCurrentRoute() {
-      try {
-        const global2 = globalThis;
-        if (global2.getCurrentPages) {
-          const pages = global2.getCurrentPages();
-          if (pages && pages.length > 0) {
-            const currentPage = pages[pages.length - 1];
-            return currentPage.route || currentPage.__route__ || "";
+  }
+  /**
+   * Add network information to context
+   */
+  _addNetworkContext() {
+    try {
+      if (sdk().getNetworkType) {
+        sdk().getNetworkType({
+          success: (res) => {
+            const scope = getCurrentScope();
+            scope.setContext("network", {
+              type: res.networkType,
+              connected: res.isConnected !== false
+            });
+            scope.setTag("network.type", res.networkType);
+          },
+          fail: () => {
           }
-        }
-      } catch (e) {
+        });
       }
-      return "";
+    } catch (e) {
     }
-    /**
-     * Record navigation action
-     */
-    _recordNavigation(action, to, from, delta) {
-      const scope = core.getCurrentScope();
-      core.addBreadcrumb({
-        category: "navigation",
-        data: {
-          action,
-          from,
-          to,
-          delta
-        },
-        message: `Navigation ${action}: ${from} -> ${to}`,
-        type: "navigation"
-      });
-      scope.setTag("route", to === "back" ? from : to);
-      scope.setContext("navigation", {
+  }
+  /**
+   * Add location information to context (if available)
+   */
+  _addLocationContext() {
+    try {
+      if (sdk().getLocation) {
+        sdk().getLocation({
+          type: "gcj02",
+          success: (res) => {
+            const scope = getCurrentScope();
+            scope.setContext("location", {
+              latitude: res.latitude,
+              longitude: res.longitude,
+              accuracy: res.accuracy
+            });
+          },
+          fail: () => {
+          }
+        });
+      }
+    } catch (e) {
+    }
+  }
+};
+_System.id = "System";
+let System = _System;
+const _Router = class _Router {
+  constructor() {
+    this.name = _Router.id;
+    this._lastRoute = "";
+  }
+  /**
+   * @inheritDoc
+   */
+  setupOnce() {
+    this._instrumentNavigation();
+    this._startRouteMonitoring();
+  }
+  /**
+   * Instrument navigation functions
+   */
+  _instrumentNavigation() {
+    const global2 = globalThis;
+    if (global2.wx && global2.wx.navigateTo) {
+      const originalNavigateTo = global2.wx.navigateTo;
+      global2.wx.navigateTo = (options) => {
+        this._recordNavigation("navigateTo", options.url, this._getCurrentRoute());
+        return originalNavigateTo.call(global2.wx, options);
+      };
+    }
+    if (global2.wx && global2.wx.redirectTo) {
+      const originalRedirectTo = global2.wx.redirectTo;
+      global2.wx.redirectTo = (options) => {
+        this._recordNavigation("redirectTo", options.url, this._getCurrentRoute());
+        return originalRedirectTo.call(global2.wx, options);
+      };
+    }
+    if (global2.wx && global2.wx.switchTab) {
+      const originalSwitchTab = global2.wx.switchTab;
+      global2.wx.switchTab = (options) => {
+        this._recordNavigation("switchTab", options.url, this._getCurrentRoute());
+        return originalSwitchTab.call(global2.wx, options);
+      };
+    }
+    if (global2.wx && global2.wx.navigateBack) {
+      const originalNavigateBack = global2.wx.navigateBack;
+      global2.wx.navigateBack = (options = {}) => {
+        this._recordNavigation("navigateBack", "back", this._getCurrentRoute(), options.delta);
+        return originalNavigateBack.call(global2.wx, options);
+      };
+    }
+    if (global2.wx && global2.wx.reLaunch) {
+      const originalReLaunch = global2.wx.reLaunch;
+      global2.wx.reLaunch = (options) => {
+        this._recordNavigation("reLaunch", options.url, this._getCurrentRoute());
+        return originalReLaunch.call(global2.wx, options);
+      };
+    }
+  }
+  /**
+   * Start monitoring route changes
+   */
+  _startRouteMonitoring() {
+    setInterval(() => {
+      const currentRoute = this._getCurrentRoute();
+      if (currentRoute && currentRoute !== this._lastRoute) {
+        this._recordRouteChange(this._lastRoute, currentRoute);
+        this._lastRoute = currentRoute;
+      }
+    }, 1e3);
+  }
+  /**
+   * Get current route
+   */
+  _getCurrentRoute() {
+    try {
+      const global2 = globalThis;
+      if (global2.getCurrentPages) {
+        const pages = global2.getCurrentPages();
+        if (pages && pages.length > 0) {
+          const currentPage = pages[pages.length - 1];
+          return currentPage.route || currentPage.__route__ || "";
+        }
+      }
+    } catch (e) {
+    }
+    return "";
+  }
+  /**
+   * Record navigation action
+   */
+  _recordNavigation(action, to, from, delta) {
+    const scope = getCurrentScope();
+    addBreadcrumb({
+      category: "navigation",
+      data: {
         action,
         from,
         to,
-        delta,
-        timestamp: Date.now()
-      });
-    }
-    /**
-     * Record route change
-     */
-    _recordRouteChange(from, to) {
-      const scope = core.getCurrentScope();
-      core.addBreadcrumb({
-        category: "navigation",
-        data: {
-          from,
-          to
-        },
-        message: `Route changed: ${from} -> ${to}`,
-        type: "navigation"
-      });
-      scope.setTag("route", to);
-      scope.setContext("route", {
-        current: to,
-        previous: from,
-        timestamp: Date.now()
-      });
-    }
-  };
-  _Router.id = "Router";
-  let Router = _Router;
-  const _PerformanceIntegration = class _PerformanceIntegration {
-    constructor(options = {}) {
-      this.name = _PerformanceIntegration.id;
-      this._performanceManager = null;
-      this._observers = [];
-      this._entryBuffer = [];
-      this._reportTimer = null;
-      this._options = __spreadValues({
-        enableNavigation: true,
-        enableRender: true,
-        enableResource: true,
-        enableUserTiming: true,
-        sampleRate: 1,
-        bufferSize: 100,
-        reportInterval: 3e4
-      }, options);
-    }
-    /**
-     * @inheritDoc
-     */
-    setupOnce() {
-      this._initializePerformanceManager();
-      this._setupPerformanceObservers();
-      this._startAutoReporting();
-      this._addPerformanceContext();
-    }
-    /**
-     * 初始化性能管理器
-     */
-    _initializePerformanceManager() {
-      try {
-        this._performanceManager = getPerformanceManager();
-        if (!this._performanceManager) {
-          console.warn("[Sentry Performance] Performance API not available");
-          return;
-        }
-        const scope = core.getCurrentScope();
-        scope.setTag("performance.api.available", true);
-        scope.setContext("performance", {
-          api_version: "miniapp-1.0",
-          sample_rate: this._options.sampleRate,
-          buffer_size: this._options.bufferSize
-        });
-      } catch (error) {
-        console.warn("[Sentry Performance] Failed to initialize performance manager:", error);
-      }
-    }
-    /**
-     * 设置性能观察者
-     */
-    _setupPerformanceObservers() {
-      if (!this._performanceManager) {
-        return;
-      }
-      try {
-        const entryTypes = [];
-        if (this._options.enableNavigation) {
-          entryTypes.push("navigation");
-        }
-        if (this._options.enableRender) {
-          entryTypes.push("render");
-        }
-        if (this._options.enableResource) {
-          entryTypes.push("resource");
-        }
-        if (this._options.enableUserTiming) {
-          entryTypes.push("measure", "mark");
-        }
-        if (entryTypes.length === 0) {
-          return;
-        }
-        const observer = this._performanceManager.createObserver((entries) => {
-          this._handlePerformanceEntries(entries);
-        });
-        observer.observe({ entryTypes });
-        this._observers.push(observer);
-        console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
-      } catch (error) {
-        console.warn("[Sentry Performance] Failed to setup performance observers:", error);
-      }
-    }
-    /**
-     * 处理性能条目
-     */
-    _handlePerformanceEntries(entries) {
-      if (!entries) {
-        return;
-      }
-      let entriesArray;
-      if (Array.isArray(entries)) {
-        entriesArray = entries;
-      } else if (typeof entries === "object" && entries.getEntries) {
-        entriesArray = entries.getEntries();
-      } else if (typeof entries === "object") {
-        entriesArray = [entries];
-      } else {
-        console.warn("[Sentry Performance] Invalid entries format:", typeof entries);
-        return;
-      }
-      if (entriesArray.length === 0) {
-        return;
-      }
-      if (Math.random() > this._options.sampleRate) {
-        return;
-      }
-      entriesArray.forEach((entry) => {
-        try {
-          this._processPerformanceEntry(entry);
-          this._addToBuffer(entry);
-        } catch (error) {
-          console.warn("[Sentry Performance] Failed to process performance entry:", error);
-        }
-      });
-    }
-    /**
-     * 处理单个性能条目
-     */
-    _processPerformanceEntry(entry) {
-      switch (entry.entryType) {
-        case "navigation":
-          this._processNavigationEntry(entry);
-          break;
-        case "render":
-          this._processRenderEntry(entry);
-          break;
-        case "resource":
-          this._processResourceEntry(entry);
-          break;
-        case "measure":
-        case "mark":
-          this._processUserTimingEntry(entry);
-          break;
-        default:
-          console.log("[Sentry Performance] Unknown entry type:", entry.entryType);
-      }
-    }
-    /**
-     * 处理导航性能条目
-     */
-    _processNavigationEntry(entry) {
-      const scope = core.getCurrentScope();
-      scope.addBreadcrumb({
-        message: `页面导航: ${entry.name}`,
-        category: "performance.navigation",
-        level: "info",
-        data: {
-          duration: entry.duration,
-          appLaunchTime: entry.appLaunchTime,
-          pageReadyTime: entry.pageReadyTime
-        }
-      });
-      core.startSpan({
-        name: `Navigation: ${entry.name}`,
-        op: "navigation",
-        startTime: entry.startTime / 1e3
-        // 转换为秒
-      }, (span) => {
-        span.setAttributes({
-          "navigation.name": entry.name,
-          "navigation.duration": entry.duration,
-          "navigation.app_launch_time": entry.appLaunchTime || 0,
-          "navigation.page_ready_time": entry.pageReadyTime || 0,
-          "navigation.first_render_time": entry.firstRenderTime || 0
-        });
-        span.end((entry.startTime + entry.duration) / 1e3);
-      });
-    }
-    /**
-     * 处理渲染性能条目
-     */
-    _processRenderEntry(entry) {
-      core.startSpan({
-        name: `Render: ${entry.name}`,
-        op: "render",
-        startTime: entry.startTime / 1e3
-      }, (span) => {
-        span.setAttributes({
-          "render.name": entry.name,
-          "render.duration": entry.duration,
-          "render.start": entry.renderStart || 0,
-          "render.end": entry.renderEnd || 0,
-          "render.script_start": entry.scriptStart || 0,
-          "render.script_end": entry.scriptEnd || 0
-        });
-        span.end((entry.startTime + entry.duration) / 1e3);
-      });
-    }
-    /**
-     * 处理资源加载性能条目
-     */
-    _processResourceEntry(entry) {
-      core.startSpan({
-        name: `Resource: ${entry.name}`,
-        op: "resource",
-        startTime: entry.startTime / 1e3
-      }, (span) => {
-        span.setAttributes({
-          "resource.name": entry.name,
-          "resource.duration": entry.duration,
-          "resource.type": entry.initiatorType || "unknown",
-          "resource.transfer_size": entry.transferSize || 0,
-          "resource.encoded_size": entry.encodedBodySize || 0,
-          "resource.decoded_size": entry.decodedBodySize || 0
-        });
-        if (entry.fetchStart && entry.responseEnd) {
-          span.setAttributes({
-            "resource.fetch_start": entry.fetchStart,
-            "resource.response_end": entry.responseEnd,
-            "resource.network_time": entry.responseEnd - entry.fetchStart
-          });
-        }
-        span.end((entry.startTime + entry.duration) / 1e3);
-      });
-    }
-    /**
-     * 处理用户自定义性能条目
-     */
-    _processUserTimingEntry(entry) {
-      if (entry.entryType === "measure") {
-        core.startSpan({
-          name: `Measure: ${entry.name}`,
-          op: "measure",
-          startTime: entry.startTime / 1e3
-        }, (span) => {
-          span.setAttributes({
-            "measure.name": entry.name,
-            "measure.duration": entry.duration,
-            "measure.detail": entry.detail ? JSON.stringify(entry.detail) : void 0
-          });
-          span.end((entry.startTime + entry.duration) / 1e3);
-        });
-      } else if (entry.entryType === "mark") {
-        const scope = core.getCurrentScope();
-        scope.addBreadcrumb({
-          message: `性能标记: ${entry.name}`,
-          category: "performance.mark",
-          level: "info",
-          data: {
-            timestamp: entry.startTime,
-            detail: entry.detail
-          }
-        });
-      }
-    }
-    /**
-     * 添加到缓冲区
-     */
-    _addToBuffer(entry) {
-      this._entryBuffer.push(entry);
-      if (this._entryBuffer.length > this._options.bufferSize) {
-        this._entryBuffer = this._entryBuffer.slice(-this._options.bufferSize);
-      }
-    }
-    /**
-     * 开始自动上报
-     */
-    _startAutoReporting() {
-      if (this._options.reportInterval <= 0) {
-        return;
-      }
-      this._reportTimer = setInterval(() => {
-        this._reportBufferedEntries();
-      }, this._options.reportInterval);
-    }
-    /**
-     * 上报缓冲的性能条目
-     */
-    _reportBufferedEntries() {
-      if (this._entryBuffer.length === 0) {
-        return;
-      }
-      try {
-        const scope = core.getCurrentScope();
-        const stats = this._calculatePerformanceStats();
-        scope.setContext("performance_summary", __spreadValues({
-          total_entries: this._entryBuffer.length,
-          navigation_count: this._entryBuffer.filter((e) => e.entryType === "navigation").length,
-          render_count: this._entryBuffer.filter((e) => e.entryType === "render").length,
-          resource_count: this._entryBuffer.filter((e) => e.entryType === "resource").length,
-          measure_count: this._entryBuffer.filter((e) => e.entryType === "measure").length,
-          mark_count: this._entryBuffer.filter((e) => e.entryType === "mark").length,
-          report_time: (/* @__PURE__ */ new Date()).toISOString()
-        }, stats));
-        this._checkPerformanceThresholds(stats);
-        this._reportToNativeAPI();
-        this._entryBuffer = [];
-      } catch (error) {
-        console.warn("[Sentry Performance] Failed to report buffered entries:", error);
-      }
-    }
-    /**
-     * 计算性能统计数据
-     */
-    _calculatePerformanceStats() {
-      const navigationEntries = this._entryBuffer.filter((e) => e.entryType === "navigation");
-      const renderEntries = this._entryBuffer.filter((e) => e.entryType === "render");
-      const resourceEntries = this._entryBuffer.filter((e) => e.entryType === "resource");
-      const stats = {};
-      if (navigationEntries.length > 0) {
-        const durations = navigationEntries.map((e) => e.duration);
-        stats["navigation_stats"] = {
-          avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
-          max_duration: Math.max(...durations),
-          min_duration: Math.min(...durations)
-        };
-      }
-      if (renderEntries.length > 0) {
-        const durations = renderEntries.map((e) => e.duration);
-        stats["render_stats"] = {
-          avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
-          max_duration: Math.max(...durations),
-          min_duration: Math.min(...durations)
-        };
-      }
-      if (resourceEntries.length > 0) {
-        const durations = resourceEntries.map((e) => e.duration);
-        const sizes = resourceEntries.map((e) => e.transferSize || 0).filter((size) => size > 0);
-        stats["resource_stats"] = {
-          avg_load_time: durations.reduce((a, b) => a + b, 0) / durations.length,
-          max_load_time: Math.max(...durations),
-          total_transfer_size: sizes.reduce((a, b) => a + b, 0),
-          avg_transfer_size: sizes.length > 0 ? sizes.reduce((a, b) => a + b, 0) / sizes.length : 0
-        };
-      }
-      return stats;
-    }
-    /**
-     * 检查性能阈值
-     */
-    _checkPerformanceThresholds(stats) {
-      var _a, _b, _c;
-      const scope = core.getCurrentScope();
-      if (((_a = stats["navigation_stats"]) == null ? void 0 : _a.avg_duration) > 3e3) {
-        scope.addBreadcrumb({
-          message: "页面导航性能较慢",
-          category: "performance.warning",
-          level: "warning",
-          data: {
-            avg_duration: stats["navigation_stats"].avg_duration,
-            threshold: 3e3
-          }
-        });
-      }
-      if (((_b = stats["render_stats"]) == null ? void 0 : _b.avg_duration) > 1e3) {
-        scope.addBreadcrumb({
-          message: "页面渲染性能较慢",
-          category: "performance.warning",
-          level: "warning",
-          data: {
-            avg_duration: stats["render_stats"].avg_duration,
-            threshold: 1e3
-          }
-        });
-      }
-      if (((_c = stats["resource_stats"]) == null ? void 0 : _c.avg_load_time) > 2e3) {
-        scope.addBreadcrumb({
-          message: "资源加载性能较慢",
-          category: "performance.warning",
-          level: "warning",
-          data: {
-            avg_load_time: stats["resource_stats"].avg_load_time,
-            threshold: 2e3
-          }
-        });
-      }
-    }
-    /**
-     * 使用小程序原生 API 上报性能数据
-     */
-    _reportToNativeAPI() {
-      try {
-        const currentSdk = sdk();
-        if (currentSdk.reportPerformance && this._entryBuffer.length > 0) {
-          const performanceData = {
-            entries: this._entryBuffer.map((entry) => ({
-              name: entry.name,
-              entryType: entry.entryType,
-              startTime: entry.startTime,
-              duration: entry.duration
-            })),
-            timestamp: Date.now(),
-            sampleRate: this._options.sampleRate
-          };
-          currentSdk.reportPerformance(performanceData);
-        }
-      } catch (error) {
-        console.warn("[Sentry Performance] Failed to report to native API:", error);
-      }
-    }
-    /**
-     * 添加性能上下文信息
-     */
-    _addPerformanceContext() {
-      try {
-        const scope = core.getCurrentScope();
-        const currentSdk = sdk();
-        const hasPerformanceAPI = !!currentSdk.getPerformance;
-        const hasReportAPI = !!currentSdk.reportPerformance;
-        scope.setContext("performance_support", {
-          has_performance_api: hasPerformanceAPI,
-          has_report_api: hasReportAPI,
-          integration_enabled: true,
-          options: this._options
-        });
-        scope.setTag("performance.integration", "enabled");
-      } catch (error) {
-        console.warn("[Sentry Performance] Failed to add performance context:", error);
-      }
-    }
-    /**
-     * 清理资源
-     */
-    cleanup() {
-      this._observers.forEach((observer) => {
-        try {
-          observer.disconnect();
-        } catch (error) {
-          console.warn("[Sentry Performance] Failed to disconnect observer:", error);
-        }
-      });
-      this._observers = [];
-      if (this._reportTimer) {
-        clearInterval(this._reportTimer);
-        this._reportTimer = null;
-      }
-      this._reportBufferedEntries();
-    }
-  };
-  _PerformanceIntegration.id = "PerformanceAPI";
-  let PerformanceIntegration = _PerformanceIntegration;
-  const performanceIntegration = (options) => {
-    return () => new PerformanceIntegration(options);
-  };
-  const index = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-    __proto__: null,
-    Dedupe,
-    GlobalHandlers,
-    HttpContext,
-    LinkedErrors,
-    PerformanceIntegration,
-    Router,
-    System,
-    TryCatch,
-    performanceIntegration
-  }, Symbol.toStringTag, { value: "Module" }));
-  const defaultIntegrations = [
-    // Core integrations
-    new HttpContext(),
-    new Dedupe(),
-    new GlobalHandlers(),
-    new TryCatch(),
-    new LinkedErrors(),
-    // Performance monitoring
-    performanceIntegration({
+        delta
+      },
+      message: `Navigation ${action}: ${from} -> ${to}`,
+      type: "navigation"
+    });
+    scope.setTag("route", to === "back" ? from : to);
+    scope.setContext("navigation", {
+      action,
+      from,
+      to,
+      delta,
+      timestamp: Date.now()
+    });
+  }
+  /**
+   * Record route change
+   */
+  _recordRouteChange(from, to) {
+    const scope = getCurrentScope();
+    addBreadcrumb({
+      category: "navigation",
+      data: {
+        from,
+        to
+      },
+      message: `Route changed: ${from} -> ${to}`,
+      type: "navigation"
+    });
+    scope.setTag("route", to);
+    scope.setContext("route", {
+      current: to,
+      previous: from,
+      timestamp: Date.now()
+    });
+  }
+};
+_Router.id = "Router";
+let Router = _Router;
+const _PerformanceIntegration = class _PerformanceIntegration {
+  constructor(options = {}) {
+    this.name = _PerformanceIntegration.id;
+    this._performanceManager = null;
+    this._observers = [];
+    this._entryBuffer = [];
+    this._reportTimer = null;
+    this._options = __spreadValues({
       enableNavigation: true,
       enableRender: true,
       enableResource: true,
       enableUserTiming: true,
       sampleRate: 1,
+      bufferSize: 100,
       reportInterval: 3e4
-    })
-  ];
-  function getDefaultIntegrations() {
-    return [...defaultIntegrations];
+    }, options);
   }
-  function init(options = {}) {
-    if (!isMiniappEnvironment()) {
-      console.warn("sentry-miniapp: Not running in a supported miniapp environment");
-      return void 0;
-    }
-    const opts = __spreadProps(__spreadValues({}, options), {
-      integrations: options.integrations || defaultIntegrations,
-      stackParser: () => [],
-      transport: options.transport
-    });
-    core.setContext("miniapp", {
-      platform: appName,
-      environment: "miniapp"
-    });
-    const systemInfo = getSystemInfo();
-    if (systemInfo) {
-      core.setContext("device", {
-        brand: systemInfo.brand,
-        model: systemInfo.model,
-        language: systemInfo.language,
-        system: systemInfo.system,
-        platform: systemInfo.platform,
-        screen_resolution: `${systemInfo.screenWidth}x${systemInfo.screenHeight}`
-      });
-      core.setContext("app", {
-        sdk_version: systemInfo.SDKVersion,
-        version: systemInfo.version
-      });
-    }
-    core.initAndBind(MiniappClient, opts);
-    return core.getCurrentScope().getClient();
+  /**
+   * @inheritDoc
+   */
+  setupOnce() {
+    this._initializePerformanceManager();
+    this._setupPerformanceObservers();
+    this._startAutoReporting();
+    this._addPerformanceContext();
   }
-  function showReportDialog(options = {}) {
-    const client = core.getCurrentScope().getClient();
-    if (client) {
-      client.showReportDialog(options);
+  /**
+   * 初始化性能管理器
+   */
+  _initializePerformanceManager() {
+    try {
+      this._performanceManager = getPerformanceManager();
+      if (!this._performanceManager) {
+        console.warn("[Sentry Performance] Performance API not available");
+        return;
+      }
+      const scope = getCurrentScope();
+      scope.setTag("performance.api.available", true);
+      scope.setContext("performance", {
+        api_version: "miniapp-1.0",
+        sample_rate: this._options.sampleRate,
+        buffer_size: this._options.bufferSize
+      });
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to initialize performance manager:", error2);
+    }
+  }
+  /**
+   * 设置性能观察者
+   */
+  _setupPerformanceObservers() {
+    if (!this._performanceManager) {
+      return;
+    }
+    try {
+      const entryTypes = [];
+      if (this._options.enableNavigation) {
+        entryTypes.push("navigation");
+      }
+      if (this._options.enableRender) {
+        entryTypes.push("render");
+      }
+      if (this._options.enableResource) {
+        entryTypes.push("resource");
+      }
+      if (this._options.enableUserTiming) {
+        entryTypes.push("measure", "mark");
+      }
+      if (entryTypes.length === 0) {
+        return;
+      }
+      const observer = this._performanceManager.createObserver((entries) => {
+        this._handlePerformanceEntries(entries);
+      });
+      observer.observe({ entryTypes });
+      this._observers.push(observer);
+      console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to setup performance observers:", error2);
+    }
+  }
+  /**
+   * 处理性能条目
+   */
+  _handlePerformanceEntries(entries) {
+    if (!entries) {
+      return;
+    }
+    let entriesArray;
+    if (Array.isArray(entries)) {
+      entriesArray = entries;
+    } else if (typeof entries === "object" && entries.getEntries) {
+      entriesArray = entries.getEntries();
+    } else if (typeof entries === "object") {
+      entriesArray = [entries];
     } else {
-      console.warn("sentry-miniapp: No client available for showReportDialog");
+      console.warn("[Sentry Performance] Invalid entries format:", typeof entries);
+      return;
+    }
+    if (entriesArray.length === 0) {
+      return;
+    }
+    if (Math.random() > this._options.sampleRate) {
+      return;
+    }
+    entriesArray.forEach((entry) => {
+      try {
+        this._processPerformanceEntry(entry);
+        this._addToBuffer(entry);
+      } catch (error2) {
+        console.warn("[Sentry Performance] Failed to process performance entry:", error2);
+      }
+    });
+  }
+  /**
+   * 处理单个性能条目
+   */
+  _processPerformanceEntry(entry) {
+    switch (entry.entryType) {
+      case "navigation":
+        this._processNavigationEntry(entry);
+        break;
+      case "render":
+        this._processRenderEntry(entry);
+        break;
+      case "resource":
+        this._processResourceEntry(entry);
+        break;
+      case "measure":
+      case "mark":
+        this._processUserTimingEntry(entry);
+        break;
+      default:
+        console.log("[Sentry Performance] Unknown entry type:", entry.entryType);
     }
   }
-  function wrap(fn) {
-    return (function(...args) {
-      return core.withScope(() => {
-        try {
-          return fn.apply(this, args);
-        } catch (error) {
-          core.getCurrentScope().captureException(error);
-          throw error;
+  /**
+   * 处理导航性能条目
+   */
+  _processNavigationEntry(entry) {
+    const scope = getCurrentScope();
+    scope.addBreadcrumb({
+      message: `页面导航: ${entry.name}`,
+      category: "performance.navigation",
+      level: "info",
+      data: {
+        duration: entry.duration,
+        appLaunchTime: entry.appLaunchTime,
+        pageReadyTime: entry.pageReadyTime
+      }
+    });
+    startSpan({
+      name: `Navigation: ${entry.name}`,
+      op: "navigation",
+      startTime: entry.startTime / 1e3
+      // 转换为秒
+    }, (span) => {
+      span.setAttributes({
+        "navigation.name": entry.name,
+        "navigation.duration": entry.duration,
+        "navigation.app_launch_time": entry.appLaunchTime || 0,
+        "navigation.page_ready_time": entry.pageReadyTime || 0,
+        "navigation.first_render_time": entry.firstRenderTime || 0
+      });
+      span.end((entry.startTime + entry.duration) / 1e3);
+    });
+  }
+  /**
+   * 处理渲染性能条目
+   */
+  _processRenderEntry(entry) {
+    startSpan({
+      name: `Render: ${entry.name}`,
+      op: "render",
+      startTime: entry.startTime / 1e3
+    }, (span) => {
+      span.setAttributes({
+        "render.name": entry.name,
+        "render.duration": entry.duration,
+        "render.start": entry.renderStart || 0,
+        "render.end": entry.renderEnd || 0,
+        "render.script_start": entry.scriptStart || 0,
+        "render.script_end": entry.scriptEnd || 0
+      });
+      span.end((entry.startTime + entry.duration) / 1e3);
+    });
+  }
+  /**
+   * 处理资源加载性能条目
+   */
+  _processResourceEntry(entry) {
+    startSpan({
+      name: `Resource: ${entry.name}`,
+      op: "resource",
+      startTime: entry.startTime / 1e3
+    }, (span) => {
+      span.setAttributes({
+        "resource.name": entry.name,
+        "resource.duration": entry.duration,
+        "resource.type": entry.initiatorType || "unknown",
+        "resource.transfer_size": entry.transferSize || 0,
+        "resource.encoded_size": entry.encodedBodySize || 0,
+        "resource.decoded_size": entry.decodedBodySize || 0
+      });
+      if (entry.fetchStart && entry.responseEnd) {
+        span.setAttributes({
+          "resource.fetch_start": entry.fetchStart,
+          "resource.response_end": entry.responseEnd,
+          "resource.network_time": entry.responseEnd - entry.fetchStart
+        });
+      }
+      span.end((entry.startTime + entry.duration) / 1e3);
+    });
+  }
+  /**
+   * 处理用户自定义性能条目
+   */
+  _processUserTimingEntry(entry) {
+    if (entry.entryType === "measure") {
+      startSpan({
+        name: `Measure: ${entry.name}`,
+        op: "measure",
+        startTime: entry.startTime / 1e3
+      }, (span) => {
+        span.setAttributes({
+          "measure.name": entry.name,
+          "measure.duration": entry.duration,
+          "measure.detail": entry.detail ? JSON.stringify(entry.detail) : void 0
+        });
+        span.end((entry.startTime + entry.duration) / 1e3);
+      });
+    } else if (entry.entryType === "mark") {
+      const scope = getCurrentScope();
+      scope.addBreadcrumb({
+        message: `性能标记: ${entry.name}`,
+        category: "performance.mark",
+        level: "info",
+        data: {
+          timestamp: entry.startTime,
+          detail: entry.detail
         }
       });
-    });
-  }
-  function captureFeedback(params) {
-    const client = core.getCurrentScope().getClient();
-    if (client) {
-      return client.captureFeedback(params);
-    } else {
-      console.warn("sentry-miniapp: No client available for captureFeedback");
-      return "";
     }
   }
-  ensurePolyfills();
-  Object.defineProperty(exports2, "addBreadcrumb", {
-    enumerable: true,
-    get: () => core.addBreadcrumb
+  /**
+   * 添加到缓冲区
+   */
+  _addToBuffer(entry) {
+    this._entryBuffer.push(entry);
+    if (this._entryBuffer.length > this._options.bufferSize) {
+      this._entryBuffer = this._entryBuffer.slice(-this._options.bufferSize);
+    }
+  }
+  /**
+   * 开始自动上报
+   */
+  _startAutoReporting() {
+    if (this._options.reportInterval <= 0) {
+      return;
+    }
+    this._reportTimer = setInterval(() => {
+      this._reportBufferedEntries();
+    }, this._options.reportInterval);
+  }
+  /**
+   * 上报缓冲的性能条目
+   */
+  _reportBufferedEntries() {
+    if (this._entryBuffer.length === 0) {
+      return;
+    }
+    try {
+      const scope = getCurrentScope();
+      const stats = this._calculatePerformanceStats();
+      scope.setContext("performance_summary", __spreadValues({
+        total_entries: this._entryBuffer.length,
+        navigation_count: this._entryBuffer.filter((e) => e.entryType === "navigation").length,
+        render_count: this._entryBuffer.filter((e) => e.entryType === "render").length,
+        resource_count: this._entryBuffer.filter((e) => e.entryType === "resource").length,
+        measure_count: this._entryBuffer.filter((e) => e.entryType === "measure").length,
+        mark_count: this._entryBuffer.filter((e) => e.entryType === "mark").length,
+        report_time: (/* @__PURE__ */ new Date()).toISOString()
+      }, stats));
+      this._checkPerformanceThresholds(stats);
+      this._reportToNativeAPI();
+      this._entryBuffer = [];
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to report buffered entries:", error2);
+    }
+  }
+  /**
+   * 计算性能统计数据
+   */
+  _calculatePerformanceStats() {
+    const navigationEntries = this._entryBuffer.filter((e) => e.entryType === "navigation");
+    const renderEntries = this._entryBuffer.filter((e) => e.entryType === "render");
+    const resourceEntries = this._entryBuffer.filter((e) => e.entryType === "resource");
+    const stats = {};
+    if (navigationEntries.length > 0) {
+      const durations = navigationEntries.map((e) => e.duration);
+      stats["navigation_stats"] = {
+        avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_duration: Math.max(...durations),
+        min_duration: Math.min(...durations)
+      };
+    }
+    if (renderEntries.length > 0) {
+      const durations = renderEntries.map((e) => e.duration);
+      stats["render_stats"] = {
+        avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_duration: Math.max(...durations),
+        min_duration: Math.min(...durations)
+      };
+    }
+    if (resourceEntries.length > 0) {
+      const durations = resourceEntries.map((e) => e.duration);
+      const sizes = resourceEntries.map((e) => e.transferSize || 0).filter((size) => size > 0);
+      stats["resource_stats"] = {
+        avg_load_time: durations.reduce((a, b) => a + b, 0) / durations.length,
+        max_load_time: Math.max(...durations),
+        total_transfer_size: sizes.reduce((a, b) => a + b, 0),
+        avg_transfer_size: sizes.length > 0 ? sizes.reduce((a, b) => a + b, 0) / sizes.length : 0
+      };
+    }
+    return stats;
+  }
+  /**
+   * 检查性能阈值
+   */
+  _checkPerformanceThresholds(stats) {
+    var _a, _b, _c;
+    const scope = getCurrentScope();
+    if (((_a = stats["navigation_stats"]) == null ? void 0 : _a.avg_duration) > 3e3) {
+      scope.addBreadcrumb({
+        message: "页面导航性能较慢",
+        category: "performance.warning",
+        level: "warning",
+        data: {
+          avg_duration: stats["navigation_stats"].avg_duration,
+          threshold: 3e3
+        }
+      });
+    }
+    if (((_b = stats["render_stats"]) == null ? void 0 : _b.avg_duration) > 1e3) {
+      scope.addBreadcrumb({
+        message: "页面渲染性能较慢",
+        category: "performance.warning",
+        level: "warning",
+        data: {
+          avg_duration: stats["render_stats"].avg_duration,
+          threshold: 1e3
+        }
+      });
+    }
+    if (((_c = stats["resource_stats"]) == null ? void 0 : _c.avg_load_time) > 2e3) {
+      scope.addBreadcrumb({
+        message: "资源加载性能较慢",
+        category: "performance.warning",
+        level: "warning",
+        data: {
+          avg_load_time: stats["resource_stats"].avg_load_time,
+          threshold: 2e3
+        }
+      });
+    }
+  }
+  /**
+   * 使用小程序原生 API 上报性能数据
+   */
+  _reportToNativeAPI() {
+    try {
+      const currentSdk = sdk();
+      if (currentSdk.reportPerformance && this._entryBuffer.length > 0) {
+        const performanceData = {
+          entries: this._entryBuffer.map((entry) => ({
+            name: entry.name,
+            entryType: entry.entryType,
+            startTime: entry.startTime,
+            duration: entry.duration
+          })),
+          timestamp: Date.now(),
+          sampleRate: this._options.sampleRate
+        };
+        currentSdk.reportPerformance(performanceData);
+      }
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to report to native API:", error2);
+    }
+  }
+  /**
+   * 添加性能上下文信息
+   */
+  _addPerformanceContext() {
+    try {
+      const scope = getCurrentScope();
+      const currentSdk = sdk();
+      const hasPerformanceAPI = !!currentSdk.getPerformance;
+      const hasReportAPI = !!currentSdk.reportPerformance;
+      scope.setContext("performance_support", {
+        has_performance_api: hasPerformanceAPI,
+        has_report_api: hasReportAPI,
+        integration_enabled: true,
+        options: this._options
+      });
+      scope.setTag("performance.integration", "enabled");
+    } catch (error2) {
+      console.warn("[Sentry Performance] Failed to add performance context:", error2);
+    }
+  }
+  /**
+   * 清理资源
+   */
+  cleanup() {
+    this._observers.forEach((observer) => {
+      try {
+        observer.disconnect();
+      } catch (error2) {
+        console.warn("[Sentry Performance] Failed to disconnect observer:", error2);
+      }
+    });
+    this._observers = [];
+    if (this._reportTimer) {
+      clearInterval(this._reportTimer);
+      this._reportTimer = null;
+    }
+    this._reportBufferedEntries();
+  }
+};
+_PerformanceIntegration.id = "PerformanceAPI";
+let PerformanceIntegration = _PerformanceIntegration;
+const performanceIntegration = (options) => {
+  return () => new PerformanceIntegration(options);
+};
+const index = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  Dedupe,
+  GlobalHandlers,
+  HttpContext,
+  LinkedErrors,
+  PerformanceIntegration,
+  Router,
+  System,
+  TryCatch,
+  performanceIntegration
+}, Symbol.toStringTag, { value: "Module" }));
+const defaultIntegrations = [
+  // Core integrations
+  new HttpContext(),
+  new Dedupe(),
+  new GlobalHandlers(),
+  new TryCatch(),
+  new LinkedErrors(),
+  // Performance monitoring
+  performanceIntegration({
+    enableNavigation: true,
+    enableRender: true,
+    enableResource: true,
+    enableUserTiming: true,
+    sampleRate: 1,
+    reportInterval: 3e4
+  })
+];
+function getDefaultIntegrations() {
+  return [...defaultIntegrations];
+}
+function init(options = {}) {
+  if (!isMiniappEnvironment()) {
+    console.warn("sentry-miniapp: Not running in a supported miniapp environment");
+    return void 0;
+  }
+  const opts = __spreadProps(__spreadValues({}, options), {
+    integrations: options.integrations || defaultIntegrations,
+    stackParser: () => [],
+    transport: options.transport
   });
-  Object.defineProperty(exports2, "addEventProcessor", {
-    enumerable: true,
-    get: () => core.addEventProcessor
+  setContext("miniapp", {
+    platform: appName,
+    environment: "miniapp"
   });
-  Object.defineProperty(exports2, "addIntegration", {
-    enumerable: true,
-    get: () => core.addIntegration
+  const systemInfo = getSystemInfo();
+  if (systemInfo) {
+    setContext("device", {
+      brand: systemInfo.brand,
+      model: systemInfo.model,
+      language: systemInfo.language,
+      system: systemInfo.system,
+      platform: systemInfo.platform,
+      screen_resolution: `${systemInfo.screenWidth}x${systemInfo.screenHeight}`
+    });
+    setContext("app", {
+      sdk_version: systemInfo.SDKVersion,
+      version: systemInfo.version
+    });
+  }
+  initAndBind(MiniappClient, opts);
+  return getCurrentScope().getClient();
+}
+function showReportDialog(options = {}) {
+  const client = getCurrentScope().getClient();
+  if (client) {
+    client.showReportDialog(options);
+  } else {
+    console.warn("sentry-miniapp: No client available for showReportDialog");
+  }
+}
+function wrap(fn) {
+  return (function(...args) {
+    return withScope(() => {
+      try {
+        return fn.apply(this, args);
+      } catch (error2) {
+        getCurrentScope().captureException(error2);
+        throw error2;
+      }
+    });
   });
-  Object.defineProperty(exports2, "captureEvent", {
-    enumerable: true,
-    get: () => core.captureEvent
-  });
-  Object.defineProperty(exports2, "captureException", {
-    enumerable: true,
-    get: () => core.captureException
-  });
-  Object.defineProperty(exports2, "captureMessage", {
-    enumerable: true,
-    get: () => core.captureMessage
-  });
-  Object.defineProperty(exports2, "captureSession", {
-    enumerable: true,
-    get: () => core.captureSession
-  });
-  Object.defineProperty(exports2, "close", {
-    enumerable: true,
-    get: () => core.close
-  });
-  Object.defineProperty(exports2, "closeSession", {
-    enumerable: true,
-    get: () => core.closeSession
-  });
-  Object.defineProperty(exports2, "endSession", {
-    enumerable: true,
-    get: () => core.endSession
-  });
-  Object.defineProperty(exports2, "flush", {
-    enumerable: true,
-    get: () => core.flush
-  });
-  Object.defineProperty(exports2, "getCurrentScope", {
-    enumerable: true,
-    get: () => core.getCurrentScope
-  });
-  Object.defineProperty(exports2, "getIsolationScope", {
-    enumerable: true,
-    get: () => core.getIsolationScope
-  });
-  Object.defineProperty(exports2, "isEnabled", {
-    enumerable: true,
-    get: () => core.isEnabled
-  });
-  Object.defineProperty(exports2, "lastEventId", {
-    enumerable: true,
-    get: () => core.lastEventId
-  });
-  Object.defineProperty(exports2, "makeSession", {
-    enumerable: true,
-    get: () => core.makeSession
-  });
-  Object.defineProperty(exports2, "setContext", {
-    enumerable: true,
-    get: () => core.setContext
-  });
-  Object.defineProperty(exports2, "setExtra", {
-    enumerable: true,
-    get: () => core.setExtra
-  });
-  Object.defineProperty(exports2, "setExtras", {
-    enumerable: true,
-    get: () => core.setExtras
-  });
-  Object.defineProperty(exports2, "setTag", {
-    enumerable: true,
-    get: () => core.setTag
-  });
-  Object.defineProperty(exports2, "setTags", {
-    enumerable: true,
-    get: () => core.setTags
-  });
-  Object.defineProperty(exports2, "setUser", {
-    enumerable: true,
-    get: () => core.setUser
-  });
-  Object.defineProperty(exports2, "startSession", {
-    enumerable: true,
-    get: () => core.startSession
-  });
-  Object.defineProperty(exports2, "startSpan", {
-    enumerable: true,
-    get: () => core.startSpan
-  });
-  Object.defineProperty(exports2, "updateSession", {
-    enumerable: true,
-    get: () => core.updateSession
-  });
-  Object.defineProperty(exports2, "withScope", {
-    enumerable: true,
-    get: () => core.withScope
-  });
-  exports2.Integrations = index;
-  exports2.MiniappClient = MiniappClient;
-  exports2.SDK_NAME = SDK_NAME;
-  exports2.SDK_VERSION = SDK_VERSION;
-  exports2.Transports = index$1;
-  exports2.captureFeedback = captureFeedback;
-  exports2.defaultIntegrations = defaultIntegrations;
-  exports2.getDefaultIntegrations = getDefaultIntegrations;
-  exports2.getPerformanceManager = getPerformanceManager;
-  exports2.init = init;
-  exports2.performanceIntegration = performanceIntegration;
-  exports2.showReportDialog = showReportDialog;
-  exports2.wrap = wrap;
-  Object.defineProperty(exports2, Symbol.toStringTag, { value: "Module" });
-}));
-//# sourceMappingURL=sentry-miniapp.umd.js.map
+}
+function captureFeedback(params) {
+  const client = getCurrentScope().getClient();
+  if (client) {
+    return client.captureFeedback(params);
+  } else {
+    console.warn("sentry-miniapp: No client available for captureFeedback");
+    return "";
+  }
+}
+ensurePolyfills();
+exports.Integrations = index;
+exports.MiniappClient = MiniappClient;
+exports.SDK_NAME = SDK_NAME;
+exports.SDK_VERSION = SDK_VERSION;
+exports.Transports = index$1;
+exports.addBreadcrumb = addBreadcrumb;
+exports.addEventProcessor = addEventProcessor;
+exports.addIntegration = addIntegration;
+exports.captureEvent = captureEvent;
+exports.captureException = captureException;
+exports.captureFeedback = captureFeedback;
+exports.captureMessage = captureMessage;
+exports.captureSession = captureSession;
+exports.close = close;
+exports.closeSession = closeSession;
+exports.defaultIntegrations = defaultIntegrations;
+exports.endSession = endSession;
+exports.flush = flush;
+exports.getCurrentScope = getCurrentScope;
+exports.getDefaultIntegrations = getDefaultIntegrations;
+exports.getIsolationScope = getIsolationScope;
+exports.getPerformanceManager = getPerformanceManager;
+exports.init = init;
+exports.isEnabled = isEnabled;
+exports.lastEventId = lastEventId;
+exports.makeSession = makeSession;
+exports.performanceIntegration = performanceIntegration;
+exports.setContext = setContext;
+exports.setExtra = setExtra;
+exports.setExtras = setExtras;
+exports.setTag = setTag;
+exports.setTags = setTags;
+exports.setUser = setUser;
+exports.showReportDialog = showReportDialog;
+exports.startSession = startSession;
+exports.startSpan = startSpan;
+exports.updateSession = updateSession;
+exports.withScope = withScope;
+exports.wrap = wrap;
+//# sourceMappingURL=sentry-miniapp.js.map
