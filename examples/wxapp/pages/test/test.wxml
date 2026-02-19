@@ -8,7 +8,8 @@
   <!-- 用户身份卡片 -->
   <view class="card user-card">
     <view class="user-info">
-      <view class="avatar-placeholder" style="background: {{hasUserInfo ? '#6C5FC7' : '#E2E8F0'}}">
+      <view class="avatar-placeholder"
+            style="background: {{hasUserInfo ? '#6C5FC7' : '#E2E8F0'}}">
         <text>{{hasUserInfo ? 'U' : '?'}}</text>
       </view>
       <view class="user-meta">
@@ -16,15 +17,17 @@
         <text class="user-status">{{hasUserInfo ? 'ID: ' + userInfo.id : '匿名访问'}}</text>
       </view>
     </view>
-    <button class="btn-sm {{hasUserInfo ? 'btn-outline-danger' : 'btn-primary'}}" bindtap="{{hasUserInfo ? 'clearUserProfile' : 'getUserProfile'}}">
-      {{hasUserInfo ? '注销' : '模拟登录'}}
+    <button class="btn-sm {{hasUserInfo ? 'btn-outline-danger' : 'btn-primary'}}"
+            bindtap="{{hasUserInfo ? 'clearUserProfile' : 'getUserProfile'}}">
+      {{hasUserInfo ? '退出' : '登录'}}
     </button>
   </view>
 
   <!-- 错误捕获测试 -->
   <view class="section-title">错误捕获</view>
   <view class="card action-list">
-    <view class="action-item" bindtap="testException">
+    <view class="action-item"
+          bindtap="testException">
       <view class="icon-box error">💥</view>
       <view class="action-content">
         <text class="action-name">JS 异常</text>
@@ -32,8 +35,9 @@
       </view>
       <view class="action-btn">测试</view>
     </view>
-    
-    <view class="action-item" bindtap="testAsyncError">
+
+    <view class="action-item"
+          bindtap="testAsyncError">
       <view class="icon-box warning">⏱️</view>
       <view class="action-content">
         <text class="action-name">异步异常</text>
@@ -42,7 +46,8 @@
       <view class="action-btn">测试</view>
     </view>
 
-    <view class="action-item" bindtap="testMessage">
+    <view class="action-item"
+          bindtap="testMessage">
       <view class="icon-box info">📝</view>
       <view class="action-content">
         <text class="action-name">消息上报</text>
@@ -55,7 +60,8 @@
   <!-- 性能与网络 -->
   <view class="section-title">性能与网络</view>
   <view class="card action-list">
-    <view class="action-item" bindtap="testRequest">
+    <view class="action-item"
+          bindtap="testRequest">
       <view class="icon-box success">🌐</view>
       <view class="action-content">
         <text class="action-name">网络请求</text>
@@ -64,7 +70,8 @@
       <view class="action-btn">测试</view>
     </view>
 
-    <view class="action-item" bindtap="testNetworkPerformance">
+    <view class="action-item"
+          bindtap="testNetworkPerformance">
       <view class="icon-box success">📊</view>
       <view class="action-content">
         <text class="action-name">网络性能追踪</text>
@@ -73,11 +80,12 @@
       <view class="action-btn">测试</view>
     </view>
   </view>
-  
+
   <!-- 高级功能 -->
   <view class="section-title">高级功能</view>
   <view class="card action-list">
-     <view class="action-item" bindtap="testUserFeedback">
+    <view class="action-item"
+          bindtap="testUserFeedback">
       <view class="icon-box primary">💬</view>
       <view class="action-content">
         <text class="action-name">用户反馈</text>
