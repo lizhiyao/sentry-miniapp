@@ -1,7 +1,7 @@
 import { getCurrentScope } from '@sentry/core';
 import type { Event, Integration, IntegrationFn } from '@sentry/core';
 
-import { sdk } from '../crossPlatform';
+import { sdk, getSystemInfo } from '../crossPlatform';
 
 /** Add node request data to the event */
 export class HttpContext implements Integration {
@@ -27,7 +27,7 @@ export class HttpContext implements Integration {
    */
   public processEvent(event: Event): Event {
     const scope = getCurrentScope();
-    
+
     // Add miniapp specific context
     const context = {
       runtime: {
@@ -54,24 +54,8 @@ export class HttpContext implements Integration {
    * Get miniapp version
    */
   private _getMiniappVersion(): string {
-    try {
-      const currentSdk = sdk();
-      
-      // 优先使用新的 API
-       if (currentSdk.getAppBaseInfo) {
-         const appBaseInfo = currentSdk.getAppBaseInfo();
-         return appBaseInfo?.version || appBaseInfo?.SDKVersion || 'unknown';
-       }
-      
-      // 兜底使用旧的 API
-      if (currentSdk.getSystemInfoSync) {
-        const systemInfo = currentSdk.getSystemInfoSync?.();
-        return systemInfo.version || systemInfo.SDKVersion || 'unknown';
-      }
-    } catch (e) {
-      // Ignore errors
-    }
-    return 'unknown';
+    const sys = getSystemInfo();
+    return sys?.version || sys?.SDKVersion || 'unknown';
   }
 
   /**
@@ -80,7 +64,7 @@ export class HttpContext implements Integration {
   private _getAppName(): string {
     try {
       if (sdk().getAccountInfoSync) {
-       const accountInfo = sdk().getAccountInfoSync?.();
+        const accountInfo = sdk().getAccountInfoSync?.();
         return accountInfo.miniProgram?.appId || 'unknown';
       }
     } catch (e) {
@@ -108,43 +92,21 @@ export class HttpContext implements Integration {
    * Get device information
    */
   private _getDeviceInfo(): Record<string, any> {
-    try {
-      const currentSdk = sdk();
-      
-      // 优先使用新的 API 组合
-      if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo) {
-        const deviceInfo = currentSdk.getDeviceInfo();
-        const windowInfo = currentSdk.getWindowInfo();
-        return {
-          brand: deviceInfo?.brand,
-          model: deviceInfo?.model,
-          system: deviceInfo?.system,
-          platform: deviceInfo?.platform,
-          screenWidth: windowInfo?.screenWidth,
-          screenHeight: windowInfo?.screenHeight,
-          windowWidth: windowInfo?.windowWidth,
-          windowHeight: windowInfo?.windowHeight
-        };
-      }
-      
-      // 兜底使用旧的 API
-      if (currentSdk.getSystemInfoSync) {
-        const systemInfo = currentSdk.getSystemInfoSync();
-        return {
-          brand: systemInfo?.brand,
-          model: systemInfo?.model,
-          system: systemInfo?.system,
-          platform: systemInfo?.platform,
-          screenWidth: systemInfo?.screenWidth,
-          screenHeight: systemInfo?.screenHeight,
-          pixelRatio: systemInfo?.pixelRatio,
-          language: systemInfo?.language,
-        };
-      }
-    } catch (e) {
-      // Ignore errors
-    }
-    return {};
+    const sys = getSystemInfo();
+    if (!sys) return {};
+
+    return {
+      brand: sys.brand,
+      model: sys.model,
+      system: sys.system,
+      platform: sys.platform,
+      screenWidth: sys.screenWidth,
+      screenHeight: sys.screenHeight,
+      windowWidth: sys.windowWidth,
+      windowHeight: sys.windowHeight,
+      pixelRatio: sys.pixelRatio,
+      language: sys.language,
+    };
   }
 
   /**
@@ -153,7 +115,7 @@ export class HttpContext implements Integration {
   private _getNetworkInfo(): Record<string, any> {
     try {
       if ((sdk() as any).getNetworkType) {
-      (sdk() as any).getNetworkType({
+        (sdk() as any).getNetworkType({
           success: (res: { networkType: string }) => {
             const scope = getCurrentScope();
             scope.setTag('network.type', res.networkType);

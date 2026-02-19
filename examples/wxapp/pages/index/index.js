@@ -21,8 +21,16 @@ Page({
   },
 
   initData() {
-    // 获取系统信息
-    const sys = wx.getSystemInfoSync();
+    // 获取系统信息 (兼容新 API)
+    let sys = {};
+    if (wx.getAppBaseInfo && wx.getDeviceInfo) {
+      sys = {
+        ...wx.getAppBaseInfo(),
+        ...wx.getDeviceInfo()
+      };
+    } else {
+      sys = wx.getSystemInfoSync();
+    }
 
     // 检查 Sentry 状态
     // 注意：这里我们通过检查全局对象或配置来模拟状态检查

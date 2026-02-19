@@ -4887,52 +4887,46 @@ const getAppName = () => {
 const getSystemInfo = () => {
   try {
     const currentSdk = getSDK();
-    if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo && currentSdk.getAppBaseInfo) {
-      const deviceInfo = currentSdk.getDeviceInfo();
+    const result = {};
+    let hasNewApi = false;
+    if (currentSdk.getAppBaseInfo) {
+      const baseInfo = currentSdk.getAppBaseInfo();
+      Object.assign(result, baseInfo);
+      hasNewApi = true;
+    }
+    if (currentSdk.getWindowInfo) {
       const windowInfo = currentSdk.getWindowInfo();
-      const appBaseInfo = currentSdk.getAppBaseInfo();
-      return {
-        brand: deviceInfo.brand || "",
-        model: deviceInfo.model || "",
-        pixelRatio: windowInfo.pixelRatio || 1,
-        screenWidth: windowInfo.screenWidth || 0,
-        screenHeight: windowInfo.screenHeight || 0,
-        windowWidth: windowInfo.windowWidth || 0,
-        windowHeight: windowInfo.windowHeight || 0,
-        statusBarHeight: windowInfo.statusBarHeight || 0,
-        language: appBaseInfo.language || "",
-        version: appBaseInfo.version || deviceInfo.system || "",
-        system: deviceInfo.system || "",
-        platform: deviceInfo.platform || "",
-        fontSizeSetting: appBaseInfo.fontSizeSetting || 0,
-        SDKVersion: appBaseInfo.SDKVersion || "",
-        benchmarkLevel: deviceInfo.benchmarkLevel || 0,
-        albumAuthorized: deviceInfo.albumAuthorized || false,
-        cameraAuthorized: deviceInfo.cameraAuthorized || false,
-        locationAuthorized: deviceInfo.locationAuthorized || false,
-        microphoneAuthorized: deviceInfo.microphoneAuthorized || false,
-        notificationAuthorized: deviceInfo.notificationAuthorized || false,
-        bluetoothEnabled: deviceInfo.bluetoothEnabled || false,
-        locationEnabled: deviceInfo.locationEnabled || false,
-        wifiEnabled: deviceInfo.wifiEnabled || false,
-        safeArea: windowInfo.safeArea || {
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: windowInfo.windowWidth || 0,
-          height: windowInfo.windowHeight || 0
-        }
-      };
+      Object.assign(result, windowInfo);
+      hasNewApi = true;
+    }
+    if (currentSdk.getDeviceInfo) {
+      const deviceInfo = currentSdk.getDeviceInfo();
+      Object.assign(result, deviceInfo);
+      hasNewApi = true;
+    }
+    if (currentSdk.getAppAuthorizeSetting) {
+      const authSetting = currentSdk.getAppAuthorizeSetting();
+      result.albumAuthorized = authSetting.albumAuthorized === "authorized";
+      result.cameraAuthorized = authSetting.cameraAuthorized === "authorized";
+      result.locationAuthorized = authSetting.locationAuthorized === "authorized";
+      result.microphoneAuthorized = authSetting.microphoneAuthorized === "authorized";
+      result.notificationAuthorized = authSetting.notificationAuthorized === "authorized";
+    }
+    if (currentSdk.getSystemSetting) {
+      const sysSetting = currentSdk.getSystemSetting();
+      Object.assign(result, sysSetting);
+    }
+    if (hasNewApi) {
+      return result;
     }
     if (currentSdk.getSystemInfoSync) {
-      console.warn("[Sentry] getSystemInfoSync is deprecated. Please update to use getDeviceInfo/getWindowInfo/getAppBaseInfo.");
       return currentSdk.getSystemInfoSync();
     }
+    return null;
   } catch (error2) {
-    console.warn("Failed to get system info:", error2);
+    console.warn("[Sentry] Failed to get system info:", error2);
+    return null;
   }
-  return null;
 };
 const isMiniappEnvironment = () => {
   try {
@@ -5550,20 +5544,8 @@ const _HttpContext = class _HttpContext {
    * Get miniapp version
    */
   _getMiniappVersion() {
-    var _a;
-    try {
-      const currentSdk = sdk();
-      if (currentSdk.getAppBaseInfo) {
-        const appBaseInfo = currentSdk.getAppBaseInfo();
-        return (appBaseInfo == null ? void 0 : appBaseInfo.version) || (appBaseInfo == null ? void 0 : appBaseInfo.SDKVersion) || "unknown";
-      }
-      if (currentSdk.getSystemInfoSync) {
-        const systemInfo = (_a = currentSdk.getSystemInfoSync) == null ? void 0 : _a.call(currentSdk);
-        return systemInfo.version || systemInfo.SDKVersion || "unknown";
-      }
-    } catch (e) {
-    }
-    return "unknown";
+    const sys = getSystemInfo();
+    return (sys == null ? void 0 : sys.version) || (sys == null ? void 0 : sys.SDKVersion) || "unknown";
   }
   /**
    * Get app name
@@ -5597,38 +5579,20 @@ const _HttpContext = class _HttpContext {
    * Get device information
    */
   _getDeviceInfo() {
-    try {
-      const currentSdk = sdk();
-      if (currentSdk.getDeviceInfo && currentSdk.getWindowInfo) {
-        const deviceInfo = currentSdk.getDeviceInfo();
-        const windowInfo = currentSdk.getWindowInfo();
-        return {
-          brand: deviceInfo == null ? void 0 : deviceInfo.brand,
-          model: deviceInfo == null ? void 0 : deviceInfo.model,
-          system: deviceInfo == null ? void 0 : deviceInfo.system,
-          platform: deviceInfo == null ? void 0 : deviceInfo.platform,
-          screenWidth: windowInfo == null ? void 0 : windowInfo.screenWidth,
-          screenHeight: windowInfo == null ? void 0 : windowInfo.screenHeight,
-          windowWidth: windowInfo == null ? void 0 : windowInfo.windowWidth,
-          windowHeight: windowInfo == null ? void 0 : windowInfo.windowHeight
-        };
-      }
-      if (currentSdk.getSystemInfoSync) {
-        const systemInfo = currentSdk.getSystemInfoSync();
-        return {
-          brand: systemInfo == null ? void 0 : systemInfo.brand,
-          model: systemInfo == null ? void 0 : systemInfo.model,
-          system: systemInfo == null ? void 0 : systemInfo.system,
-          platform: systemInfo == null ? void 0 : systemInfo.platform,
-          screenWidth: systemInfo == null ? void 0 : systemInfo.screenWidth,
-          screenHeight: systemInfo == null ? void 0 : systemInfo.screenHeight,
-          pixelRatio: systemInfo == null ? void 0 : systemInfo.pixelRatio,
-          language: systemInfo == null ? void 0 : systemInfo.language
-        };
-      }
-    } catch (e) {
-    }
-    return {};
+    const sys = getSystemInfo();
+    if (!sys) return {};
+    return {
+      brand: sys.brand,
+      model: sys.model,
+      system: sys.system,
+      platform: sys.platform,
+      screenWidth: sys.screenWidth,
+      screenHeight: sys.screenHeight,
+      windowWidth: sys.windowWidth,
+      windowHeight: sys.windowHeight,
+      pixelRatio: sys.pixelRatio,
+      language: sys.language
+    };
   }
   /**
    * Get network information
