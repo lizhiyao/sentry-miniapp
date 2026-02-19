@@ -132,7 +132,25 @@ export class PerformanceIntegration implements Integration {
         this._handlePerformanceEntries(entries);
       });
 
-      observer.observe({ entryTypes });
+      try {
+        observer.observe({ entryTypes });
+      } catch (e) {
+        // 如果失败（例如微信小程序不支持 measure/mark），尝试移除这些类型后重试
+        const safeTypes = entryTypes.filter(t => t !== 'measure' && t !== 'mark');
+        
+        if (safeTypes.length < entryTypes.length && safeTypes.length > 0) {
+          // 降级重试
+          observer.observe({ entryTypes: safeTypes });
+          console.warn('[Sentry Performance] Failed to observe all types, falling back to:', safeTypes);
+          
+          // 更新 entryTypes 以便日志记录正确
+          entryTypes.length = 0;
+          entryTypes.push(...safeTypes);
+        } else {
+          throw e; // 如果没有可降级的类型或仍然失败，则抛出
+        }
+      }
+
       this._observers.push(observer);
 
       console.log('[Sentry Performance] Performance observers setup for:', entryTypes);

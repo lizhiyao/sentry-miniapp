@@ -6095,7 +6095,19 @@ const _PerformanceIntegration = class _PerformanceIntegration {
       const observer = this._performanceManager.createObserver((entries) => {
         this._handlePerformanceEntries(entries);
       });
-      observer.observe({ entryTypes });
+      try {
+        observer.observe({ entryTypes });
+      } catch (e) {
+        const safeTypes = entryTypes.filter((t) => t !== "measure" && t !== "mark");
+        if (safeTypes.length < entryTypes.length && safeTypes.length > 0) {
+          observer.observe({ entryTypes: safeTypes });
+          console.warn("[Sentry Performance] Failed to observe all types, falling back to:", safeTypes);
+          entryTypes.length = 0;
+          entryTypes.push(...safeTypes);
+        } else {
+          throw e;
+        }
+      }
       this._observers.push(observer);
       console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
     } catch (error2) {
