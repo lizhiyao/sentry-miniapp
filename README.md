@@ -176,6 +176,20 @@ Sentry.recordPerformance({
 });
 ```
 
+## 常见问题 (FAQ)
+
+### 1. SDK 支持 Session Replay (会话回放) 吗？
+
+目前 `sentry-miniapp` **不支持** `Sentry.replayIntegration()` 会话回放功能。
+
+**原因：**
+Sentry 的 Session Replay 功能主要依赖于 Web 环境下的 DOM 录制技术（如 rrweb）。微信小程序环境没有标准的 DOM 接口，且视图层与逻辑层分离，无法直接复用 Web 端的录制实现。
+
+**建议替代方案：**
+
+- 使用面包屑（Breadcrumbs）记录详细的用户操作路径。
+- 结合性能监控（Performance）和日志（Logging）还原问题现场。
+
 ## 贡献
 
 欢迎通过 `issue`、`pull request` 等方式贡献 `sentry-miniapp`。
