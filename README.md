@@ -176,6 +176,35 @@ Sentry.recordPerformance({
 });
 ```
 
+## 常见问题 (FAQ)
+
+### 1. SDK 支持 Session Replay (会话回放) 吗？
+
+目前 `sentry-miniapp` **不支持** `Sentry.replayIntegration()` 会话回放功能。
+
+**原因：**
+Sentry 的 Session Replay 功能主要依赖于 Web 环境下的 DOM 录制技术（如 rrweb）。微信小程序环境没有标准的 DOM 接口，且视图层与逻辑层分离，无法直接复用 Web 端的录制实现。
+
+**建议替代方案：**
+
+- 使用面包屑（Breadcrumbs）记录详细的用户操作路径。
+- 结合性能监控（Performance）和日志（Logging）还原问题现场。
+
+### 2. 在 `sentry.init` 之后，无法自动上报异常，需要在 `onError` 中手动上报吗？
+
+**不需要**。
+
+`sentry-miniapp` SDK 在初始化时会自动调用 `wx.onError` (以及 `wx.onUnhandledRejection` 等) 来监听全局异常。只要 `Sentry.init` 调用成功，SDK 就会自动捕获并上报未处理的异常。
+
+**如果发现无法自动上报，请检查以下几点：**
+
+1. **初始化时机**：确保 `Sentry.init` 是在 `App()` 函数调用**之前**执行的。
+2. **合法域名**：请确保在微信小程序后台配置了 Sentry 的 `request` 合法域名。
+3. **过滤配置**：检查 `sampleRate` (采样率) 是否设置过低，或者 `beforeSend` 回调函数是否过滤了该错误。
+4. **环境因素**：在微信开发者工具中，某些错误可能不会触发 `wx.onError`，建议在真机上进行测试。
+
+**如果确实需要手动上报**（例如在 `try...catch` 中捕获的异常），可以使用 `Sentry.captureException(error)`。
+
 ## 贡献
 
 欢迎通过 `issue`、`pull request` 等方式贡献 `sentry-miniapp`。
