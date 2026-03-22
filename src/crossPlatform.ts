@@ -4,6 +4,7 @@ declare const tt: any; // 字节跳动小程序
 declare const dd: any; // 钉钉小程序
 declare const qq: any; // QQ 小程序、QQ 小游戏
 declare const swan: any; // 百度小程序
+declare const ks: any; // 快手小程序
 
 /**
  * 小程序平台 SDK 接口
@@ -47,6 +48,7 @@ export type AppName =
   | 'dingtalk'
   | 'qq'
   | 'swan'
+  | 'kuaishou'
   | 'unknown';
 
 /**
@@ -119,6 +121,9 @@ const getSDK = (): SDK => {
   } else if (typeof swan === 'object' && swan !== null) {
     // tslint:disable-next-line: no-unsafe-any
     currentSdk = swan;
+  } else if (typeof ks === 'object' && ks !== null) {
+    // tslint:disable-next-line: no-unsafe-any
+    currentSdk = ks;
   } else {
     throw new Error('sentry-miniapp 暂不支持此平台');
   }
@@ -126,6 +131,30 @@ const getSDK = (): SDK => {
   // 支付宝小程序的网络请求 API 是 my.httpRequest
   if (typeof my === 'object' && my !== null && currentSdk === my && !currentSdk.request && currentSdk.httpRequest) {
     currentSdk.request = currentSdk.httpRequest;
+  }
+
+  // 支付宝和钉钉的 Storage API 参数是对象形式，这里做一层抹平包装
+  if ((typeof my === 'object' && my !== null && currentSdk === my) ||
+    (typeof dd === 'object' && dd !== null && currentSdk === dd)) {
+    if (currentSdk.getStorageSync) {
+      const originalGet = currentSdk.getStorageSync;
+      currentSdk.getStorageSync = (key: string) => {
+        const res = originalGet.call(currentSdk, { key });
+        return res ? res.data : null;
+      };
+    }
+    if (currentSdk.setStorageSync) {
+      const originalSet = currentSdk.setStorageSync;
+      currentSdk.setStorageSync = (key: string, data: any) => {
+        originalSet.call(currentSdk, { key, data });
+      };
+    }
+    if (currentSdk.removeStorageSync) {
+      const originalRemove = currentSdk.removeStorageSync;
+      currentSdk.removeStorageSync = (key: string) => {
+        originalRemove.call(currentSdk, { key });
+      };
+    }
   }
 
   return currentSdk;
@@ -149,6 +178,8 @@ const getAppName = (): AppName => {
     currentAppName = 'qq';
   } else if (typeof swan === 'object' && swan !== null) {
     currentAppName = 'swan';
+  } else if (typeof ks === 'object' && ks !== null) {
+    currentAppName = 'kuaishou';
   }
 
   return currentAppName;
