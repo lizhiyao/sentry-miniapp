@@ -6,58 +6,61 @@ import type { ClientOptions, BaseTransportOptions, Integration } from '@sentry/c
 export interface MiniappOptions {
   /** Sentry DSN */
   dsn?: string;
-  
+
   /** Environment */
   environment?: string;
-  
+
   /** Debug mode */
   debug?: boolean;
-  
+
   /** Sample rate */
   sampleRate?: number;
-  
+
   /** Release version */
   release?: string;
-  
+
   /** Maximum number of breadcrumbs */
   maxBreadcrumbs?: number;
-  
+
   /** Traces sample rate */
   tracesSampleRate?: number;
-  
+
   /** Transport function */
   transport?: any;
-  
+
   /** Before send hook */
   beforeSend?: any;
-  
+
   /** Before breadcrumb hook */
   beforeBreadcrumb?: any;
-  
+
   /** Miniapp platform type */
   platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'baidu' | 'dingtalk';
-  
+
   /** Whether to enable system info collection */
   enableSystemInfo?: boolean;
-  
+
   /** Whether to enable user interaction breadcrumbs */
   enableUserInteractionBreadcrumbs?: boolean;
-  
+
   /** Whether to enable console breadcrumbs */
   enableConsoleBreadcrumbs?: boolean;
-  
+
   /** Whether to enable navigation breadcrumbs */
   enableNavigationBreadcrumbs?: boolean;
-  
+
+  /** Whether to enable offline cache to retry sending events later */
+  enableOfflineCache?: boolean;
+
   /** Array of strings or regexes that match error URLs which should be exclusively sent to Sentry */
   allowUrls?: Array<string | RegExp>;
-  
+
   /** Array of strings or regexes that match error URLs which should not be sent to Sentry */
   denyUrls?: Array<string | RegExp>;
-  
+
   /** Integrations */
   integrations?: Integration[];
-  
+
   /** Default integrations */
   defaultIntegrations?: Integration[];
 }

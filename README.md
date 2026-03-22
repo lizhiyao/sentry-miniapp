@@ -21,7 +21,8 @@
 - 📍 默认上报异常发生时的路由栈
 - 🎯 自动捕获小程序生命周期异常（onError、onUnhandledRejection、onPageNotFound、onMemoryWarning）
 - 🍞 自动记录面包屑（设备、用户操作、网络请求、页面导航等）
-- 🛡️ 智能错误去重和过滤机制
+- � 支持断网离线缓存与自动重试上报
+- �🛡️ 智能错误去重和过滤机制
 - ⚡ 全面的性能监控（导航性能、渲染性能、资源加载、用户自定义性能标记）
 - 📈 智能性能阈值检查和自动警告
 - 🔧 支持在 Taro 等第三方小程序框架中使用
@@ -78,6 +79,9 @@ Sentry.init({
   enableUserInteractionBreadcrumbs: true, // 是否记录用户交互面包屑
   enableConsoleBreadcrumbs: true, // 是否记录控制台日志面包屑
   enableNavigationBreadcrumbs: true, // 是否记录导航面包屑
+  
+  // 离线缓存重试配置
+  enableOfflineCache: true, // 默认开启。断网或发送失败时，自动将事件缓存到本地 Storage，待下次网络恢复或启动时重试
   
   // 采样率配置
   sampleRate: 1.0, // 错误采样率

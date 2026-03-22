@@ -30,6 +30,11 @@ interface SDK {
   // Performance API
   getPerformance?: Function; // 获取性能管理器
   reportPerformance?: Function; // 上报性能数据
+  // Storage API
+  setStorageSync?: Function;
+  getStorageSync?: Function;
+  getStorageInfoSync?: Function;
+  removeStorageSync?: Function;
 }
 
 /**

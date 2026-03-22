@@ -3,6 +3,7 @@ import {
   Scope,
   getIsolationScope,
   getCurrentScope,
+  makeOfflineTransport,
 } from '@sentry/core';
 import type {
   Event,
@@ -11,7 +12,7 @@ import type {
 
 import { sdk, appName, getSystemInfo } from './crossPlatform';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
-import { createMiniappTransport } from './transports';
+import { createMiniappTransport, createMiniappOfflineStore } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
 
 /**
@@ -30,10 +31,20 @@ export class MiniappClient extends Client<any> {
     super({
       ...options,
       transport: options.transport || ((transportOptions: any) => {
-        return createMiniappTransport({
+        const baseTransport = createMiniappTransport({
           ...transportOptions,
           headers: {},
         });
+        
+        if (options.enableOfflineCache !== false) {
+          return makeOfflineTransport(() => baseTransport)({
+            ...transportOptions,
+            createStore: createMiniappOfflineStore,
+            flushAtStartup: true, // 启动时自动重试发送
+          });
+        }
+        
+        return baseTransport;
       }),
     });
   }
