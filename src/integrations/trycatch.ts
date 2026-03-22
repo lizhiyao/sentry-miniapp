@@ -14,9 +14,6 @@ export class TryCatch implements Integration {
   public name: string = TryCatch.id;
 
   /** JSDoc */
-  private _ignoreOnError: number = 0;
-
-  /** JSDoc */
   private _wrapTimeFunction(original: (...args: any[]) => any): (...args: any[]) => any {
     return function (this: any, ...args: any[]): any {
       const originalCallback = args[0];
@@ -123,7 +120,7 @@ export function wrap(
       return fn.apply(this, wrappedArguments);
     } catch (ex) {
       const scope = getCurrentScope();
-      
+
       scope.addEventProcessor((event) => {
         const processedEvent = { ...event };
 

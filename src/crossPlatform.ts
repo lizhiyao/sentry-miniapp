@@ -123,6 +123,11 @@ const getSDK = (): SDK => {
     throw new Error('sentry-miniapp 暂不支持此平台');
   }
 
+  // 支付宝小程序的网络请求 API 是 my.httpRequest
+  if (typeof my === 'object' && my !== null && currentSdk === my && !currentSdk.request && currentSdk.httpRequest) {
+    currentSdk.request = currentSdk.httpRequest;
+  }
+
   return currentSdk;
 };
 
@@ -203,7 +208,12 @@ const getSystemInfo = (): SystemInfo | null => {
 
     // 兜底使用旧的 API（已弃用但保持兼容性）
     if (currentSdk.getSystemInfoSync) {
-      return currentSdk.getSystemInfoSync() as SystemInfo;
+      const syncInfo = currentSdk.getSystemInfoSync();
+      // 支付宝小程序等平台，版本信息可能叫 version 而不是 SDKVersion
+      if (!syncInfo.SDKVersion && syncInfo.version) {
+        syncInfo.SDKVersion = syncInfo.version;
+      }
+      return syncInfo as SystemInfo;
     }
 
     return null;

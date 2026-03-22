@@ -20,9 +20,9 @@ describe('Transport', () => {
       (global as any).wx = { request: mockRequest };
 
       const transport = createMiniappTransport({
-         url: 'https://sentry.io/api/123/store/',
-         recordDroppedEvent: () => {}
-       });
+        url: 'https://sentry.io/api/123/store/',
+        recordDroppedEvent: () => { }
+      });
 
       // Create a proper envelope format
       const envelope: Envelope = [
@@ -40,11 +40,14 @@ describe('Transport', () => {
         method: 'POST',
         data: expect.any(String),
         header: {
-           'Content-Type': 'application/json'
-         },
+          'Content-Type': 'application/json',
+        },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         timeout: 10000,
         success: expect.any(Function),
-        fail: expect.any(Function)
+        fail: expect.any(Function),
       });
 
       expect(response.statusCode).toBe(200);
@@ -61,7 +64,7 @@ describe('Transport', () => {
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: () => {}
+        recordDroppedEvent: () => { }
       });
 
       // Create a proper envelope format
@@ -95,13 +98,13 @@ describe('Transport', () => {
         });
       });
       (global as any).wx = { request: mockRequest };
-      
+
       // Reset the SDK cache to pick up the new mock
       (_sdk as any) = null;
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: () => {}
+        recordDroppedEvent: () => { }
       });
 
       // Create a proper envelope format
@@ -127,13 +130,13 @@ describe('Transport', () => {
         });
       });
       (global as any).wx = { request: mockRequest };
-      
+
       // Reset the SDK cache to pick up the new mock
       (_sdk as any) = null;
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: () => {}
+        recordDroppedEvent: () => { }
       });
 
       // Create a proper envelope format
@@ -173,7 +176,7 @@ describe('Transport', () => {
       };
 
       const transport = createMiniappTransport(options);
-      
+
       // Create a mock envelope
       const envelope: Envelope = [
         { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
@@ -187,18 +190,48 @@ describe('Transport', () => {
       expect(() => transport.send(envelope)).not.toThrow();
     });
 
-    it('should handle transport configuration', () => {
-      const options = {
-        url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: jest.fn(),
-        headers: { 'Custom-Header': 'value' }
-      };
+    it('should handle transport configuration', async () => {
+      const mockRequest = jest.fn().mockImplementation((options) => {
+        (options as any).success({
+          statusCode: 200,
+          data: 'OK',
+          header: {}
+        });
+      });
+      // We must set it to a fresh object to clear the memoized _sdk in crossPlatform
+      jest.isolateModules(async () => {
+        (global as any).wx = { request: mockRequest };
+        const { createMiniappTransport } = await import('../src/transports');
 
-      const transport = createMiniappTransport(options);
-      
-      // Test that transport is created with custom options
-      expect(transport).toBeDefined();
-      expect(typeof transport.send).toBe('function');
+        const transport = createMiniappTransport({
+          url: 'https://sentry.io/api/123/store/',
+          recordDroppedEvent: jest.fn(),
+          headers: {
+            'X-Custom-Header': 'value'
+          }
+        });
+
+        const envelope = [
+          { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
+          [[{ type: 'event' }, { message: 'test message', event_id: 'test-id' }]],
+        ];
+
+        const response = await transport.send(envelope as any);
+
+        expect(mockRequest).toHaveBeenCalled();
+        const callArgs = (mockRequest.mock.calls as any)[0][0] as any;
+
+        expect(callArgs.url).toBe('https://sentry.io/api/123/store/');
+        expect(callArgs.method).toBe('POST');
+        if (callArgs.header && callArgs.header['X-Custom-Header']) {
+          expect(callArgs.header['X-Custom-Header']).toBe('value');
+        }
+        if (callArgs.headers && callArgs.headers['X-Custom-Header']) {
+          expect(callArgs.headers['X-Custom-Header']).toBe('value');
+        }
+
+        expect(response.statusCode).toBe(200);
+      });
     });
 
     it('should create transport with default options', () => {
@@ -208,7 +241,7 @@ describe('Transport', () => {
       };
 
       const transport = createMiniappTransport(options);
-      
+
       // Test basic transport functionality
       expect(transport).toBeDefined();
       expect(transport.send).toBeDefined();

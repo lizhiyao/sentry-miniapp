@@ -19,7 +19,7 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
    * Make a request using miniapp request API
    */
   function makeRequest(request: any): Promise<TransportMakeRequestResponse> {
-    
+
     return new Promise((resolve, reject) => {
       const requestOptions = {
         url: transportUrl,
@@ -29,20 +29,27 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
           'Content-Type': 'application/json',
           ...request.headers,
         },
+        // Alipay uses `headers` instead of `header`
+        headers: {
+          'Content-Type': 'application/json',
+          ...request.headers,
+        },
         timeout: 10000,
         success: (res: any) => {
-          const status = res.statusCode;
-          
+          // Alipay uses `status` instead of `statusCode`, and `headers` instead of `header`
+          const status = res.statusCode || res.status;
+          const resHeaders = res.header || res.headers || {};
+
           resolve({
             statusCode: status,
             headers: {
-              'x-sentry-rate-limits': res.header?.['x-sentry-rate-limits'],
-              'retry-after': res.header?.['retry-after'],
+              'x-sentry-rate-limits': resHeaders['x-sentry-rate-limits'],
+              'retry-after': resHeaders['retry-after'],
             },
           });
         },
         fail: (error: any) => {
-          reject(new Error(`Network request failed: ${error.errMsg || error.message || 'Unknown error'}`));
+          reject(new Error(`Network request failed: ${error.errMsg || error.errorMessage || error.message || 'Unknown error'}`));
         },
       };
 
