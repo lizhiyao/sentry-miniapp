@@ -4,221 +4,183 @@
 ![npm download](https://img.shields.io/npm/dm/sentry-miniapp)
 ![github forks](https://img.shields.io/github/forks/lizhiyao/sentry-miniapp?style=social)
 ![github stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp?style=social)
-![github watchers](https://img.shields.io/github/watchers/lizhiyao/sentry-miniapp?style=social)
-![github license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
-![test coverage](https://img.shields.io/badge/test%20coverage-286%20tests-brightgreen.svg)
+![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
+![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
 
-基于 `@sentry/core` 10.39.0 的微信小程序异常监控 SDK。
+一个基于 `@sentry/core` (v10.39.0) 核心构建的**多端小程序异常与性能监控 SDK**。旨在为小程序开发者提供与 Web 端一致的、强大且现代的 Sentry 监控体验。
 
-> 注意：
-1、sentry-miniapp v1.x.x 版本已全面支持各大多端小程序平台（微信、支付宝、字节、百度等）。
-2、sentry-miniapp v0.x.x 版本已停止维护
+> **💡 版本说明**
+>
+> - `v1.x.x`：全新架构，基于 Sentry V10 核心，全面支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序及主流跨端框架（Taro / uni-app 等）。
+> - `v0.x.x`：旧版本，已停止维护。
 
-## 特性
+---
 
-- 🚀 基于最新的 Sentry JavaScript SDK 核心模块
-- 🎨 遵守 Sentry 官方统一的 API 设计文档，使用方式和官方保持一致
-- 📍 默认上报异常发生时的路由栈
-- 🎯 自动捕获小程序生命周期异常（onError、onUnhandledRejection、onPageNotFound、onMemoryWarning）
-- 🍞 自动记录面包屑（设备、用户操作、网络请求、页面导航等）
-- 📡 支持断网离线缓存与自动重试上报
-- 🛡️ 智能错误去重和过滤机制
-- ⚡ 全面的性能监控（导航性能、渲染性能、资源加载、用户自定义性能标记）
-- 📈 智能性能阈值检查和自动警告
-- 🔧 支持在 Taro/uni-app 等第三方小程序跨端框架中使用
-- 📱 全面支持各大多端小程序（微信、支付宝、字节跳动、百度、QQ、钉钉、快手）
-- 🔧 TypeScript 编写，提供完整的类型定义
-- 📦 支持 ES6 和 CommonJS 两种模块系统
-- 📊 完善的测试覆盖率（近 300 个测试用例，覆盖核心功能模块）
-- 🔍 完整的集成测试套件
+## ✨ 核心特性
 
-扫码体验：sentry-miniapp 使用示例小程序
-<img src="docs/qrcode/sentry-miniapp.jpg" alt="sentry-miniapp 使用示例小程序" width="300" height="300" />
+- **🚀 现代架构**：基于最新的 Sentry JavaScript V10 SDK 核心模块构建。
+- **📱 真正的多端支持**：内置 API 抹平引擎，一套代码无缝兼容**微信、支付宝、字节、百度、QQ、钉钉、快手**等主流小程序平台。
+- **🎯 全自动异常捕获**：无需侵入业务代码，自动监听并上报生命周期异常（`onError`、`onUnhandledRejection`、`onPageNotFound`、`onMemoryWarning`）。
+- **🍞 丰富的上下文面包屑**：自动记录设备信息、用户点击/触摸操作、网络请求（XHR/Fetch）、以及页面路由导航路径。
+- **📡 弱网离线缓存机制**：专为小程序网络环境设计，断网或发送失败时自动缓存 Event 到本地 Storage，网络恢复后静默重试上报，确保数据不丢失。
+- **⚡ 深度性能监控**：集成小程序 Performance API，全面采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及用户自定义性能标记。
+- **�️ 智能降噪与过滤**：内置强大的错误去重和采样率控制机制，避免日志风暴。
+- **🔧 跨端框架友好**：完美支持在 Taro、uni-app 等第三方多端编译框架中集成使用。
 
-## 安装和使用
+---
 
-### 前置要求
+## 📦 安装
 
-1. 使用前需要确保有可用的 `Sentry Service`，比如：使用 [官方 Sentry Service](https://sentry.io/welcome/) 服务 或[自己搭建 Sentry Service](https://docs.sentry.io/server/)。如果想直接将异常信息上报到 <https://sentry.io/>，由于其没有备案，可以先将异常信息上报给自己已备案域名下的服务端接口，由服务端进行请求转发。
-2. 在小程序管理后台配置 `Sentry Service` 对应的 `request` 合法域名
+推荐使用 `npm` 进行安装。
 
-### 安装依赖
+```bash
+npm install sentry-miniapp --save
+```
 
-推荐使用 npm 方式。
+> **注意：** `v1.1.0` 及以上版本已优化构建策略（内联依赖），**无需**再额外安装 `@sentry/core`。
 
-**稳定版本：**
+*提示：如果您不使用 npm，也可以直接将项目仓库中 `examples/wxapp/lib/sentry-miniapp.js` 文件复制到小程序项目中引入。*
 
-   ```bash
-   npm install sentry-miniapp --save
-   ```
+---
 
-> **注意：** v1.1.0 版本升级了核心依赖 `@sentry/core` 至 10.39.0，并优化了构建策略（内联依赖），不再需要额外安装 `@sentry/core`。
+## 🚀 快速接入
 
-### 重要提示
+### 1. 前置准备
 
-项目仓库中`examples/wxapp/lib/sentry-miniapp.js` 文件，也可以可以直接复制到小程序中使用。
+1. 确保您有可用的 Sentry 平台账号（可以使用 [官方 Sentry SaaS](https://sentry.io/) 或 私有化部署服务）。
+2. **非常重要**：在各平台的小程序管理后台，将 Sentry 的上报接口域名添加到 `request` 合法域名列表中。
 
-## 快速开始
+### 2. 初始化 SDK
 
-### 1. 初始化 SDK
-
-在小程序的 `app.js` 或 `app.ts` 中初始化 Sentry：
+请在小程序入口文件（如 `app.js` 或 `app.ts`）的**最顶部**（调用 `App()` 之前）初始化 Sentry。
 
 ```javascript
 import * as Sentry from 'sentry-miniapp';
 
-// 在 App() 之前初始化
 Sentry.init({
-  dsn: 'YOUR_SENTRY_DSN_HERE',
-  environment: 'production', // 或 'development'
-  debug: false, // 开发环境可设置为 true
+  dsn: 'https://<key>@sentry.io/<project>',
+  environment: 'production', // 环境变量: production / development
+  release: 'my-project-name@1.0.0', // 版本号，建议与 sourcemap 配合使用
   
-  // 小程序特有配置
-  platform: 'wechat', 
-  enableSystemInfo: true, // 是否收集系统信息
-  enableUserInteractionBreadcrumbs: true, // 是否记录用户交互面包屑
-  enableConsoleBreadcrumbs: true, // 是否记录控制台日志面包屑
-  enableNavigationBreadcrumbs: true, // 是否记录导航面包屑
+  // --- 小程序特性配置 ---
+  platform: 'wechat', // 当前平台 (wechat | alipay | bytedance | dd | swan 等)
+  enableSystemInfo: true, // 自动采集系统与设备信息
+  enableUserInteractionBreadcrumbs: true, // 自动记录用户点击行为
+  enableNavigationBreadcrumbs: true, // 自动记录页面路由跳转
   
-  // 离线缓存重试配置
-  enableOfflineCache: true, // 默认开启。断网或发送失败时，自动将事件缓存到本地 Storage，待下次网络恢复或启动时重试
+  // --- 离线缓存与可靠性 ---
+  enableOfflineCache: true, // 开启断网离线缓存与重试机制 (默认开启)
   
-  // 采样率配置
-  sampleRate: 1.0, // 错误采样率
+  // --- 性能与采样率 ---
+  sampleRate: 1.0, // 异常上报采样率 (0.0 - 1.0)
   
-  // 性能监控配置（可选）
+  // 可选：性能监控配置
   integrations: [
-    // 性能监控集成
     Sentry.performanceIntegration({
-      enableNavigation: true, // 导航性能监控
-      enableRender: true, // 渲染性能监控
-      enableResource: true, // 资源加载监控
-      enableUserTiming: true, // 用户自定义性能标记
-      sampleRate: 1.0, // 性能数据采样率
-      reportInterval: 30000, // 数据上报间隔（毫秒）
+      enableNavigation: true, // 导航耗时监控
+      enableRender: true, // 渲染耗时监控
+      enableResource: true, // 资源加载耗时
     }),
   ]
-  
-  // 过滤配置
-  beforeSend(event) {
-    // 可以在这里过滤或修改事件
-    return event;
-  },
 });
 
+// 初始化完成后，再调用 App
 App({
-  // 你的小程序配置
+  onLaunch() {
+    // ...
+  }
 });
 ```
 
-### 2. 手动捕获异常
+---
+
+## 📚 常用进阶用法
+
+初始化完成后，SDK 会自动在后台工作。您也可以使用以下 API 进行手动埋点或主动上报。
+
+### 手动异常与消息上报
 
 ```javascript
-import * as Sentry from 'sentry-miniapp';
-
-// 捕获异常
+// 手动捕获并上报一个 Error 对象
 try {
-  // 可能出错的代码
-  throw new Error('Something went wrong!');
+  throw new Error('支付接口解析失败');
 } catch (error) {
   Sentry.captureException(error);
 }
 
-// 捕获消息
-Sentry.captureMessage('用户执行了某个操作', 'info');
-
-// 添加面包屑
-Sentry.addBreadcrumb({
-  message: '用户点击了按钮',
-  category: 'ui',
-  level: 'info',
-  data: {
-    buttonId: 'submit-btn'
-  }
-});
-
-// 设置用户信息
-Sentry.setUser({
-  id: '12345',
-  username: 'john_doe',
-  email: 'john@example.com'
-});
-
-// 设置标签
-Sentry.setTag('page', 'home');
-
-// 设置上下文
-Sentry.setContext('character', {
-  name: 'Mighty Fighter',
-  age: 19,
-  attack_type: 'melee'
-});
+// 记录一条关键信息
+Sentry.captureMessage('用户主动取消了授权', 'info');
 ```
 
-### 3. 性能监控
+### 丰富上下文信息 (Context & Breadcrumbs)
 
 ```javascript
-import * as Sentry from 'sentry-miniapp';
+// 设置当前操作的用户信息
+Sentry.setUser({
+  id: 'user_12345',
+  username: 'John Doe'
+});
 
-// 手动标记性能时间点
-Sentry.addPerformanceMark('page-load-start');
-// ... 页面加载逻辑
-Sentry.addPerformanceMark('page-load-end');
+// 设置用于过滤和统计的全局标签
+Sentry.setTag('page_module', 'checkout_counter');
 
-// 测量性能区间
-Sentry.measurePerformance('page-load', 'page-load-start', 'page-load-end');
-
-// 记录自定义性能数据
-Sentry.recordPerformance({
-  name: 'api-request',
-  value: 1200, // 毫秒
-  unit: 'millisecond',
-  tags: {
-    endpoint: '/api/user',
-    method: 'GET'
-  }
+// 手动添加一条业务追踪面包屑
+Sentry.addBreadcrumb({
+  message: '用户点击了[确认支付]按钮',
+  category: 'action',
+  level: 'info',
+  data: { cartId: 'c_888' }
 });
 ```
 
-## 常见问题 (FAQ)
+### 自定义性能测速 (Performance)
 
-### 1. SDK 支持 Session Replay (会话回放) 吗？
+```javascript
+// 标记起始点
+Sentry.addPerformanceMark('api-request-start');
+// ... 执行耗时操作
+Sentry.addPerformanceMark('api-request-end');
 
-目前 `sentry-miniapp` **不支持** `Sentry.replayIntegration()` 会话回放功能。
+// 测量并记录该区间
+Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-end');
+```
 
-**原因：**
-Sentry 的 Session Replay 功能主要依赖于 Web 环境下的 DOM 录制技术（如 rrweb）。微信小程序环境没有标准的 DOM 接口，且视图层与逻辑层分离，无法直接复用 Web 端的录制实现。
+---
 
-**建议替代方案：**
+## ❓ 常见问题 (FAQ)
 
-- 使用面包屑（Breadcrumbs）记录详细的用户操作路径。
-- 结合性能监控（Performance）和日志（Logging）还原问题现场。
+### 1. 初始化后无法自动上报异常，必须在 `onError` 中手动调 API 吗？
 
-### 2. 在 `sentry.init` 之后，无法自动上报异常，需要在 `onError` 中手动上报吗？
+**完全不需要**。
+`sentry-miniapp` 在初始化时会自动劫持并注册平台底层的全局错误监听（如 `wx.onError`）。只要确保 `Sentry.init` 在 `App()` 调用**之前**执行，它就能自动捕获所有未处理的 JS 异常。
+如果发现没上报，请检查：
 
-**不需要**。
+1. Sentry 域名是否加入了小程序后台合法域名。
+2. `sampleRate` (采样率) 是否被意外设置得太低。
+3. 微信开发者工具某些环境下的报错不会触发底层 `onError`，建议在**真机预览**下测试。
 
-`sentry-miniapp` SDK 在初始化时会自动调用 `wx.onError` (以及 `wx.onUnhandledRejection` 等) 来监听全局异常。只要 `Sentry.init` 调用成功，SDK 就会自动捕获并上报未处理的异常。
+### 2. 这个 SDK 支持 Session Replay (屏幕操作回放) 吗？
 
-**如果发现无法自动上报，请检查以下几点：**
+目前 **不支持** `Sentry.replayIntegration()`。
+Sentry 官方的 Replay 功能强依赖于浏览器标准 DOM 环境（通过 rrweb 录制）。小程序采用双线程架构且没有开放标准 DOM 接口，无法直接复用。建议通过完善**Breadcrumbs（面包屑路径）**结合**自定义日志**来还原用户操作现场。
 
-1. **初始化时机**：确保 `Sentry.init` 是在 `App()` 函数调用**之前**执行的。
-2. **合法域名**：请确保在微信小程序后台配置了 Sentry 的 `request` 合法域名。
-3. **过滤配置**：检查 `sampleRate` (采样率) 是否设置过低，或者 `beforeSend` 回调函数是否过滤了该错误。
-4. **环境因素**：在微信开发者工具中，某些错误可能不会触发 `wx.onError`，建议在真机上进行测试。
+---
 
-**如果确实需要手动上报**（例如在 `try...catch` 中捕获的异常），可以使用 `Sentry.captureException(error)`。
+## 🤝 参与贡献
 
-## 贡献
+我们非常欢迎开发者提交 `Pull Request` 或通过 `Issues` 提出宝贵意见！
 
-欢迎通过 `issue`、`pull request` 等方式贡献 `sentry-miniapp`。
+要参与本地开发：
 
-## 联系作者
+1. `npm install` 安装依赖
+2. `npm run dev` 启动监听编译
+3. `npm run test:all` 运行完整的单元测试与集成测试套件
 
-### sentry-miniapp 微信交流群
+---
 
-由于微信群二维码有时效性限制，想入群的同学可以加作者微信（添加时请备注 sentry-miniapp），由作者邀请入群
+## 💬 联系与交流
 
-### 作者微信二维码
+遇到问题？想探讨小程序监控方案？欢迎加入我们的交流群。
+由于微信群二维码有 7 天时效性限制，请添加作者微信（**备注 sentry-miniapp**），由作者邀请您入群：
 
-<img src="docs/qrcode/zhiyao.jpeg" alt="作者微信二维码" width="300" height="300" />
+<img src="docs/qrcode/zhiyao.jpeg" alt="作者微信二维码" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
