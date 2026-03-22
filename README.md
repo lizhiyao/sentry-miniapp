@@ -7,7 +7,7 @@
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
 ![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
 
-一个基于 `@sentry/core` (v10.39.0) 核心构建的**多端小程序异常与性能监控 SDK**。旨在为小程序开发者提供与 Web 端一致的、强大且现代的 Sentry 监控体验。
+一个基于 `@sentry/core` (v10.45.0) 核心构建的**多端小程序异常与性能监控 SDK**。旨在为小程序开发者提供与 Web 端一致的、强大且现代的 Sentry 监控体验。
 
 > **💡 版本说明**
 >

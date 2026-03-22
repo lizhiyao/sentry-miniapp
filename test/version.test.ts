@@ -15,7 +15,7 @@ describe('Version', () => {
     });
 
     it('should match expected version', () => {
-      expect(SDK_VERSION).toBe('1.0.0-beta.1');
+      expect(SDK_VERSION).toBe('1.2.0');
     });
   });
 

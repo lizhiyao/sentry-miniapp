@@ -1,6 +1,6 @@
 {
   "name": "sentry-miniapp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "用于小程序平台的 Sentry SDK",
   "repository": {
     "type": "git",
@@ -69,7 +69,7 @@
     "vite-plugin-dts": "^4.5.4"
   },
   "dependencies": {
-    "@sentry/core": "10.39.0"
+    "@sentry/core": "^10.45.0"
   },
   "lint-staged": {
     "src/**/*.ts": [
