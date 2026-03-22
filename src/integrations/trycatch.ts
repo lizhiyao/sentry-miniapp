@@ -54,7 +54,6 @@ export class TryCatch implements Integration {
    * and provide better metadata.
    */
   public setupOnce(): void {
-    this._ignoreOnError = this._ignoreOnError;
 
     // In miniapp environment, we mainly focus on wrapping common async functions
     const global = globalThis as any;
