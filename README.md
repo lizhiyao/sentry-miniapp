@@ -11,7 +11,7 @@
 基于 `@sentry/core` 10.39.0 的微信小程序异常监控 SDK。
 
 > 注意：
-1、sentry-miniapp v1.x.x 版本暂时只支持微信小程序和微信小游戏。
+1、sentry-miniapp v1.x.x 版本已全面支持各大多端小程序平台（微信、支付宝、字节、百度等）。
 2、sentry-miniapp v0.x.x 版本已停止维护
 
 ## 特性
