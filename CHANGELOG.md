@@ -1,6 +1,30 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.4.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.4.0...v1.4.1) (2026-03-23)
+
+
+### 🐛 Bug Fixes | 修复
+
+* **ci:** 加回 --update-checksums 以应对 npm registry 的 integrity 变更 ([799ce6c](https://github.com/lizhiyao/sentry-miniapp/commit/799ce6cc949940b8d831d929e9657cff235342e9))
+* **ci:** 移除 yarn 缓存以彻底避免 integrity hash 不匹配问题 ([5b6ed8c](https://github.com/lizhiyao/sentry-miniapp/commit/5b6ed8c8cfa29295a25d501f4e145e98dc6ae5d8))
+* 同步 SDK_VERSION 至 1.4.0 并新增版本一致性校验 ([e863f9a](https://github.com/lizhiyao/sentry-miniapp/commit/e863f9abeedcea6ad53b7b531233709bfd7845f7))
+* 安装 prettier、修复镜像源检测正则、清理 ESLint 警告 ([7db125e](https://github.com/lizhiyao/sentry-miniapp/commit/7db125e567e2a4417b34129fa3d09c89c843a16a))
+
+
+### 🎫 Chores | 其他更新
+
+* **ci:** 升级基础 Node 版本至 20 以适配最新依赖 (eslint-visitor-keys) ([aa6e770](https://github.com/lizhiyao/sentry-miniapp/commit/aa6e7704267f4ecb1b2702d70091a9626c0ece55))
+* 从 npm 发布产物中移除 CHANGELOG.md 以进一步精简包体积 ([f86fa49](https://github.com/lizhiyao/sentry-miniapp/commit/f86fa49774ed9dfffc6a05010ccf8f131d90d44f))
+* 从 npm 发布产物中移除不必要的 src 目录以减小包体积 ([5cd523b](https://github.com/lizhiyao/sentry-miniapp/commit/5cd523b695b69ad6024899e9d2bfd0f576df7c43))
+* 同步示例项目中的 SDK 构建产物 ([405207d](https://github.com/lizhiyao/sentry-miniapp/commit/405207d1401db81f4ade1681d5b16918ad9b8ca5))
+* 新增 CLAUDE.md 并清理冗余配置文件 ([7e024a0](https://github.com/lizhiyao/sentry-miniapp/commit/7e024a02f44f976fe2f6a0b409b4a74c4d81755c))
+* 配置 commit-and-tag-version 自动同步 SDK_VERSION ([1137d26](https://github.com/lizhiyao/sentry-miniapp/commit/1137d26fbad21b13cdc27b985a75f0576cabd51f))
+
+
+### 📝 Documentation | 文档
+
+* 修复文档中的过时内容 ([63c261a](https://github.com/lizhiyao/sentry-miniapp/commit/63c261a22153fea58115e18801a42ffecd7b59e6))
 
 ## [1.4.0] - 2026-03-23
 
