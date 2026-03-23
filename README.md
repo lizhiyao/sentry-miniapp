@@ -72,6 +72,7 @@ Sentry.init({
   
   // --- 离线缓存与可靠性 ---
   enableOfflineCache: true, // 开启断网离线缓存与重试机制 (默认开启)
+  offlineCacheLimit: 30, // 离线缓存的最大事件数 (默认 30，可调大以防弱网下丢失更多数据)
   
   // --- SourceMap 支持 ---
   enableSourceMap: true, // 开启自动将堆栈的虚拟路径转为统一格式，配合上传 sourcemap 时的 --url-prefix "app:///"
@@ -170,6 +171,92 @@ sentry-cli releases files "your-project-release-id" upload-sourcemaps ./dist \
 ```
 
 *(注：在微信开发者工具上传代码时，请**务必关闭**工具自带的“ES6转ES5”和“代码压缩”功能，将这些工作交给 Webpack/Vite 等构建工具，以防行列号错位。)*
+
+---
+
+## 💬 用户反馈 (User Feedback)
+
+在 Web 环境中，Sentry 提供了一个现成的 `showReportDialog()` 弹窗。但在小程序环境中没有 DOM 无法直接渲染该组件，因此 `showReportDialog()` 已被**废弃**。
+
+请您**自行实现一个原生小程序表单（或弹窗）**来收集用户的反馈信息，然后调用 `Sentry.captureFeedback()` 提交到 Sentry 后台：
+
+```javascript
+// 当发生错误，或者用户主动点击“反馈”按钮时，展示您自己画的表单：
+const userMessage = '页面卡住了，点什么都没反应';
+const userName = '张三';
+const userEmail = 'zhangsan@example.com';
+
+// 将收集到的反馈发送给 Sentry
+Sentry.captureFeedback({
+  message: userMessage,
+  name: userName,
+  email: userEmail,
+  // 选填：如果您想把这个反馈和某个具体的错误事件关联起来：
+  // associatedEventId: 'abc123xyz...'
+});
+```
+
+---
+
+## 📦 主包体积优化 (0KB 主包占用方案)
+
+小程序的“主包体积”非常宝贵（通常限制在 2MB 以内）。`sentry-miniapp` 由于集成了完整的 `@sentry/core` 核心引擎和多端适配，原始体积约在 200KB 左右。
+
+如果您非常在意主包体积，**强烈建议使用平台提供的「分包异步化」或「动态加载」特性**，将 SDK 的体积完全转移到分包中。
+
+### 方案 A：微信 / 支付宝小程序（推荐）
+
+微信和支付宝等平台原生支持[分包异步化](https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/async.html)。
+
+**具体操作步骤：**
+
+1. 将 `sentry-miniapp` 的 npm 包或者构建后的文件放入您的某个分包目录中（例如 `subpackageA`）。
+2. 在您的 `app.js` 顶部，使用 `require.async` 异步懒加载 SDK 并进行初始化：
+
+```javascript
+// app.js
+App({
+  onLaunch() {
+    // 异步加载分包中的 sentry
+    require.async('./subpackageA/sentry-miniapp.js').then((Sentry) => {
+      Sentry.init({
+        dsn: 'https://xxxxxxxx@sentry.io/12345',
+        // ...其他配置
+      });
+      console.log('Sentry 异步加载并初始化成功');
+    }).catch(err => {
+      console.error('Sentry 加载失败', err);
+    });
+  }
+});
+```
+
+*通过这种方式，Sentry 的 200KB 体积将**全部算入 `subpackageA` 的分包体积**，主包占用为 0！*
+
+### 方案 B：其他小程序平台（字节、百度等）
+
+对于暂不支持 `require.async` 的平台，您可以采用**分包预下载 + API 动态加载**的方式：
+
+1. 同样将 SDK 放入分包（如 `subpackageA`）。
+2. 在 `app.js` 中使用平台原生的分包加载 API 先下载分包，下载成功后再通过同步 `require` 引入 SDK：
+
+```javascript
+// 以字节小程序为例
+App({
+  onLaunch() {
+    const loadTask = tt.loadSubpackage({
+      name: 'subpackageA',
+      success: () => {
+        // 分包加载成功后，就可以安全地 require 了
+        const Sentry = require('./subpackageA/sentry-miniapp.js');
+        Sentry.init({ dsn: '...' });
+      }
+    });
+  }
+});
+```
+
+*注：如果您使用的是 Taro / uni-app 等跨端框架，可以直接使用 `import('sentry-miniapp')` 动态导入语法，框架会在编译时自动抹平各端差异。*
 
 ---
 

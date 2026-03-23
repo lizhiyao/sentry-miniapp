@@ -58,6 +58,9 @@ export interface MiniappOptions {
   /** Whether to enable offline cache to retry sending events later */
   enableOfflineCache?: boolean;
 
+  /** Maximum number of events to store in offline cache (default: 30) */
+  offlineCacheLimit?: number;
+
   /** Array of strings or regexes that match error URLs which should be exclusively sent to Sentry */
   allowUrls?: Array<string | RegExp>;
 

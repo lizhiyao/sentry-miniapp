@@ -10,7 +10,7 @@ import type {
   EventHint,
 } from '@sentry/core';
 
-import { sdk, appName, getSystemInfo } from './crossPlatform';
+import { appName, getSystemInfo } from './crossPlatform';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
@@ -35,15 +35,16 @@ export class MiniappClient extends Client<any> {
           ...transportOptions,
           headers: {},
         });
-        
+
         if (options.enableOfflineCache !== false) {
           return makeOfflineTransport(() => baseTransport)({
             ...transportOptions,
+            offlineCacheLimit: options.offlineCacheLimit,
             createStore: createMiniappOfflineStore,
             flushAtStartup: true, // 启动时自动重试发送
           });
         }
-        
+
         return baseTransport;
       }),
     });
@@ -77,7 +78,7 @@ export class MiniappClient extends Client<any> {
     scope?: Scope,
   ): PromiseLike<Event | null> {
     event.platform = event.platform || this.getOptions().platform || 'javascript';
-    
+
     // Add SDK information
     event.sdk = {
       ...event.sdk,
@@ -157,29 +158,15 @@ export class MiniappClient extends Client<any> {
   }
 
   /**
-   * Show a report dialog to the user to send feedback to a specific event.
-   * 向用户显示报告对话框以将反馈发送到特定事件。
-   * 注意：小程序环境使用模态对话框模拟此功能
-   *
-   * @param options Set individual options for the dialog
+   * @deprecated Miniapp environment does not support Sentry's default HTML report dialog.
+   * Please implement your own UI form to collect user feedback (name, email, comments)
+   * and use `Sentry.captureFeedback()` to submit it to Sentry.
    */
-  public showReportDialog(options: ReportDialogOptions = {}): void {
-    const showModal = sdk().showModal;
-    if (showModal) {
-      showModal({
-        title: options.title || '错误反馈',
-        content: options.subtitle || '应用遇到了一个错误，是否要发送错误报告？',
-        confirmText: '发送',
-        cancelText: '取消',
-        success: (res: any) => {
-          if (res.confirm && options.onLoad) {
-            options.onLoad();
-          }
-        }
-      });
-    } else {
-      console.warn('sentry-miniapp: showModal is not available in current miniapp platform', options);
-    }
+  public showReportDialog(_options: ReportDialogOptions = {}): void {
+    console.warn(
+      '[sentry-miniapp] showReportDialog is deprecated and does nothing. ' +
+      'Please build your own UI and use `Sentry.captureFeedback()` instead.'
+    );
   }
 
 

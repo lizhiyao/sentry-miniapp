@@ -2,19 +2,25 @@ import type { Envelope } from '@sentry/core';
 import type { OfflineStore, OfflineTransportOptions } from '@sentry/core/build/types/transports/offline';
 import { sdk } from '../crossPlatform';
 
-const MAX_OFFLINE_CACHE_SIZE = 30; // 最大缓存数量
+const DEFAULT_OFFLINE_CACHE_SIZE = 30; // 默认最大缓存数量
 const OFFLINE_STORE_KEY = 'sentry_offline_store';
+
+export interface MiniappOfflineStoreOptions extends OfflineTransportOptions {
+  offlineCacheLimit?: number;
+}
 
 /**
  * Creates an offline store using miniapp storage API
  */
-export function createMiniappOfflineStore(_options: OfflineTransportOptions): OfflineStore {
+export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): OfflineStore {
+  const maxCacheSize = options.offlineCacheLimit || DEFAULT_OFFLINE_CACHE_SIZE;
+
   return {
     push: async (env: Envelope): Promise<void> => {
       try {
         const store = getStore();
         store.push(env);
-        if (store.length > MAX_OFFLINE_CACHE_SIZE) {
+        if (store.length > maxCacheSize) {
           store.shift(); // 移除最早的缓存以限制大小
         }
         setStore(store);
@@ -26,7 +32,7 @@ export function createMiniappOfflineStore(_options: OfflineTransportOptions): Of
       try {
         const store = getStore();
         store.unshift(env);
-        if (store.length > MAX_OFFLINE_CACHE_SIZE) {
+        if (store.length > maxCacheSize) {
           store.pop(); // 移除最旧的缓存以限制大小
         }
         setStore(store);

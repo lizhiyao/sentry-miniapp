@@ -241,44 +241,24 @@ describe('MiniappClient', () => {
       const preparedEvent = await client['_prepareEvent'](event, {});
 
       expect(preparedEvent?.contexts?.['custom']).toEqual({ data: 'value' });
-       expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
-     });
-   });
+      expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
+    });
+  });
 
   describe('showReportDialog', () => {
-    it('should show modal in miniapp environment', () => {
+    it('should show console warning instead of modal', () => {
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
       const mockShowModal = jest.fn();
       (global as any).wx.showModal = mockShowModal;
 
       client.showReportDialog();
 
-      expect(mockShowModal).toHaveBeenCalledWith({
-        title: '错误反馈',
-        content: '应用遇到了一个错误，是否要发送错误报告？',
-        confirmText: '发送',
-        cancelText: '取消',
-        success: expect.any(Function)
-      });
-    });
+      expect(mockShowModal).not.toHaveBeenCalled();
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('showReportDialog is deprecated')
+      );
 
-    it('should handle custom options', () => {
-      const mockShowModal = jest.fn();
-      (global as any).wx.showModal = mockShowModal;
-
-      const options = {
-        title: 'Custom Title',
-        subtitle: 'Custom Subtitle'
-      };
-
-      client.showReportDialog(options);
-
-      expect(mockShowModal).toHaveBeenCalledWith({
-        title: 'Custom Title',
-        content: 'Custom Subtitle',
-        confirmText: '发送',
-        cancelText: '取消',
-        success: expect.any(Function)
-      });
+      consoleWarnSpy.mockRestore();
     });
   });
 });
