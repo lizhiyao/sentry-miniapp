@@ -1,5 +1,6 @@
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
+import { sdk } from '../crossPlatform';
 
 /** Router integration for miniapp navigation */
 export class Router implements Integration {
@@ -30,50 +31,29 @@ export class Router implements Integration {
    * Instrument navigation functions
    */
   private _instrumentNavigation(): void {
-    const global = globalThis as any;
-
-    // Instrument wx.navigateTo
-    if (global.wx && global.wx.navigateTo) {
-      const originalNavigateTo = global.wx.navigateTo;
-      global.wx.navigateTo = (options: any) => {
-        this._recordNavigation('navigateTo', options.url, this._getCurrentRoute());
-        return originalNavigateTo.call(global.wx, options);
-      };
+    let currentSdk: any;
+    try {
+      currentSdk = sdk();
+    } catch (_e) {
+      return; // No SDK available
     }
 
-    // Instrument wx.redirectTo
-    if (global.wx && global.wx.redirectTo) {
-      const originalRedirectTo = global.wx.redirectTo;
-      global.wx.redirectTo = (options: any) => {
-        this._recordNavigation('redirectTo', options.url, this._getCurrentRoute());
-        return originalRedirectTo.call(global.wx, options);
-      };
+    const methods = ['navigateTo', 'redirectTo', 'switchTab', 'reLaunch'] as const;
+    for (const method of methods) {
+      if (currentSdk[method]) {
+        const original = currentSdk[method];
+        currentSdk[method] = (options: any) => {
+          this._recordNavigation(method, options.url, this._getCurrentRoute());
+          return original.call(currentSdk, options);
+        };
+      }
     }
 
-    // Instrument wx.switchTab
-    if (global.wx && global.wx.switchTab) {
-      const originalSwitchTab = global.wx.switchTab;
-      global.wx.switchTab = (options: any) => {
-        this._recordNavigation('switchTab', options.url, this._getCurrentRoute());
-        return originalSwitchTab.call(global.wx, options);
-      };
-    }
-
-    // Instrument wx.navigateBack
-    if (global.wx && global.wx.navigateBack) {
-      const originalNavigateBack = global.wx.navigateBack;
-      global.wx.navigateBack = (options: any = {}) => {
+    if (currentSdk.navigateBack) {
+      const originalNavigateBack = currentSdk.navigateBack;
+      currentSdk.navigateBack = (options: any = {}) => {
         this._recordNavigation('navigateBack', 'back', this._getCurrentRoute(), options.delta);
-        return originalNavigateBack.call(global.wx, options);
-      };
-    }
-
-    // Instrument wx.reLaunch
-    if (global.wx && global.wx.reLaunch) {
-      const originalReLaunch = global.wx.reLaunch;
-      global.wx.reLaunch = (options: any) => {
-        this._recordNavigation('reLaunch', options.url, this._getCurrentRoute());
-        return originalReLaunch.call(global.wx, options);
+        return originalNavigateBack.call(currentSdk, options);
       };
     }
   }

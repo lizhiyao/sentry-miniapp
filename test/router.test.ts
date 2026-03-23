@@ -11,9 +11,16 @@ jest.mock('@sentry/core', () => ({
   })),
 }));
 
+// Mock crossPlatform sdk
+const mockSdk: any = {};
+jest.mock('../src/crossPlatform', () => ({
+  sdk: jest.fn(() => mockSdk),
+}));
+
+import { sdk as sdkFn } from '../src/crossPlatform';
+
 describe('Router Integration', () => {
   let router: Router;
-  let mockGlobal: any;
 
   let originalSetInterval: any;
   let mockScope: any;
@@ -33,36 +40,49 @@ describe('Router Integration', () => {
     // Mock getCurrentScope
     (getCurrentScope as jest.Mock).mockReturnValue(mockScope);
 
-    // Mock global object with wx APIs
-    mockGlobal = {
-      wx: {
-        navigateTo: jest.fn(),
-        redirectTo: jest.fn(),
-        switchTab: jest.fn(),
-        navigateBack: jest.fn(),
-        reLaunch: jest.fn(),
-      },
-      getCurrentPages: jest.fn(() => [
-        { route: 'pages/index/index' },
-        { route: 'pages/detail/detail' },
-      ]),
-    };
+    // Set up mock SDK with wx-like APIs
+    mockSdk.navigateTo = jest.fn();
+    mockSdk.redirectTo = jest.fn();
+    mockSdk.switchTab = jest.fn();
+    mockSdk.navigateBack = jest.fn();
+    mockSdk.reLaunch = jest.fn();
 
-    // Replace globalThis
-    Object.assign(globalThis, mockGlobal);
+    // Mock getCurrentPages on globalThis
+    (globalThis as any).getCurrentPages = jest.fn(() => [
+      { route: 'pages/index/index' },
+      { route: 'pages/detail/detail' },
+    ]);
 
     // Mock setInterval to avoid actual timing
     (global as any).setInterval = jest.fn();
 
     jest.clearAllMocks();
+
+    // Re-setup mockSdk methods after clearAllMocks
+    mockSdk.navigateTo = jest.fn();
+    mockSdk.redirectTo = jest.fn();
+    mockSdk.switchTab = jest.fn();
+    mockSdk.navigateBack = jest.fn();
+    mockSdk.reLaunch = jest.fn();
+
+    (getCurrentScope as jest.Mock).mockReturnValue(mockScope);
+    (sdkFn as jest.Mock).mockReturnValue(mockSdk);
+    (globalThis as any).getCurrentPages = jest.fn(() => [
+      { route: 'pages/index/index' },
+      { route: 'pages/detail/detail' },
+    ]);
+    (global as any).setInterval = jest.fn();
   });
 
   afterEach(() => {
-    // Restore original global and setInterval
-    Object.keys(mockGlobal).forEach((key) => {
-      delete (globalThis as any)[key];
-    });
+    // Restore original setInterval and clean up
+    delete (globalThis as any).getCurrentPages;
     (global as any).setInterval = originalSetInterval;
+
+    // Clean up mockSdk
+    Object.keys(mockSdk).forEach((key) => {
+      delete mockSdk[key];
+    });
   });
 
   describe('basic properties', () => {
@@ -84,16 +104,16 @@ describe('Router Integration', () => {
       expect((global as any).setInterval).toHaveBeenCalledWith(expect.any(Function), 1000);
     });
 
-    it('should instrument wx.navigateTo', () => {
-      const originalNavigateTo = mockGlobal.wx.navigateTo;
+    it('should instrument navigateTo', () => {
+      const originalNavigateTo = mockSdk.navigateTo;
       router.setupOnce();
 
       // Check that navigateTo was wrapped
-      expect(mockGlobal.wx.navigateTo).not.toBe(originalNavigateTo);
+      expect(mockSdk.navigateTo).not.toBe(originalNavigateTo);
 
       // Test the wrapped function
       const options = { url: '/pages/test/test' };
-      mockGlobal.wx.navigateTo(options);
+      mockSdk.navigateTo(options);
 
       expect(originalNavigateTo).toHaveBeenCalledWith(options);
       expect(addBreadcrumb).toHaveBeenCalledWith({
@@ -109,12 +129,12 @@ describe('Router Integration', () => {
       });
     });
 
-    it('should instrument wx.redirectTo', () => {
-      const originalRedirectTo = mockGlobal.wx.redirectTo;
+    it('should instrument redirectTo', () => {
+      const originalRedirectTo = mockSdk.redirectTo;
       router.setupOnce();
 
       const options = { url: '/pages/redirect/redirect' };
-      mockGlobal.wx.redirectTo(options);
+      mockSdk.redirectTo(options);
 
       expect(originalRedirectTo).toHaveBeenCalledWith(options);
       expect(addBreadcrumb).toHaveBeenCalledWith({
@@ -130,12 +150,12 @@ describe('Router Integration', () => {
       });
     });
 
-    it('should instrument wx.switchTab', () => {
-      const originalSwitchTab = mockGlobal.wx.switchTab;
+    it('should instrument switchTab', () => {
+      const originalSwitchTab = mockSdk.switchTab;
       router.setupOnce();
 
       const options = { url: '/pages/tab/tab' };
-      mockGlobal.wx.switchTab(options);
+      mockSdk.switchTab(options);
 
       expect(originalSwitchTab).toHaveBeenCalledWith(options);
       expect(addBreadcrumb).toHaveBeenCalledWith({
@@ -151,12 +171,12 @@ describe('Router Integration', () => {
       });
     });
 
-    it('should instrument wx.navigateBack', () => {
-      const originalNavigateBack = mockGlobal.wx.navigateBack;
+    it('should instrument navigateBack', () => {
+      const originalNavigateBack = mockSdk.navigateBack;
       router.setupOnce();
 
       const options = { delta: 2 };
-      mockGlobal.wx.navigateBack(options);
+      mockSdk.navigateBack(options);
 
       expect(originalNavigateBack).toHaveBeenCalledWith(options);
       expect(addBreadcrumb).toHaveBeenCalledWith({
@@ -172,11 +192,11 @@ describe('Router Integration', () => {
       });
     });
 
-    it('should instrument wx.navigateBack with default options', () => {
-      const originalNavigateBack = mockGlobal.wx.navigateBack;
+    it('should instrument navigateBack with default options', () => {
+      const originalNavigateBack = mockSdk.navigateBack;
       router.setupOnce();
 
-      mockGlobal.wx.navigateBack();
+      mockSdk.navigateBack();
 
       expect(originalNavigateBack).toHaveBeenCalledWith({});
       expect(addBreadcrumb).toHaveBeenCalledWith({
@@ -192,12 +212,12 @@ describe('Router Integration', () => {
       });
     });
 
-    it('should instrument wx.reLaunch', () => {
-      const originalReLaunch = mockGlobal.wx.reLaunch;
+    it('should instrument reLaunch', () => {
+      const originalReLaunch = mockSdk.reLaunch;
       router.setupOnce();
 
       const options = { url: '/pages/relaunch/relaunch' };
-      mockGlobal.wx.reLaunch(options);
+      mockSdk.reLaunch(options);
 
       expect(originalReLaunch).toHaveBeenCalledWith(options);
       expect(addBreadcrumb).toHaveBeenCalledWith({
@@ -213,14 +233,19 @@ describe('Router Integration', () => {
       });
     });
 
-    it('should handle missing wx object gracefully', () => {
-      delete (globalThis as any).wx;
+    it('should handle sdk() throwing gracefully', () => {
+      (sdkFn as jest.Mock).mockImplementation(() => {
+        throw new Error('sentry-miniapp 暂不支持此平台');
+      });
 
       expect(() => router.setupOnce()).not.toThrow();
     });
 
-    it('should handle missing wx methods gracefully', () => {
-      (globalThis as any).wx = {};
+    it('should handle SDK with missing methods gracefully', () => {
+      // Clear all methods from mockSdk
+      Object.keys(mockSdk).forEach((key) => {
+        delete mockSdk[key];
+      });
 
       expect(() => router.setupOnce()).not.toThrow();
     });
@@ -235,7 +260,7 @@ describe('Router Integration', () => {
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
       // Simulate route change
-      mockGlobal.getCurrentPages.mockReturnValue([
+      ((globalThis as any).getCurrentPages as jest.Mock).mockReturnValue([
         { route: 'pages/index/index' },
         { route: 'pages/new/new' },
       ]);
@@ -279,7 +304,7 @@ describe('Router Integration', () => {
     });
 
     it('should handle getCurrentPages errors gracefully', () => {
-      mockGlobal.getCurrentPages.mockImplementation(() => {
+      ((globalThis as any).getCurrentPages as jest.Mock).mockImplementation(() => {
         throw new Error('getCurrentPages error');
       });
 
@@ -291,7 +316,7 @@ describe('Router Integration', () => {
     });
 
     it('should handle empty pages array', () => {
-      mockGlobal.getCurrentPages.mockReturnValue([]);
+      ((globalThis as any).getCurrentPages as jest.Mock).mockReturnValue([]);
 
       router.setupOnce();
       const setIntervalMock = (global as any).setInterval as jest.Mock;
@@ -301,7 +326,9 @@ describe('Router Integration', () => {
     });
 
     it('should handle pages with __route__ property', () => {
-      mockGlobal.getCurrentPages.mockReturnValue([{ __route__: 'pages/legacy/legacy' }]);
+      ((globalThis as any).getCurrentPages as jest.Mock).mockReturnValue([
+        { __route__: 'pages/legacy/legacy' },
+      ]);
 
       router.setupOnce();
       const setIntervalMock = (global as any).setInterval as jest.Mock;
@@ -338,7 +365,7 @@ describe('Router Integration', () => {
 
     it('should set correct tags and context for navigation', () => {
       const options = { url: '/pages/test/test' };
-      mockGlobal.wx.navigateTo(options);
+      mockSdk.navigateTo(options);
 
       expect(mockScope.setTag).toHaveBeenCalledWith('route', '/pages/test/test');
       expect(mockScope.setContext).toHaveBeenCalledWith('navigation', {
@@ -351,7 +378,7 @@ describe('Router Integration', () => {
     });
 
     it('should set correct tags for navigateBack', () => {
-      mockGlobal.wx.navigateBack({ delta: 1 });
+      mockSdk.navigateBack({ delta: 1 });
 
       expect(mockScope.setTag).toHaveBeenCalledWith('route', 'pages/detail/detail');
       expect(mockScope.setContext).toHaveBeenCalledWith('navigation', {
@@ -360,6 +387,48 @@ describe('Router Integration', () => {
         to: 'back',
         delta: 1,
         timestamp: expect.any(Number),
+      });
+    });
+  });
+
+  describe('non-wx platform support (Alipay)', () => {
+    it('should instrument navigation on Alipay SDK (my)', () => {
+      // Set up an Alipay-like SDK
+      const alipayNavigateTo = jest.fn();
+      const alipaySdk = {
+        navigateTo: alipayNavigateTo,
+        redirectTo: jest.fn(),
+        switchTab: jest.fn(),
+        navigateBack: jest.fn(),
+        reLaunch: jest.fn(),
+      };
+
+      (sdkFn as jest.Mock).mockReturnValue(alipaySdk);
+
+      const alipayRouter = new Router();
+      alipayRouter.setupOnce();
+
+      // navigateTo should have been wrapped
+      expect(alipaySdk.navigateTo).not.toBe(alipayNavigateTo);
+
+      // Call the wrapped method
+      const options = { url: '/pages/alipay/home' };
+      alipaySdk.navigateTo(options);
+
+      // Original should have been called
+      expect(alipayNavigateTo).toHaveBeenCalledWith(options);
+
+      // Breadcrumb should have been recorded
+      expect(addBreadcrumb).toHaveBeenCalledWith({
+        category: 'navigation',
+        data: {
+          action: 'navigateTo',
+          from: 'pages/detail/detail',
+          to: '/pages/alipay/home',
+          delta: undefined,
+        },
+        message: 'Navigation navigateTo: pages/detail/detail -> /pages/alipay/home',
+        type: 'navigation',
       });
     });
   });

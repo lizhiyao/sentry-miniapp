@@ -12,6 +12,7 @@ describe('CrossPlatform', () => {
       dd: (global as any).dd,
       qq: (global as any).qq,
       swan: (global as any).swan,
+      ks: (global as any).ks,
     };
 
     // 清理全局对象
@@ -21,6 +22,7 @@ describe('CrossPlatform', () => {
     delete (global as any).dd;
     delete (global as any).qq;
     delete (global as any).swan;
+    delete (global as any).ks;
 
     // 重置缓存的 appName - 通过重新导入模块来清理缓存
     jest.resetModules();
@@ -36,6 +38,7 @@ describe('CrossPlatform', () => {
     (global as any).dd = originalGlobal.dd;
     (global as any).qq = originalGlobal.qq;
     (global as any).swan = originalGlobal.swan;
+    (global as any).ks = originalGlobal.ks;
   });
 
   describe('getSDK', () => {
@@ -110,6 +113,17 @@ describe('CrossPlatform', () => {
       const { getSDK } = await import('../src/crossPlatform');
       const result = getSDK();
       expect(result).toBe(mockSwan);
+    });
+
+    it('should return ks SDK when others not available but ks is', async () => {
+      const mockKs = {
+        request: jest.fn(),
+      };
+      (global as any).ks = mockKs;
+
+      const { getSDK } = await import('../src/crossPlatform');
+      const result = getSDK();
+      expect(result).toBe(mockKs);
     });
 
     it('should throw error when no SDK available', async () => {
@@ -255,6 +269,12 @@ describe('CrossPlatform', () => {
       expect(isMiniappEnvironment()).toBe(true);
     });
 
+    it('should return true when ks is available', async () => {
+      (global as any).ks = { request: jest.fn() };
+      const { isMiniappEnvironment } = await import('../src/crossPlatform');
+      expect(isMiniappEnvironment()).toBe(true);
+    });
+
     it('should return false when no miniapp SDK is available', async () => {
       const { isMiniappEnvironment } = await import('../src/crossPlatform');
       expect(isMiniappEnvironment()).toBe(false);
@@ -312,6 +332,12 @@ describe('CrossPlatform', () => {
       expect(appName()).toBe('swan');
     });
 
+    it('should return "kuaishou" for ks', async () => {
+      (global as any).ks = { request: jest.fn() };
+      const { appName } = await import('../src/crossPlatform');
+      expect(appName()).toBe('kuaishou');
+    });
+
     it('should return "unknown" when no SDK available', async () => {
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('unknown');
@@ -327,6 +353,78 @@ describe('CrossPlatform', () => {
 
       expect(result1).toBe('wechat');
       expect(result2).toBe('wechat'); // Should return cached value
+    });
+  });
+
+  describe('Storage API wrapping for Alipay/DingTalk', () => {
+    it('should wrap getStorageSync for Alipay (my)', async () => {
+      const originalGet = jest.fn().mockImplementation((opts: any) => {
+        return { data: `value_for_${opts.key}` };
+      });
+      const originalSet = jest.fn();
+      const originalRemove = jest.fn();
+      (global as any).my = {
+        request: jest.fn(),
+        getStorageSync: originalGet,
+        setStorageSync: originalSet,
+        removeStorageSync: originalRemove,
+      };
+
+      const { sdk } = await import('../src/crossPlatform');
+      const s = sdk();
+
+      // getStorageSync should be wrapped to accept string key
+      const result = s.getStorageSync!('test_key');
+      expect(result).toBe('value_for_test_key');
+    });
+
+    it('should wrap setStorageSync for Alipay (my)', async () => {
+      const originalSet = jest.fn();
+      (global as any).my = {
+        request: jest.fn(),
+        setStorageSync: originalSet,
+      };
+
+      const { sdk } = await import('../src/crossPlatform');
+      const s = sdk();
+
+      s.setStorageSync!('test_key', 'test_value');
+      expect(originalSet).toHaveBeenCalledWith({ key: 'test_key', data: 'test_value' });
+    });
+
+    it('should wrap removeStorageSync for Alipay (my)', async () => {
+      const originalRemove = jest.fn();
+      (global as any).my = {
+        request: jest.fn(),
+        removeStorageSync: originalRemove,
+      };
+
+      const { sdk } = await import('../src/crossPlatform');
+      const s = sdk();
+
+      s.removeStorageSync!('test_key');
+      expect(originalRemove).toHaveBeenCalledWith({ key: 'test_key' });
+    });
+
+    it('should wrap storage APIs for DingTalk (dd)', async () => {
+      const originalGet = jest.fn().mockImplementation((opts: any) => {
+        return { data: `dd_value_for_${opts.key}` };
+      });
+      const originalSet = jest.fn();
+      (global as any).dd = {
+        httpRequest: jest.fn(),
+        getStorageSync: originalGet,
+        setStorageSync: originalSet,
+      };
+
+      const { sdk } = await import('../src/crossPlatform');
+      const s = sdk();
+
+      const result = s.getStorageSync!('dd_key');
+      expect(result).toBe('dd_value_for_dd_key');
+
+      s.setStorageSync!('dd_key', 'dd_value');
+      expect(originalSet).toHaveBeenCalledWith({ key: 'dd_key', data: 'dd_value' });
     });
   });
 });
