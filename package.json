@@ -92,7 +92,6 @@
     "js-yaml": "3.14.2",
     "lint-staged": "^16.4.0",
     "lodash": "4.17.23",
-    "rollup-plugin-visualizer": "^7.0.1",
     "ts-jest": "^29.4.0",
     "typescript": "^5.8.3",
     "vite": "^6.4.1",
