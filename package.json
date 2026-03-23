@@ -72,8 +72,7 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
+    "LICENSE"
   ],
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
