@@ -71,6 +71,7 @@ Sentry.init({
   
   // --- 离线缓存与可靠性 ---
   enableOfflineCache: true, // 开启断网离线缓存与重试机制 (默认开启)
+  offlineCacheLimit: 30, // 离线缓存的最大事件数 (默认 30，可调大以防弱网下丢失更多数据)
   
   // --- SourceMap 支持 ---
   enableSourceMap: true, // 开启自动将堆栈的虚拟路径转为统一格式，配合上传 sourcemap 时的 --url-prefix "app:///"

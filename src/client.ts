@@ -39,6 +39,7 @@ export class MiniappClient extends Client<any> {
         if (options.enableOfflineCache !== false) {
           return makeOfflineTransport(() => baseTransport)({
             ...transportOptions,
+            offlineCacheLimit: options.offlineCacheLimit,
             createStore: createMiniappOfflineStore,
             flushAtStartup: true, // 启动时自动重试发送
           });
