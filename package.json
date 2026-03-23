@@ -106,7 +106,7 @@
       "prettier --write"
     ],
     "yarn.lock": [
-      "node -e \"const fs = require('fs'); const content = fs.readFileSync('yarn.lock', 'utf8'); if (content.includes('registry.antgroup-inc.cn')) { console.error('Error: yarn.lock contains internal registry URLs. Please run \\'sed -i \\'\\' \\'s|https://registry.antgroup-inc.cn|https://registry.npmjs.org|g\\' yarn.lock\\'); process.exit(1); }\""
+      "node -e \"const fs = require('fs'); const content = fs.readFileSync('yarn.lock', 'utf8'); if (/registry\\.[a-zA-Z0-9-]+\\.(cn|net|com|org)(?!npmjs\\.org)/i.test(content)) { console.error('Error: yarn.lock contains non-official registry URLs. Please clean it.'); process.exit(1); }\""
     ]
   },
   "commit-and-tag-version": {
