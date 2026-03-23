@@ -2,26 +2,46 @@
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
 
-## [1.0.1-beta.2] - 2025-01-07
+## [1.4.0] - 2026-03-23
+
+### 新增
+
+- ✨ 新增 `NetworkBreadcrumbs` 集成：支持抓取网络请求的 Request Body 和 Response Body。通过 `traceNetworkBody: true` 开启，方便深度排查接口异常。
+- ✨ 离线缓存上限可配置：在 `Sentry.init` 中新增 `offlineCacheLimit` 选项，允许开发者根据业务场景调大离线重试队列（默认 30）。
+- 🚀 支持全平台自动构建同步：重构构建脚本，`npm run build` 现在会自动将产物同步至示例工程，提升本地开发和直接拷贝单文件用户的体验。
+
+### 修复 & 优化
+
+- 🐛 修复无限死循环：在 `NetworkBreadcrumbs` 中自动忽略了配置的自托管（Self-Hosted）Sentry DSN 域名以及 `sentry.io`，防止上报请求被拦截。
+- 🗑️ 废弃 `showReportDialog`：小程序环境不支持 Sentry 官方 HTML 弹窗，已废弃该方法并输出清晰的警告，文档中增加了自定义 UI + `captureFeedback` 的最佳实践。
+- 📦 优化主包体积说明：在 README 中增加了关于“利用分包异步化实现 0KB 主包占用”的详细指南。
+- 🔍 优化 NPM 发现率：补充了全量的小程序平台和跨端框架中英文关键词。
+- 📚 文档精简：合并并删除了冗余的 `DEVELOPMENT_GUIDE.md`。
+
+## [1.3.1] - 2025-XX-XX
 
 ### 修复
+
 - 🐛 修复事件上报中出现大量 `undefined` 值的问题
 - 🔧 改进系统信息收集逻辑，为所有可能为 undefined 的字段提供默认值
 - ✅ 增强 `getSystemInfo` 函数的健壮性，确保返回的数据结构完整
 - 🎯 改进事件构建器中的系统信息处理，提供完整的回退机制
 
 ### 新增
+
 - 🧪 新增系统信息处理的测试用例，验证 undefined 字段的处理
 - 🧪 新增系统信息不可用时的回退值测试
 
 ## [1.0.1-beta.1] - 2025-01-07
 
 ### 修复
+
 - 🐛 修复 Performance API 集成中的 TypeError 错误 (`entries.forEach is not a function`)
 - 🔧 为不同的 PerformanceObserver 回调参数格式添加健壮处理
 - ✅ 改进与微信小程序 PerformanceObserver 实现的兼容性
 
 ### 改进
+
 - 🎯 增强 `_handlePerformanceEntries` 方法以处理各种条目格式：
   - 标准数组格式
   - 单个对象格式
@@ -29,11 +49,13 @@
   - 无效/null 参数（优雅处理）
 
 ### 新增
+
 - 🧪 为不同 Performance API 条目格式添加额外测试用例
 
 ## [未发布]
 
 ### 新增
+
 - ✅ 大幅提升测试覆盖率，新增 274+ 测试用例
 - 🧪 新增 `crossPlatform.test.ts` - 测试平台检测、SDK获取和系统信息功能
 - 🧪 新增 `eventbuilder.test.ts` - 测试事件构建、异常处理和消息格式化
@@ -46,6 +68,7 @@
 - 📚 完善开发文档和贡献指南
 
 ### 改进
+
 - 🧪 增强 `helpers.test.ts` - 补充更多工具函数测试
 - 🔧 修复测试隔离问题 - 解决模块缓存导致的测试干扰
 - 🎯 优化测试结构 - 改进异步导入和测试期望值
@@ -54,10 +77,12 @@
 - 🏗️ 改进构建配置 - 支持开发和生产模式
 
 ### 移除
+
 - 🗑️ 清理过时文件 - 移除 `test-scripts` 目录下的调试脚本
 - 🧹 重构测试脚本 - 将调试脚本移至 `integration-tests` 目录
 
 ### 修复
+
 - 🐛 修复 `crossPlatform.test.ts` 中的测试失败问题
 - 🐛 解决模块缓存导致的测试隔离问题
 - 🔧 修复 TypeScript 类型错误
