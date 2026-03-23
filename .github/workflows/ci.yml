@@ -27,7 +27,7 @@ jobs:
         cache: 'yarn'
 
     - name: Install dependencies
-      run: yarn install
+      run: yarn install --update-checksums
 
     - name: Run Lint
       run: yarn run lint
