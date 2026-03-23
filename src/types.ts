@@ -49,6 +49,9 @@ export interface MiniappOptions {
   /** Whether to enable navigation breadcrumbs */
   enableNavigationBreadcrumbs?: boolean;
 
+  /** Whether to enable automatic source map path rewrite */
+  enableSourceMap?: boolean;
+
   /** Whether to enable offline cache to retry sending events later */
   enableOfflineCache?: boolean;
 

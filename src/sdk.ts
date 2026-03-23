@@ -17,6 +17,7 @@ import {
   HttpContext,
   Dedupe,
   performanceIntegration,
+  RewriteFrames,
 } from './integrations/index';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
@@ -65,6 +66,10 @@ export function init(options: MiniappOptions = {} as any): MiniappClient | undef
     stackParser: () => [],
     transport: options.transport,
   };
+
+  if (opts.enableSourceMap !== false) {
+    opts.integrations.push(new RewriteFrames());
+  }
 
   // Set platform context
   setContext('miniapp', {
@@ -142,7 +147,7 @@ export function close(timeout?: number): PromiseLike<boolean> {
  * Wrap a function to capture exceptions
  */
 export function wrap<T extends (...args: any[]) => any>(fn: T): T {
-  return (function(this: any, ...args: Parameters<T>) {
+  return (function (this: any, ...args: Parameters<T>) {
     return withScope(() => {
       try {
         return fn.apply(this, args);

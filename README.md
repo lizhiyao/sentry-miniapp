@@ -22,6 +22,7 @@
 - **📱 真正的多端支持**：内置 API 抹平引擎，一套代码无缝兼容**微信、支付宝、字节、百度、QQ、钉钉、快手**等主流小程序平台。
 - **🎯 全自动异常捕获**：无需侵入业务代码，自动监听并上报生命周期异常（`onError`、`onUnhandledRejection`、`onPageNotFound`、`onMemoryWarning`）。
 - **🍞 丰富的上下文面包屑**：自动记录设备信息、用户点击/触摸操作、网络请求（XHR/Fetch）、以及页面路由导航路径。
+- **🗺️ 内置 SourceMap 路径抹平**：自动处理微信、支付宝、字节等多端小程序的虚拟堆栈路径，配合 sentry-cli 极简实现 SourceMap 解析。
 - **📡 弱网离线缓存机制**：专为小程序网络环境设计，断网或发送失败时自动缓存 Event 到本地 Storage，网络恢复后静默重试上报，确保数据不丢失。
 - **⚡ 深度性能监控**：集成小程序 Performance API，全面采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及用户自定义性能标记。
 - **�️ 智能降噪与过滤**：内置强大的错误去重和采样率控制机制，避免日志风暴。
@@ -70,6 +71,9 @@ Sentry.init({
   
   // --- 离线缓存与可靠性 ---
   enableOfflineCache: true, // 开启断网离线缓存与重试机制 (默认开启)
+  
+  // --- SourceMap 支持 ---
+  enableSourceMap: true, // 开启自动将堆栈的虚拟路径转为统一格式，配合上传 sourcemap 时的 --url-prefix "app:///"
   
   // --- 性能与采样率 ---
   sampleRate: 1.0, // 异常上报采样率 (0.0 - 1.0)
@@ -144,6 +148,27 @@ Sentry.addPerformanceMark('api-request-end');
 // 测量并记录该区间
 Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-end');
 ```
+
+---
+
+## 🗺️ Source Map 支持与配置
+
+在小程序中，报错堆栈的路径通常是各种虚拟路径（如 `appservice/pages/index.js`），这导致直接上传的 Source Map 无法被 Sentry 正确解析。
+
+SDK 内部已经为您解决了这个痛点：
+只要在 `Sentry.init` 时开启了 `enableSourceMap: true`（默认开启），SDK 会在报错时自动拦截并抹平各平台的虚拟路径，统一替换为标准前缀 `app:///`。
+
+您**只需要在打包上传 Source Map 时，确保配置的 `url-prefix` 为 `app:///` 即可**。
+
+**使用 sentry-cli 上传示例：**
+
+```bash
+sentry-cli releases files "your-project-release-id" upload-sourcemaps ./dist \
+  --url-prefix "app:///" \
+  --ext .js --ext .map
+```
+
+*(注：在微信开发者工具上传代码时，请**务必关闭**工具自带的“ES6转ES5”和“代码压缩”功能，将这些工作交给 Webpack/Vite 等构建工具，以防行列号错位。)*
 
 ---
 

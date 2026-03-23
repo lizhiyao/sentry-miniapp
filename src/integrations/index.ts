@@ -6,3 +6,4 @@ export { Dedupe } from './dedupe';
 export { System } from './system';
 export { Router } from './router';
 export { PerformanceIntegration, performanceIntegration } from './performance';
+export { RewriteFrames } from './rewriteframes';
