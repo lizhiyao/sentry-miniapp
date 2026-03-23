@@ -1,4 +1,4 @@
-import { addBreadcrumb } from '@sentry/core';
+import { addBreadcrumb, getClient } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { fill } from '../helpers';
 import { sdk } from '../crossPlatform';
@@ -54,9 +54,33 @@ export class NetworkBreadcrumbs implements Integration {
       }
 
       const url = options.url || '';
+
+      // Get the configured DSN/Transport URL from the current client
+      const client = getClient();
+      let dsnUrl = '';
+      if (client) {
+        const dsn = client.getOptions().dsn;
+        if (dsn) {
+          // A DSN looks like https://key@sentry.io/123
+          // We extract just the host part to filter against
+          try {
+            const dsnMatch = dsn.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?([^:/\n]+)/i);
+            if (dsnMatch && dsnMatch[1]) {
+              dsnUrl = dsnMatch[1];
+            }
+          } catch (e) {
+            // fallback
+          }
+        }
+      }
+
       // Ignore Sentry's own requests to prevent infinite loops
-      if (typeof url === 'string' && url.indexOf('sentry.io') !== -1) {
-        return originalRequest.call(this, options);
+      // Fallback to 'sentry.io' if DSN extraction fails but it's the SaaS version
+      if (typeof url === 'string') {
+        const isSentryRequest = (dsnUrl && url.indexOf(dsnUrl) !== -1) || url.indexOf('sentry.io') !== -1;
+        if (isSentryRequest) {
+          return originalRequest.call(this, options);
+        }
       }
 
       const method = (options.method || 'GET').toUpperCase();

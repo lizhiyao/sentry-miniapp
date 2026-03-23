@@ -5,9 +5,12 @@ import * as crossPlatform from '../src/crossPlatform';
 jest.mock('@sentry/core', () => {
   return {
     addBreadcrumb: jest.fn(),
+    getClient: jest.fn(() => ({
+      getOptions: () => ({ dsn: 'https://key@sentry.io/123' })
+    })),
   };
 });
-import { addBreadcrumb } from '@sentry/core';
+import { addBreadcrumb, getClient } from '@sentry/core';
 
 describe('NetworkBreadcrumbs Integration', () => {
   let requestMock: jest.Mock;
@@ -87,6 +90,25 @@ describe('NetworkBreadcrumbs Integration', () => {
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
       url: 'https://sentry.io/api/123/store/',
+      method: 'POST',
+    });
+
+    expect(addBreadcrumb).not.toHaveBeenCalled();
+    expect(requestMock).toHaveBeenCalled();
+  });
+
+  it('should ignore self-hosted sentry requests based on DSN', () => {
+    // Override the getClient mock for this test
+    (getClient as jest.Mock).mockReturnValueOnce({
+      getOptions: () => ({ dsn: 'http://mykey@sentry.mycompany.com:9000/1' })
+    });
+
+    const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
+    integration.setupOnce();
+
+    const miniappSdk = crossPlatform.sdk();
+    miniappSdk.request({
+      url: 'http://sentry.mycompany.com:9000/api/1/store/',
       method: 'POST',
     });
 
