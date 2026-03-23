@@ -1,37 +1,6 @@
-# Changelog
+# 更新日志
 
-All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
-
-## [1.4.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.3.1...v1.4.0) (2026-03-23)
-
-
-### ✨ Features | 新功能
-
-* add NetworkBreadcrumbs integration to capture request and response body ([1f56cd1](https://github.com/lizhiyao/sentry-miniapp/commit/1f56cd1494de95a2f6b42f4a841dd5deec14013b))
-* make offline cache limit configurable via offlineCacheLimit ([1ca2376](https://github.com/lizhiyao/sentry-miniapp/commit/1ca2376b26b743070296c1593bcad2435abebdc8))
-
-
-### 🐛 Bug Fixes | 修复
-
-* deprecate showReportDialog and guide users to use captureFeedback ([d2577d4](https://github.com/lizhiyao/sentry-miniapp/commit/d2577d4698d34ec44bbfbd1661612c45f5be618c))
-* ignore self-hosted sentry dsn requests in network breadcrumbs ([7e44560](https://github.com/lizhiyao/sentry-miniapp/commit/7e4456065c5ada88188b04225c28636d09742d1a))
-
-
-### 🎫 Chores | 其他更新
-
-* auto sync build artifact to examples ([0111b8b](https://github.com/lizhiyao/sentry-miniapp/commit/0111b8ba2e4dc63dfc8fadbe9fd1ae5fe5f0bfee))
-* configure commit-and-tag-version for automated releases and changelog ([01b9f7a](https://github.com/lizhiyao/sentry-miniapp/commit/01b9f7a457239b3aa3b8c97606dbb515c7a9419f))
-* explicitly define npm published files whitelist ([78da4c8](https://github.com/lizhiyao/sentry-miniapp/commit/78da4c82c7c2640ffdffc511b4048509be04c00c))
-* update package-lock.json with rollup-plugin-visualizer dependency ([a1902e3](https://github.com/lizhiyao/sentry-miniapp/commit/a1902e30442024c28ebcbf0212849de3df9ed0b5))
-* update package.json keywords to improve npm discoverability ([572f405](https://github.com/lizhiyao/sentry-miniapp/commit/572f405f2d0ea25339901f74a54c7d8bfab2ce5a))
-
-
-### 📝 Documentation | 文档
-
-* add guide for main package size optimization via subpackage async loading ([6cd7b13](https://github.com/lizhiyao/sentry-miniapp/commit/6cd7b13212b63be8e4baf4154cd19d26868f8455))
-* consolidate DEVELOPMENT_GUIDE.md into DEVELOPMENT.md ([19e26bd](https://github.com/lizhiyao/sentry-miniapp/commit/19e26bd37cc3ba59d5bbe3e806a365bb8db585fc))
-* fix invalid date for v1.3.1 in CHANGELOG ([66f485b](https://github.com/lizhiyao/sentry-miniapp/commit/66f485b047e7e7cd661d0549bed32ec14d562d2d))
-* update CHANGELOG for v1.4.0 release ([6350fcc](https://github.com/lizhiyao/sentry-miniapp/commit/6350fcc77ed108b1df7c6e83b0456a80ee1b2b5a))
+本文档记录了 sentry-miniapp 项目的所有重要变更。
 
 ## [1.4.0] - 2026-03-23
 
