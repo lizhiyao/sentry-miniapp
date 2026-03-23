@@ -86,6 +86,8 @@
     "@typescript-eslint/parser": "^8.57.1",
     "@vue/language-core": "^3.2.6",
     "commit-and-tag-version": "^12.7.1",
+    "conventional-commits-filter": "^5.0.0",
+    "conventional-commits-parser": "^6.3.0",
     "eslint": "^8.57.1",
     "husky": "^9.1.7",
     "jest": "^29.0.0",
