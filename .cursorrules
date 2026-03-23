@@ -1,0 +1,14 @@
+# 项目规范
+
+## Git Commit 规范 (Git Commit Guidelines)
+- **MUST** use Conventional Commits format (e.g., `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`).
+- **MUST** write the commit message description entirely in **Chinese (中文)**. 
+- Example: `feat: 新增网络请求体抓取功能` (Good)
+- Example: `feat: add network body tracing` (Bad - English description)
+
+## 为什么要有这条规则？
+本项目使用了 `commit-and-tag-version` 自动生成 `CHANGELOG.md`。为了确保生成的更新日志始终是纯中文的，所有的 AI 助手和人类开发者在提交代码时，都必须使用中文撰写 commit message。
+
+## 代码风格 (Code Style)
+- 遵循现有的 ESLint 规范。
+- 优先使用 TypeScript 进行开发。
