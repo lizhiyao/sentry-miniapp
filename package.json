@@ -56,7 +56,7 @@
   "author": "dancerlzy@gmail.com",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19.0"
   },
   "main": "dist/sentry-miniapp.cjs.js",
   "module": "dist/sentry-miniapp.esm.js",
