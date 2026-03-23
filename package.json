@@ -110,6 +110,10 @@
   },
   "commit-and-tag-version": {
     "header": "# 更新日志\n\n本文档记录了 sentry-miniapp 项目的所有重要变更。",
+    "bumpFiles": [
+      { "filename": "package.json", "type": "json" },
+      { "filename": "src/version.ts", "updater": "scripts/version-updater.js" }
+    ],
     "types": [
       {
         "type": "feat",
