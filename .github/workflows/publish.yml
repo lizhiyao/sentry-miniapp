@@ -24,10 +24,9 @@ jobs:
       with:
         node-version: '22.x'
         registry-url: 'https://registry.npmjs.org'
-        cache: 'yarn'
 
     - name: Install dependencies
-      run: yarn install --update-checksums
+      run: yarn cache clean && yarn install
 
     - name: Run Lint
       run: yarn run lint

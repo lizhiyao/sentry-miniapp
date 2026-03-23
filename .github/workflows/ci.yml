@@ -24,10 +24,9 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'yarn'
 
     - name: Install dependencies
-      run: yarn install --update-checksums
+      run: yarn cache clean && yarn install
 
     - name: Run Lint
       run: yarn run lint
