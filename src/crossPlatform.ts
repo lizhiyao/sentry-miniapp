@@ -94,13 +94,13 @@ export interface SystemInfo {
 const getSDK = (): SDK => {
   let currentSdk: SDK = {
     // tslint:disable-next-line: no-empty
-    request: () => { },
+    request: () => {},
     // tslint:disable-next-line: no-empty
-    httpRequest: () => { },
+    httpRequest: () => {},
     // tslint:disable-next-line: no-empty
     getSystemInfoSync: () => ({}),
     // tslint:disable-next-line: no-empty
-    URLSearchParams: () => { }
+    URLSearchParams: () => {},
   };
 
   if (typeof wx === 'object' && wx !== null) {
@@ -129,13 +129,21 @@ const getSDK = (): SDK => {
   }
 
   // 支付宝小程序的网络请求 API 是 my.httpRequest
-  if (typeof my === 'object' && my !== null && currentSdk === my && !currentSdk.request && currentSdk.httpRequest) {
+  if (
+    typeof my === 'object' &&
+    my !== null &&
+    currentSdk === my &&
+    !currentSdk.request &&
+    currentSdk.httpRequest
+  ) {
     currentSdk.request = currentSdk.httpRequest;
   }
 
   // 支付宝和钉钉的 Storage API 参数是对象形式，这里做一层抹平包装
-  if ((typeof my === 'object' && my !== null && currentSdk === my) ||
-    (typeof dd === 'object' && dd !== null && currentSdk === dd)) {
+  if (
+    (typeof my === 'object' && my !== null && currentSdk === my) ||
+    (typeof dd === 'object' && dd !== null && currentSdk === dd)
+  ) {
     if (currentSdk.getStorageSync) {
       const originalGet = currentSdk.getStorageSync;
       currentSdk.getStorageSync = (key: string) => {

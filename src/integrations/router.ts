@@ -31,7 +31,7 @@ export class Router implements Integration {
    */
   private _instrumentNavigation(): void {
     const global = globalThis as any;
-    
+
     // Instrument wx.navigateTo
     if (global.wx && global.wx.navigateTo) {
       const originalNavigateTo = global.wx.navigateTo;
@@ -105,7 +105,7 @@ export class Router implements Integration {
           return currentPage.route || currentPage.__route__ || '';
         }
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors
     }
     return '';
@@ -116,7 +116,7 @@ export class Router implements Integration {
    */
   private _recordNavigation(action: string, to: string, from: string, delta?: number): void {
     const scope = getCurrentScope();
-    
+
     // Add breadcrumb
     addBreadcrumb({
       category: 'navigation',
@@ -132,7 +132,7 @@ export class Router implements Integration {
 
     // Set current route tag
     scope.setTag('route', to === 'back' ? from : to);
-    
+
     // Set navigation context
     scope.setContext('navigation', {
       action,
@@ -148,7 +148,7 @@ export class Router implements Integration {
    */
   private _recordRouteChange(from: string, to: string): void {
     const scope = getCurrentScope();
-    
+
     // Add breadcrumb
     addBreadcrumb({
       category: 'navigation',
@@ -162,7 +162,7 @@ export class Router implements Integration {
 
     // Update route tag
     scope.setTag('route', to);
-    
+
     // Update route context
     scope.setContext('route', {
       current: to,

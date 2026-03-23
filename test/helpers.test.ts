@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { 
-  wrap, 
-  fill, 
-  shouldIgnoreOnError, 
-  ignoreNextOnErrorCall, 
-  getFunctionName, 
-  isError, 
-  isInstanceOf, 
-  isString, 
-  isPlainObject 
+import {
+  wrap,
+  fill,
+  shouldIgnoreOnError,
+  ignoreNextOnErrorCall,
+  getFunctionName,
+  isError,
+  isInstanceOf,
+  isString,
+  isPlainObject,
 } from '../src/helpers';
 
 describe('Helpers', () => {
@@ -30,20 +30,20 @@ describe('Helpers', () => {
     it('should handle function that throws error', () => {
       const mockCaptureException = jest.fn();
       const mockGetClient = jest.fn(() => ({
-        captureException: mockCaptureException
+        captureException: mockCaptureException,
       }));
-      
+
       // Mock getCurrentHub
       jest.doMock('@sentry/core', () => ({
         getCurrentHub: () => ({
-          getClient: mockGetClient
-        })
+          getClient: mockGetClient,
+        }),
       }));
 
       const errorFn = jest.fn(() => {
         throw new Error('Test error');
       });
-      
+
       const wrappedFn = wrap(errorFn);
 
       expect(() => wrappedFn()).toThrow('Test error');
@@ -53,7 +53,7 @@ describe('Helpers', () => {
     it('should preserve function properties', () => {
       const originalFn = jest.fn();
       (originalFn as any).customProperty = 'test';
-      
+
       const wrappedFn = wrap(originalFn);
 
       expect((wrappedFn as any).customProperty).toBe('test');
@@ -86,12 +86,12 @@ describe('Helpers', () => {
   describe('fill', () => {
     it('should replace object method with wrapped version', () => {
       const obj = {
-        method: jest.fn(() => 'original')
+        method: jest.fn(() => 'original'),
       };
       const originalMethod = obj.method;
 
       fill(obj, 'method', (original) => {
-        return function(this: any, ...args: any[]) {
+        return function (this: any, ...args: any[]) {
           return 'wrapped: ' + original.apply(this, args);
         };
       });
@@ -112,7 +112,7 @@ describe('Helpers', () => {
 
     it('should handle non-function property', () => {
       const obj = {
-        property: 'not a function'
+        property: 'not a function',
       };
 
       expect(() => {
@@ -123,13 +123,13 @@ describe('Helpers', () => {
     it('should preserve function context', () => {
       const obj = {
         value: 42,
-        getValue: function() {
+        getValue: function () {
           return this.value;
-        }
+        },
       };
 
       fill(obj, 'getValue', (original) => {
-        return function(this: any, ...args: any[]) {
+        return function (this: any, ...args: any[]) {
           return original.apply(this, args) * 2;
         };
       });
@@ -141,11 +141,11 @@ describe('Helpers', () => {
 
     it('should handle replacement function that throws', () => {
       const obj = {
-        method: jest.fn(() => 'original')
+        method: jest.fn(() => 'original'),
       };
 
       fill(obj, 'method', () => {
-        return function() {
+        return function () {
           throw new Error('Replacement error');
         };
       });
@@ -155,13 +155,13 @@ describe('Helpers', () => {
 
     it('should replace method multiple times', () => {
       const obj = {
-        method: jest.fn(() => 'original')
+        method: jest.fn(() => 'original'),
       };
       const originalMethod = obj.method;
 
       // First wrap
       fill(obj, 'method', (original) => {
-        return function(this: any, ...args: any[]) {
+        return function (this: any, ...args: any[]) {
           return 'wrapped1: ' + original.apply(this, args);
         };
       });
@@ -169,7 +169,7 @@ describe('Helpers', () => {
 
       // Second wrap
       fill(obj, 'method', (original) => {
-        return function(this: any, ...args: any[]) {
+        return function (this: any, ...args: any[]) {
           return 'wrapped2: ' + original.apply(this, args);
         };
       });
@@ -192,7 +192,7 @@ describe('Helpers', () => {
     it('should return false after timeout', (done) => {
       ignoreNextOnErrorCall();
       expect(shouldIgnoreOnError()).toBe(true);
-      
+
       setTimeout(() => {
         expect(shouldIgnoreOnError()).toBe(false);
         done();
@@ -213,7 +213,7 @@ describe('Helpers', () => {
     });
 
     it('should return <anonymous> for anonymous functions', () => {
-      const anonymousFunction = (() => function() {})();
+      const anonymousFunction = (() => function () {})();
       expect(getFunctionName(anonymousFunction)).toBe('<anonymous>');
     });
 
@@ -225,11 +225,11 @@ describe('Helpers', () => {
     });
 
     it('should handle functions without name property', () => {
-      const fn = function() {};
+      const fn = function () {};
       Object.defineProperty(fn, 'name', {
         get() {
           throw new Error('Cannot access name');
-        }
+        },
       });
       expect(getFunctionName(fn)).toBe('<anonymous>');
     });
@@ -253,7 +253,7 @@ describe('Helpers', () => {
     it('should handle error-like objects', () => {
       const errorLike = {
         name: 'Error',
-        message: 'test error'
+        message: 'test error',
       };
       expect(isError(errorLike)).toBe(false);
     });
@@ -276,7 +276,7 @@ describe('Helpers', () => {
       const problematicConstructor = {
         [Symbol.hasInstance]() {
           throw new Error('Cannot check instance');
-        }
+        },
       };
       expect(isInstanceOf({}, problematicConstructor)).toBe(false);
     });

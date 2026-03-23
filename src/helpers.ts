@@ -30,7 +30,7 @@ export function wrap(
     if (fn.__sentry_wrapped__) {
       return fn.__sentry_wrapped__;
     }
-  } catch (e) {
+  } catch (_e) {
     // Just accessing custom props in some environments
     // can cause a "Permission denied" exception.
     // Bail on wrapping and return the function as-is.
@@ -47,7 +47,7 @@ export function wrap(
       return fn.apply(this, args);
     } catch (ex) {
       const scope = getCurrentScope();
-      
+
       scope.addEventProcessor((event) => {
         const processedEvent = { ...event };
 
@@ -146,7 +146,7 @@ export function ignoreNextOnErrorCall(): void {
 export function getFunctionName(fn: any): string {
   try {
     return (fn && fn.name) || '<anonymous>';
-  } catch (e) {
+  } catch (_e) {
     return '<anonymous>';
   }
 }
@@ -154,7 +154,11 @@ export function getFunctionName(fn: any): string {
 /**
  * Fill an object with a new value, keeping a reference to the original
  */
-export function fill(source: { [key: string]: any }, name: string, replacementFactory: (...args: any[]) => any): void {
+export function fill(
+  source: { [key: string]: any },
+  name: string,
+  replacementFactory: (...args: any[]) => any,
+): void {
   if (!(name in source)) {
     return;
   }

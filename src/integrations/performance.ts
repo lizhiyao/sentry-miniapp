@@ -12,7 +12,7 @@ import {
   type ResourcePerformanceEntry,
   type UserTimingPerformanceEntry,
   type PerformanceManager,
-  type PerformanceObserver
+  type PerformanceObserver,
 } from '../crossPlatform';
 
 /**
@@ -141,11 +141,16 @@ export class PerformanceIntegration implements Integration {
 
             const performanceObserverCtor: any = (globalObj as any).PerformanceObserver;
             const supportedTypes: string[] | undefined =
-              performanceObserverCtor && Array.isArray((performanceObserverCtor as any).supportedEntryTypes)
+              performanceObserverCtor &&
+              Array.isArray((performanceObserverCtor as any).supportedEntryTypes)
                 ? (performanceObserverCtor as any).supportedEntryTypes
                 : undefined;
 
-            if (!supportedTypes || !supportedTypes.includes('measure') || !supportedTypes.includes('mark')) {
+            if (
+              !supportedTypes ||
+              !supportedTypes.includes('measure') ||
+              !supportedTypes.includes('mark')
+            ) {
               canObserveUserTiming = false;
             }
           }
@@ -171,12 +176,15 @@ export class PerformanceIntegration implements Integration {
         observer.observe({ entryTypes });
       } catch (e) {
         // 如果失败（例如微信小程序不支持 measure/mark），尝试移除这些类型后重试
-        const safeTypes = entryTypes.filter(t => t !== 'measure' && t !== 'mark');
+        const safeTypes = entryTypes.filter((t) => t !== 'measure' && t !== 'mark');
 
         if (safeTypes.length < entryTypes.length && safeTypes.length > 0) {
           // 降级重试
           observer.observe({ entryTypes: safeTypes });
-          console.warn('[Sentry Performance] Failed to observe all types, falling back to:', safeTypes);
+          console.warn(
+            '[Sentry Performance] Failed to observe all types, falling back to:',
+            safeTypes,
+          );
 
           // 更新 entryTypes 以便日志记录正确
           entryTypes.length = 0;
@@ -188,7 +196,8 @@ export class PerformanceIntegration implements Integration {
 
       this._observers.push(observer);
 
-      const globalProcess = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
+      const globalProcess =
+        typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
       if (globalProcess && globalProcess.env && globalProcess.env.NODE_ENV !== 'production') {
         console.log('[Sentry Performance] Performance observers setup for:', entryTypes);
       }
@@ -229,7 +238,7 @@ export class PerformanceIntegration implements Integration {
       return;
     }
 
-    entriesArray.forEach(entry => {
+    entriesArray.forEach((entry) => {
       try {
         this._processPerformanceEntry(entry);
         this._addToBuffer(entry);
@@ -279,74 +288,83 @@ export class PerformanceIntegration implements Integration {
       },
     });
 
-    startSpan({
-      name: `Navigation: ${entry.name}`,
-      op: 'navigation',
-      startTime: entry.startTime / 1000, // 转换为秒
-    }, (span) => {
-      span.setAttributes({
-        'navigation.name': entry.name,
-        'navigation.duration': entry.duration,
-        'navigation.app_launch_time': entry.appLaunchTime || 0,
-        'navigation.page_ready_time': entry.pageReadyTime || 0,
-        'navigation.first_render_time': entry.firstRenderTime || 0,
-      });
+    startSpan(
+      {
+        name: `Navigation: ${entry.name}`,
+        op: 'navigation',
+        startTime: entry.startTime / 1000, // 转换为秒
+      },
+      (span) => {
+        span.setAttributes({
+          'navigation.name': entry.name,
+          'navigation.duration': entry.duration,
+          'navigation.app_launch_time': entry.appLaunchTime || 0,
+          'navigation.page_ready_time': entry.pageReadyTime || 0,
+          'navigation.first_render_time': entry.firstRenderTime || 0,
+        });
 
-      span.end((entry.startTime + entry.duration) / 1000);
-    });
+        span.end((entry.startTime + entry.duration) / 1000);
+      },
+    );
   }
 
   /**
    * 处理渲染性能条目
    */
   private _processRenderEntry(entry: RenderPerformanceEntry): void {
-    startSpan({
-      name: `Render: ${entry.name}`,
-      op: 'render',
-      startTime: entry.startTime / 1000,
-    }, (span) => {
-      span.setAttributes({
-        'render.name': entry.name,
-        'render.duration': entry.duration,
-        'render.start': entry.renderStart || 0,
-        'render.end': entry.renderEnd || 0,
-        'render.script_start': entry.scriptStart || 0,
-        'render.script_end': entry.scriptEnd || 0,
-      });
+    startSpan(
+      {
+        name: `Render: ${entry.name}`,
+        op: 'render',
+        startTime: entry.startTime / 1000,
+      },
+      (span) => {
+        span.setAttributes({
+          'render.name': entry.name,
+          'render.duration': entry.duration,
+          'render.start': entry.renderStart || 0,
+          'render.end': entry.renderEnd || 0,
+          'render.script_start': entry.scriptStart || 0,
+          'render.script_end': entry.scriptEnd || 0,
+        });
 
-      span.end((entry.startTime + entry.duration) / 1000);
-    });
+        span.end((entry.startTime + entry.duration) / 1000);
+      },
+    );
   }
 
   /**
    * 处理资源加载性能条目
    */
   private _processResourceEntry(entry: ResourcePerformanceEntry): void {
-    startSpan({
-      name: `Resource: ${entry.name}`,
-      op: 'resource',
-      startTime: entry.startTime / 1000,
-    }, (span) => {
-      span.setAttributes({
-        'resource.name': entry.name,
-        'resource.duration': entry.duration,
-        'resource.type': entry.initiatorType || 'unknown',
-        'resource.transfer_size': entry.transferSize || 0,
-        'resource.encoded_size': entry.encodedBodySize || 0,
-        'resource.decoded_size': entry.decodedBodySize || 0,
-      });
-
-      // 网络时序信息
-      if (entry.fetchStart && entry.responseEnd) {
+    startSpan(
+      {
+        name: `Resource: ${entry.name}`,
+        op: 'resource',
+        startTime: entry.startTime / 1000,
+      },
+      (span) => {
         span.setAttributes({
-          'resource.fetch_start': entry.fetchStart,
-          'resource.response_end': entry.responseEnd,
-          'resource.network_time': entry.responseEnd - entry.fetchStart,
+          'resource.name': entry.name,
+          'resource.duration': entry.duration,
+          'resource.type': entry.initiatorType || 'unknown',
+          'resource.transfer_size': entry.transferSize || 0,
+          'resource.encoded_size': entry.encodedBodySize || 0,
+          'resource.decoded_size': entry.decodedBodySize || 0,
         });
-      }
 
-      span.end((entry.startTime + entry.duration) / 1000);
-    });
+        // 网络时序信息
+        if (entry.fetchStart && entry.responseEnd) {
+          span.setAttributes({
+            'resource.fetch_start': entry.fetchStart,
+            'resource.response_end': entry.responseEnd,
+            'resource.network_time': entry.responseEnd - entry.fetchStart,
+          });
+        }
+
+        span.end((entry.startTime + entry.duration) / 1000);
+      },
+    );
   }
 
   /**
@@ -354,19 +372,22 @@ export class PerformanceIntegration implements Integration {
    */
   private _processUserTimingEntry(entry: UserTimingPerformanceEntry): void {
     if (entry.entryType === 'measure') {
-      startSpan({
-        name: `Measure: ${entry.name}`,
-        op: 'measure',
-        startTime: entry.startTime / 1000,
-      }, (span) => {
-        span.setAttributes({
-          'measure.name': entry.name,
-          'measure.duration': entry.duration,
-          'measure.detail': entry.detail ? JSON.stringify(entry.detail) : undefined,
-        });
+      startSpan(
+        {
+          name: `Measure: ${entry.name}`,
+          op: 'measure',
+          startTime: entry.startTime / 1000,
+        },
+        (span) => {
+          span.setAttributes({
+            'measure.name': entry.name,
+            'measure.duration': entry.duration,
+            'measure.detail': entry.detail ? JSON.stringify(entry.detail) : undefined,
+          });
 
-        span.end((entry.startTime + entry.duration) / 1000);
-      });
+          span.end((entry.startTime + entry.duration) / 1000);
+        },
+      );
     } else if (entry.entryType === 'mark') {
       // 标记事件作为面包屑记录
       const scope = getCurrentScope();
@@ -423,11 +444,11 @@ export class PerformanceIntegration implements Integration {
 
       scope.setContext('performance_summary', {
         total_entries: this._entryBuffer.length,
-        navigation_count: this._entryBuffer.filter(e => e.entryType === 'navigation').length,
-        render_count: this._entryBuffer.filter(e => e.entryType === 'render').length,
-        resource_count: this._entryBuffer.filter(e => e.entryType === 'resource').length,
-        measure_count: this._entryBuffer.filter(e => e.entryType === 'measure').length,
-        mark_count: this._entryBuffer.filter(e => e.entryType === 'mark').length,
+        navigation_count: this._entryBuffer.filter((e) => e.entryType === 'navigation').length,
+        render_count: this._entryBuffer.filter((e) => e.entryType === 'render').length,
+        resource_count: this._entryBuffer.filter((e) => e.entryType === 'resource').length,
+        measure_count: this._entryBuffer.filter((e) => e.entryType === 'measure').length,
+        mark_count: this._entryBuffer.filter((e) => e.entryType === 'mark').length,
         report_time: new Date().toISOString(),
         ...stats,
       });
@@ -449,15 +470,15 @@ export class PerformanceIntegration implements Integration {
    * 计算性能统计数据
    */
   private _calculatePerformanceStats(): Record<string, any> {
-    const navigationEntries = this._entryBuffer.filter(e => e.entryType === 'navigation');
-    const renderEntries = this._entryBuffer.filter(e => e.entryType === 'render');
-    const resourceEntries = this._entryBuffer.filter(e => e.entryType === 'resource');
+    const navigationEntries = this._entryBuffer.filter((e) => e.entryType === 'navigation');
+    const renderEntries = this._entryBuffer.filter((e) => e.entryType === 'render');
+    const resourceEntries = this._entryBuffer.filter((e) => e.entryType === 'resource');
 
     const stats: Record<string, any> = {};
 
     // 导航性能统计
     if (navigationEntries.length > 0) {
-      const durations = navigationEntries.map(e => e.duration);
+      const durations = navigationEntries.map((e) => e.duration);
       stats['navigation_stats'] = {
         avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
         max_duration: Math.max(...durations),
@@ -467,7 +488,7 @@ export class PerformanceIntegration implements Integration {
 
     // 渲染性能统计
     if (renderEntries.length > 0) {
-      const durations = renderEntries.map(e => e.duration);
+      const durations = renderEntries.map((e) => e.duration);
       stats['render_stats'] = {
         avg_duration: durations.reduce((a, b) => a + b, 0) / durations.length,
         max_duration: Math.max(...durations),
@@ -477,10 +498,10 @@ export class PerformanceIntegration implements Integration {
 
     // 资源加载统计
     if (resourceEntries.length > 0) {
-      const durations = resourceEntries.map(e => e.duration);
+      const durations = resourceEntries.map((e) => e.duration);
       const sizes = resourceEntries
-        .map(e => (e as ResourcePerformanceEntry).transferSize || 0)
-        .filter(size => size > 0);
+        .map((e) => (e as ResourcePerformanceEntry).transferSize || 0)
+        .filter((size) => size > 0);
 
       stats['resource_stats'] = {
         avg_load_time: durations.reduce((a, b) => a + b, 0) / durations.length,
@@ -547,7 +568,7 @@ export class PerformanceIntegration implements Integration {
       const currentSdk = sdk();
       if (currentSdk.reportPerformance && this._entryBuffer.length > 0) {
         const performanceData = {
-          entries: this._entryBuffer.map(entry => ({
+          entries: this._entryBuffer.map((entry) => ({
             name: entry.name,
             entryType: entry.entryType,
             startTime: entry.startTime,
@@ -573,8 +594,8 @@ export class PerformanceIntegration implements Integration {
       const currentSdk = sdk();
 
       // 检查 Performance API 支持情况
-      const hasPerformanceAPI = !!(currentSdk.getPerformance);
-      const hasReportAPI = !!(currentSdk.reportPerformance);
+      const hasPerformanceAPI = !!currentSdk.getPerformance;
+      const hasReportAPI = !!currentSdk.reportPerformance;
 
       scope.setContext('performance_support', {
         has_performance_api: hasPerformanceAPI,
@@ -594,7 +615,7 @@ export class PerformanceIntegration implements Integration {
    */
   public cleanup(): void {
     // 断开所有观察者
-    this._observers.forEach(observer => {
+    this._observers.forEach((observer) => {
       try {
         observer.disconnect();
       } catch (error) {

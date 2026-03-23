@@ -17,8 +17,8 @@ class URLSearchParamsPolyfill {
       // Handle string[][] format
       for (const pair of init) {
         if (Array.isArray(pair) && pair.length >= 2) {
-           this.append(pair[0] || '', pair[1] || '');
-         }
+          this.append(pair[0] || '', pair[1] || '');
+        }
       }
     } else if (init && typeof init === 'object') {
       if (init instanceof URLSearchParamsPolyfill) {
@@ -37,7 +37,7 @@ class URLSearchParamsPolyfill {
     if (str.startsWith('?')) {
       str = str.slice(1);
     }
-    
+
     if (!str) {
       return;
     }
@@ -88,8 +88,8 @@ class URLSearchParamsPolyfill {
     const sortedKeys = Object.keys(this.params).sort();
     const sortedParams: Record<string, string> = {};
     for (const key of sortedKeys) {
-       sortedParams[key] = this.params[key] || '';
-     }
+      sortedParams[key] = this.params[key] || '';
+    }
     this.params = sortedParams;
   }
 
@@ -138,7 +138,7 @@ class URLSearchParamsPolyfill {
 function getGlobalObject(): any {
   // 尝试获取全局对象
   const globalScope = Function('return this')();
-  
+
   // 微信小程序环境
   if (globalScope && typeof globalScope.wx !== 'undefined' && globalScope.wx) {
     return globalScope.wx;
@@ -186,24 +186,24 @@ function getGlobalObject(): any {
 export function installPolyfills(): void {
   try {
     const globalObj = getGlobalObject();
-    
+
     if (!globalObj) {
       console.warn('[Sentry] Unable to detect global object, polyfills may not work correctly');
       return;
     }
-    
+
     // Install URLSearchParams polyfill if not available
     if (typeof globalObj.URLSearchParams === 'undefined') {
       globalObj.URLSearchParams = URLSearchParamsPolyfill;
     }
-    
+
     // Also install to the global scope for direct access
     // 同时安装到全局作用域以便直接访问
     const globalScope = Function('return this')();
     if (globalScope && typeof globalScope.URLSearchParams === 'undefined') {
       globalScope.URLSearchParams = URLSearchParamsPolyfill as any;
     }
-    
+
     // For environments where Function('return this')() doesn't work
     // 对于 Function('return this')() 不起作用的环境
     if (typeof globalThis !== 'undefined' && typeof globalThis.URLSearchParams === 'undefined') {

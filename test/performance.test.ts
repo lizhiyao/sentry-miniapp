@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
 import { PerformanceIntegration } from '../src/integrations/performance';
 import { getPerformanceManager } from '../src/crossPlatform';
-import type { PerformanceEntry, PerformanceManager, PerformanceObserver } from '../src/crossPlatform';
+import type {
+  PerformanceEntry,
+  PerformanceManager,
+  PerformanceObserver,
+} from '../src/crossPlatform';
 
 // Mock Sentry core functions
 jest.mock('@sentry/core', () => ({
@@ -13,9 +17,9 @@ jest.mock('@sentry/core', () => ({
   getCurrentHub: jest.fn(() => ({
     getClient: jest.fn(() => ({
       captureException: jest.fn(),
-      captureMessage: jest.fn()
-    }))
-  }))
+      captureMessage: jest.fn(),
+    })),
+  })),
 }));
 
 // Mock the crossPlatform module
@@ -44,18 +48,18 @@ describe('Performance Monitoring', () => {
         finish: jest.fn(),
         toTraceparent: jest.fn(),
         toSentryTrace: jest.fn(),
-        getTraceContext: jest.fn()
+        getTraceContext: jest.fn(),
       } as any);
 
       // Simulate page navigation
       const transaction = mockStartTransaction({
         name: 'Page Load',
-        op: 'navigation'
+        op: 'navigation',
       });
 
       expect(mockStartTransaction).toHaveBeenCalledWith({
         name: 'Page Load',
-        op: 'navigation'
+        op: 'navigation',
       });
       expect(transaction).toBeDefined();
     });
@@ -69,14 +73,14 @@ describe('Performance Monitoring', () => {
         finish: jest.fn(),
         toTraceparent: jest.fn(),
         toSentryTrace: jest.fn(),
-        getTraceContext: jest.fn()
+        getTraceContext: jest.fn(),
       };
       mockStartTransaction.mockReturnValue(mockTransaction as any);
 
       // Simulate API request
       const transaction = mockStartTransaction({
         name: 'API Request',
-        op: 'http.client'
+        op: 'http.client',
       });
 
       (transaction as any).setTag('http.method', 'GET');
@@ -85,7 +89,7 @@ describe('Performance Monitoring', () => {
 
       expect(mockStartTransaction).toHaveBeenCalledWith({
         name: 'API Request',
-        op: 'http.client'
+        op: 'http.client',
       });
       expect(mockTransaction.setTag).toHaveBeenCalledWith('http.method', 'GET');
       expect(mockTransaction.setData).toHaveBeenCalledWith('url', 'https://api.example.com/data');
@@ -101,14 +105,14 @@ describe('Performance Monitoring', () => {
         finish: jest.fn(),
         toTraceparent: jest.fn(),
         toSentryTrace: jest.fn(),
-        getTraceContext: jest.fn()
+        getTraceContext: jest.fn(),
       };
       mockStartTransaction.mockReturnValue(mockTransaction as any);
 
       // Simulate user interaction
       const transaction = mockStartTransaction({
         name: 'Button Click',
-        op: 'ui.action.click'
+        op: 'ui.action.click',
       });
 
       (transaction as any).setTag('element.tag', 'button');
@@ -117,7 +121,7 @@ describe('Performance Monitoring', () => {
 
       expect(mockStartTransaction).toHaveBeenCalledWith({
         name: 'Button Click',
-        op: 'ui.action.click'
+        op: 'ui.action.click',
       });
       expect(mockTransaction.setTag).toHaveBeenCalledWith('element.tag', 'button');
       expect(mockTransaction.setData).toHaveBeenCalledWith('element.id', 'submit-btn');
@@ -135,8 +139,8 @@ describe('Performance Monitoring', () => {
         level: 'info',
         data: {
           from: '/login',
-          to: '/home'
-        }
+          to: '/home',
+        },
       });
 
       expect(mockAddBreadcrumb).toHaveBeenCalledWith({
@@ -145,8 +149,8 @@ describe('Performance Monitoring', () => {
         level: 'info',
         data: {
           from: '/login',
-          to: '/home'
-        }
+          to: '/home',
+        },
       });
     });
 
@@ -159,8 +163,8 @@ describe('Performance Monitoring', () => {
         level: 'info',
         data: {
           element: 'button',
-          id: 'submit-btn'
-        }
+          id: 'submit-btn',
+        },
       });
 
       expect(mockAddBreadcrumb).toHaveBeenCalledWith({
@@ -169,8 +173,8 @@ describe('Performance Monitoring', () => {
         level: 'info',
         data: {
           element: 'button',
-          id: 'submit-btn'
-        }
+          id: 'submit-btn',
+        },
       });
     });
 
@@ -184,8 +188,8 @@ describe('Performance Monitoring', () => {
         data: {
           method: 'GET',
           url: '/api/users',
-          status_code: 200
-        }
+          status_code: 200,
+        },
       });
 
       expect(mockAddBreadcrumb).toHaveBeenCalledWith({
@@ -195,8 +199,8 @@ describe('Performance Monitoring', () => {
         data: {
           method: 'GET',
           url: '/api/users',
-          status_code: 200
-        }
+          status_code: 200,
+        },
       });
     });
 
@@ -210,9 +214,9 @@ describe('Performance Monitoring', () => {
         data: {
           logger: 'console',
           extra: {
-            arguments: ['Warning message']
-          }
-        }
+            arguments: ['Warning message'],
+          },
+        },
       });
 
       expect(mockAddBreadcrumb).toHaveBeenCalledWith({
@@ -222,9 +226,9 @@ describe('Performance Monitoring', () => {
         data: {
           logger: 'console',
           extra: {
-            arguments: ['Warning message']
-          }
-        }
+            arguments: ['Warning message'],
+          },
+        },
       });
     });
 
@@ -237,8 +241,8 @@ describe('Performance Monitoring', () => {
         level: 'error',
         data: {
           type: 'unhandledrejection',
-          reason: 'Network timeout'
-        }
+          reason: 'Network timeout',
+        },
       });
 
       expect(mockAddBreadcrumb).toHaveBeenCalledWith({
@@ -247,8 +251,8 @@ describe('Performance Monitoring', () => {
         level: 'error',
         data: {
           type: 'unhandledrejection',
-          reason: 'Network timeout'
-        }
+          reason: 'Network timeout',
+        },
       });
     });
   });
@@ -256,10 +260,10 @@ describe('Performance Monitoring', () => {
   describe('Performance metrics', () => {
     it('should measure function execution time', async () => {
       const startTime = Date.now();
-      
+
       // Simulate some async work
-      await new Promise(resolve => setTimeout(resolve, 10));
-      
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
       const endTime = Date.now();
       const duration = endTime - startTime;
 
@@ -272,7 +276,7 @@ describe('Performance Monitoring', () => {
       const mockMemoryInfo = {
         usedJSHeapSize: 1024 * 1024, // 1MB
         totalJSHeapSize: 2 * 1024 * 1024, // 2MB
-        jsHeapSizeLimit: 10 * 1024 * 1024 // 10MB
+        jsHeapSizeLimit: 10 * 1024 * 1024, // 10MB
       };
 
       // In a real miniapp, this would come from wx.getSystemInfo or similar
@@ -281,7 +285,6 @@ describe('Performance Monitoring', () => {
       expect(memoryUsage).toBe(0.5);
       expect(mockMemoryInfo.usedJSHeapSize).toBeLessThan(mockMemoryInfo.jsHeapSizeLimit);
     });
-
   });
 });
 
@@ -351,14 +354,17 @@ describe('PerformanceIntegration', () => {
 
       expect(getPerformanceManager).toHaveBeenCalled();
       expect(mockScope.setTag).toHaveBeenCalledWith('performance.api.available', true);
-      expect(mockScope.setContext).toHaveBeenCalledWith('performance', expect.objectContaining({
-        api_version: 'miniapp-1.0',
-        sample_rate: 1.0,
-        buffer_size: 100,
-      }));
+      expect(mockScope.setContext).toHaveBeenCalledWith(
+        'performance',
+        expect.objectContaining({
+          api_version: 'miniapp-1.0',
+          sample_rate: 1.0,
+          buffer_size: 100,
+        }),
+      );
       expect(mockPerformanceManager.createObserver).toHaveBeenCalled();
       expect(mockObserver.observe).toHaveBeenCalledWith({
-        entryTypes: ['navigation', 'render', 'resource']
+        entryTypes: ['navigation', 'render', 'resource'],
       });
     });
 
@@ -370,7 +376,7 @@ describe('PerformanceIntegration', () => {
       integrationWithUserTiming.setupOnce();
 
       expect(mockObserver.observe).toHaveBeenCalledWith({
-        entryTypes: ['navigation', 'render', 'resource']
+        entryTypes: ['navigation', 'render', 'resource'],
       });
 
       integrationWithUserTiming.cleanup();
@@ -379,13 +385,13 @@ describe('PerformanceIntegration', () => {
 
     it('should handle missing performance API gracefully', () => {
       (getPerformanceManager as jest.Mock).mockReturnValue(null);
-      
+
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
       integration.setupOnce();
 
       expect(consoleSpy).toHaveBeenCalledWith('[Sentry Performance] Performance API not available');
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
-      
+
       consoleSpy.mockRestore();
     });
   });
@@ -420,7 +426,7 @@ describe('PerformanceIntegration', () => {
           entryType: 'navigation',
           startTime: 0,
           duration: 100,
-        }
+        },
       ];
 
       // Get the observer callback and test it
@@ -435,12 +441,14 @@ describe('PerformanceIntegration', () => {
       if (!observerCallback) return;
 
       // Test array format
-      const arrayEntries = [{
-        name: 'test',
-        entryType: 'navigation',
-        startTime: 0,
-        duration: 100
-      }];
+      const arrayEntries = [
+        {
+          name: 'test',
+          entryType: 'navigation',
+          startTime: 0,
+          duration: 100,
+        },
+      ];
       expect(() => observerCallback(arrayEntries)).not.toThrow();
 
       // Test empty array
@@ -481,7 +489,7 @@ describe('PerformanceIntegration', () => {
 
       // Mock Math.random to return 0.5 (should be filtered out with sampleRate 0)
       const mathSpy = jest.spyOn(Math, 'random').mockReturnValue(0.5);
-      
+
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[1]?.[0];
       if (observerCallback) {
         observerCallback([entry]);

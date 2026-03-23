@@ -91,18 +91,22 @@ describe('Dedupe Integration', () => {
         event_id: '1',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-            stacktrace: {
-              frames: [{
-                filename: 'test.js',
-                function: 'testFunction',
-                lineno: 10,
-                colno: 5,
-              }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+              stacktrace: {
+                frames: [
+                  {
+                    filename: 'test.js',
+                    function: 'testFunction',
+                    lineno: 10,
+                    colno: 5,
+                  },
+                ],
+              },
             },
-          }],
+          ],
         },
       };
 
@@ -110,18 +114,22 @@ describe('Dedupe Integration', () => {
         event_id: '2',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-            stacktrace: {
-              frames: [{
-                filename: 'test.js',
-                function: 'testFunction',
-                lineno: 10,
-                colno: 5,
-              }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+              stacktrace: {
+                frames: [
+                  {
+                    filename: 'test.js',
+                    function: 'testFunction',
+                    lineno: 10,
+                    colno: 5,
+                  },
+                ],
+              },
             },
-          }],
+          ],
         },
       };
 
@@ -137,10 +145,12 @@ describe('Dedupe Integration', () => {
         event_id: '1',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-          }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+            },
+          ],
         },
       };
 
@@ -148,10 +158,12 @@ describe('Dedupe Integration', () => {
         event_id: '2',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'TypeError',
-            value: 'Test exception',
-          }],
+          values: [
+            {
+              type: 'TypeError',
+              value: 'Test exception',
+            },
+          ],
         },
       };
 
@@ -167,10 +179,12 @@ describe('Dedupe Integration', () => {
         event_id: '1',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception 1',
-          }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception 1',
+            },
+          ],
         },
       };
 
@@ -178,10 +192,12 @@ describe('Dedupe Integration', () => {
         event_id: '2',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception 2',
-          }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception 2',
+            },
+          ],
         },
       };
 
@@ -241,18 +257,22 @@ describe('Dedupe Integration', () => {
         event_id: '1',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-            stacktrace: {
-              frames: [{
-                filename: 'test1.js',
-                function: 'testFunction1',
-                lineno: 10,
-                colno: 5,
-              }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+              stacktrace: {
+                frames: [
+                  {
+                    filename: 'test1.js',
+                    function: 'testFunction1',
+                    lineno: 10,
+                    colno: 5,
+                  },
+                ],
+              },
             },
-          }],
+          ],
         },
       };
 
@@ -260,18 +280,22 @@ describe('Dedupe Integration', () => {
         event_id: '2',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-            stacktrace: {
-              frames: [{
-                filename: 'test2.js',
-                function: 'testFunction2',
-                lineno: 20,
-                colno: 10,
-              }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+              stacktrace: {
+                frames: [
+                  {
+                    filename: 'test2.js',
+                    function: 'testFunction2',
+                    lineno: 20,
+                    colno: 10,
+                  },
+                ],
+              },
             },
-          }],
+          ],
         },
       };
 
@@ -287,18 +311,22 @@ describe('Dedupe Integration', () => {
         event_id: '1',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-            stacktrace: {
-              frames: [{
-                filename: 'test.js',
-                function: 'testFunction',
-                lineno: 10,
-                colno: 5,
-              }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+              stacktrace: {
+                frames: [
+                  {
+                    filename: 'test.js',
+                    function: 'testFunction',
+                    lineno: 10,
+                    colno: 5,
+                  },
+                ],
+              },
             },
-          }],
+          ],
         },
       };
 
@@ -306,26 +334,28 @@ describe('Dedupe Integration', () => {
         event_id: '2',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-            stacktrace: {
-              frames: [
-                {
-                  filename: 'test.js',
-                  function: 'testFunction',
-                  lineno: 10,
-                  colno: 5,
-                },
-                {
-                  filename: 'test2.js',
-                  function: 'testFunction2',
-                  lineno: 20,
-                  colno: 10,
-                },
-              ],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+              stacktrace: {
+                frames: [
+                  {
+                    filename: 'test.js',
+                    function: 'testFunction',
+                    lineno: 10,
+                    colno: 5,
+                  },
+                  {
+                    filename: 'test2.js',
+                    function: 'testFunction2',
+                    lineno: 20,
+                    colno: 10,
+                  },
+                ],
+              },
             },
-          }],
+          ],
         },
       };
 
@@ -341,10 +371,12 @@ describe('Dedupe Integration', () => {
         event_id: '1',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-          }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+            },
+          ],
         },
       };
 
@@ -352,10 +384,12 @@ describe('Dedupe Integration', () => {
         event_id: '2',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-          }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+            },
+          ],
         },
       };
 
@@ -377,10 +411,12 @@ describe('Dedupe Integration', () => {
         event_id: '2',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-          }],
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+            },
+          ],
         },
       };
 
@@ -442,13 +478,15 @@ describe('Dedupe Integration', () => {
         event_id: '1',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'Error',
-            value: 'Test exception',
-            stacktrace: {
-              frames: null as any,
+          values: [
+            {
+              type: 'Error',
+              value: 'Test exception',
+              stacktrace: {
+                frames: null as any,
+              },
             },
-          }],
+          ],
         },
       };
 
@@ -456,11 +494,13 @@ describe('Dedupe Integration', () => {
         event_id: '2',
         timestamp: Date.now() / 1000,
         exception: {
-          values: [{
-            type: 'DifferentError',
-            value: 'Different exception',
-            stacktrace: null as any,
-          }],
+          values: [
+            {
+              type: 'DifferentError',
+              value: 'Different exception',
+              stacktrace: null as any,
+            },
+          ],
         },
       };
 

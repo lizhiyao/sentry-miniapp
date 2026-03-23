@@ -67,7 +67,7 @@ export class HttpContext implements Integration {
         const accountInfo = sdk().getAccountInfoSync?.();
         return accountInfo.miniProgram?.appId || 'unknown';
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors
     }
     return 'unknown';
@@ -82,7 +82,7 @@ export class HttpContext implements Integration {
         const accountInfo = sdk().getAccountInfoSync?.();
         return accountInfo?.miniProgram?.version || 'unknown';
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors
     }
     return 'unknown';
@@ -125,7 +125,7 @@ export class HttpContext implements Integration {
           },
         });
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors
     }
     return {};

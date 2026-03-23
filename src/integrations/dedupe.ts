@@ -102,7 +102,10 @@ export class Dedupe implements Integration {
       return false;
     }
 
-    if (currentException.type !== previousException.type || currentException.value !== previousException.value) {
+    if (
+      currentException.type !== previousException.type ||
+      currentException.value !== previousException.value
+    ) {
       return false;
     }
 
@@ -169,7 +172,10 @@ export class Dedupe implements Integration {
     }
 
     // If only one event has a fingerprint, but not the other one, they are not the same
-    if ((currentFingerprint && !previousFingerprint) || (!currentFingerprint && previousFingerprint)) {
+    if (
+      (currentFingerprint && !previousFingerprint) ||
+      (!currentFingerprint && previousFingerprint)
+    ) {
       return false;
     }
 

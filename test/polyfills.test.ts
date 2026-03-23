@@ -13,14 +13,14 @@ describe('Polyfills', () => {
     originalGlobalThis = (globalThis as any).URLSearchParams;
     originalWindow = typeof window !== 'undefined' ? (window as any).URLSearchParams : undefined;
     originalFunction = Function;
-    
+
     // 清理全局对象
     delete (global as any).URLSearchParams;
     delete (globalThis as any).URLSearchParams;
     if (typeof window !== 'undefined') {
       delete (window as any).URLSearchParams;
     }
-    
+
     jest.clearAllMocks();
   });
 
@@ -99,7 +99,10 @@ describe('Polyfills', () => {
       });
 
       it('should create from array of arrays', () => {
-        const params = new URLSearchParamsPolyfill([['key1', 'value1'], ['key2', 'value2']]);
+        const params = new URLSearchParamsPolyfill([
+          ['key1', 'value1'],
+          ['key2', 'value2'],
+        ]);
         expect(params.get('key1')).toBe('value1');
         expect(params.get('key2')).toBe('value2');
       });
@@ -240,11 +243,11 @@ describe('Polyfills', () => {
       it('should iterate over all parameters', () => {
         const params = new URLSearchParamsPolyfill('key1=value1&key2=value2');
         const results: Array<[string, string]> = [];
-        
+
         params.forEach((value: string, key: string) => {
           results.push([key, value]);
         });
-        
+
         expect(results).toContainEqual(['key1', 'value1']);
         expect(results).toContainEqual(['key2', 'value2']);
         expect(results).toHaveLength(2);
@@ -252,7 +255,7 @@ describe('Polyfills', () => {
 
       it('should call callback with correct context', () => {
         const params = new URLSearchParamsPolyfill('key=value');
-        
+
         params.forEach((_value: string, _key: string, parent: any) => {
           expect(parent).toBe(params);
         });
@@ -275,18 +278,24 @@ describe('Polyfills', () => {
       it('should iterate entries', () => {
         const params = new URLSearchParamsPolyfill('key1=value1&key2=value2');
         const entries = Array.from(params.entries());
-        expect(entries).toEqual([['key1', 'value1'], ['key2', 'value2']]);
+        expect(entries).toEqual([
+          ['key1', 'value1'],
+          ['key2', 'value2'],
+        ]);
       });
 
       it('should be iterable with for...of', () => {
         const params = new URLSearchParamsPolyfill('key1=value1&key2=value2');
         const entries: Array<[string, string]> = [];
-        
+
         for (const entry of params) {
           entries.push(entry);
         }
-        
-        expect(entries).toEqual([['key1', 'value1'], ['key2', 'value2']]);
+
+        expect(entries).toEqual([
+          ['key1', 'value1'],
+          ['key2', 'value2'],
+        ]);
       });
     });
   });
@@ -295,35 +304,35 @@ describe('Polyfills', () => {
     it('should install URLSearchParams when not available', () => {
       // 确保 URLSearchParams 不存在
       delete (globalThis as any).URLSearchParams;
-      
+
       installPolyfills();
-      
+
       expect((globalThis as any).URLSearchParams).toBeDefined();
     });
 
     it('should not override existing URLSearchParams', () => {
       const mockURLSearchParams = jest.fn();
       (globalThis as any).URLSearchParams = mockURLSearchParams;
-      
+
       installPolyfills();
-      
+
       expect((globalThis as any).URLSearchParams).toBe(mockURLSearchParams);
     });
 
     it('should handle errors gracefully', () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      
+
       // Mock Function to throw error
       (global as any).Function = jest.fn().mockImplementation(() => {
         throw new Error('Function error');
       }) as any;
-      
+
       expect(() => installPolyfills()).not.toThrow();
       expect(consoleSpy).toHaveBeenCalledWith(
         '[Sentry] Failed to install polyfills:',
-        expect.any(Error)
+        expect.any(Error),
       );
-      
+
       consoleSpy.mockRestore();
     });
   });
@@ -339,16 +348,16 @@ describe('Polyfills', () => {
   describe('isURLSearchParamsSupported', () => {
     it('should return true when URLSearchParams is available', () => {
       (globalThis as any).URLSearchParams = class MockURLSearchParams {};
-      
+
       expect(isURLSearchParamsSupported()).toBe(true);
     });
 
     it('should return false when URLSearchParams is not available', () => {
       delete (globalThis as any).URLSearchParams;
-      
+
       // Mock getGlobalObject to return object without URLSearchParams
       (global as any).Function = jest.fn().mockReturnValue({}) as any;
-      
+
       expect(isURLSearchParamsSupported()).toBe(false);
     });
 
@@ -356,7 +365,7 @@ describe('Polyfills', () => {
       (global as any).Function = jest.fn().mockImplementation(() => {
         throw new Error('Function error');
       }) as any;
-      
+
       expect(isURLSearchParamsSupported()).toBe(false);
     });
   });
@@ -365,9 +374,9 @@ describe('Polyfills', () => {
     it('should detect wx global object', () => {
       const mockWx = { request: jest.fn() };
       (global as any).Function = jest.fn().mockReturnValue({ wx: mockWx }) as any;
-      
+
       installPolyfills();
-      
+
       // Should not throw and should work with wx environment
       expect(() => installPolyfills()).not.toThrow();
     });
@@ -375,50 +384,50 @@ describe('Polyfills', () => {
     it('should detect my global object', () => {
       const mockMy = { request: jest.fn() };
       (global as any).Function = jest.fn().mockReturnValue({ my: mockMy }) as any;
-      
+
       installPolyfills();
-      
+
       expect(() => installPolyfills()).not.toThrow();
     });
 
     it('should detect swan global object', () => {
       const mockSwan = { request: jest.fn() };
       (global as any).Function = jest.fn().mockReturnValue({ swan: mockSwan }) as any;
-      
+
       installPolyfills();
-      
+
       expect(() => installPolyfills()).not.toThrow();
     });
 
     it('should detect tt global object', () => {
       const mockTt = { request: jest.fn() };
       (global as any).Function = jest.fn().mockReturnValue({ tt: mockTt }) as any;
-      
+
       installPolyfills();
-      
+
       expect(() => installPolyfills()).not.toThrow();
     });
 
     it('should detect qq global object', () => {
       const mockQq = { request: jest.fn() };
       (global as any).Function = jest.fn().mockReturnValue({ qq: mockQq }) as any;
-      
+
       installPolyfills();
-      
+
       expect(() => installPolyfills()).not.toThrow();
     });
 
     it('should handle case when no global object is detected', () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
       (global as any).Function = jest.fn().mockReturnValue(null) as any;
-      
+
       installPolyfills();
-      
+
       expect(consoleSpy).toHaveBeenCalledWith(
         '[Sentry] Failed to install polyfills:',
-        expect.any(Error)
+        expect.any(Error),
       );
-      
+
       consoleSpy.mockRestore();
     });
   });

@@ -14,23 +14,20 @@ describe('Transport', () => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',
-          header: {}
+          header: {},
         });
       });
       (global as any).wx = { request: mockRequest };
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: () => { }
+        recordDroppedEvent: () => {},
       });
 
       // Create a proper envelope format
       const envelope: Envelope = [
         { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
-        [[
-          { type: 'event' },
-          { message: 'test message', event_id: 'test-id' }
-        ]]
+        [[{ type: 'event' }, { message: 'test message', event_id: 'test-id' }]],
       ];
 
       const response = await transport.send(envelope as any);
@@ -64,16 +61,13 @@ describe('Transport', () => {
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: () => { }
+        recordDroppedEvent: () => {},
       });
 
       // Create a proper envelope format
       const envelope: Envelope = [
         { event_id: 'test-id-2', sent_at: '2022-01-01T00:00:00.000Z' },
-        [[
-          { type: 'event' },
-          { message: 'test failure', event_id: 'test-id-2' }
-        ]]
+        [[{ type: 'event' }, { message: 'test failure', event_id: 'test-id-2' }]],
       ];
 
       // Test that the function handles failures
@@ -93,8 +87,8 @@ describe('Transport', () => {
           statusCode: 429,
           data: 'Rate limited',
           header: {
-            'X-Sentry-Rate-Limits': '60::organization:key'
-          }
+            'X-Sentry-Rate-Limits': '60::organization:key',
+          },
         });
       });
       (global as any).wx = { request: mockRequest };
@@ -104,16 +98,13 @@ describe('Transport', () => {
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: () => { }
+        recordDroppedEvent: () => {},
       });
 
       // Create a proper envelope format
       const envelope: Envelope = [
         { event_id: 'test-id-3', sent_at: '2022-01-01T00:00:00.000Z' },
-        [[
-          { type: 'event' },
-          { message: 'rate limit test', event_id: 'test-id-3' }
-        ]]
+        [[{ type: 'event' }, { message: 'rate limit test', event_id: 'test-id-3' }]],
       ];
 
       const response = await transport.send(envelope as any);
@@ -126,7 +117,7 @@ describe('Transport', () => {
     it('should handle non-200 status codes', async () => {
       const mockRequest = jest.fn().mockImplementation((options) => {
         (options as any).success({
-          statusCode: 400
+          statusCode: 400,
         });
       });
       (global as any).wx = { request: mockRequest };
@@ -136,16 +127,13 @@ describe('Transport', () => {
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: () => { }
+        recordDroppedEvent: () => {},
       });
 
       // Create a proper envelope format
       const envelope: Envelope = [
         { event_id: 'test-id-4', sent_at: '2022-01-01T00:00:00.000Z' },
-        [[
-          { type: 'event' },
-          { message: 'status code test', event_id: 'test-id-4' }
-        ]]
+        [[{ type: 'event' }, { message: 'status code test', event_id: 'test-id-4' }]],
       ];
 
       const response = await transport.send(envelope as any);
@@ -162,7 +150,7 @@ describe('Transport', () => {
     it('should create transport with correct configuration', () => {
       const options = {
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: jest.fn()
+        recordDroppedEvent: jest.fn(),
       };
 
       const transport = createMiniappTransport(options);
@@ -172,7 +160,7 @@ describe('Transport', () => {
     it('should send envelope successfully', async () => {
       const options = {
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: jest.fn()
+        recordDroppedEvent: jest.fn(),
       };
 
       const transport = createMiniappTransport(options);
@@ -180,10 +168,7 @@ describe('Transport', () => {
       // Create a mock envelope
       const envelope: Envelope = [
         { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
-        [[
-          { type: 'event' },
-          { message: 'test message', event_id: 'test-id' }
-        ]]
+        [[{ type: 'event' }, { message: 'test message', event_id: 'test-id' }]],
       ];
 
       // Just test that the transport can be called without throwing
@@ -195,7 +180,7 @@ describe('Transport', () => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',
-          header: {}
+          header: {},
         });
       });
       // We must set it to a fresh object to clear the memoized _sdk in crossPlatform
@@ -207,8 +192,8 @@ describe('Transport', () => {
           url: 'https://sentry.io/api/123/store/',
           recordDroppedEvent: jest.fn(),
           headers: {
-            'X-Custom-Header': 'value'
-          }
+            'X-Custom-Header': 'value',
+          },
         });
 
         const envelope = [
@@ -237,7 +222,7 @@ describe('Transport', () => {
     it('should create transport with default options', () => {
       const options = {
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: jest.fn()
+        recordDroppedEvent: jest.fn(),
       };
 
       const transport = createMiniappTransport(options);

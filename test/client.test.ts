@@ -10,7 +10,7 @@ describe('MiniappClient', () => {
   beforeEach(() => {
     options = {
       dsn: 'https://test@sentry.io/123456',
-      debug: false
+      debug: false,
     };
     client = new MiniappClient(options);
     jest.clearAllMocks();
@@ -109,18 +109,18 @@ describe('MiniappClient', () => {
           brand: 'Apple',
           model: 'iPhone',
           system: 'iOS 15.0',
-          platform: 'ios'
+          platform: 'ios',
         }),
         getWindowInfo: () => ({
           screenWidth: 375,
           screenHeight: 812,
-          pixelRatio: 3
+          pixelRatio: 3,
         }),
         getAppBaseInfo: () => ({
           language: 'zh_CN',
           version: '8.0.0',
-          SDKVersion: '2.19.4'
-        })
+          SDKVersion: '2.19.4',
+        }),
       };
 
       const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
@@ -133,16 +133,16 @@ describe('MiniappClient', () => {
         language: 'zh_CN',
         version: '8.0.0',
         system: 'iOS 15.0',
-        platform: 'ios'
+        platform: 'ios',
       });
 
       expect(event?.contexts?.os).toEqual({
         name: 'iOS 15.0',
-        version: '8.0.0'
+        version: '8.0.0',
       });
 
       expect(event?.contexts?.app).toEqual({
-        app_version: '2.19.4'
+        app_version: '2.19.4',
       });
     });
 
@@ -153,18 +153,18 @@ describe('MiniappClient', () => {
           brand: undefined,
           model: 'iPhone',
           system: undefined,
-          platform: 'ios'
+          platform: 'ios',
         }),
         getWindowInfo: () => ({
           screenWidth: undefined,
           screenHeight: 812,
-          pixelRatio: 3
+          pixelRatio: 3,
         }),
         getAppBaseInfo: () => ({
           language: undefined,
           version: '8.0.0',
-          SDKVersion: undefined
-        })
+          SDKVersion: undefined,
+        }),
       };
 
       const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
@@ -177,21 +177,21 @@ describe('MiniappClient', () => {
         language: 'unknown',
         version: '8.0.0',
         system: 'unknown',
-        platform: 'ios'
+        platform: 'ios',
       });
 
       expect(event?.contexts?.os).toEqual({
         name: 'unknown',
-        version: '8.0.0'
+        version: '8.0.0',
       });
 
       expect(event?.contexts?.app).toEqual({
-        app_version: 'unknown'
+        app_version: 'unknown',
       });
 
       // Ensure no undefined values exist
       const deviceContext = event?.contexts?.device;
-      Object.values(deviceContext || {}).forEach(value => {
+      Object.values(deviceContext || {}).forEach((value) => {
         expect(value).not.toBeUndefined();
       });
     });
@@ -210,22 +210,22 @@ describe('MiniappClient', () => {
         language: 'unknown',
         version: 'unknown',
         system: 'unknown',
-        platform: 'unknown'
+        platform: 'unknown',
       });
 
       expect(event?.contexts?.os).toEqual({
         name: 'unknown',
-        version: 'unknown'
+        version: 'unknown',
       });
 
       expect(event?.contexts?.app).toEqual({
-        app_version: 'unknown'
+        app_version: 'unknown',
       });
 
       // Ensure no undefined values exist
       const allContexts = [event?.contexts?.device, event?.contexts?.os, event?.contexts?.app];
-      allContexts.forEach(context => {
-        Object.values(context || {}).forEach(value => {
+      allContexts.forEach((context) => {
+        Object.values(context || {}).forEach((value) => {
           expect(value).not.toBeUndefined();
         });
       });
@@ -235,8 +235,8 @@ describe('MiniappClient', () => {
       const event = {
         message: 'test',
         contexts: {
-          custom: { data: 'value' }
-        }
+          custom: { data: 'value' },
+        },
       };
       const preparedEvent = await client['_prepareEvent'](event, {});
 
@@ -247,7 +247,7 @@ describe('MiniappClient', () => {
 
   describe('showReportDialog', () => {
     it('should show console warning instead of modal', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
+      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
       const mockShowModal = jest.fn();
       (global as any).wx.showModal = mockShowModal;
 
@@ -255,7 +255,7 @@ describe('MiniappClient', () => {
 
       expect(mockShowModal).not.toHaveBeenCalled();
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('showReportDialog is deprecated')
+        expect.stringContaining('showReportDialog is deprecated'),
       );
 
       consoleWarnSpy.mockRestore();

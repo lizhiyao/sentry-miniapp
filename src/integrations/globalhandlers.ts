@@ -132,25 +132,27 @@ export class GlobalHandlers implements Integration {
     }
 
     if (sdk().onPageNotFound) {
-      sdk().onPageNotFound?.((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => {
-        const scope = getCurrentScope();
-        const url = res.path.split('?')[0];
+      sdk().onPageNotFound?.(
+        (res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => {
+          const scope = getCurrentScope();
+          const url = res.path.split('?')[0];
 
-        scope.setTag('pagenotfound', url);
-        scope.setContext('page_not_found', {
-          path: res.path,
-          query: res.query,
-          isEntryPage: res.isEntryPage,
-        });
-        
-        (captureException as any)(new Error(`页面无法找到: ${url}`), {
-          level: 'warning',
-          mechanism: {
-            type: 'onpagenotfound',
-            handled: true,
-          },
-        });
-      });
+          scope.setTag('pagenotfound', url);
+          scope.setContext('page_not_found', {
+            path: res.path,
+            query: res.query,
+            isEntryPage: res.isEntryPage,
+          });
+
+          (captureException as any)(new Error(`页面无法找到: ${url}`), {
+            level: 'warning',
+            mechanism: {
+              type: 'onpagenotfound',
+              handled: true,
+            },
+          });
+        },
+      );
     }
 
     this._onPageNotFoundHandlerInstalled = true;
@@ -186,7 +188,7 @@ export class GlobalHandlers implements Integration {
           level,
           message: levelMessage,
         });
-        
+
         (captureException as any)(new Error('内存不足告警'), {
           level: 'warning',
           mechanism: {
@@ -204,6 +206,8 @@ export class GlobalHandlers implements Integration {
 /**
  * Global handlers integration
  */
-export const globalHandlersIntegration: IntegrationFn = (options?: Partial<GlobalHandlersIntegrations>) => {
+export const globalHandlersIntegration: IntegrationFn = (
+  options?: Partial<GlobalHandlersIntegrations>,
+) => {
   return new GlobalHandlers(options);
 };

@@ -32,7 +32,7 @@ export class System implements Integration {
       const systemInfo = getSystemInfo();
       if (systemInfo) {
         const scope = getCurrentScope();
-        
+
         // Set device context
         scope.setContext('device', {
           name: systemInfo.model,
@@ -70,7 +70,7 @@ export class System implements Integration {
         scope.setTag('app.version', systemInfo.version);
         scope.setTag('language', systemInfo.language);
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors when getting system info
     }
   }
@@ -81,7 +81,7 @@ export class System implements Integration {
   private _addNetworkContext(): void {
     try {
       if ((sdk() as any).getNetworkType) {
-      (sdk() as any).getNetworkType({
+        (sdk() as any).getNetworkType({
           success: (res: { networkType: string; isConnected?: boolean }) => {
             const scope = getCurrentScope();
             scope.setContext('network', {
@@ -95,7 +95,7 @@ export class System implements Integration {
           },
         });
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors when getting network info
     }
   }
@@ -106,7 +106,7 @@ export class System implements Integration {
   private _addLocationContext(): void {
     try {
       if ((sdk() as any).getLocation) {
-      (sdk() as any).getLocation({
+        (sdk() as any).getLocation({
           type: 'gcj02',
           success: (res: { latitude: number; longitude: number; accuracy: number }) => {
             const scope = getCurrentScope();
@@ -121,7 +121,7 @@ export class System implements Integration {
           },
         });
       }
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors when getting location info
     }
   }

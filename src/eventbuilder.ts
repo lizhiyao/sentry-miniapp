@@ -16,16 +16,23 @@ export function eventFromException(existingEvent: any, exception: any, _hint?: E
   return {
     ...existingEvent,
     exception: {
-      values: [{
-        type: (exception && exception.name) || 'Error',
-        value: (exception && exception.message) || String(exception),
-      }]
+      values: [
+        {
+          type: (exception && exception.name) || 'Error',
+          value: (exception && exception.message) || String(exception),
+        },
+      ],
     },
     level: 'error',
   } as Event;
 }
 
-export function eventFromMessage(existingEvent: any, message: string, level: any = 'info', _hint?: EventHint): Event {
+export function eventFromMessage(
+  existingEvent: any,
+  message: string,
+  level: any = 'info',
+  _hint?: EventHint,
+): Event {
   return {
     ...existingEvent,
     message: message,
@@ -173,7 +180,10 @@ function isDOMException(wat: any): wat is DOMException {
 /**
  * @hidden
  */
-function extractExceptionKeysForMessage(exception: Record<string, unknown>, maxLength: number = 40): string {
+function extractExceptionKeysForMessage(
+  exception: Record<string, unknown>,
+  maxLength: number = 40,
+): string {
   const keys = Object.keys(exception);
   keys.sort();
 
@@ -206,7 +216,11 @@ function normalizeToSize(object: any, depth: number = 3, maxProperties: number =
   const normalized = normalizeValue(object, depth, maxProperties);
 
   // truncate the object
-  if (normalized && typeof normalized === 'object' && Object.keys(normalized).length > maxProperties) {
+  if (
+    normalized &&
+    typeof normalized === 'object' &&
+    Object.keys(normalized).length > maxProperties
+  ) {
     return '[Object too large]';
   }
 
