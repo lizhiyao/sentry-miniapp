@@ -64,12 +64,16 @@
     ".": {
       "types": "./dist/types/index.d.ts",
       "import": "./dist/sentry-miniapp.esm.js",
-      "require": "./dist/sentry-miniapp.cjs.js"
+      "require": "./dist/sentry-miniapp.cjs.js",
+      "default": "./dist/sentry-miniapp.umd.js"
     }
   },
   "files": [
     "dist",
-    "lib"
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "devDependencies": {
     "@jest/globals": "^30.0.4",
