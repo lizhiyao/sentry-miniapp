@@ -8,3 +8,5 @@ export { Router } from './router';
 export { PerformanceIntegration, performanceIntegration } from './performance';
 export { RewriteFrames } from './rewriteframes';
 export { NetworkBreadcrumbs } from './networkbreadcrumbs';
+export { PageBreadcrumbs, pageBreadcrumbsIntegration } from './pagebreadcrumbs';
+export { ConsoleBreadcrumbs, consoleBreadcrumbsIntegration } from './console';

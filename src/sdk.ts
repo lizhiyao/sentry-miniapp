@@ -12,6 +12,8 @@ import {
   performanceIntegration,
   RewriteFrames,
   NetworkBreadcrumbs,
+  PageBreadcrumbs,
+  ConsoleBreadcrumbs,
 } from './integrations/index';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
@@ -66,6 +68,16 @@ export function init(options: MiniappOptions = {} as any): MiniappClient | undef
   }
 
   opts.integrations.push(new NetworkBreadcrumbs({ traceNetworkBody: opts.traceNetworkBody }));
+
+  // 页面生命周期和用户交互面包屑（默认启用）
+  if (opts.enableUserInteractionBreadcrumbs !== false) {
+    opts.integrations.push(new PageBreadcrumbs());
+  }
+
+  // Console 面包屑（默认禁用，需手动开启）
+  if (opts.enableConsoleBreadcrumbs) {
+    opts.integrations.push(new ConsoleBreadcrumbs());
+  }
 
   // Set platform context
   setContext('miniapp', {
