@@ -100,18 +100,18 @@ export function init(options: MiniappOptions = {} as any): MiniappClient | undef
 }
 
 /**
- * Show a report dialog to the user to send feedback to a specific event.
- * 注意：小程序环境暂时不支持此功能
- *
- * @param options Set individual options for the dialog
+ * @deprecated Miniapp environment does not support Sentry's default HTML report dialog.
+ * Please implement your own UI form to collect user feedback (name, email, comments)
+ * and use `Sentry.captureFeedback()` to submit it to Sentry.
+ * 
+ * 小程序环境不支持 Sentry 官方的 HTML 反馈弹窗。
+ * 请自行实现 UI 表单收集用户反馈，并调用 `Sentry.captureFeedback()` 进行上报。
  */
-export function showReportDialog(options: ReportDialogOptions = {}): void {
-  const client = getCurrentScope().getClient() as MiniappClient | undefined;
-  if (client) {
-    client.showReportDialog(options);
-  } else {
-    console.warn('sentry-miniapp: No client available for showReportDialog');
-  }
+export function showReportDialog(_options: ReportDialogOptions = {}): void {
+  console.warn(
+    '[sentry-miniapp] showReportDialog is deprecated and does nothing. ' +
+    'Please build your own UI and use `Sentry.captureFeedback()` instead.'
+  );
 }
 
 /**

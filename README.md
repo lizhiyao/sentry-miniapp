@@ -172,6 +172,30 @@ sentry-cli releases files "your-project-release-id" upload-sourcemaps ./dist \
 
 ---
 
+## 💬 用户反馈 (User Feedback)
+
+在 Web 环境中，Sentry 提供了一个现成的 `showReportDialog()` 弹窗。但在小程序环境中没有 DOM 无法直接渲染该组件，因此 `showReportDialog()` 已被**废弃**。
+
+请您**自行实现一个原生小程序表单（或弹窗）**来收集用户的反馈信息，然后调用 `Sentry.captureFeedback()` 提交到 Sentry 后台：
+
+```javascript
+// 当发生错误，或者用户主动点击“反馈”按钮时，展示您自己画的表单：
+const userMessage = '页面卡住了，点什么都没反应';
+const userName = '张三';
+const userEmail = 'zhangsan@example.com';
+
+// 将收集到的反馈发送给 Sentry
+Sentry.captureFeedback({
+  message: userMessage,
+  name: userName,
+  email: userEmail,
+  // 选填：如果您想把这个反馈和某个具体的错误事件关联起来：
+  // associatedEventId: 'abc123xyz...'
+});
+```
+
+---
+
 ## ❓ 常见问题 (FAQ)
 
 ### 1. 初始化后无法自动上报异常，必须在 `onError` 中手动调 API 吗？
