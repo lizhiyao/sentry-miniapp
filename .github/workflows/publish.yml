@@ -11,6 +11,9 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # 这使得工作流能够通过 OIDC 从 GitHub 获取凭证
 
     steps:
     - name: Checkout Code
@@ -36,6 +39,6 @@ jobs:
       run: yarn run build
 
     - name: Publish to NPM
-      run: npm publish --access public
+      run: npm publish --access public --provenance
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
