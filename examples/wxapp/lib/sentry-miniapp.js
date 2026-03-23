@@ -4940,7 +4940,7 @@ Reason: ${reason}`
     }
     isolationScope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
   }
-  const SDK_VERSION = "1.4.0";
+  const SDK_VERSION = "1.4.1";
   const SDK_NAME = "sentry.javascript.miniapp";
   const getSDK = () => {
     let currentSdk = {
@@ -6081,40 +6081,27 @@ Reason: ${reason}`
      * Instrument navigation functions
      */
     _instrumentNavigation() {
-      const global2 = globalThis;
-      if (global2.wx && global2.wx.navigateTo) {
-        const originalNavigateTo = global2.wx.navigateTo;
-        global2.wx.navigateTo = (options) => {
-          this._recordNavigation("navigateTo", options.url, this._getCurrentRoute());
-          return originalNavigateTo.call(global2.wx, options);
-        };
+      let currentSdk;
+      try {
+        currentSdk = sdk();
+      } catch (_e) {
+        return;
       }
-      if (global2.wx && global2.wx.redirectTo) {
-        const originalRedirectTo = global2.wx.redirectTo;
-        global2.wx.redirectTo = (options) => {
-          this._recordNavigation("redirectTo", options.url, this._getCurrentRoute());
-          return originalRedirectTo.call(global2.wx, options);
-        };
+      const methods = ["navigateTo", "redirectTo", "switchTab", "reLaunch"];
+      for (const method of methods) {
+        if (currentSdk[method]) {
+          const original = currentSdk[method];
+          currentSdk[method] = (options) => {
+            this._recordNavigation(method, options.url, this._getCurrentRoute());
+            return original.call(currentSdk, options);
+          };
+        }
       }
-      if (global2.wx && global2.wx.switchTab) {
-        const originalSwitchTab = global2.wx.switchTab;
-        global2.wx.switchTab = (options) => {
-          this._recordNavigation("switchTab", options.url, this._getCurrentRoute());
-          return originalSwitchTab.call(global2.wx, options);
-        };
-      }
-      if (global2.wx && global2.wx.navigateBack) {
-        const originalNavigateBack = global2.wx.navigateBack;
-        global2.wx.navigateBack = (options = {}) => {
+      if (currentSdk.navigateBack) {
+        const originalNavigateBack = currentSdk.navigateBack;
+        currentSdk.navigateBack = (options = {}) => {
           this._recordNavigation("navigateBack", "back", this._getCurrentRoute(), options.delta);
-          return originalNavigateBack.call(global2.wx, options);
-        };
-      }
-      if (global2.wx && global2.wx.reLaunch) {
-        const originalReLaunch = global2.wx.reLaunch;
-        global2.wx.reLaunch = (options) => {
-          this._recordNavigation("reLaunch", options.url, this._getCurrentRoute());
-          return originalReLaunch.call(global2.wx, options);
+          return originalNavigateBack.call(currentSdk, options);
         };
       }
     }

@@ -233,4 +233,100 @@ describe('Transport', () => {
       expect(typeof transport.send).toBe('function');
     });
   });
+
+  describe('Alipay/DingTalk transport differences', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      // Clear the memoized SDK cache so each test picks up the new global
+      (_sdk as any) = null;
+      delete (global as any).wx;
+      delete (global as any).my;
+      delete (global as any).dd;
+    });
+
+    it('should work with httpRequest instead of request (DingTalk style)', async () => {
+      const mockHttpRequest = jest.fn().mockImplementation((options) => {
+        (options as any).success({
+          statusCode: 200,
+          data: 'OK',
+          header: {},
+        });
+      });
+      // DingTalk exposes httpRequest but no request
+      (global as any).dd = { httpRequest: mockHttpRequest };
+
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/store/',
+        recordDroppedEvent: () => {},
+      });
+
+      const envelope: Envelope = [
+        { event_id: 'test-httpRequest', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[{ type: 'event' }, { message: 'httpRequest test', event_id: 'test-httpRequest' }]],
+      ];
+
+      const response = await transport.send(envelope as any);
+
+      expect(mockHttpRequest).toHaveBeenCalled();
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should handle response with status instead of statusCode (Alipay style)', async () => {
+      const mockRequest = jest.fn().mockImplementation((options) => {
+        (options as any).success({
+          status: 200,
+          data: 'OK',
+          header: {},
+        });
+      });
+      (global as any).wx = { request: mockRequest };
+
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/store/',
+        recordDroppedEvent: () => {},
+      });
+
+      const envelope: Envelope = [
+        { event_id: 'test-status', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[{ type: 'event' }, { message: 'status field test', event_id: 'test-status' }]],
+      ];
+
+      const response = await transport.send(envelope as any);
+
+      expect(mockRequest).toHaveBeenCalled();
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should handle response with headers instead of header (Alipay style)', async () => {
+      const mockRequest = jest.fn().mockImplementation((options) => {
+        (options as any).success({
+          statusCode: 200,
+          data: 'OK',
+          headers: {
+            'x-sentry-rate-limits': '60::organization:key',
+            'retry-after': '30',
+          },
+        });
+      });
+      (global as any).wx = { request: mockRequest };
+
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/store/',
+        recordDroppedEvent: () => {},
+      });
+
+      const envelope: Envelope = [
+        { event_id: 'test-headers', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[{ type: 'event' }, { message: 'headers field test', event_id: 'test-headers' }]],
+      ];
+
+      const response = await transport.send(envelope as any);
+
+      expect(mockRequest).toHaveBeenCalled();
+      expect(response.statusCode).toBe(200);
+      expect(response.headers).toBeDefined();
+      expect(response.headers?.['x-sentry-rate-limits']).toBe('60::organization:key');
+      expect(response.headers?.['retry-after']).toBe('30');
+    });
+  });
 });
