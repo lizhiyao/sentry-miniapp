@@ -21,17 +21,17 @@ Sentry.init({
   integrations: [
     // ... 其他集成
     new Sentry.Integrations.PerformanceIntegration({
-      // 启用导航性能监控
-      enableNavigationTiming: true,
-      
-      // 启用渲染性能监控
-      enableRenderTiming: true,
-      
-      // 启用资源加载监控
-      enableResourceTiming: true,
-      
-      // 启用用户自定义性能标记
-      enableUserTiming: true,
+      // 启用导航性能监控（默认 true）
+      enableNavigation: true,
+
+      // 启用渲染性能监控（默认 true）
+      enableRender: true,
+
+      // 启用资源加载监控（默认 true）
+      enableResource: true,
+
+      // 启用用户自定义性能标记（默认 false）
+      enableUserTiming: false,
       
       // 性能数据采样率 (0.0 - 1.0)
       sampleRate: 1.0,
@@ -135,7 +135,7 @@ wx.performance.measure('operation-duration', 'operation-start', 'operation-end')
 
 ## 示例代码
 
-查看 `examples/wxapp/pages/test/test.js` 中的 `testPerformanceAPI` 方法，了解如何测试 Performance API 集成功能。
+查看 `examples/wxapp/pages/test/test.js` 中的示例方法，了解如何测试性能监控相关功能。
 
 ## 故障排除
 
