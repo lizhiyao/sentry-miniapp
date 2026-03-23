@@ -9,7 +9,7 @@
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
     "build": "vite build && npm run sync:examples",
-    "sync:examples": "cp dist/sentry-miniapp.umd.js examples/wxapp/lib/sentry-miniapp.js",
+    "sync:examples": "cp dist/sentry-miniapp.umd.js examples/wxapp/lib/sentry-miniapp.js && cp dist/sentry-miniapp.umd.js.map examples/wxapp/lib/sentry-miniapp.js.map",
     "build:miniapp": "vite build --mode miniapp",
     "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types",
     "dev": "vite build --watch",
