@@ -6825,18 +6825,179 @@ Reason: ${reason}`
   };
   _NetworkBreadcrumbs.id = "NetworkBreadcrumbs";
   let NetworkBreadcrumbs = _NetworkBreadcrumbs;
+  const PAGE_LIFECYCLE_METHODS = ["onLoad", "onShow", "onHide", "onUnload", "onReady"];
+  const APP_LIFECYCLE_METHODS = ["onLaunch", "onShow", "onHide"];
+  function isUserInteractionHandler(name) {
+    if (PAGE_LIFECYCLE_METHODS.includes(name)) return false;
+    if (name.startsWith("_")) return false;
+    return /^(on|handle|bind)[A-Z]/.test(name) || /[Tt]ap$/.test(name) || /[Cc]lick$/.test(name) || /[Cc]hange$/.test(name) || /[Ss]ubmit$/.test(name) || /[Ss]croll$/.test(name) || /[Ii]nput$/.test(name);
+  }
+  const _PageBreadcrumbs = class _PageBreadcrumbs {
+    constructor(options = {}) {
+      this.name = _PageBreadcrumbs.id;
+      this._options = __spreadValues({
+        enableLifecycle: true,
+        enableUserInteraction: true
+      }, options);
+    }
+    setupOnce() {
+      this._wrapPage();
+      this._wrapApp();
+    }
+    /**
+     * 包装全局 Page() 构造函数
+     */
+    _wrapPage() {
+      const global2 = globalThis;
+      if (typeof global2.Page !== "function") return;
+      const originalPage = global2.Page;
+      const options = this._options;
+      global2.Page = function(pageOptions) {
+        if (pageOptions && typeof pageOptions === "object") {
+          if (options.enableLifecycle) {
+            for (const method of PAGE_LIFECYCLE_METHODS) {
+              if (typeof pageOptions[method] === "function") {
+                const original = pageOptions[method];
+                pageOptions[method] = function(...args) {
+                  const route = (this == null ? void 0 : this.route) || (this == null ? void 0 : this.__route__) || "unknown";
+                  addBreadcrumb({
+                    category: "page.lifecycle",
+                    message: `${method}: ${route}`,
+                    level: "info",
+                    data: {
+                      action: method,
+                      page: route
+                    }
+                  });
+                  return original.apply(this, args);
+                };
+              }
+            }
+          }
+          if (options.enableUserInteraction) {
+            for (const key of Object.keys(pageOptions)) {
+              if (typeof pageOptions[key] === "function" && isUserInteractionHandler(key)) {
+                const original = pageOptions[key];
+                pageOptions[key] = function(event, ...rest) {
+                  const route = (this == null ? void 0 : this.route) || (this == null ? void 0 : this.__route__) || "unknown";
+                  const breadcrumbData = {
+                    handler: key,
+                    page: route
+                  };
+                  if (event && typeof event === "object") {
+                    if (event.target) {
+                      if (event.target.id) breadcrumbData["targetId"] = event.target.id;
+                      if (event.target.dataset) breadcrumbData["dataset"] = event.target.dataset;
+                    }
+                    if (event.type) breadcrumbData["eventType"] = event.type;
+                  }
+                  addBreadcrumb({
+                    category: "user.interaction",
+                    message: `${key} on ${route}`,
+                    level: "info",
+                    data: breadcrumbData
+                  });
+                  return original.apply(this, [event, ...rest]);
+                };
+              }
+            }
+          }
+        }
+        return originalPage(pageOptions);
+      };
+    }
+    /**
+     * 包装全局 App() 构造函数
+     */
+    _wrapApp() {
+      const global2 = globalThis;
+      if (typeof global2.App !== "function") return;
+      const originalApp = global2.App;
+      const options = this._options;
+      global2.App = function(appOptions) {
+        if (appOptions && typeof appOptions === "object" && options.enableLifecycle) {
+          for (const method of APP_LIFECYCLE_METHODS) {
+            if (typeof appOptions[method] === "function") {
+              const original = appOptions[method];
+              appOptions[method] = function(...args) {
+                addBreadcrumb({
+                  category: "app.lifecycle",
+                  message: `App.${method}`,
+                  level: "info",
+                  data: {
+                    action: method
+                  }
+                });
+                return original.apply(this, args);
+              };
+            }
+          }
+        }
+        return originalApp(appOptions);
+      };
+    }
+  };
+  _PageBreadcrumbs.id = "PageBreadcrumbs";
+  let PageBreadcrumbs = _PageBreadcrumbs;
+  const pageBreadcrumbsIntegration = (options) => {
+    return new PageBreadcrumbs(options);
+  };
+  const CONSOLE_LEVELS = ["debug", "info", "warn", "error", "log"];
+  const LEVEL_TO_SEVERITY = {
+    debug: "debug",
+    info: "info",
+    log: "info",
+    warn: "warning",
+    error: "error"
+  };
+  const _ConsoleBreadcrumbs = class _ConsoleBreadcrumbs {
+    constructor(options = {}) {
+      this.name = _ConsoleBreadcrumbs.id;
+      this._levels = options.levels || [...CONSOLE_LEVELS];
+    }
+    setupOnce() {
+      for (const level of this._levels) {
+        if (typeof console[level] !== "function") continue;
+        const original = console[level];
+        console[level] = function(...args) {
+          addBreadcrumb({
+            category: "console",
+            level: LEVEL_TO_SEVERITY[level],
+            message: args.map((a) => {
+              if (typeof a === "string") return a;
+              try {
+                return JSON.stringify(a);
+              } catch (_e) {
+                return String(a);
+              }
+            }).join(" ")
+          });
+          return original.apply(console, args);
+        };
+      }
+    }
+  };
+  _ConsoleBreadcrumbs.id = "ConsoleBreadcrumbs";
+  let ConsoleBreadcrumbs = _ConsoleBreadcrumbs;
+  const consoleBreadcrumbsIntegration = (options) => {
+    return new ConsoleBreadcrumbs(options);
+  };
   const index = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
     __proto__: null,
+    ConsoleBreadcrumbs,
     Dedupe,
     GlobalHandlers,
     HttpContext,
     LinkedErrors,
     NetworkBreadcrumbs,
+    PageBreadcrumbs,
     PerformanceIntegration,
     RewriteFrames,
     Router,
     System,
     TryCatch,
+    consoleBreadcrumbsIntegration,
+    pageBreadcrumbsIntegration,
     performanceIntegration
   }, Symbol.toStringTag, { value: "Module" }));
   const defaultIntegrations = [
@@ -6873,6 +7034,12 @@ Reason: ${reason}`
       opts.integrations.push(new RewriteFrames());
     }
     opts.integrations.push(new NetworkBreadcrumbs({ traceNetworkBody: opts.traceNetworkBody }));
+    if (opts.enableUserInteractionBreadcrumbs !== false) {
+      opts.integrations.push(new PageBreadcrumbs());
+    }
+    if (opts.enableConsoleBreadcrumbs) {
+      opts.integrations.push(new ConsoleBreadcrumbs());
+    }
     setContext("miniapp", {
       platform: appName,
       environment: "miniapp"
