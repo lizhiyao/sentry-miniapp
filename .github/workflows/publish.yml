@@ -1,0 +1,37 @@
+name: CD - Publish to NPM
+
+on:
+  push:
+    tags:
+      - 'v*' # 仅在推送以 'v' 开头的 Tag 时触发，例如 v1.4.0
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run Lint
+      run: npm run lint
+
+    - name: Run Tests
+      run: npm run test:all
+
+    - name: Build Project
+      run: npm run build
+
+    - name: Publish to NPM
+      run: npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
