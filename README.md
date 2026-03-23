@@ -68,6 +68,7 @@ Sentry.init({
   enableSystemInfo: true, // 自动采集系统与设备信息
   enableUserInteractionBreadcrumbs: true, // 自动记录用户点击行为
   enableNavigationBreadcrumbs: true, // 自动记录页面路由跳转
+  traceNetworkBody: true, // [新增] 是否在面包屑中记录网络请求的请求体和响应体 (默认 false)
   
   // --- 离线缓存与可靠性 ---
   enableOfflineCache: true, // 开启断网离线缓存与重试机制 (默认开启)

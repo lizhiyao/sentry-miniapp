@@ -18,6 +18,7 @@ import {
   Dedupe,
   performanceIntegration,
   RewriteFrames,
+  NetworkBreadcrumbs,
 } from './integrations/index';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
@@ -70,6 +71,8 @@ export function init(options: MiniappOptions = {} as any): MiniappClient | undef
   if (opts.enableSourceMap !== false) {
     opts.integrations.push(new RewriteFrames());
   }
+
+  opts.integrations.push(new NetworkBreadcrumbs({ traceNetworkBody: opts.traceNetworkBody }));
 
   // Set platform context
   setContext('miniapp', {

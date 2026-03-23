@@ -52,6 +52,9 @@ export interface MiniappOptions {
   /** Whether to enable automatic source map path rewrite */
   enableSourceMap?: boolean;
 
+  /** Whether to capture and record request and response body in network breadcrumbs */
+  traceNetworkBody?: boolean;
+
   /** Whether to enable offline cache to retry sending events later */
   enableOfflineCache?: boolean;
 
