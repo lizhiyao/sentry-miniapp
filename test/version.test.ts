@@ -1,5 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { SDK_VERSION, SDK_NAME } from '../src/version';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pkg = require('../package.json');
 
 describe('Version', () => {
   describe('SDK_VERSION', () => {
@@ -14,8 +16,8 @@ describe('Version', () => {
       expect(SDK_VERSION).toMatch(semverPattern);
     });
 
-    it('should match expected version', () => {
-      expect(SDK_VERSION).toBe('1.3.1');
+    it('should match package.json version', () => {
+      expect(SDK_VERSION).toBe(pkg.version);
     });
   });
 

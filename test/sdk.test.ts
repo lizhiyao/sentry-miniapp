@@ -11,11 +11,11 @@ describe('SDK Initialization', () => {
 
   it('should initialize with minimal configuration', () => {
     const options: MiniappOptions = {
-      dsn: 'https://test@sentry.io/123456'
+      dsn: 'https://test@sentry.io/123456',
     };
 
     const client = init(options);
-    
+
     expect(client).toBeInstanceOf(MiniappClient);
     expect(client?.getOptions().dsn).toBe(options.dsn);
   });
@@ -29,11 +29,11 @@ describe('SDK Initialization', () => {
       sampleRate: 0.5,
       maxBreadcrumbs: 50,
       beforeSend: jest.fn(),
-      beforeBreadcrumb: jest.fn()
+      beforeBreadcrumb: jest.fn(),
     };
 
     const client = init(options);
-    
+
     expect(client).toBeInstanceOf(MiniappClient);
     expect(client?.getOptions().dsn).toBe(options.dsn);
     expect(client?.getOptions().debug).toBe(true);
@@ -44,12 +44,12 @@ describe('SDK Initialization', () => {
 
   it('should set default options when not provided', () => {
     const options: MiniappOptions = {
-      dsn: 'https://test@sentry.io/123456'
+      dsn: 'https://test@sentry.io/123456',
     };
 
     const client = init(options);
     const clientOptions = client?.getOptions();
-    
+
     // Check that client was created successfully
     expect(client).toBeInstanceOf(MiniappClient);
     expect(clientOptions?.dsn).toBe(options.dsn);
@@ -63,12 +63,12 @@ describe('SDK Initialization', () => {
 
   it('should return the same client instance on multiple initializations', () => {
     const options: MiniappOptions = {
-      dsn: 'https://test@sentry.io/123456'
+      dsn: 'https://test@sentry.io/123456',
     };
-    
+
     const client1 = init(options);
     const client2 = init(options);
-    
+
     // Both should be instances of MiniappClient
     expect(client1).toBeInstanceOf(MiniappClient);
     expect(client2).toBeInstanceOf(MiniappClient);
@@ -79,11 +79,11 @@ describe('SDK Initialization', () => {
   it('should configure integrations correctly', () => {
     const options: MiniappOptions = {
       dsn: 'https://test@sentry.io/123456',
-      integrations: []
+      integrations: [],
     };
 
     const client = init(options);
-    
+
     expect(client).toBeInstanceOf(MiniappClient);
     // Default integrations should be added even when empty array is provided
     expect(client?.getIntegrationByName).toBeDefined();

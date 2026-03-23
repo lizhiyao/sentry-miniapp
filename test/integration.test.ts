@@ -12,7 +12,7 @@ describe('Integration Tests', () => {
       getNetworkType: jest.fn(),
       onError: jest.fn(),
       onUnhandledRejection: jest.fn(),
-      onMemoryWarning: jest.fn()
+      onMemoryWarning: jest.fn(),
     };
   });
 
@@ -26,7 +26,7 @@ describe('Integration Tests', () => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',
-          header: {}
+          header: {},
         });
       });
       (global as any).wx.request = mockRequest;
@@ -35,7 +35,7 @@ describe('Integration Tests', () => {
       init({
         dsn: 'https://test@sentry.io/123',
         debug: true,
-        environment: 'test'
+        environment: 'test',
       });
 
       // Capture an exception
@@ -54,7 +54,7 @@ describe('Integration Tests', () => {
           (options as any).success({
             statusCode: 200,
             data: 'OK',
-            header: {}
+            header: {},
           });
         }, 10);
       });
@@ -71,29 +71,29 @@ describe('Integration Tests', () => {
           // Add custom processing
           event.tags = { ...event.tags, processed: 'true' };
           return event;
-        }
+        },
       });
 
       // Add breadcrumbs
       addBreadcrumb({
         category: 'navigation',
         message: 'User navigated to page',
-        level: 'info'
+        level: 'info',
       });
 
       // Configure scope
       // Capture exception with sensitive data
-       const scope = getCurrentScope();
-       scope.setExtra('password', 'secret123');
-       scope.setExtra('secret', 'api-key-123');
-       scope.setTag('environment', 'test');
-       
-       captureException(new Error('Test error with sensitive data'));
-       
-       // Check that beforeSend was called and filtered the data
-       // Verify exception was captured
-       expect(captureException).toBeDefined();
-     });
+      const scope = getCurrentScope();
+      scope.setExtra('password', 'secret123');
+      scope.setExtra('secret', 'api-key-123');
+      scope.setTag('environment', 'test');
+
+      captureException(new Error('Test error with sensitive data'));
+
+      // Check that beforeSend was called and filtered the data
+      // Verify exception was captured
+      expect(captureException).toBeDefined();
+    });
 
     it('should handle end-to-end integration', async () => {
       const mockRequest = jest.fn().mockImplementation((options) => {
@@ -102,7 +102,7 @@ describe('Integration Tests', () => {
       (global as any).wx.request = mockRequest;
 
       init({
-        dsn: 'https://test@sentry.io/123'
+        dsn: 'https://test@sentry.io/123',
       });
 
       // Configure scope
@@ -114,11 +114,11 @@ describe('Integration Tests', () => {
       // Capture exception with full context
       const error = new Error('End-to-end test error');
       error.stack = 'Error: End-to-end test error\n    at test.js:1:1';
-      
+
       captureException(error);
 
       // Wait for async operations
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Verify request was made
       // Performance monitoring should be configured
@@ -127,19 +127,18 @@ describe('Integration Tests', () => {
   });
 
   describe('SDK Configuration', () => {
-
     it('should handle SDK initialization with invalid DSN', () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       // Initialize with invalid DSN
       init({
         dsn: 'invalid-dsn',
-        debug: true
+        debug: true,
       });
 
       // Should not throw, but should log error
       expect(consoleSpy).toHaveBeenCalled();
-      
+
       consoleSpy.mockRestore();
     });
   });
@@ -148,7 +147,7 @@ describe('Integration Tests', () => {
     it('should integrate with miniapp lifecycle events', () => {
       init({
         dsn: 'https://test@sentry.io/123',
-        integrations: []
+        integrations: [],
       });
 
       // Should initialize lifecycle integration
@@ -157,7 +156,7 @@ describe('Integration Tests', () => {
 
     it('should capture miniapp system information', () => {
       init({
-        dsn: 'https://test@sentry.io/123'
+        dsn: 'https://test@sentry.io/123',
       });
 
       // Should initialize system info capture
@@ -166,7 +165,7 @@ describe('Integration Tests', () => {
 
     it('should handle network status changes', () => {
       init({
-        dsn: 'https://test@sentry.io/123'
+        dsn: 'https://test@sentry.io/123',
       });
 
       // Should initialize network status handling
@@ -180,7 +179,7 @@ describe('Integration Tests', () => {
       (global as any).wx.request = mockRequest;
 
       init({
-        dsn: 'https://test@sentry.io/123'
+        dsn: 'https://test@sentry.io/123',
       });
 
       // Should initialize memory warning handling
@@ -196,7 +195,7 @@ describe('Integration Tests', () => {
       (global as any).wx.request = mockRequest;
 
       init({
-        dsn: 'https://test@sentry.io/123'
+        dsn: 'https://test@sentry.io/123',
       });
 
       // Should initialize without errors
@@ -210,7 +209,7 @@ describe('Integration Tests', () => {
       (global as any).wx.request = mockRequest;
 
       init({
-        dsn: 'https://test@sentry.io/123'
+        dsn: 'https://test@sentry.io/123',
       });
 
       // Capture an exception
@@ -228,7 +227,7 @@ describe('Integration Tests', () => {
       (global as any).wx.request = mockRequest;
 
       init({
-        dsn: 'https://test@sentry.io/123'
+        dsn: 'https://test@sentry.io/123',
       });
 
       // Capture a message
@@ -248,7 +247,7 @@ describe('Integration Tests', () => {
 
       init({
         dsn: 'https://test@sentry.io/123',
-        tracesSampleRate: 1.0
+        tracesSampleRate: 1.0,
       });
 
       // Add performance breadcrumb
@@ -258,8 +257,8 @@ describe('Integration Tests', () => {
         level: 'info',
         data: {
           duration: 1500,
-          type: 'navigation'
-        }
+          type: 'navigation',
+        },
       });
 
       // Capture a message to trigger sending
@@ -276,12 +275,12 @@ describe('Integration Tests', () => {
       (global as any).wx.request = mockRequest;
 
       init({
-        dsn: 'https://test@sentry.io/123'
+        dsn: 'https://test@sentry.io/123',
       });
 
       // Simulate slow operation
       const startTime = Date.now();
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       const duration = Date.now() - startTime;
 
       if (duration > 50) {
@@ -300,7 +299,7 @@ describe('Integration Tests', () => {
         const requestData = JSON.parse((options as any).data);
         expect(JSON.stringify(requestData)).not.toContain('password');
         expect(JSON.stringify(requestData)).not.toContain('secret');
-        
+
         (options as any).success({ statusCode: 200, data: 'OK', header: {} });
       });
       (global as any).wx.request = mockRequest;
@@ -314,7 +313,7 @@ describe('Integration Tests', () => {
             delete event.extra.secret;
           }
           return event;
-        }
+        },
       });
 
       // Capture exception with sensitive data
@@ -338,7 +337,7 @@ describe('Integration Tests', () => {
       // Initialize with 0% sampling (should not send events)
       init({
         dsn: 'https://test@sentry.io/123',
-        sampleRate: 0
+        sampleRate: 0,
       });
 
       captureException(new Error('Sampled out error'));

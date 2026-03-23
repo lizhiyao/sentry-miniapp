@@ -4940,7 +4940,7 @@ Reason: ${reason}`
     }
     isolationScope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
   }
-  const SDK_VERSION = "1.3.1";
+  const SDK_VERSION = "1.4.0";
   const SDK_NAME = "sentry.javascript.miniapp";
   const getSDK = () => {
     let currentSdk = {
@@ -5128,7 +5128,11 @@ Reason: ${reason}`
             });
           },
           fail: (error2) => {
-            reject(new Error(`Network request failed: ${error2.errMsg || error2.errorMessage || error2.message || "Unknown error"}`));
+            reject(
+              new Error(
+                `Network request failed: ${error2.errMsg || error2.errorMessage || error2.message || "Unknown error"}`
+              )
+            );
           }
         };
         if (sdk().request) {
@@ -5142,15 +5146,16 @@ Reason: ${reason}`
     }
     return createTransport(options, makeRequest);
   }
-  const MAX_OFFLINE_CACHE_SIZE = 30;
+  const DEFAULT_OFFLINE_CACHE_SIZE = 30;
   const OFFLINE_STORE_KEY = "sentry_offline_store";
-  function createMiniappOfflineStore(_options) {
+  function createMiniappOfflineStore(options) {
+    const maxCacheSize = options.offlineCacheLimit || DEFAULT_OFFLINE_CACHE_SIZE;
     return {
       push: (env) => __async(null, null, function* () {
         try {
           const store = getStore();
           store.push(env);
-          if (store.length > MAX_OFFLINE_CACHE_SIZE) {
+          if (store.length > maxCacheSize) {
             store.shift();
           }
           setStore(store);
@@ -5162,7 +5167,7 @@ Reason: ${reason}`
         try {
           const store = getStore();
           store.unshift(env);
-          if (store.length > MAX_OFFLINE_CACHE_SIZE) {
+          if (store.length > maxCacheSize) {
             store.pop();
           }
           setStore(store);
@@ -5195,7 +5200,7 @@ Reason: ${reason}`
           return typeof storedStr === "string" ? JSON.parse(storedStr) : storedStr;
         }
       }
-    } catch (e) {
+    } catch (_e) {
     }
     return [];
   }
@@ -5205,7 +5210,7 @@ Reason: ${reason}`
       if (storageApi) {
         storageApi(OFFLINE_STORE_KEY, JSON.stringify(store));
       }
-    } catch (e) {
+    } catch (_e) {
     }
   }
   const index$1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -5227,6 +5232,7 @@ Reason: ${reason}`
           }));
           if (options.enableOfflineCache !== false) {
             return makeOfflineTransport(() => baseTransport)(__spreadProps(__spreadValues({}, transportOptions), {
+              offlineCacheLimit: options.offlineCacheLimit,
               createStore: createMiniappOfflineStore,
               flushAtStartup: true
               // 启动时自动重试发送
@@ -5242,10 +5248,12 @@ Reason: ${reason}`
     eventFromException(exception) {
       return Promise.resolve({
         exception: {
-          values: [{
-            type: exception.name || "Error",
-            value: exception.message || String(exception)
-          }]
+          values: [
+            {
+              type: exception.name || "Error",
+              value: exception.message || String(exception)
+            }
+          ]
         },
         level: "error"
       });
@@ -5316,34 +5324,19 @@ Reason: ${reason}`
         const currentScope = scope || getCurrentScope();
         const isolationScope = getIsolationScope();
         return super._prepareEvent(event, hint || {}, currentScope, isolationScope);
-      } catch (error2) {
+      } catch (_error) {
         return Promise.resolve(event);
       }
     }
     /**
-     * Show a report dialog to the user to send feedback to a specific event.
-     * 向用户显示报告对话框以将反馈发送到特定事件。
-     * 注意：小程序环境使用模态对话框模拟此功能
-     *
-     * @param options Set individual options for the dialog
+     * @deprecated Miniapp environment does not support Sentry's default HTML report dialog.
+     * Please implement your own UI form to collect user feedback (name, email, comments)
+     * and use `Sentry.captureFeedback()` to submit it to Sentry.
      */
-    showReportDialog(options = {}) {
-      const showModal = sdk().showModal;
-      if (showModal) {
-        showModal({
-          title: options.title || "错误反馈",
-          content: options.subtitle || "应用遇到了一个错误，是否要发送错误报告？",
-          confirmText: "发送",
-          cancelText: "取消",
-          success: (res) => {
-            if (res.confirm && options.onLoad) {
-              options.onLoad();
-            }
-          }
-        });
-      } else {
-        console.warn("sentry-miniapp: showModal is not available in current miniapp platform", options);
-      }
+    showReportDialog(_options = {}) {
+      console.warn(
+        "[sentry-miniapp] showReportDialog is deprecated and does nothing. Please build your own UI and use `Sentry.captureFeedback()` instead."
+      );
     }
     /**
      * Capture feedback using the new feedback API.
@@ -5453,23 +5446,26 @@ Reason: ${reason}`
         return;
       }
       if (sdk().onPageNotFound) {
-        (_b = (_a = sdk()).onPageNotFound) == null ? void 0 : _b.call(_a, (res) => {
-          const scope = getCurrentScope();
-          const url = res.path.split("?")[0];
-          scope.setTag("pagenotfound", url);
-          scope.setContext("page_not_found", {
-            path: res.path,
-            query: res.query,
-            isEntryPage: res.isEntryPage
-          });
-          captureException(new Error(`页面无法找到: ${url}`), {
-            level: "warning",
-            mechanism: {
-              type: "onpagenotfound",
-              handled: true
-            }
-          });
-        });
+        (_b = (_a = sdk()).onPageNotFound) == null ? void 0 : _b.call(
+          _a,
+          (res) => {
+            const scope = getCurrentScope();
+            const url = res.path.split("?")[0];
+            scope.setTag("pagenotfound", url);
+            scope.setContext("page_not_found", {
+              path: res.path,
+              query: res.query,
+              isEntryPage: res.isEntryPage
+            });
+            captureException(new Error(`页面无法找到: ${url}`), {
+              level: "warning",
+              mechanism: {
+                type: "onpagenotfound",
+                handled: true
+              }
+            });
+          }
+        );
       }
       this._onPageNotFoundHandlerInstalled = true;
     }
@@ -5557,13 +5553,13 @@ Reason: ${reason}`
     setupOnce() {
       const global2 = globalThis;
       if (global2.setTimeout) {
-        fill(global2, "setTimeout", this._wrapTimeFunction.bind(this));
+        fill$1(global2, "setTimeout", this._wrapTimeFunction.bind(this));
       }
       if (global2.setInterval) {
-        fill(global2, "setInterval", this._wrapTimeFunction.bind(this));
+        fill$1(global2, "setInterval", this._wrapTimeFunction.bind(this));
       }
       if (global2.requestAnimationFrame) {
-        fill(global2, "requestAnimationFrame", this._wrapRAF.bind(this));
+        fill$1(global2, "requestAnimationFrame", this._wrapRAF.bind(this));
       }
     }
   };
@@ -5580,7 +5576,7 @@ Reason: ${reason}`
       if (fn.__sentry_wrapped__) {
         return fn.__sentry_wrapped__;
       }
-    } catch (e) {
+    } catch (_e) {
       return fn;
     }
     const sentryWrapped = function(...args) {
@@ -5644,7 +5640,7 @@ Reason: ${reason}`
     }
     return sentryWrapped;
   }
-  function fill(source, name, replacementFactory) {
+  function fill$1(source, name, replacementFactory) {
     if (!(name in source)) {
       return;
     }
@@ -5662,7 +5658,7 @@ Reason: ${reason}`
   function getFunctionName(fn) {
     try {
       return fn && fn.name || "<anonymous>";
-    } catch (e) {
+    } catch (_e) {
       return "<anonymous>";
     }
   }
@@ -5772,7 +5768,7 @@ Reason: ${reason}`
           const accountInfo = (_b = (_a = sdk()).getAccountInfoSync) == null ? void 0 : _b.call(_a);
           return ((_c = accountInfo.miniProgram) == null ? void 0 : _c.appId) || "unknown";
         }
-      } catch (e) {
+      } catch (_e) {
       }
       return "unknown";
     }
@@ -5786,7 +5782,7 @@ Reason: ${reason}`
           const accountInfo = (_b = (_a = sdk()).getAccountInfoSync) == null ? void 0 : _b.call(_a);
           return ((_c = accountInfo == null ? void 0 : accountInfo.miniProgram) == null ? void 0 : _c.version) || "unknown";
         }
-      } catch (e) {
+      } catch (_e) {
       }
       return "unknown";
     }
@@ -5825,7 +5821,7 @@ Reason: ${reason}`
             }
           });
         }
-      } catch (e) {
+      } catch (_e) {
       }
       return {};
     }
@@ -6018,7 +6014,7 @@ Reason: ${reason}`
           scope.setTag("app.version", systemInfo.version);
           scope.setTag("language", systemInfo.language);
         }
-      } catch (e) {
+      } catch (_e) {
       }
     }
     /**
@@ -6040,7 +6036,7 @@ Reason: ${reason}`
             }
           });
         }
-      } catch (e) {
+      } catch (_e) {
       }
     }
     /**
@@ -6063,7 +6059,7 @@ Reason: ${reason}`
             }
           });
         }
-      } catch (e) {
+      } catch (_e) {
       }
     }
   };
@@ -6147,7 +6143,7 @@ Reason: ${reason}`
             return currentPage.route || currentPage.__route__ || "";
           }
         }
-      } catch (e) {
+      } catch (_e) {
       }
       return "";
     }
@@ -6299,7 +6295,10 @@ Reason: ${reason}`
           const safeTypes = entryTypes.filter((t) => t !== "measure" && t !== "mark");
           if (safeTypes.length < entryTypes.length && safeTypes.length > 0) {
             observer.observe({ entryTypes: safeTypes });
-            console.warn("[Sentry Performance] Failed to observe all types, falling back to:", safeTypes);
+            console.warn(
+              "[Sentry Performance] Failed to observe all types, falling back to:",
+              safeTypes
+            );
             entryTypes.length = 0;
             entryTypes.push(...safeTypes);
           } else {
@@ -6385,86 +6384,98 @@ Reason: ${reason}`
           pageReadyTime: entry.pageReadyTime
         }
       });
-      startSpan({
-        name: `Navigation: ${entry.name}`,
-        op: "navigation",
-        startTime: entry.startTime / 1e3
-        // 转换为秒
-      }, (span) => {
-        span.setAttributes({
-          "navigation.name": entry.name,
-          "navigation.duration": entry.duration,
-          "navigation.app_launch_time": entry.appLaunchTime || 0,
-          "navigation.page_ready_time": entry.pageReadyTime || 0,
-          "navigation.first_render_time": entry.firstRenderTime || 0
-        });
-        span.end((entry.startTime + entry.duration) / 1e3);
-      });
+      startSpan(
+        {
+          name: `Navigation: ${entry.name}`,
+          op: "navigation",
+          startTime: entry.startTime / 1e3
+          // 转换为秒
+        },
+        (span) => {
+          span.setAttributes({
+            "navigation.name": entry.name,
+            "navigation.duration": entry.duration,
+            "navigation.app_launch_time": entry.appLaunchTime || 0,
+            "navigation.page_ready_time": entry.pageReadyTime || 0,
+            "navigation.first_render_time": entry.firstRenderTime || 0
+          });
+          span.end((entry.startTime + entry.duration) / 1e3);
+        }
+      );
     }
     /**
      * 处理渲染性能条目
      */
     _processRenderEntry(entry) {
-      startSpan({
-        name: `Render: ${entry.name}`,
-        op: "render",
-        startTime: entry.startTime / 1e3
-      }, (span) => {
-        span.setAttributes({
-          "render.name": entry.name,
-          "render.duration": entry.duration,
-          "render.start": entry.renderStart || 0,
-          "render.end": entry.renderEnd || 0,
-          "render.script_start": entry.scriptStart || 0,
-          "render.script_end": entry.scriptEnd || 0
-        });
-        span.end((entry.startTime + entry.duration) / 1e3);
-      });
+      startSpan(
+        {
+          name: `Render: ${entry.name}`,
+          op: "render",
+          startTime: entry.startTime / 1e3
+        },
+        (span) => {
+          span.setAttributes({
+            "render.name": entry.name,
+            "render.duration": entry.duration,
+            "render.start": entry.renderStart || 0,
+            "render.end": entry.renderEnd || 0,
+            "render.script_start": entry.scriptStart || 0,
+            "render.script_end": entry.scriptEnd || 0
+          });
+          span.end((entry.startTime + entry.duration) / 1e3);
+        }
+      );
     }
     /**
      * 处理资源加载性能条目
      */
     _processResourceEntry(entry) {
-      startSpan({
-        name: `Resource: ${entry.name}`,
-        op: "resource",
-        startTime: entry.startTime / 1e3
-      }, (span) => {
-        span.setAttributes({
-          "resource.name": entry.name,
-          "resource.duration": entry.duration,
-          "resource.type": entry.initiatorType || "unknown",
-          "resource.transfer_size": entry.transferSize || 0,
-          "resource.encoded_size": entry.encodedBodySize || 0,
-          "resource.decoded_size": entry.decodedBodySize || 0
-        });
-        if (entry.fetchStart && entry.responseEnd) {
+      startSpan(
+        {
+          name: `Resource: ${entry.name}`,
+          op: "resource",
+          startTime: entry.startTime / 1e3
+        },
+        (span) => {
           span.setAttributes({
-            "resource.fetch_start": entry.fetchStart,
-            "resource.response_end": entry.responseEnd,
-            "resource.network_time": entry.responseEnd - entry.fetchStart
+            "resource.name": entry.name,
+            "resource.duration": entry.duration,
+            "resource.type": entry.initiatorType || "unknown",
+            "resource.transfer_size": entry.transferSize || 0,
+            "resource.encoded_size": entry.encodedBodySize || 0,
+            "resource.decoded_size": entry.decodedBodySize || 0
           });
+          if (entry.fetchStart && entry.responseEnd) {
+            span.setAttributes({
+              "resource.fetch_start": entry.fetchStart,
+              "resource.response_end": entry.responseEnd,
+              "resource.network_time": entry.responseEnd - entry.fetchStart
+            });
+          }
+          span.end((entry.startTime + entry.duration) / 1e3);
         }
-        span.end((entry.startTime + entry.duration) / 1e3);
-      });
+      );
     }
     /**
      * 处理用户自定义性能条目
      */
     _processUserTimingEntry(entry) {
       if (entry.entryType === "measure") {
-        startSpan({
-          name: `Measure: ${entry.name}`,
-          op: "measure",
-          startTime: entry.startTime / 1e3
-        }, (span) => {
-          span.setAttributes({
-            "measure.name": entry.name,
-            "measure.duration": entry.duration,
-            "measure.detail": entry.detail ? JSON.stringify(entry.detail) : void 0
-          });
-          span.end((entry.startTime + entry.duration) / 1e3);
-        });
+        startSpan(
+          {
+            name: `Measure: ${entry.name}`,
+            op: "measure",
+            startTime: entry.startTime / 1e3
+          },
+          (span) => {
+            span.setAttributes({
+              "measure.name": entry.name,
+              "measure.duration": entry.duration,
+              "measure.detail": entry.detail ? JSON.stringify(entry.detail) : void 0
+            });
+            span.end((entry.startTime + entry.duration) / 1e3);
+          }
+        );
       } else if (entry.entryType === "mark") {
         const scope = getCurrentScope();
         scope.addBreadcrumb({
@@ -6708,12 +6719,132 @@ Reason: ${reason}`
   };
   _RewriteFrames.id = "RewriteFrames";
   let RewriteFrames = _RewriteFrames;
+  function fill(source, name, replacementFactory) {
+    if (!(name in source)) {
+      return;
+    }
+    const original = source[name];
+    const wrapped = replacementFactory(original);
+    if (typeof wrapped === "function") {
+      try {
+        wrapped.prototype = wrapped.prototype || {};
+        wrapped.prototype.constructor = wrapped;
+      } catch (_Oo) {
+      }
+    }
+    source[name] = wrapped;
+  }
+  const _NetworkBreadcrumbs = class _NetworkBreadcrumbs {
+    constructor(options = {}) {
+      this.name = _NetworkBreadcrumbs.id;
+      this._traceNetworkBody = !!options.traceNetworkBody;
+    }
+    /**
+     * @inheritDoc
+     */
+    setupOnce() {
+      const miniappSdk = sdk();
+      if (miniappSdk && typeof miniappSdk.request === "function") {
+        fill(miniappSdk, "request", this._createRequestWrapper.bind(this));
+      }
+      if (miniappSdk && typeof miniappSdk.httpRequest === "function") {
+        fill(miniappSdk, "httpRequest", this._createRequestWrapper.bind(this));
+      }
+    }
+    /**
+     * Wraps the miniapp request API to capture breadcrumbs
+     */
+    _createRequestWrapper(originalRequest) {
+      const traceNetworkBody = this._traceNetworkBody;
+      return function(options) {
+        if (!options || typeof options !== "object") {
+          return originalRequest.call(this, options);
+        }
+        const url = options.url || "";
+        const client = getClient();
+        let dsnUrl = "";
+        if (client) {
+          const dsn = client.getOptions().dsn;
+          if (dsn) {
+            try {
+              const dsnMatch = dsn.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?([^:/\n]+)/i);
+              if (dsnMatch && dsnMatch[1]) {
+                dsnUrl = dsnMatch[1];
+              }
+            } catch (_e) {
+            }
+          }
+        }
+        if (typeof url === "string") {
+          const hostMatch = url.match(/^https?:\/\/([^:/\n]+)/i);
+          const requestHost = hostMatch && hostMatch[1] ? hostMatch[1] : "";
+          const isSentryRequest = dsnUrl && requestHost === dsnUrl || requestHost === "sentry.io" || requestHost.endsWith(".sentry.io");
+          if (isSentryRequest) {
+            return originalRequest.call(this, options);
+          }
+        }
+        const method = (options.method || "GET").toUpperCase();
+        const requestData = options.data;
+        const breadcrumbData = {
+          url,
+          method
+        };
+        if (traceNetworkBody && requestData) {
+          try {
+            breadcrumbData["request_body"] = typeof requestData === "string" ? requestData : JSON.stringify(requestData);
+          } catch (_e) {
+            breadcrumbData["request_body"] = "[Cannot serialize request body]";
+          }
+        }
+        const originalSuccess = options.success;
+        const originalFail = options.fail;
+        options.success = function(...args) {
+          const res = args[0] || {};
+          const statusCode = res.statusCode || res.status;
+          breadcrumbData["status_code"] = statusCode;
+          if (traceNetworkBody && res.data) {
+            try {
+              breadcrumbData["response_body"] = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+            } catch (_e) {
+              breadcrumbData["response_body"] = "[Cannot serialize response body]";
+            }
+          }
+          addBreadcrumb({
+            type: "http",
+            category: "xhr",
+            data: breadcrumbData,
+            level: statusCode >= 400 ? "warning" : "info"
+          });
+          if (typeof originalSuccess === "function") {
+            return originalSuccess.apply(this, args);
+          }
+        };
+        options.fail = function(...args) {
+          const err = args[0] || {};
+          breadcrumbData["error"] = err.errMsg || err.errorMessage || "Network request failed";
+          addBreadcrumb({
+            type: "http",
+            category: "xhr",
+            data: breadcrumbData,
+            level: "error"
+          });
+          if (typeof originalFail === "function") {
+            return originalFail.apply(this, args);
+          }
+        };
+        return originalRequest.call(this, options);
+      };
+    }
+  };
+  _NetworkBreadcrumbs.id = "NetworkBreadcrumbs";
+  let NetworkBreadcrumbs = _NetworkBreadcrumbs;
   const index = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
     __proto__: null,
     Dedupe,
     GlobalHandlers,
     HttpContext,
     LinkedErrors,
+    NetworkBreadcrumbs,
     PerformanceIntegration,
     RewriteFrames,
     Router,
@@ -6754,6 +6885,7 @@ Reason: ${reason}`
     if (opts.enableSourceMap !== false) {
       opts.integrations.push(new RewriteFrames());
     }
+    opts.integrations.push(new NetworkBreadcrumbs({ traceNetworkBody: opts.traceNetworkBody }));
     setContext("miniapp", {
       platform: appName,
       environment: "miniapp"
@@ -6776,16 +6908,13 @@ Reason: ${reason}`
     initAndBind(MiniappClient, opts);
     return getCurrentScope().getClient();
   }
-  function showReportDialog(options = {}) {
-    const client = getCurrentScope().getClient();
-    if (client) {
-      client.showReportDialog(options);
-    } else {
-      console.warn("sentry-miniapp: No client available for showReportDialog");
-    }
+  function showReportDialog(_options = {}) {
+    console.warn(
+      "[sentry-miniapp] showReportDialog is deprecated and does nothing. Please build your own UI and use `Sentry.captureFeedback()` instead."
+    );
   }
   function wrap(fn) {
-    return (function(...args) {
+    return function(...args) {
       return withScope(() => {
         try {
           return fn.apply(this, args);
@@ -6794,7 +6923,7 @@ Reason: ${reason}`
           throw error2;
         }
       });
-    });
+    };
   }
   function captureFeedback(params) {
     const client = getCurrentScope().getClient();

@@ -68,16 +68,20 @@ export class NetworkBreadcrumbs implements Integration {
             if (dsnMatch && dsnMatch[1]) {
               dsnUrl = dsnMatch[1];
             }
-          } catch (e) {
+          } catch (_e) {
             // fallback
           }
         }
       }
 
       // Ignore Sentry's own requests to prevent infinite loops
-      // Fallback to 'sentry.io' if DSN extraction fails but it's the SaaS version
       if (typeof url === 'string') {
-        const isSentryRequest = (dsnUrl && url.indexOf(dsnUrl) !== -1) || url.indexOf('sentry.io') !== -1;
+        const hostMatch = url.match(/^https?:\/\/([^:/\n]+)/i);
+        const requestHost = hostMatch && hostMatch[1] ? hostMatch[1] : '';
+        const isSentryRequest =
+          (dsnUrl && requestHost === dsnUrl) ||
+          requestHost === 'sentry.io' ||
+          requestHost.endsWith('.sentry.io');
         if (isSentryRequest) {
           return originalRequest.call(this, options);
         }
@@ -93,10 +97,9 @@ export class NetworkBreadcrumbs implements Integration {
 
       if (traceNetworkBody && requestData) {
         try {
-          breadcrumbData['request_body'] = typeof requestData === 'string'
-            ? requestData
-            : JSON.stringify(requestData);
-        } catch (e) {
+          breadcrumbData['request_body'] =
+            typeof requestData === 'string' ? requestData : JSON.stringify(requestData);
+        } catch (_e) {
           breadcrumbData['request_body'] = '[Cannot serialize request body]';
         }
       }
@@ -112,10 +115,9 @@ export class NetworkBreadcrumbs implements Integration {
 
         if (traceNetworkBody && res.data) {
           try {
-            breadcrumbData['response_body'] = typeof res.data === 'string'
-              ? res.data
-              : JSON.stringify(res.data);
-          } catch (e) {
+            breadcrumbData['response_body'] =
+              typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+          } catch (_e) {
             breadcrumbData['response_body'] = '[Cannot serialize response body]';
           }
         }

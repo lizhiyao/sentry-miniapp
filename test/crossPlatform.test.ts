@@ -11,7 +11,7 @@ describe('CrossPlatform', () => {
       tt: (global as any).tt,
       dd: (global as any).dd,
       qq: (global as any).qq,
-      swan: (global as any).swan
+      swan: (global as any).swan,
     };
 
     // 清理全局对象
@@ -43,7 +43,7 @@ describe('CrossPlatform', () => {
       const mockWx = {
         request: jest.fn(),
         getSystemInfoSync: jest.fn(),
-        onError: jest.fn()
+        onError: jest.fn(),
       };
       (global as any).wx = mockWx;
 
@@ -55,7 +55,7 @@ describe('CrossPlatform', () => {
     it('should return my SDK when wx not available but my is', async () => {
       const mockMy = {
         request: jest.fn(),
-        getSystemInfoSync: jest.fn()
+        getSystemInfoSync: jest.fn(),
       };
       (global as any).my = mockMy;
 
@@ -67,7 +67,7 @@ describe('CrossPlatform', () => {
     it('should return tt SDK when wx and my not available but tt is', async () => {
       const mockTt = {
         request: jest.fn(),
-        getSystemInfoSync: jest.fn()
+        getSystemInfoSync: jest.fn(),
       };
       (global as any).tt = mockTt;
 
@@ -79,7 +79,7 @@ describe('CrossPlatform', () => {
     it('should return dd SDK when others not available but dd is', async () => {
       const mockDd = {
         httpRequest: jest.fn(),
-        getSystemInfoSync: jest.fn()
+        getSystemInfoSync: jest.fn(),
       };
       (global as any).dd = mockDd;
 
@@ -91,7 +91,7 @@ describe('CrossPlatform', () => {
     it('should return qq SDK when others not available but qq is', async () => {
       const mockQq = {
         request: jest.fn(),
-        getSystemInfoSync: jest.fn()
+        getSystemInfoSync: jest.fn(),
       };
       (global as any).qq = mockQq;
 
@@ -103,7 +103,7 @@ describe('CrossPlatform', () => {
     it('should return swan SDK when others not available but swan is', async () => {
       const mockSwan = {
         request: jest.fn(),
-        getSystemInfoSync: jest.fn()
+        getSystemInfoSync: jest.fn(),
       };
       (global as any).swan = mockSwan;
 
@@ -134,11 +134,11 @@ describe('CrossPlatform', () => {
         system: 'iOS 15.0',
         platform: 'ios',
         fontSizeSetting: 16,
-        SDKVersion: '2.19.4'
+        SDKVersion: '2.19.4',
       };
 
       (global as any).wx = {
-        getSystemInfoSync: jest.fn().mockReturnValue(mockSystemInfo)
+        getSystemInfoSync: jest.fn().mockReturnValue(mockSystemInfo),
       };
 
       const { getSystemInfo } = await import('../src/crossPlatform');
@@ -149,7 +149,7 @@ describe('CrossPlatform', () => {
     it('should return combined info from new APIs when available', async () => {
       const mockDeviceInfo = {
         brand: 'Apple',
-        model: 'iPhone 12'
+        model: 'iPhone 12',
       };
       const mockWindowInfo = {
         pixelRatio: 3,
@@ -157,24 +157,24 @@ describe('CrossPlatform', () => {
         screenHeight: 844,
         windowWidth: 390,
         windowHeight: 844,
-        statusBarHeight: 44
+        statusBarHeight: 44,
       };
       const mockAppBaseInfo = {
         language: 'zh_CN',
         version: '8.0.5',
-        SDKVersion: '2.19.4'
+        SDKVersion: '2.19.4',
       };
       const mockSystemSetting = {
         bluetoothEnabled: true,
         locationEnabled: true,
-        wifiEnabled: true
+        wifiEnabled: true,
       };
 
       (global as any).wx = {
         getDeviceInfo: jest.fn().mockReturnValue(mockDeviceInfo),
         getWindowInfo: jest.fn().mockReturnValue(mockWindowInfo),
         getAppBaseInfo: jest.fn().mockReturnValue(mockAppBaseInfo),
-        getSystemSetting: jest.fn().mockReturnValue(mockSystemSetting)
+        getSystemSetting: jest.fn().mockReturnValue(mockSystemSetting),
       };
 
       const { getSystemInfo } = await import('../src/crossPlatform');
@@ -193,7 +193,7 @@ describe('CrossPlatform', () => {
         SDKVersion: '2.19.4',
         bluetoothEnabled: true,
         locationEnabled: true,
-        wifiEnabled: true
+        wifiEnabled: true,
       });
     });
 
@@ -209,7 +209,7 @@ describe('CrossPlatform', () => {
       (global as any).wx = {
         getSystemInfoSync: jest.fn().mockImplementation(() => {
           throw new Error('System info error');
-        })
+        }),
       };
 
       const { getSystemInfo } = await import('../src/crossPlatform');

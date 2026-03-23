@@ -1,12 +1,5 @@
-import {
-  getCurrentScope,
-  initAndBind,
-  setContext,
-  withScope,
-} from '@sentry/core';
-import type {
-  Integration,
-} from '@sentry/core';
+import { getCurrentScope, initAndBind, setContext, withScope } from '@sentry/core';
+import type { Integration } from '@sentry/core';
 
 import { MiniappClient } from './client';
 import { appName, getSystemInfo, isMiniappEnvironment } from './crossPlatform';
@@ -106,14 +99,14 @@ export function init(options: MiniappOptions = {} as any): MiniappClient | undef
  * @deprecated Miniapp environment does not support Sentry's default HTML report dialog.
  * Please implement your own UI form to collect user feedback (name, email, comments)
  * and use `Sentry.captureFeedback()` to submit it to Sentry.
- * 
+ *
  * 小程序环境不支持 Sentry 官方的 HTML 反馈弹窗。
  * 请自行实现 UI 表单收集用户反馈，并调用 `Sentry.captureFeedback()` 进行上报。
  */
 export function showReportDialog(_options: ReportDialogOptions = {}): void {
   console.warn(
     '[sentry-miniapp] showReportDialog is deprecated and does nothing. ' +
-    'Please build your own UI and use `Sentry.captureFeedback()` instead.'
+      'Please build your own UI and use `Sentry.captureFeedback()` instead.',
   );
 }
 
@@ -150,7 +143,7 @@ export function close(timeout?: number): PromiseLike<boolean> {
  * Wrap a function to capture exceptions
  */
 export function wrap<T extends (...args: any[]) => any>(fn: T): T {
-  return (function (this: any, ...args: Parameters<T>) {
+  return function (this: any, ...args: Parameters<T>) {
     return withScope(() => {
       try {
         return fn.apply(this, args);
@@ -159,10 +152,8 @@ export function wrap<T extends (...args: any[]) => any>(fn: T): T {
         throw error;
       }
     });
-  }) as T;
+  } as T;
 }
-
-
 
 /**
  * Capture feedback using the new feedback API.

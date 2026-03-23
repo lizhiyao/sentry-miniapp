@@ -110,8 +110,8 @@ describe('Integrations', () => {
         const event = {
           message: 'test',
           contexts: {
-            custom: { data: 'value' }
-          }
+            custom: { data: 'value' },
+          },
         };
         const processedEvent = eventProcessor?.(event);
 
@@ -166,11 +166,13 @@ describe('Integrations', () => {
 
         const event = {
           exception: {
-            values: [{
-              type: 'Error',
-              value: 'Main error'
-            }]
-          }
+            values: [
+              {
+                type: 'Error',
+                value: 'Main error',
+              },
+            ],
+          },
         };
 
         const hint = { originalException: error };

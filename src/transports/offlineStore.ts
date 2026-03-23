@@ -1,5 +1,8 @@
 import type { Envelope } from '@sentry/core';
-import type { OfflineStore, OfflineTransportOptions } from '@sentry/core/build/types/transports/offline';
+import type {
+  OfflineStore,
+  OfflineTransportOptions,
+} from '@sentry/core/build/types/transports/offline';
 import { sdk } from '../crossPlatform';
 
 const DEFAULT_OFFLINE_CACHE_SIZE = 30; // 默认最大缓存数量
@@ -67,7 +70,7 @@ function getStore(): Envelope[] {
         return typeof storedStr === 'string' ? JSON.parse(storedStr) : storedStr;
       }
     }
-  } catch (e) {
+  } catch (_e) {
     // ignore
   }
   return [];
@@ -79,7 +82,7 @@ function setStore(store: Envelope[]): void {
     if (storageApi) {
       storageApi(OFFLINE_STORE_KEY, JSON.stringify(store));
     }
-  } catch (e) {
+  } catch (_e) {
     // ignore
   }
 }

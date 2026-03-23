@@ -19,7 +19,6 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
    * Make a request using miniapp request API
    */
   function makeRequest(request: any): Promise<TransportMakeRequestResponse> {
-
     return new Promise((resolve, reject) => {
       const requestOptions = {
         url: transportUrl,
@@ -49,7 +48,11 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
           });
         },
         fail: (error: any) => {
-          reject(new Error(`Network request failed: ${error.errMsg || error.errorMessage || error.message || 'Unknown error'}`));
+          reject(
+            new Error(
+              `Network request failed: ${error.errMsg || error.errorMessage || error.message || 'Unknown error'}`,
+            ),
+          );
         },
       };
 

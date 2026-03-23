@@ -1,4 +1,11 @@
-import type { Event, EventHint, Exception, ExtendedError, Integration, IntegrationFn } from '@sentry/core';
+import type {
+  Event,
+  EventHint,
+  Exception,
+  ExtendedError,
+  Integration,
+  IntegrationFn,
+} from '@sentry/core';
 import { exceptionFromError, getCurrentScope } from '@sentry/core';
 
 const DEFAULT_KEY = 'cause';
@@ -59,7 +66,12 @@ export class LinkedErrors implements Integration {
    * @inheritDoc
    */
   private _handler(event: Event, hint?: EventHint): Event {
-    if (!event.exception || !event.exception.values || !hint || !isInstanceOf(hint.originalException, Error)) {
+    if (
+      !event.exception ||
+      !event.exception.values ||
+      !hint ||
+      !isInstanceOf(hint.originalException, Error)
+    ) {
       return event;
     }
 
@@ -97,11 +109,12 @@ function isInstanceOf(wat: any, base: any): boolean {
   }
 }
 
-
-
 /**
  * LinkedErrors integration
  */
-export const linkedErrorsIntegration: IntegrationFn = (options?: { key?: string; limit?: number }) => {
+export const linkedErrorsIntegration: IntegrationFn = (options?: {
+  key?: string;
+  limit?: number;
+}) => {
   return new LinkedErrors(options);
 };

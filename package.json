@@ -56,7 +56,7 @@
   "author": "dancerlzy@gmail.com",
   "license": "MIT",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=20"
   },
   "main": "dist/sentry-miniapp.cjs.js",
   "module": "dist/sentry-miniapp.esm.js",
@@ -90,6 +90,7 @@
     "js-yaml": "3.14.2",
     "lint-staged": "^16.4.0",
     "lodash": "4.17.23",
+    "prettier": "^3.8.1",
     "ts-jest": "^29.4.0",
     "typescript": "^5.8.3",
     "vite": "^6.4.1",
@@ -104,7 +105,7 @@
       "prettier --write"
     ],
     "yarn.lock": [
-      "node -e \"const fs = require('fs'); const content = fs.readFileSync('yarn.lock', 'utf8'); if (/registry\\.[a-zA-Z0-9-]+\\.(cn|net|com|org)(?!npmjs\\.org)/i.test(content)) { console.error('Error: yarn.lock contains non-official registry URLs. Please clean it.'); process.exit(1); }\""
+      "node -e \"const fs = require('fs'); const content = fs.readFileSync('yarn.lock', 'utf8'); if (/registry\\.(?!npmjs\\.org)[a-zA-Z0-9-]+\\.(cn|net|com|org)/i.test(content)) { console.error('Error: yarn.lock contains non-official registry URLs. Please clean it.'); process.exit(1); }\""
     ]
   },
   "commit-and-tag-version": {

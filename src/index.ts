@@ -1,12 +1,12 @@
 // Sentry Miniapp SDK for WeChat Mini Program
-// Based on @sentry/core 9.38.0
+// Based on @sentry/core 10.45.0
 // Development Mode: Auto-rebuild enabled
 
 // Install polyfills for miniapp environment
 import { ensurePolyfills } from './polyfills';
 ensurePolyfills();
 
-// Export types from @sentry/core (v9 moved types from @sentry/types to @sentry/core)
+// Export types from @sentry/core (types moved from @sentry/types to @sentry/core)
 export type {
   Breadcrumb,
   BreadcrumbHint,
@@ -77,7 +77,10 @@ export {
   type PerformanceManager,
   type PerformanceObserver,
 } from './crossPlatform';
-export { performanceIntegration, type PerformanceIntegrationOptions } from './integrations/performance';
+export {
+  performanceIntegration,
+  type PerformanceIntegrationOptions,
+} from './integrations/performance';
 
 // Export Session utility functions from @sentry/core
 export { makeSession, closeSession, updateSession } from '@sentry/core';

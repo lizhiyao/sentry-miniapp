@@ -6,7 +6,7 @@ jest.mock('@sentry/core', () => {
   return {
     addBreadcrumb: jest.fn(),
     getClient: jest.fn(() => ({
-      getOptions: () => ({ dsn: 'https://key@sentry.io/123' })
+      getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
     })),
   };
 });
@@ -97,10 +97,47 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(requestMock).toHaveBeenCalled();
   });
 
+  it('should NOT ignore URLs that merely contain sentry.io as substring', () => {
+    const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
+    integration.setupOnce();
+
+    const miniappSdk = crossPlatform.sdk();
+
+    // evil-sentry.io should NOT be filtered
+    miniappSdk.request({
+      url: 'https://evil-sentry.io/steal',
+      method: 'POST',
+    });
+    expect(addBreadcrumb).toHaveBeenCalledTimes(1);
+
+    jest.clearAllMocks();
+
+    // sentry.io.evil.com should NOT be filtered
+    miniappSdk.request({
+      url: 'https://sentry.io.evil.com/steal',
+      method: 'POST',
+    });
+    expect(addBreadcrumb).toHaveBeenCalledTimes(1);
+  });
+
+  it('should ignore subdomain of sentry.io', () => {
+    const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
+    integration.setupOnce();
+
+    const miniappSdk = crossPlatform.sdk();
+    miniappSdk.request({
+      url: 'https://o113510.ingest.sentry.io/api/123/envelope/',
+      method: 'POST',
+    });
+
+    expect(addBreadcrumb).not.toHaveBeenCalled();
+    expect(requestMock).toHaveBeenCalled();
+  });
+
   it('should ignore self-hosted sentry requests based on DSN', () => {
     // Override the getClient mock for this test
     (getClient as jest.Mock).mockReturnValueOnce({
-      getOptions: () => ({ dsn: 'http://mykey@sentry.mycompany.com:9000/1' })
+      getOptions: () => ({ dsn: 'http://mykey@sentry.mycompany.com:9000/1' }),
     });
 
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });

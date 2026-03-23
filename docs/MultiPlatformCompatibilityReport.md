@@ -90,21 +90,8 @@ Sentry Event 中的 `contexts.device` 和 `contexts.os` 极度依赖平台提供
 | **支付宝** | `setStorageSync({key, data})` | `getStorageSync({key})` | **传参方式完全不同**，且返回值是 `{data: ...}` 对象 |
 | **钉钉** | `setStorageSync({key, data})` | `getStorageSync({key})` | 与支付宝一致 |
 
-**🚨 高危兼容性预警：**
-当前 SDK 中的 `offlineStore.ts` 默认了 `sdk().setStorageSync(key, value)` 的微信传参方式。如果在**支付宝/钉钉**环境下运行，这会导致**本地存储完全失效甚至报错**。
-
-**适配策略 (急需修复)：**
-必须在 `crossPlatform.ts` 中针对支付宝/钉钉的 Storage API 进行包装，抹平传参差异。例如：
-```typescript
-// 针对支付宝的 getStorageSync 包装
-if (currentSdk === my && my.getStorageSync) {
-  const originalGet = my.getStorageSync;
-  currentSdk.getStorageSync = (key: string) => {
-    const res = originalGet({ key });
-    return res ? res.data : null;
-  };
-}
-```
+**✅ 已适配：**
+`crossPlatform.ts` 中已针对支付宝/钉钉的 Storage API 进行了包装，自动将 `setStorageSync(key, value)` 和 `getStorageSync(key)` 的微信风格调用转换为支付宝/钉钉的对象传参形式 `setStorageSync({key, data})` / `getStorageSync({key})`，`offlineStore.ts` 通过 `sdk()` 调用即可无感兼容。
 
 ---
 

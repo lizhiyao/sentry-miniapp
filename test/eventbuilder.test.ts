@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { 
-  eventFromException, 
-  eventFromMessage, 
-  eventFromUnknownInput, 
-  eventFromString 
+import {
+  eventFromException,
+  eventFromMessage,
+  eventFromUnknownInput,
+  eventFromString,
 } from '../src/eventbuilder';
 import { SeverityLevel } from '@sentry/core';
 import type { EventHint } from '@sentry/core';
@@ -11,11 +11,9 @@ import type { EventHint } from '@sentry/core';
 // Mock helpers
 jest.mock('../src/helpers', () => ({
   isError: jest.fn((value: any) => value instanceof Error),
-  isPlainObject: jest.fn((value: any) => 
-    value !== null && 
-    typeof value === 'object' && 
-    value.constructor === Object
-  )
+  isPlainObject: jest.fn(
+    (value: any) => value !== null && typeof value === 'object' && value.constructor === Object,
+  ),
 }));
 
 // Mock exceptionFromError function
@@ -24,21 +22,21 @@ const exceptionFromError = jest.fn((_stackParser: any, error: any) => {
     return {
       type: 'Error',
       value: 'null',
-      stacktrace: undefined
+      stacktrace: undefined,
     };
   }
   if (error === undefined) {
     return {
-      type: 'Error', 
+      type: 'Error',
       value: 'undefined',
-      stacktrace: undefined
+      stacktrace: undefined,
     };
   }
   if (typeof error === 'string') {
     return {
       type: 'Error',
       value: error,
-      stacktrace: undefined
+      stacktrace: undefined,
     };
   }
   if (error && typeof error === 'object') {
@@ -46,20 +44,20 @@ const exceptionFromError = jest.fn((_stackParser: any, error: any) => {
       return {
         type: error.name || 'Error',
         value: error.message,
-        stacktrace: error.stack ? { frames: [] } : undefined
+        stacktrace: error.stack ? { frames: [] } : undefined,
       };
     } else {
       return {
         type: 'Error',
         value: error.message || JSON.stringify(error),
-        stacktrace: undefined
+        stacktrace: undefined,
       };
     }
   }
   return {
     type: 'Error',
     value: String(error),
-    stacktrace: undefined
+    stacktrace: undefined,
   };
 });
 
@@ -72,7 +70,7 @@ describe('EventBuilder', () => {
     it('should create event from Error object', () => {
       const error = new Error('Test error');
       error.stack = 'Error: Test error\n    at test.js:1:1';
-      
+
       const event = eventFromException({}, error, undefined);
 
       expect(event.exception).toBeDefined();
@@ -84,7 +82,7 @@ describe('EventBuilder', () => {
 
     it('should create event from string error', () => {
       const error = 'String error message';
-      
+
       const event = eventFromException({}, error, undefined);
 
       expect(event.exception).toBeDefined();
@@ -96,7 +94,7 @@ describe('EventBuilder', () => {
 
     it('should create event from object error', () => {
       const error = { message: 'Object error', code: 500 };
-      
+
       const event = eventFromException({}, error, undefined);
 
       expect(event.exception).toBeDefined();
@@ -112,7 +110,7 @@ describe('EventBuilder', () => {
 
       expect(event1.exception).toBeDefined();
       expect(event1.exception?.values?.[0]?.value).toBe('null');
-      
+
       expect(event2.exception).toBeDefined();
       expect(event2.exception?.values?.[0]?.value).toBe('undefined');
     });
@@ -122,9 +120,9 @@ describe('EventBuilder', () => {
       const existingEvent = {
         event_id: 'existing-id',
         timestamp: 1234567890,
-        tags: { custom: 'tag' }
+        tags: { custom: 'tag' },
       };
-      
+
       const event = eventFromException(existingEvent, error, undefined);
 
       expect(event.event_id).toBe('existing-id');
@@ -138,7 +136,7 @@ describe('EventBuilder', () => {
     it('should create event from string message', () => {
       const message = 'Test message';
       const level: SeverityLevel = 'info';
-      
+
       const event = eventFromMessage({}, message, level, undefined);
 
       expect(event.message).toBe('Test message');
@@ -147,7 +145,7 @@ describe('EventBuilder', () => {
 
     it('should create event with default level', () => {
       const message = 'Test message';
-      
+
       const event = eventFromMessage({}, message, 'info', undefined);
 
       expect(event.message).toBe('Test message');
@@ -156,8 +154,8 @@ describe('EventBuilder', () => {
 
     it('should handle different severity levels', () => {
       const levels: SeverityLevel[] = ['debug', 'info', 'warning', 'error', 'fatal'];
-      
-      levels.forEach(level => {
+
+      levels.forEach((level) => {
         const event = eventFromMessage({}, 'Test message', level, undefined);
         expect(event.level).toBe(level);
       });
@@ -167,9 +165,9 @@ describe('EventBuilder', () => {
       const existingEvent = {
         event_id: 'existing-id',
         timestamp: 1234567890,
-        tags: { custom: 'tag' }
+        tags: { custom: 'tag' },
       };
-      
+
       const event = eventFromMessage(existingEvent, 'Test message', 'info', undefined);
 
       expect(event.event_id).toBe('existing-id');
@@ -198,7 +196,7 @@ describe('EventBuilder', () => {
     it('should create exception from Error object', () => {
       const error = new Error('Test error');
       error.stack = 'Error: Test error\n    at test.js:1:1';
-      
+
       const exception = exceptionFromError(() => [], error);
 
       expect(exception.type).toBe('Error');
@@ -213,7 +211,7 @@ describe('EventBuilder', () => {
           this.name = 'CustomError';
         }
       }
-      
+
       const error = new CustomError('Custom error message');
       const exception = exceptionFromError(() => [], error);
 
@@ -224,7 +222,7 @@ describe('EventBuilder', () => {
     it('should handle Error without stack trace', () => {
       const error = new Error('Test error');
       delete (error as any).stack;
-      
+
       const exception = exceptionFromError(() => [], error);
 
       expect(exception.type).toBe('Error');
@@ -234,7 +232,7 @@ describe('EventBuilder', () => {
 
     it('should handle Error with empty message', () => {
       const error = new Error('');
-      
+
       const exception = exceptionFromError(() => [], error);
 
       expect(exception.type).toBe('Error');
@@ -243,7 +241,7 @@ describe('EventBuilder', () => {
 
     it('should handle non-Error objects', () => {
       const errorObj = { message: 'Object error', code: 500 };
-      
+
       const exception = exceptionFromError(() => [], errorObj as any);
 
       expect(exception.type).toBe('Error');
@@ -252,7 +250,7 @@ describe('EventBuilder', () => {
 
     it('should handle string errors', () => {
       const errorString = 'String error';
-      
+
       const exception = exceptionFromError(() => [], errorString as any);
 
       expect(exception.type).toBeDefined();
@@ -266,7 +264,7 @@ describe('EventBuilder', () => {
 
       expect(exception1.type).toBeDefined();
       expect(exception1.value).toBe('null');
-      
+
       expect(exception2.type).toBeDefined();
       expect(exception2.value).toBe('undefined');
     });
@@ -276,7 +274,7 @@ describe('EventBuilder', () => {
       error.stack = `Error: Test error
     at Object.test (/path/to/file.js:10:5)
     at Module._compile (/path/to/module.js:20:10)`;
-      
+
       const exception = exceptionFromError(() => [], error);
 
       expect(exception.type).toBe('Error');
@@ -291,7 +289,7 @@ describe('EventBuilder', () => {
 
     it('should create event from string with default level', () => {
       const input = 'Test string message';
-      
+
       const event = eventFromString(mockStackParser, input);
 
       expect(event.message).toBe('Test string message');
@@ -301,7 +299,7 @@ describe('EventBuilder', () => {
     it('should create event from string with custom level', () => {
       const input = 'Error string message';
       const level = 'error';
-      
+
       const event = eventFromString(mockStackParser, input, level);
 
       expect(event.message).toBe('Error string message');
@@ -323,7 +321,7 @@ describe('EventBuilder', () => {
       const errorEvent = {
         error: new Error('Inner error'),
         message: 'Error event message',
-        constructor: { name: 'ErrorEvent' }
+        constructor: { name: 'ErrorEvent' },
       };
 
       const event = eventFromUnknownInput(mockStackParser, errorEvent);
@@ -337,7 +335,7 @@ describe('EventBuilder', () => {
       const domError = {
         name: 'DOMError',
         message: 'DOM operation failed',
-        constructor: { name: 'DOMError' }
+        constructor: { name: 'DOMError' },
       };
 
       const event = eventFromUnknownInput(mockStackParser, domError);
@@ -352,7 +350,7 @@ describe('EventBuilder', () => {
       const domException = {
         name: 'DOMException',
         message: 'DOM exception occurred',
-        constructor: { name: 'DOMException' }
+        constructor: { name: 'DOMException' },
       };
 
       const event = eventFromUnknownInput(mockStackParser, domException);
@@ -368,7 +366,7 @@ describe('EventBuilder', () => {
         name: 'DOMException',
         message: 'DOM exception with stack',
         stack: 'Error stack trace',
-        constructor: { name: 'DOMException' }
+        constructor: { name: 'DOMException' },
       };
 
       const event = eventFromUnknownInput(mockStackParser, domException);
@@ -393,10 +391,10 @@ describe('EventBuilder', () => {
       const plainObject = {
         key1: 'value1',
         key2: 'value2',
-        nested: { prop: 'value' }
+        nested: { prop: 'value' },
       };
       const hint: EventHint = {
-        syntheticException: new Error('Synthetic error')
+        syntheticException: new Error('Synthetic error'),
       };
 
       const event = eventFromUnknownInput(mockStackParser, plainObject, hint);
@@ -410,7 +408,7 @@ describe('EventBuilder', () => {
     it('should handle plain objects with no keys', () => {
       const plainObject = {};
       const hint: EventHint = {
-        syntheticException: new Error('Synthetic error')
+        syntheticException: new Error('Synthetic error'),
       };
 
       const event = eventFromUnknownInput(mockStackParser, plainObject, hint);
@@ -425,7 +423,9 @@ describe('EventBuilder', () => {
 
       expect(event.message).toBe('String error message');
       expect(event.exception?.values?.[0]?.type).toBe('UnhandledException');
-      expect(event.exception?.values?.[0]?.value).toBe('Non-Error exception captured: String error message');
+      expect(event.exception?.values?.[0]?.value).toBe(
+        'Non-Error exception captured: String error message',
+      );
     });
 
     it('should handle number exceptions', () => {
@@ -457,7 +457,7 @@ describe('EventBuilder', () => {
     it('should handle DOMError without message', () => {
       const domError = {
         name: 'DOMError',
-        constructor: { name: 'DOMError' }
+        constructor: { name: 'DOMError' },
       };
 
       const event = eventFromUnknownInput(mockStackParser, domError);
@@ -469,7 +469,7 @@ describe('EventBuilder', () => {
     it('should handle DOMException without name', () => {
       const domException = {
         message: 'Exception message',
-        constructor: { name: 'DOMException' }
+        constructor: { name: 'DOMException' },
       };
 
       const event = eventFromUnknownInput(mockStackParser, domException);
@@ -483,7 +483,7 @@ describe('EventBuilder', () => {
         plainObject[`key${i}`] = `value${i}`;
       }
       const hint: EventHint = {
-        syntheticException: new Error('Synthetic error')
+        syntheticException: new Error('Synthetic error'),
       };
 
       const event = eventFromUnknownInput(mockStackParser, plainObject, hint);

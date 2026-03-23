@@ -23,6 +23,13 @@ local.log
 .idea
 *.sublime-*
 
+# ai
+.claude/
+
+# env
+.env.local
+.env.*.local
+
 # misc
 .DS_Store
 ._*

@@ -64,9 +64,7 @@ describe('RewriteFrames Integration', () => {
         values: [
           {
             stacktrace: {
-              frames: [
-                { filename: 'app:///pages/index/index.js' },
-              ],
+              frames: [{ filename: 'app:///pages/index/index.js' }],
             },
           },
         ],

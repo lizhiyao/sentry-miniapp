@@ -5,10 +5,7 @@ import {
   getCurrentScope,
   makeOfflineTransport,
 } from '@sentry/core';
-import type {
-  Event,
-  EventHint,
-} from '@sentry/core';
+import type { Event, EventHint } from '@sentry/core';
 
 import { appName, getSystemInfo } from './crossPlatform';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
@@ -30,23 +27,25 @@ export class MiniappClient extends Client<any> {
   public constructor(options: MiniappOptions = {}) {
     super({
       ...options,
-      transport: options.transport || ((transportOptions: any) => {
-        const baseTransport = createMiniappTransport({
-          ...transportOptions,
-          headers: {},
-        });
-
-        if (options.enableOfflineCache !== false) {
-          return makeOfflineTransport(() => baseTransport)({
+      transport:
+        options.transport ||
+        ((transportOptions: any) => {
+          const baseTransport = createMiniappTransport({
             ...transportOptions,
-            offlineCacheLimit: options.offlineCacheLimit,
-            createStore: createMiniappOfflineStore,
-            flushAtStartup: true, // 启动时自动重试发送
+            headers: {},
           });
-        }
 
-        return baseTransport;
-      }),
+          if (options.enableOfflineCache !== false) {
+            return makeOfflineTransport(() => baseTransport)({
+              ...transportOptions,
+              offlineCacheLimit: options.offlineCacheLimit,
+              createStore: createMiniappOfflineStore,
+              flushAtStartup: true, // 启动时自动重试发送
+            });
+          }
+
+          return baseTransport;
+        }),
     });
   }
 
@@ -56,10 +55,12 @@ export class MiniappClient extends Client<any> {
   public eventFromException(exception: any): PromiseLike<Event> {
     return Promise.resolve({
       exception: {
-        values: [{
-          type: exception.name || 'Error',
-          value: exception.message || String(exception),
-        }]
+        values: [
+          {
+            type: exception.name || 'Error',
+            value: exception.message || String(exception),
+          },
+        ],
       },
       level: 'error',
     } as Event);
@@ -151,7 +152,7 @@ export class MiniappClient extends Client<any> {
       const currentScope = scope || getCurrentScope();
       const isolationScope = getIsolationScope();
       return super._prepareEvent(event, hint || {}, currentScope, isolationScope);
-    } catch (error) {
+    } catch (_error) {
       // Fallback if scopes are not properly initialized
       return Promise.resolve(event);
     }
@@ -165,11 +166,9 @@ export class MiniappClient extends Client<any> {
   public showReportDialog(_options: ReportDialogOptions = {}): void {
     console.warn(
       '[sentry-miniapp] showReportDialog is deprecated and does nothing. ' +
-      'Please build your own UI and use `Sentry.captureFeedback()` instead.'
+        'Please build your own UI and use `Sentry.captureFeedback()` instead.',
     );
   }
-
-
 
   /**
    * Capture feedback using the new feedback API.
@@ -198,6 +197,4 @@ export class MiniappClient extends Client<any> {
     const scope = getCurrentScope();
     return scope.captureEvent(feedbackEvent);
   }
-
-
 }

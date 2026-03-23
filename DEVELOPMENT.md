@@ -7,21 +7,21 @@
 ### 1. 安装依赖
 
 ```bash
-npm install
+yarn install
 ```
 
 ### 2. 开发与构建命令
 
 | 命令 | 说明 |
 |------|------|
-| `npm run dev` | **[推荐]** 启动监听模式，自动构建并同步到示例项目中 |
-| `npm run build` | 构建标准版本（产出 ESM/CJS/UMD 格式，并自动同步到 examples） |
-| `npm run build:miniapp` | 仅构建小程序版本 |
-| `npm run build:types` | 构建类型定义文件（d.ts） |
-| `npm test` | 运行单元测试 |
-| `npm run test:watch` | 监听模式运行测试 |
-| `npm run test:integration`| 运行端到端集成测试 |
-| `npm run lint` | 运行 ESLint 检查 |
+| `yarn dev` | **[推荐]** 启动监听模式，自动构建并同步到示例项目中 |
+| `yarn build` | 构建标准版本（产出 ESM/CJS/UMD 格式，并自动同步到 examples） |
+| `yarn build:miniapp` | 仅构建小程序版本 |
+| `yarn build:types` | 构建类型定义文件（d.ts） |
+| `yarn test` | 运行单元测试 |
+| `yarn test:all` | 运行全部测试（单元 + 集成） |
+| `yarn test:integration`| 运行端到端集成测试 |
+| `yarn lint` | 运行 ESLint 检查 |
 
 ---
 
@@ -32,11 +32,11 @@ npm install
 ### 自动同步机制
 
 得益于最新的构建脚本，您**不需要手动复制文件**。
-当您运行 `npm run build` 或 `npm run dev` 时，系统会自动将构建出的 `dist/sentry-miniapp.umd.js` 复制到 `examples/wxapp/lib/sentry-miniapp.js` 中。
+当您运行 `yarn build` 或 `yarn dev` 时，系统会自动将构建出的 `dist/sentry-miniapp.umd.js` 复制到 `examples/wxapp/lib/sentry-miniapp.js` 中。
 
 ### 调试步骤
 
-1. **启动监听**：在终端运行 `npm run dev`。
+1. **启动监听**：在终端运行 `yarn dev`。
 2. **修改源码**：在 `src/` 目录下修改 TypeScript 代码。保存后终端会提示自动重新构建并同步。
 3. **微信开发者工具**：
    - 打开微信开发者工具，导入 `examples/wxapp` 目录。
@@ -70,30 +70,31 @@ sentry-miniapp/
 
 项目包含完善的测试覆盖率（近 300 个测试用例）：
 
-- **单元测试 (`npm test`)**：覆盖了所有的核心类、工具函数和集成插件（如跨端兼容性、面包屑拦截等）。
-- **集成测试 (`npm run test:integration`)**：通过 Node.js 脚本模拟真实的 Sentry 数据上报，验证异常捕获、限流（Rate Limit）、离线重试等端到端流程。
+- **单元测试 (`yarn test`)**：覆盖了所有的核心类、工具函数和集成插件（如跨端兼容性、面包屑拦截等）。
+- **集成测试 (`yarn test:integration`)**：通过 Node.js 脚本模拟真实的 Sentry 数据上报，验证异常捕获、限流（Rate Limit）、离线重试等端到端流程。
 
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 
 ```bash
-npm run lint && npm test
+yarn lint && yarn test:all
 ```
 
 ---
 
 ## 📦 发布流程 (Maintainers Only)
 
-项目已配置 GitHub Actions 自动化 CI/CD。常规发版流程如下：
+项目已配置 GitHub Actions 自动化 CI/CD，使用 `commit-and-tag-version` 管理版本。常规发版流程如下：
 
-1. **本地校验**：运行 `npm run lint` 和 `npm run test:all` 确保代码健康。
-2. **更新版本号**：修改 `package.json` 中的 `version` 字段。
-3. **更新文档**：将新特性和破坏性更新写入 `CHANGELOG.md`。
-4. **打 Tag 并推送**：
+1. **本地校验**：运行 `yarn lint` 和 `yarn test:all` 确保代码健康。
+2. **自动发版**：运行 `yarn release`，该命令会自动完成以下操作：
+   - 根据 Conventional Commits 更新版本号
+   - 生成 CHANGELOG.md
+   - 创建 Git commit 和 tag
+3. **同步 SDK 版本常量**：确保 `src/version.ts` 中的 `SDK_VERSION` 与 `package.json` 版本一致（CI 测试会自动校验）。
+4. **推送 Tag 触发发布**：
 
    ```bash
-   git commit -am "chore: release vX.X.X"
-   git tag vX.X.X
-   git push origin main --tags
+   git push origin master --tags
    ```
 
 5. GitHub Actions 将自动接管构建并发布到 NPM。

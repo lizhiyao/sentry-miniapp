@@ -10,14 +10,14 @@
     version: '8.0.5',
     SDKVersion: '2.19.4',
     system: 'iOS 15.0',
-    model: 'iPhone 13'
+    model: 'iPhone 13',
   })),
   // 新的 API
   getDeviceInfo: jest.fn(() => ({
     brand: 'Apple',
     model: 'iPhone 13',
     system: 'iOS 15.0',
-    platform: 'ios'
+    platform: 'ios',
   })),
   getWindowInfo: jest.fn(() => ({
     pixelRatio: 3,
@@ -25,29 +25,29 @@
     screenHeight: 844,
     windowWidth: 390,
     windowHeight: 844,
-    statusBarHeight: 44
+    statusBarHeight: 44,
   })),
   getAppBaseInfo: jest.fn(() => ({
     SDKVersion: '2.19.4',
     version: '8.0.5',
     language: 'zh_CN',
-    fontSizeSetting: 16
+    fontSizeSetting: 16,
   })),
   getSystemSetting: jest.fn(() => ({
     bluetoothEnabled: true,
     locationEnabled: true,
-    wifiEnabled: true
+    wifiEnabled: true,
   })),
   getAppAuthorizeSetting: jest.fn(() => ({
     albumAuthorized: 'authorized',
     cameraAuthorized: 'authorized',
     locationAuthorized: 'authorized',
     microphoneAuthorized: 'authorized',
-    notificationAuthorized: 'authorized'
+    notificationAuthorized: 'authorized',
   })),
   onError: jest.fn(),
   onUnhandledRejection: jest.fn(),
-  showModal: jest.fn()
+  showModal: jest.fn(),
 } as any;
 
 // Mock console methods to avoid noise in tests
@@ -55,12 +55,12 @@ global.console = {
   ...console,
   warn: jest.fn(),
   error: jest.fn(),
-  log: jest.fn()
+  log: jest.fn(),
 };
 
 // Mock performance API
 global.performance = {
-  now: jest.fn(() => Date.now())
+  now: jest.fn(() => Date.now()),
 } as any;
 
 // Mock Date.now for consistent timestamps in tests

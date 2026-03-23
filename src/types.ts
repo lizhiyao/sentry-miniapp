@@ -108,8 +108,6 @@ export interface ReportDialogOptions {
   onLoad?(): void;
 }
 
-
-
 /**
  * Parameters for sending user feedback
  */
