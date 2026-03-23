@@ -15,7 +15,7 @@ describe('Version', () => {
     });
 
     it('should match expected version', () => {
-      expect(SDK_VERSION).toBe('1.2.0');
+      expect(SDK_VERSION).toBe('1.3.0');
     });
   });
 
@@ -46,7 +46,7 @@ describe('Version', () => {
     it('should not contain invalid characters', () => {
       // Version should not contain spaces or special characters except dots, hyphens, and alphanumeric
       expect(SDK_VERSION).toMatch(/^[a-zA-Z0-9.-]+$/);
-      
+
       // SDK name should not contain spaces or invalid characters
       expect(SDK_NAME).toMatch(/^[a-zA-Z0-9.]+$/);
     });
