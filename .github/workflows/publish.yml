@@ -5,9 +5,6 @@ on:
     tags:
       - 'v*' # 仅在推送以 'v' 开头的 Tag 时触发，例如 v1.4.0
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -21,6 +18,7 @@ jobs:
       with:
         node-version: '22.x'
         registry-url: 'https://registry.npmjs.org'
+        cache: 'yarn'
 
     - name: Install dependencies
       run: yarn install --frozen-lockfile
