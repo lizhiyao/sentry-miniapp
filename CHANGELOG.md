@@ -1,6 +1,31 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.5.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.4.1...v1.5.0) (2026-03-24)
+
+
+### ✨ Features | 新功能
+
+* 增强 Performance 集成：可配阈值、setData 慢渲染检测、内存采集 ([3b2e88d](https://github.com/lizhiyao/sentry-miniapp/commit/3b2e88ddc9d42b155d734383b37fdca5af82be87))
+* 新增页面生命周期、用户交互和 Console 面包屑集成 ([476c0f9](https://github.com/lizhiyao/sentry-miniapp/commit/476c0f90038fb6b5b3464136c63c066a23e56819))
+* 路由集成适配全平台并补全多平台测试覆盖 ([691c491](https://github.com/lizhiyao/sentry-miniapp/commit/691c49130cfe94fb1dbcee56afff6c21a8ec6d4f))
+
+
+### 🐛 Bug Fixes | 修复
+
+* 构建时同步 SourceMap 文件到示例项目 ([664de93](https://github.com/lizhiyao/sentry-miniapp/commit/664de93237efeb7bc3de92bf7489de82034caba9))
+
+
+### 🎫 Chores | 其他更新
+
+* 同步示例项目中的 SDK 构建产物 ([71913c9](https://github.com/lizhiyao/sentry-miniapp/commit/71913c9bb58b28eadcd879f7bc10d44ebb685e1f))
+* 锁定 @sentry/core 为固定版本 10.45.0 ([d72133e](https://github.com/lizhiyao/sentry-miniapp/commit/d72133e2543b09c4093947dfd7b9fd7cd919dd45))
+
+
+### 📝 Documentation | 文档
+
+* 更新 PERFORMANCE_API.md 新增阈值和内存采集配置说明 ([9d1cf12](https://github.com/lizhiyao/sentry-miniapp/commit/9d1cf127120a6d73d6e146e4ae61ae6cfda18b41))
+
 ## [1.4.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.4.0...v1.4.1) (2026-03-23)
 
 
