@@ -6190,15 +6190,24 @@ Reason: ${reason}`
       this._observers = [];
       this._entryBuffer = [];
       this._reportTimer = null;
-      this._options = __spreadValues({
+      this._options = __spreadProps(__spreadValues({
         enableNavigation: true,
         enableRender: true,
         enableResource: true,
         enableUserTiming: false,
         sampleRate: 1,
         bufferSize: 100,
-        reportInterval: 3e4
-      }, options);
+        reportInterval: 3e4,
+        // 30秒
+        enableMemory: false
+      }, options), {
+        thresholds: __spreadValues({
+          navigation: 3e3,
+          render: 1e3,
+          resource: 2e3,
+          setData: 50
+        }, options == null ? void 0 : options.thresholds)
+      });
     }
     /**
      * @inheritDoc
@@ -6394,6 +6403,7 @@ Reason: ${reason}`
      * 处理渲染性能条目
      */
     _processRenderEntry(entry) {
+      var _a, _b;
       startSpan(
         {
           name: `Render: ${entry.name}`,
@@ -6412,6 +6422,24 @@ Reason: ${reason}`
           span.end((entry.startTime + entry.duration) / 1e3);
         }
       );
+      const setDataThreshold = (_b = (_a = this._options.thresholds) == null ? void 0 : _a.setData) != null ? _b : 50;
+      if (entry.duration > setDataThreshold) {
+        const scope = getCurrentScope();
+        scope.addBreadcrumb({
+          message: `慢渲染检测: ${entry.name} (${entry.duration.toFixed(1)}ms)`,
+          category: "performance.setData.slow",
+          level: "warning",
+          data: {
+            name: entry.name,
+            duration: entry.duration,
+            threshold: setDataThreshold,
+            renderStart: entry.renderStart,
+            renderEnd: entry.renderEnd,
+            scriptStart: entry.scriptStart,
+            scriptEnd: entry.scriptEnd
+          }
+        });
+      }
     }
     /**
      * 处理资源加载性能条目
@@ -6506,6 +6534,10 @@ Reason: ${reason}`
       try {
         const scope = getCurrentScope();
         const stats = this._calculatePerformanceStats();
+        const memoryInfo = this._collectMemoryInfo();
+        if (memoryInfo) {
+          stats["memory"] = memoryInfo;
+        }
         scope.setContext("performance_summary", __spreadValues({
           total_entries: this._entryBuffer.length,
           navigation_count: this._entryBuffer.filter((e) => e.entryType === "navigation").length,
@@ -6545,6 +6577,14 @@ Reason: ${reason}`
           max_duration: Math.max(...durations),
           min_duration: Math.min(...durations)
         };
+        const slowRenders = renderEntries.filter(
+          (e) => {
+            var _a, _b;
+            return e.duration > ((_b = (_a = this._options.thresholds) == null ? void 0 : _a.setData) != null ? _b : 50);
+          }
+        );
+        stats["render_stats"].slow_render_count = slowRenders.length;
+        stats["render_stats"].slow_render_ratio = slowRenders.length / renderEntries.length;
       }
       if (resourceEntries.length > 0) {
         const durations = resourceEntries.map((e) => e.duration);
@@ -6562,38 +6602,41 @@ Reason: ${reason}`
      * 检查性能阈值
      */
     _checkPerformanceThresholds(stats) {
-      var _a, _b, _c;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i;
       const scope = getCurrentScope();
-      if (((_a = stats["navigation_stats"]) == null ? void 0 : _a.avg_duration) > 3e3) {
+      const navigationThreshold = (_b = (_a = this._options.thresholds) == null ? void 0 : _a.navigation) != null ? _b : 3e3;
+      if (((_c = stats["navigation_stats"]) == null ? void 0 : _c.avg_duration) > navigationThreshold) {
         scope.addBreadcrumb({
           message: "页面导航性能较慢",
           category: "performance.warning",
           level: "warning",
           data: {
             avg_duration: stats["navigation_stats"].avg_duration,
-            threshold: 3e3
+            threshold: navigationThreshold
           }
         });
       }
-      if (((_b = stats["render_stats"]) == null ? void 0 : _b.avg_duration) > 1e3) {
+      const renderThreshold = (_e = (_d = this._options.thresholds) == null ? void 0 : _d.render) != null ? _e : 1e3;
+      if (((_f = stats["render_stats"]) == null ? void 0 : _f.avg_duration) > renderThreshold) {
         scope.addBreadcrumb({
           message: "页面渲染性能较慢",
           category: "performance.warning",
           level: "warning",
           data: {
             avg_duration: stats["render_stats"].avg_duration,
-            threshold: 1e3
+            threshold: renderThreshold
           }
         });
       }
-      if (((_c = stats["resource_stats"]) == null ? void 0 : _c.avg_load_time) > 2e3) {
+      const resourceThreshold = (_h = (_g = this._options.thresholds) == null ? void 0 : _g.resource) != null ? _h : 2e3;
+      if (((_i = stats["resource_stats"]) == null ? void 0 : _i.avg_load_time) > resourceThreshold) {
         scope.addBreadcrumb({
           message: "资源加载性能较慢",
           category: "performance.warning",
           level: "warning",
           data: {
             avg_load_time: stats["resource_stats"].avg_load_time,
-            threshold: 2e3
+            threshold: resourceThreshold
           }
         });
       }
@@ -6620,6 +6663,26 @@ Reason: ${reason}`
       } catch (error2) {
         console.warn("[Sentry Performance] Failed to report to native API:", error2);
       }
+    }
+    /**
+     * 采集内存信息
+     */
+    _collectMemoryInfo() {
+      if (!this._options.enableMemory) return null;
+      try {
+        const currentSdk = sdk();
+        if (currentSdk.getPerformance) {
+          const perf = currentSdk.getPerformance();
+          if (perf && perf.memory) {
+            return {
+              jsHeapSizeUsed: perf.memory.jsHeapSizeUsed,
+              jsHeapSizeLimit: perf.memory.jsHeapSizeLimit
+            };
+          }
+        }
+      } catch (_e) {
+      }
+      return null;
     }
     /**
      * 添加性能上下文信息
