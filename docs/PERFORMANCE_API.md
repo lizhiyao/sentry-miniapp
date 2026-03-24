@@ -41,6 +41,17 @@ Sentry.init({
       
       // 数据上报间隔 (毫秒)
       reportInterval: 30000,
+
+      // 性能阈值配置（可选，以下为默认值）
+      thresholds: {
+        navigation: 3000,  // 导航耗时阈值（毫秒）
+        render: 1000,      // 渲染耗时阈值（毫秒）
+        resource: 2000,    // 资源加载耗时阈值（毫秒）
+        setData: 50,       // setData 渲染耗时阈值（毫秒，参考微信官方建议）
+      },
+
+      // 是否启用内存信息采集（默认 false）
+      enableMemory: false,
     }),
   ],
 });
