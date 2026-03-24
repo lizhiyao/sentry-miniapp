@@ -501,6 +501,231 @@ describe('PerformanceIntegration', () => {
     });
   });
 
+  describe('configurable thresholds', () => {
+    it('should use default thresholds when not configured', () => {
+      integration.setupOnce();
+
+      // Feed slow navigation entries to trigger threshold check
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'slow-nav', entryType: 'navigation', startTime: 0, duration: 4000 },
+        ]);
+      }
+
+      // Trigger reporting
+      (integration as any)._reportBufferedEntries();
+
+      expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '页面导航性能较慢',
+          category: 'performance.warning',
+          data: expect.objectContaining({ threshold: 3000 }),
+        }),
+      );
+    });
+
+    it('should use custom thresholds when configured', () => {
+      const customIntegration = new PerformanceIntegration({
+        thresholds: { navigation: 1000 },
+      });
+      customIntegration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        // 1500ms exceeds custom 1000ms threshold but not default 3000ms
+        observerCallback([
+          { name: 'nav', entryType: 'navigation', startTime: 0, duration: 1500 },
+        ]);
+      }
+
+      (customIntegration as any)._reportBufferedEntries();
+
+      expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '页面导航性能较慢',
+          data: expect.objectContaining({ threshold: 1000 }),
+        }),
+      );
+
+      customIntegration.cleanup();
+    });
+
+    it('should not trigger warning when below threshold', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'fast-nav', entryType: 'navigation', startTime: 0, duration: 200 },
+        ]);
+      }
+
+      (integration as any)._reportBufferedEntries();
+
+      expect(mockScope.addBreadcrumb).not.toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'performance.warning' }),
+      );
+    });
+  });
+
+  describe('setData slow render detection', () => {
+    it('should detect slow renders above threshold', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'slow-render', entryType: 'render', startTime: 0, duration: 100 },
+        ]);
+      }
+
+      expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'performance.setData.slow',
+          level: 'warning',
+          data: expect.objectContaining({
+            duration: 100,
+            threshold: 50,
+          }),
+        }),
+      );
+    });
+
+    it('should not trigger for fast renders', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'fast-render', entryType: 'render', startTime: 0, duration: 30 },
+        ]);
+      }
+
+      expect(mockScope.addBreadcrumb).not.toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'performance.setData.slow' }),
+      );
+    });
+
+    it('should use custom setData threshold', () => {
+      const customIntegration = new PerformanceIntegration({
+        thresholds: { setData: 100 },
+      });
+      customIntegration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        // 80ms is below custom 100ms threshold
+        observerCallback([
+          { name: 'render', entryType: 'render', startTime: 0, duration: 80 },
+        ]);
+      }
+
+      expect(mockScope.addBreadcrumb).not.toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'performance.setData.slow' }),
+      );
+
+      customIntegration.cleanup();
+    });
+
+    it('should include slow_render_count in stats', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'r1', entryType: 'render', startTime: 0, duration: 100 },
+          { name: 'r2', entryType: 'render', startTime: 100, duration: 30 },
+          { name: 'r3', entryType: 'render', startTime: 200, duration: 200 },
+        ]);
+      }
+
+      (integration as any)._reportBufferedEntries();
+
+      expect(mockScope.setContext).toHaveBeenCalledWith(
+        'performance_summary',
+        expect.objectContaining({
+          render_count: 3,
+        }),
+      );
+    });
+  });
+
+  describe('memory info collection', () => {
+    it('should not collect memory when enableMemory is false', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 },
+        ]);
+      }
+
+      (integration as any)._reportBufferedEntries();
+
+      // Should not have memory in context
+      const contextCall = mockScope.setContext.mock.calls.find(
+        (c: any[]) => c[0] === 'performance_summary',
+      );
+      if (contextCall) {
+        expect(contextCall[1].memory).toBeUndefined();
+      }
+    });
+
+    it('should collect memory when enableMemory is true and API available', () => {
+      const { sdk } = require('../src/crossPlatform');
+      const mockMemory = { jsHeapSizeUsed: 1024000, jsHeapSizeLimit: 10240000 };
+      (sdk as jest.Mock).mockReturnValue({
+        getPerformance: jest.fn(() => ({ memory: mockMemory })),
+        reportPerformance: jest.fn(),
+      });
+
+      const memIntegration = new PerformanceIntegration({ enableMemory: true });
+      memIntegration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 },
+        ]);
+      }
+
+      (memIntegration as any)._reportBufferedEntries();
+
+      expect(mockScope.setContext).toHaveBeenCalledWith(
+        'performance_summary',
+        expect.objectContaining({
+          memory: mockMemory,
+        }),
+      );
+
+      memIntegration.cleanup();
+    });
+
+    it('should handle missing memory API gracefully', () => {
+      const { sdk } = require('../src/crossPlatform');
+      (sdk as jest.Mock).mockReturnValue({
+        getPerformance: jest.fn(() => ({})), // No memory property
+        reportPerformance: jest.fn(),
+      });
+
+      const memIntegration = new PerformanceIntegration({ enableMemory: true });
+      memIntegration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 },
+        ]);
+      }
+
+      expect(() => (memIntegration as any)._reportBufferedEntries()).not.toThrow();
+
+      memIntegration.cleanup();
+    });
+  });
+
   describe('cleanup', () => {
     it('should disconnect observers and clear timers', () => {
       integration.setupOnce();

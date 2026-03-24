@@ -33,6 +33,19 @@ export interface PerformanceIntegrationOptions {
   bufferSize?: number;
   /** 自动上报间隔 (毫秒) */
   reportInterval?: number;
+  /** 性能阈值配置 */
+  thresholds?: {
+    /** 导航耗时阈值（毫秒，默认 3000） */
+    navigation?: number;
+    /** 渲染耗时阈值（毫秒，默认 1000） */
+    render?: number;
+    /** 资源加载耗时阈值（毫秒，默认 2000） */
+    resource?: number;
+    /** setData 渲染耗时阈值（毫秒，默认 50，参考微信官方建议） */
+    setData?: number;
+  };
+  /** 是否启用内存信息采集 */
+  enableMemory?: boolean;
 }
 
 /** Performance API 集成 */
@@ -62,7 +75,15 @@ export class PerformanceIntegration implements Integration {
       sampleRate: 1.0,
       bufferSize: 100,
       reportInterval: 30000, // 30秒
+      enableMemory: false,
       ...options,
+      thresholds: {
+        navigation: 3000,
+        render: 1000,
+        resource: 2000,
+        setData: 50,
+        ...options?.thresholds,
+      },
     };
   }
 
@@ -331,6 +352,26 @@ export class PerformanceIntegration implements Integration {
         span.end((entry.startTime + entry.duration) / 1000);
       },
     );
+
+    // 检测慢渲染（可能由 setData 引起）
+    const setDataThreshold = this._options.thresholds?.setData ?? 50;
+    if (entry.duration > setDataThreshold) {
+      const scope = getCurrentScope();
+      scope.addBreadcrumb({
+        message: `慢渲染检测: ${entry.name} (${entry.duration.toFixed(1)}ms)`,
+        category: 'performance.setData.slow',
+        level: 'warning',
+        data: {
+          name: entry.name,
+          duration: entry.duration,
+          threshold: setDataThreshold,
+          renderStart: entry.renderStart,
+          renderEnd: entry.renderEnd,
+          scriptStart: entry.scriptStart,
+          scriptEnd: entry.scriptEnd,
+        },
+      });
+    }
   }
 
   /**
@@ -442,6 +483,12 @@ export class PerformanceIntegration implements Integration {
       // 计算性能统计
       const stats = this._calculatePerformanceStats();
 
+      // 采集内存信息
+      const memoryInfo = this._collectMemoryInfo();
+      if (memoryInfo) {
+        stats['memory'] = memoryInfo;
+      }
+
       scope.setContext('performance_summary', {
         total_entries: this._entryBuffer.length,
         navigation_count: this._entryBuffer.filter((e) => e.entryType === 'navigation').length,
@@ -494,6 +541,12 @@ export class PerformanceIntegration implements Integration {
         max_duration: Math.max(...durations),
         min_duration: Math.min(...durations),
       };
+
+      const slowRenders = renderEntries.filter(
+        (e) => e.duration > (this._options.thresholds?.setData ?? 50),
+      );
+      stats['render_stats'].slow_render_count = slowRenders.length;
+      stats['render_stats'].slow_render_ratio = slowRenders.length / renderEntries.length;
     }
 
     // 资源加载统计
@@ -521,40 +574,43 @@ export class PerformanceIntegration implements Integration {
     const scope = getCurrentScope();
 
     // 检查导航性能
-    if (stats['navigation_stats']?.avg_duration > 3000) {
+    const navigationThreshold = this._options.thresholds?.navigation ?? 3000;
+    if (stats['navigation_stats']?.avg_duration > navigationThreshold) {
       scope.addBreadcrumb({
         message: '页面导航性能较慢',
         category: 'performance.warning',
         level: 'warning',
         data: {
           avg_duration: stats['navigation_stats'].avg_duration,
-          threshold: 3000,
+          threshold: navigationThreshold,
         },
       });
     }
 
     // 检查渲染性能
-    if (stats['render_stats']?.avg_duration > 1000) {
+    const renderThreshold = this._options.thresholds?.render ?? 1000;
+    if (stats['render_stats']?.avg_duration > renderThreshold) {
       scope.addBreadcrumb({
         message: '页面渲染性能较慢',
         category: 'performance.warning',
         level: 'warning',
         data: {
           avg_duration: stats['render_stats'].avg_duration,
-          threshold: 1000,
+          threshold: renderThreshold,
         },
       });
     }
 
     // 检查资源加载
-    if (stats['resource_stats']?.avg_load_time > 2000) {
+    const resourceThreshold = this._options.thresholds?.resource ?? 2000;
+    if (stats['resource_stats']?.avg_load_time > resourceThreshold) {
       scope.addBreadcrumb({
         message: '资源加载性能较慢',
         category: 'performance.warning',
         level: 'warning',
         data: {
           avg_load_time: stats['resource_stats'].avg_load_time,
-          threshold: 2000,
+          threshold: resourceThreshold,
         },
       });
     }
@@ -583,6 +639,30 @@ export class PerformanceIntegration implements Integration {
     } catch (error) {
       console.warn('[Sentry Performance] Failed to report to native API:', error);
     }
+  }
+
+  /**
+   * 采集内存信息
+   */
+  private _collectMemoryInfo(): Record<string, any> | null {
+    if (!this._options.enableMemory) return null;
+
+    try {
+      const currentSdk = sdk();
+      if (currentSdk.getPerformance) {
+        const perf = currentSdk.getPerformance();
+        // 微信小程序 performance 对象可能包含 memory 信息
+        if (perf && (perf as any).memory) {
+          return {
+            jsHeapSizeUsed: (perf as any).memory.jsHeapSizeUsed,
+            jsHeapSizeLimit: (perf as any).memory.jsHeapSizeLimit,
+          };
+        }
+      }
+    } catch (_e) {
+      // Silently ignore
+    }
+    return null;
   }
 
   /**
