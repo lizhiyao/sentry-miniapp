@@ -1,4 +1,12 @@
-import type { ClientOptions, BaseTransportOptions, Integration } from '@sentry/core';
+import type {
+  ClientOptions,
+  BaseTransportOptions,
+  Event,
+  EventHint,
+  Integration,
+  Transport,
+  Breadcrumb,
+} from '@sentry/core';
 
 /**
  * Configuration options for the Sentry Miniapp SDK.
@@ -26,13 +34,13 @@ export interface MiniappOptions {
   tracesSampleRate?: number;
 
   /** Transport function */
-  transport?: any;
+  transport?: (transportOptions: BaseTransportOptions) => Transport;
 
   /** Before send hook */
-  beforeSend?: any;
+  beforeSend?: (event: Event, hint?: EventHint) => Event | null | PromiseLike<Event | null>;
 
   /** Before breadcrumb hook */
-  beforeBreadcrumb?: any;
+  beforeBreadcrumb?: (breadcrumb: Breadcrumb, hint?: Record<string, unknown>) => Breadcrumb | null;
 
   /** Miniapp platform type */
   platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'baidu' | 'dingtalk';

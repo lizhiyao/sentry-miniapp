@@ -20,9 +20,41 @@ export class NetworkBreadcrumbs implements Integration {
   public name: string = NetworkBreadcrumbs.id;
 
   private readonly _traceNetworkBody: boolean;
+  private readonly _sensitiveKeys: string[];
+  private readonly _denyUrls: RegExp[];
 
-  public constructor(options: { traceNetworkBody?: boolean | undefined } = {}) {
+  public constructor(
+    options: {
+      traceNetworkBody?: boolean | undefined;
+      /** 需要脱敏的字段名列表（不区分大小写匹配） */
+      sensitiveKeys?: string[];
+      /** 不记录请求体的 URL 模式 */
+      denyBodyUrls?: Array<string | RegExp>;
+    } = {},
+  ) {
     this._traceNetworkBody = !!options.traceNetworkBody;
+    this._sensitiveKeys = (
+      options.sensitiveKeys || [
+        'password',
+        'passwd',
+        'secret',
+        'token',
+        'access_token',
+        'refresh_token',
+        'authorization',
+        'cookie',
+        'session',
+        'creditcard',
+        'credit_card',
+        'card_number',
+        'cvv',
+        'ssn',
+        'id_card',
+      ]
+    ).map((k) => k.toLowerCase());
+    this._denyUrls = (options.denyBodyUrls || []).map((pattern) =>
+      typeof pattern === 'string' ? new RegExp(pattern) : pattern,
+    );
   }
 
   /**
@@ -47,6 +79,8 @@ export class NetworkBreadcrumbs implements Integration {
    */
   private _createRequestWrapper(originalRequest: Function): Function {
     const traceNetworkBody = this._traceNetworkBody;
+    const sanitizeBody = this._sanitizeBody.bind(this);
+    const shouldDenyBodyUrl = this._shouldDenyBodyUrl.bind(this);
 
     return function (this: any, options: any): any {
       if (!options || typeof options !== 'object') {
@@ -95,10 +129,10 @@ export class NetworkBreadcrumbs implements Integration {
         method,
       };
 
-      if (traceNetworkBody && requestData) {
+      if (traceNetworkBody && requestData && !shouldDenyBodyUrl(url)) {
         try {
-          breadcrumbData['request_body'] =
-            typeof requestData === 'string' ? requestData : JSON.stringify(requestData);
+          const body = typeof requestData === 'string' ? requestData : JSON.stringify(requestData);
+          breadcrumbData['request_body'] = sanitizeBody(body);
         } catch (_e) {
           breadcrumbData['request_body'] = '[Cannot serialize request body]';
         }
@@ -113,10 +147,10 @@ export class NetworkBreadcrumbs implements Integration {
         const statusCode = res.statusCode || res.status;
         breadcrumbData['status_code'] = statusCode;
 
-        if (traceNetworkBody && res.data) {
+        if (traceNetworkBody && res.data && !shouldDenyBodyUrl(url)) {
           try {
-            breadcrumbData['response_body'] =
-              typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+            const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+            breadcrumbData['response_body'] = sanitizeBody(body);
           } catch (_e) {
             breadcrumbData['response_body'] = '[Cannot serialize response body]';
           }
@@ -153,5 +187,47 @@ export class NetworkBreadcrumbs implements Integration {
 
       return originalRequest.call(this, options);
     };
+  }
+
+  /**
+   * 检查 URL 是否在拒绝记录请求体的列表中
+   */
+  private _shouldDenyBodyUrl(url: string): boolean {
+    return this._denyUrls.some((pattern) => pattern.test(url));
+  }
+
+  /**
+   * 对请求/响应体进行敏感字段脱敏
+   */
+  private _sanitizeBody(body: string): string {
+    if (this._sensitiveKeys.length === 0) return body;
+
+    try {
+      const parsed = JSON.parse(body);
+      if (typeof parsed === 'object' && parsed !== null) {
+        this._sanitizeObject(parsed);
+        return JSON.stringify(parsed);
+      }
+    } catch (_e) {
+      // 非 JSON 格式，尝试正则替换常见的 key=value 模式
+      for (const key of this._sensitiveKeys) {
+        const regex = new RegExp(`(${key})=[^&]*`, 'gi');
+        body = body.replace(regex, '$1=[Filtered]');
+      }
+    }
+    return body;
+  }
+
+  /**
+   * 递归脱敏对象中的敏感字段
+   */
+  private _sanitizeObject(obj: Record<string, any>): void {
+    for (const key of Object.keys(obj)) {
+      if (this._sensitiveKeys.includes(key.toLowerCase())) {
+        obj[key] = '[Filtered]';
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        this._sanitizeObject(obj[key]);
+      }
+    }
   }
 }

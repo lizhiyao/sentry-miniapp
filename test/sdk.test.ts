@@ -28,8 +28,8 @@ describe('SDK Initialization', () => {
       release: '1.0.0',
       sampleRate: 0.5,
       maxBreadcrumbs: 50,
-      beforeSend: jest.fn(),
-      beforeBreadcrumb: jest.fn(),
+      beforeSend: jest.fn((event: any) => event) as any,
+      beforeBreadcrumb: jest.fn((breadcrumb: any) => breadcrumb) as any,
     };
 
     const client = init(options);

@@ -389,7 +389,7 @@ describe('PerformanceIntegration', () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
       integration.setupOnce();
 
-      expect(consoleSpy).toHaveBeenCalledWith('[Sentry Performance] Performance API not available');
+      expect(consoleSpy).toHaveBeenCalledWith('[sentry-miniapp] Performance API not available');
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();

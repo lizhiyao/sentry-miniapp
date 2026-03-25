@@ -26,17 +26,19 @@ export class GlobalHandlers implements Integration {
   /** JSDoc */
   private readonly _options: GlobalHandlersIntegrations;
 
-  /** JSDoc */
   private _onErrorHandlerInstalled: boolean = false;
-
-  /** JSDoc */
   private _onUnhandledRejectionHandlerInstalled: boolean = false;
-
-  /** JSDoc */
   private _onPageNotFoundHandlerInstalled: boolean = false;
-
-  /** JSDoc */
   private _onMemoryWarningHandlerInstalled: boolean = false;
+
+  private _errorHandler: ((err: string | Error) => void) | null = null;
+  private _rejectionHandler:
+    | ((res: { reason: string | Error; promise: Promise<any> }) => void)
+    | null = null;
+  private _pageNotFoundHandler:
+    | ((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => void)
+    | null = null;
+  private _memoryWarningHandler: ((res: { level: number }) => void) | null = null;
 
   /** JSDoc */
   public constructor(options?: Partial<GlobalHandlersIntegrations>) {
@@ -79,8 +81,7 @@ export class GlobalHandlers implements Integration {
     }
 
     if (sdk().onError) {
-      // https://developers.weixin.qq.com/miniprogram/dev/api/base/app/app-event/wx.onError.html
-      sdk().onError?.((err: string | Error) => {
+      this._errorHandler = (err: string | Error) => {
         const error = typeof err === 'string' ? new Error(err) : err;
         captureException(error, {
           mechanism: {
@@ -88,7 +89,8 @@ export class GlobalHandlers implements Integration {
             handled: false,
           },
         });
-      });
+      };
+      sdk().onError?.(this._errorHandler);
     }
 
     this._onErrorHandlerInstalled = true;
@@ -101,25 +103,25 @@ export class GlobalHandlers implements Integration {
     }
 
     if (sdk().onUnhandledRejection) {
-      /** JSDoc */
-      interface OnUnhandledRejectionRes {
+      this._rejectionHandler = ({
+        reason,
+        promise,
+      }: {
         reason: string | Error;
         promise: Promise<any>;
-      }
-
-      // https://developers.weixin.qq.com/miniprogram/dev/api/base/app/app-event/wx.onUnhandledRejection.html
-      sdk().onUnhandledRejection?.(({ reason, promise }: OnUnhandledRejectionRes) => {
+      }) => {
         const error = typeof reason === 'string' ? new Error(reason) : reason;
-        (captureException as any)(error, {
+        captureException(error, {
           mechanism: {
             type: 'onunhandledrejection',
             handled: false,
           },
-          extra: {
+          data: {
             promise,
           },
         });
-      });
+      };
+      sdk().onUnhandledRejection?.(this._rejectionHandler);
     }
 
     this._onUnhandledRejectionHandlerInstalled = true;
@@ -132,27 +134,29 @@ export class GlobalHandlers implements Integration {
     }
 
     if (sdk().onPageNotFound) {
-      sdk().onPageNotFound?.(
-        (res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => {
-          const scope = getCurrentScope();
-          const url = res.path.split('?')[0];
+      this._pageNotFoundHandler = (res: {
+        path: string;
+        query: Record<string, any>;
+        isEntryPage: boolean;
+      }) => {
+        const scope = getCurrentScope();
+        const url = res.path.split('?')[0];
 
-          scope.setTag('pagenotfound', url);
-          scope.setContext('page_not_found', {
-            path: res.path,
-            query: res.query,
-            isEntryPage: res.isEntryPage,
-          });
+        scope.setTag('pagenotfound', url);
+        scope.setContext('page_not_found', {
+          path: res.path,
+          query: res.query,
+          isEntryPage: res.isEntryPage,
+        });
 
-          (captureException as any)(new Error(`页面无法找到: ${url}`), {
-            level: 'warning',
-            mechanism: {
-              type: 'onpagenotfound',
-              handled: true,
-            },
-          });
-        },
-      );
+        captureException(new Error(`页面无法找到: ${url}`), {
+          mechanism: {
+            type: 'onpagenotfound',
+            handled: true,
+          },
+        });
+      };
+      sdk().onPageNotFound?.(this._pageNotFoundHandler);
     }
 
     this._onPageNotFoundHandlerInstalled = true;
@@ -165,7 +169,7 @@ export class GlobalHandlers implements Integration {
     }
 
     if (sdk().onMemoryWarning) {
-      sdk().onMemoryWarning?.(({ level = -1 }: { level: number }) => {
+      this._memoryWarningHandler = ({ level = -1 }: { level: number }) => {
         let levelMessage = '没有获取到告警级别信息';
 
         switch (level) {
@@ -189,17 +193,49 @@ export class GlobalHandlers implements Integration {
           message: levelMessage,
         });
 
-        (captureException as any)(new Error('内存不足告警'), {
-          level: 'warning',
+        captureException(new Error('内存不足告警'), {
           mechanism: {
             type: 'onmemorywarning',
             handled: true,
           },
         });
-      });
+      };
+      sdk().onMemoryWarning?.(this._memoryWarningHandler);
     }
 
     this._onMemoryWarningHandlerInstalled = true;
+  }
+
+  /**
+   * 清理资源，注销全局事件处理器
+   */
+  public cleanup(): void {
+    try {
+      const currentSdk = sdk() as any;
+      if (this._errorHandler && currentSdk.offError) {
+        currentSdk.offError(this._errorHandler);
+      }
+      if (this._rejectionHandler && currentSdk.offUnhandledRejection) {
+        currentSdk.offUnhandledRejection(this._rejectionHandler);
+      }
+      if (this._pageNotFoundHandler && currentSdk.offPageNotFound) {
+        currentSdk.offPageNotFound(this._pageNotFoundHandler);
+      }
+      if (this._memoryWarningHandler && currentSdk.offMemoryWarning) {
+        currentSdk.offMemoryWarning(this._memoryWarningHandler);
+      }
+    } catch (_e) {
+      // 部分平台可能不支持 off* 方法
+    }
+
+    this._errorHandler = null;
+    this._rejectionHandler = null;
+    this._pageNotFoundHandler = null;
+    this._memoryWarningHandler = null;
+    this._onErrorHandlerInstalled = false;
+    this._onUnhandledRejectionHandlerInstalled = false;
+    this._onPageNotFoundHandlerInstalled = false;
+    this._onMemoryWarningHandlerInstalled = false;
   }
 }
 

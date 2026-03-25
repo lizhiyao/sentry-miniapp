@@ -2,7 +2,7 @@ import { captureException, getCurrentScope } from '@sentry/core';
 import type { WrappedFunction } from '@sentry/core';
 
 /**
- * Wrap a function to capture exceptions
+ * 包装函数以捕获异常
  */
 export function wrap(
   fn: WrappedFunction,
@@ -119,19 +119,19 @@ export function wrap(
 }
 
 /**
- * Check if we should ignore the next onError event
+ * 是否忽略下一次 onError 事件
  */
 let ignoreNextOnError = 0;
 
 /**
- * Check if we should ignore onError
+ * 检查是否应忽略 onError
  */
 export function shouldIgnoreOnError(): boolean {
   return ignoreNextOnError > 0;
 }
 
 /**
- * Ignore next onError
+ * 忽略下一次 onError 调用
  */
 export function ignoreNextOnErrorCall(): void {
   ignoreNextOnError += 1;
@@ -141,7 +141,7 @@ export function ignoreNextOnErrorCall(): void {
 }
 
 /**
- * Safely extract function name from itself
+ * 安全地提取函数名称
  */
 export function getFunctionName(fn: any): string {
   try {
@@ -152,7 +152,7 @@ export function getFunctionName(fn: any): string {
 }
 
 /**
- * Fill an object with a new value, keeping a reference to the original
+ * 用新值填充对象属性，保留原始值的引用
  */
 export function fill(
   source: { [key: string]: any },
@@ -179,7 +179,7 @@ export function fill(
 }
 
 /**
- * Check if value is an instance of Error
+ * 检查值是否为 Error 实例
  */
 export function isError(wat: any): wat is Error {
   switch (Object.prototype.toString.call(wat)) {
@@ -193,7 +193,7 @@ export function isError(wat: any): wat is Error {
 }
 
 /**
- * Check if value is an instance of the given constructor
+ * 检查值是否为指定构造函数的实例
  */
 export function isInstanceOf(wat: any, base: any): boolean {
   try {
@@ -204,14 +204,14 @@ export function isInstanceOf(wat: any, base: any): boolean {
 }
 
 /**
- * Check if value is a string
+ * 检查值是否为字符串
  */
 export function isString(wat: any): wat is string {
   return Object.prototype.toString.call(wat) === '[object String]';
 }
 
 /**
- * Check if value is a plain object
+ * 检查值是否为普通对象
  */
 export function isPlainObject(wat: any): wat is Record<string, any> {
   return Object.prototype.toString.call(wat) === '[object Object]';

@@ -19,6 +19,8 @@ export class Router implements Integration {
    */
   private _lastRoute: string = '';
 
+  private _monitorTimer: ReturnType<typeof setInterval> | null = null;
+
   /**
    * @inheritDoc
    */
@@ -63,13 +65,23 @@ export class Router implements Integration {
    */
   private _startRouteMonitoring(): void {
     // Monitor route changes by checking current pages periodically
-    setInterval(() => {
+    this._monitorTimer = setInterval(() => {
       const currentRoute = this._getCurrentRoute();
       if (currentRoute && currentRoute !== this._lastRoute) {
         this._recordRouteChange(this._lastRoute, currentRoute);
         this._lastRoute = currentRoute;
       }
     }, 1000);
+  }
+
+  /**
+   * 清理资源
+   */
+  public cleanup(): void {
+    if (this._monitorTimer) {
+      clearInterval(this._monitorTimer);
+      this._monitorTimer = null;
+    }
   }
 
   /**

@@ -8,32 +8,33 @@
  * 小程序环境的 URLSearchParams polyfill
  */
 class URLSearchParamsPolyfill {
-  private params: Record<string, string> = {};
+  private _entries: Array<[string, string]> = [];
 
   constructor(init?: string | Record<string, string> | URLSearchParamsPolyfill | string[][]) {
     if (typeof init === 'string') {
-      this.parseString(init);
+      this._parseString(init);
     } else if (Array.isArray(init)) {
-      // Handle string[][] format
       for (const pair of init) {
         if (Array.isArray(pair) && pair.length >= 2) {
-          this.append(pair[0] || '', pair[1] || '');
+          this._entries.push([pair[0] || '', pair[1] || '']);
         }
       }
     } else if (init && typeof init === 'object') {
       if (init instanceof URLSearchParamsPolyfill) {
-        this.params = { ...init.params };
+        this._entries = init._entries.map(([k, v]) => [k, v]);
       } else {
-        this.params = { ...init };
+        for (const [key, value] of Object.entries(init)) {
+          this._entries.push([key, value]);
+        }
       }
     }
   }
 
   get size(): number {
-    return Object.keys(this.params).length;
+    return this._entries.length;
   }
 
-  private parseString(str: string): void {
+  private _parseString(str: string): void {
     if (str.startsWith('?')) {
       str = str.slice(1);
     }
@@ -44,88 +45,99 @@ class URLSearchParamsPolyfill {
 
     const pairs = str.split('&');
     for (const pair of pairs) {
-      const [key, value = ''] = pair.split('=');
-      if (key) {
-        this.params[decodeURIComponent(key)] = decodeURIComponent(value);
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex === -1) {
+        if (pair) {
+          this._entries.push([decodeURIComponent(pair), '']);
+        }
+      } else {
+        const key = pair.slice(0, eqIndex);
+        const value = pair.slice(eqIndex + 1);
+        if (key) {
+          this._entries.push([decodeURIComponent(key), decodeURIComponent(value)]);
+        }
       }
     }
   }
 
   append(name: string, value: string): void {
-    // URLSearchParams.append should add to existing values, not replace
-    const existing = this.params[name];
-    if (existing) {
-      this.params[name] = existing + ',' + value;
-    } else {
-      this.params[name] = value;
-    }
+    this._entries.push([name, String(value)]);
   }
 
   delete(name: string): void {
-    delete this.params[name];
+    this._entries = this._entries.filter(([key]) => key !== name);
   }
 
   get(name: string): string | null {
-    return this.params[name] ?? null;
+    const entry = this._entries.find(([key]) => key === name);
+    return entry ? entry[1] : null;
   }
 
   getAll(name: string): string[] {
-    // For simplicity, we only store one value per key
-    // In a full implementation, this would return an array of all values
-    const value = this.params[name];
-    return value ? [value] : [];
+    return this._entries.filter(([key]) => key === name).map(([, value]) => value);
   }
 
   has(name: string): boolean {
-    return name in this.params;
+    return this._entries.some(([key]) => key === name);
   }
 
   set(name: string, value: string): void {
-    this.params[name] = String(value);
+    const strValue = String(value);
+    let found = false;
+    this._entries = this._entries.filter(([key]) => {
+      if (key === name) {
+        if (!found) {
+          found = true;
+          return true;
+        }
+        return false;
+      }
+      return true;
+    });
+    if (found) {
+      const idx = this._entries.findIndex(([key]) => key === name);
+      if (idx !== -1) {
+        this._entries[idx] = [name, strValue];
+      }
+    } else {
+      this._entries.push([name, strValue]);
+    }
   }
 
   sort(): void {
-    const sortedKeys = Object.keys(this.params).sort();
-    const sortedParams: Record<string, string> = {};
-    for (const key of sortedKeys) {
-      sortedParams[key] = this.params[key] || '';
-    }
-    this.params = sortedParams;
+    this._entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   }
 
   toString(): string {
-    const pairs: string[] = [];
-    for (const [key, value] of Object.entries(this.params)) {
-      pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-    }
-    return pairs.join('&');
+    return this._entries
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
   }
 
   forEach(callback: (value: string, key: string, parent: URLSearchParamsPolyfill) => void): void {
-    for (const [key, value] of Object.entries(this.params)) {
+    for (const [key, value] of this._entries) {
       callback(value, key, this);
     }
   }
 
   *keys(): IterableIterator<string> {
-    for (const key of Object.keys(this.params)) {
+    for (const [key] of this._entries) {
       yield key;
     }
   }
 
   *values(): IterableIterator<string> {
-    for (const value of Object.values(this.params)) {
+    for (const [, value] of this._entries) {
       yield value;
     }
   }
 
   *entries(): IterableIterator<[string, string]> {
-    for (const [key, value] of Object.entries(this.params)) {
-      yield [key, value];
+    for (const entry of this._entries) {
+      yield entry;
     }
   }
 
-  // Symbol.iterator to make it iterable
   *[Symbol.iterator](): IterableIterator<[string, string]> {
     yield* this.entries();
   }
@@ -188,7 +200,9 @@ export function installPolyfills(): void {
     const globalObj = getGlobalObject();
 
     if (!globalObj) {
-      console.warn('[Sentry] Unable to detect global object, polyfills may not work correctly');
+      console.warn(
+        '[sentry-miniapp] Unable to detect global object, polyfills may not work correctly',
+      );
       return;
     }
 
@@ -210,7 +224,7 @@ export function installPolyfills(): void {
       (globalThis as any).URLSearchParams = URLSearchParamsPolyfill;
     }
   } catch (error) {
-    console.warn('[Sentry] Failed to install polyfills:', error);
+    console.warn('[sentry-miniapp] Failed to install polyfills:', error);
   }
 }
 

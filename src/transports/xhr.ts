@@ -18,7 +18,10 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
   /**
    * Make a request using miniapp request API
    */
-  function makeRequest(request: any): Promise<TransportMakeRequestResponse> {
+  function makeRequest(request: {
+    body: string | Uint8Array;
+    headers?: Record<string, string>;
+  }): Promise<TransportMakeRequestResponse> {
     return new Promise((resolve, reject) => {
       const requestOptions = {
         url: transportUrl,

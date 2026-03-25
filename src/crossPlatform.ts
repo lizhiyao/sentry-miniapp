@@ -125,7 +125,9 @@ const getSDK = (): SDK => {
     // tslint:disable-next-line: no-unsafe-any
     currentSdk = ks;
   } else {
-    throw new Error('sentry-miniapp 暂不支持此平台');
+    console.warn('[sentry-miniapp] 未检测到已支持的小程序平台，SDK 将以降级模式运行');
+    // 返回带有空操作方法的默认 SDK，而非抛出异常
+    return currentSdk;
   }
 
   // 支付宝小程序的网络请求 API 是 my.httpRequest
@@ -257,7 +259,7 @@ const getSystemInfo = (): SystemInfo | null => {
 
     return null;
   } catch (error) {
-    console.warn('[Sentry] Failed to get system info:', error);
+    console.warn('[sentry-miniapp] Failed to get system info:', error);
     return null;
   }
 };
@@ -266,12 +268,7 @@ const getSystemInfo = (): SystemInfo | null => {
  * 检查是否在小程序环境中
  */
 const isMiniappEnvironment = (): boolean => {
-  try {
-    getSDK();
-    return true;
-  } catch {
-    return false;
-  }
+  return getAppName() !== 'unknown';
 };
 
 // 懒加载 SDK 和 appName，避免在模块导入时就执行平台检测
