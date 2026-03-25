@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
 import { PerformanceIntegration } from '../src/integrations/performance';
-import { getPerformanceManager } from '../src/crossPlatform';
+import { getPerformanceManager, getSystemInfo } from '../src/crossPlatform';
 import type {
   PerformanceEntry,
   PerformanceManager,
@@ -25,6 +25,7 @@ jest.mock('@sentry/core', () => ({
 // Mock the crossPlatform module
 jest.mock('../src/crossPlatform', () => ({
   getPerformanceManager: jest.fn(),
+  getSystemInfo: jest.fn(() => ({ platform: 'devtools' })),
   sdk: jest.fn(() => ({
     getPerformance: jest.fn(),
     reportPerformance: jest.fn(),
@@ -732,6 +733,313 @@ describe('PerformanceIntegration', () => {
       integration.cleanup();
 
       expect(mockObserver.disconnect).toHaveBeenCalled();
+    });
+
+    it('should handle disconnect errors gracefully', () => {
+      mockObserver.disconnect.mockImplementation(() => {
+        throw new Error('disconnect failed');
+      });
+
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      integration.setupOnce();
+
+      expect(() => integration.cleanup()).not.toThrow();
+      consoleSpy.mockRestore();
+    });
+
+    it('should report remaining buffered entries before cleanup', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'last-entry', entryType: 'navigation', startTime: 0, duration: 100 },
+        ]);
+      }
+
+      integration.cleanup();
+
+      // 清理时应调用最后一次上报
+      expect(mockScope.setContext).toHaveBeenCalledWith(
+        'performance_summary',
+        expect.objectContaining({ total_entries: 1 }),
+      );
+    });
+  });
+
+  describe('resource entry processing', () => {
+    it('should process resource entries with network timing', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          {
+            name: 'https://cdn.example.com/app.js',
+            entryType: 'resource',
+            startTime: 500,
+            duration: 200,
+            initiatorType: 'script',
+            fetchStart: 510,
+            responseEnd: 700,
+            transferSize: 50000,
+            encodedBodySize: 48000,
+            decodedBodySize: 120000,
+          } as any,
+        ]);
+      }
+
+      // 应处理资源条目无报错
+      expect(observerCallback).toBeDefined();
+    });
+  });
+
+  describe('user timing entry processing', () => {
+    it('should process measure entries', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          {
+            name: 'api-call',
+            entryType: 'measure',
+            startTime: 100,
+            duration: 300,
+            detail: { url: '/api/data' },
+          } as any,
+        ]);
+      }
+
+      expect(observerCallback).toBeDefined();
+    });
+
+    it('should process mark entries as breadcrumbs', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          {
+            name: 'page-interactive',
+            entryType: 'mark',
+            startTime: 1500,
+            duration: 0,
+          },
+        ]);
+      }
+
+      expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'performance.mark',
+          message: expect.stringContaining('page-interactive'),
+        }),
+      );
+    });
+  });
+
+  describe('entry formats', () => {
+    it('should handle PerformanceObserverEntryList format', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        // 微信小程序可能传入包含 getEntries() 方法的对象
+        const entryList = {
+          getEntries: () => [
+            { name: 'from-list', entryType: 'navigation', startTime: 0, duration: 50 },
+          ],
+        };
+        expect(() => observerCallback(entryList as any)).not.toThrow();
+      }
+    });
+
+    it('should handle single object format', () => {
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        const singleEntry = {
+          name: 'single',
+          entryType: 'navigation',
+          startTime: 0,
+          duration: 30,
+        };
+        expect(() => observerCallback(singleEntry as any)).not.toThrow();
+      }
+    });
+
+    it('should handle unknown entry types', () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'unknown', entryType: 'custom-type', startTime: 0, duration: 10 },
+        ]);
+      }
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('observe fallback', () => {
+    it('should fallback when observe fails for some entry types', () => {
+      let callCount = 0;
+      mockObserver.observe.mockImplementation((opts: any) => {
+        callCount++;
+        if (callCount === 1 && opts.entryTypes.includes('measure')) {
+          throw new Error('measure not supported');
+        }
+      });
+
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // 需要设置 PerformanceObserver.supportedEntryTypes 并避免 devtools 平台检查
+      const originalPO = (global as any).PerformanceObserver;
+      (global as any).PerformanceObserver = {
+        supportedEntryTypes: ['navigation', 'render', 'resource', 'measure', 'mark'],
+      };
+
+      // 覆盖 getSystemInfo 返回非 devtools 平台
+      (getSystemInfo as jest.Mock).mockReturnValue({
+        platform: 'ios',
+        system: 'iOS 15.0',
+      });
+
+      const userTimingIntegration = new PerformanceIntegration({ enableUserTiming: true });
+      userTimingIntegration.setupOnce();
+
+      // 应该降级重试：第一次包含 measure/mark 失败，第二次不包含
+      expect(mockObserver.observe).toHaveBeenCalledTimes(2);
+
+      consoleSpy.mockRestore();
+      userTimingIntegration.cleanup();
+      (global as any).PerformanceObserver = originalPO;
+    });
+  });
+
+  describe('buffer overflow', () => {
+    it('should trim buffer when exceeding bufferSize', () => {
+      const smallBufferIntegration = new PerformanceIntegration({ bufferSize: 3 });
+      smallBufferIntegration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'e1', entryType: 'navigation', startTime: 0, duration: 10 },
+          { name: 'e2', entryType: 'navigation', startTime: 10, duration: 20 },
+          { name: 'e3', entryType: 'navigation', startTime: 20, duration: 30 },
+          { name: 'e4', entryType: 'navigation', startTime: 30, duration: 40 },
+          { name: 'e5', entryType: 'navigation', startTime: 40, duration: 50 },
+        ]);
+      }
+
+      // 缓冲区应该被修剪到 3 个
+      const buffer = (smallBufferIntegration as any)._entryBuffer;
+      expect(buffer.length).toBeLessThanOrEqual(3);
+
+      smallBufferIntegration.cleanup();
+    });
+  });
+
+  describe('render threshold checks', () => {
+    it('should warn when render avg exceeds threshold', () => {
+      const customIntegration = new PerformanceIntegration({
+        thresholds: { render: 500 },
+      });
+      customIntegration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'r1', entryType: 'render', startTime: 0, duration: 600 },
+          { name: 'r2', entryType: 'render', startTime: 600, duration: 800 },
+        ]);
+      }
+
+      (customIntegration as any)._reportBufferedEntries();
+
+      expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '页面渲染性能较慢',
+          category: 'performance.warning',
+          data: expect.objectContaining({ threshold: 500 }),
+        }),
+      );
+
+      customIntegration.cleanup();
+    });
+  });
+
+  describe('resource threshold checks', () => {
+    it('should warn when resource avg load time exceeds threshold', () => {
+      const customIntegration = new PerformanceIntegration({
+        thresholds: { resource: 1000 },
+      });
+      customIntegration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'r1', entryType: 'resource', startTime: 0, duration: 1500 },
+          { name: 'r2', entryType: 'resource', startTime: 1500, duration: 2000 },
+        ]);
+      }
+
+      (customIntegration as any)._reportBufferedEntries();
+
+      expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '资源加载性能较慢',
+          category: 'performance.warning',
+          data: expect.objectContaining({ threshold: 1000 }),
+        }),
+      );
+
+      customIntegration.cleanup();
+    });
+  });
+
+  describe('reportToNativeAPI', () => {
+    it('should report to native API when reportPerformance is available', () => {
+      const { sdk } = require('../src/crossPlatform');
+      const mockReportPerformance = jest.fn();
+      (sdk as jest.Mock).mockReturnValue({
+        getPerformance: jest.fn(),
+        reportPerformance: mockReportPerformance,
+      });
+
+      integration.setupOnce();
+
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      if (observerCallback) {
+        observerCallback([
+          { name: 'entry', entryType: 'navigation', startTime: 0, duration: 100 },
+        ]);
+      }
+
+      (integration as any)._reportBufferedEntries();
+
+      expect(mockReportPerformance).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entries: expect.any(Array),
+          timestamp: expect.any(Number),
+          sampleRate: 1.0,
+        }),
+      );
+    });
+  });
+
+  describe('auto reporting disabled', () => {
+    it('should not start timer when reportInterval is 0', () => {
+      const noReportIntegration = new PerformanceIntegration({ reportInterval: 0 });
+      noReportIntegration.setupOnce();
+
+      expect((noReportIntegration as any)._reportTimer).toBeNull();
+
+      noReportIntegration.cleanup();
     });
   });
 });
