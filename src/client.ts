@@ -5,7 +5,7 @@ import {
   getCurrentScope,
   makeOfflineTransport,
 } from '@sentry/core';
-import type { Event, EventHint } from '@sentry/core';
+import type { BaseTransportOptions, Event, EventHint } from '@sentry/core';
 
 import { appName, getSystemInfo } from './crossPlatform';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
@@ -18,6 +18,7 @@ import { SDK_NAME, SDK_VERSION } from './version';
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class MiniappClient extends Client<any> {
   /**
    * Creates a new Miniapp SDK instance.
@@ -29,7 +30,7 @@ export class MiniappClient extends Client<any> {
       ...options,
       transport:
         options.transport ||
-        ((transportOptions: any) => {
+        ((transportOptions: BaseTransportOptions) => {
           const baseTransport = createMiniappTransport({
             ...transportOptions,
             headers: {},
@@ -38,10 +39,13 @@ export class MiniappClient extends Client<any> {
           if (options.enableOfflineCache !== false) {
             return makeOfflineTransport(() => baseTransport)({
               ...transportOptions,
-              offlineCacheLimit: options.offlineCacheLimit,
-              createStore: createMiniappOfflineStore,
+              createStore: (storeOptions: any) =>
+                createMiniappOfflineStore({
+                  ...storeOptions,
+                  offlineCacheLimit: options.offlineCacheLimit,
+                }),
               flushAtStartup: true, // 启动时自动重试发送
-            });
+            } as any);
           }
 
           return baseTransport;
@@ -156,6 +160,27 @@ export class MiniappClient extends Client<any> {
       // Fallback if scopes are not properly initialized
       return Promise.resolve(event);
     }
+  }
+
+  /**
+   * 关闭客户端，清理所有集成资源
+   */
+  public override close(timeout?: number): PromiseLike<boolean> {
+    // 调用所有集成的 cleanup 方法
+    const integrations = (this as any)._integrations;
+    if (integrations && typeof integrations === 'object') {
+      for (const key of Object.keys(integrations)) {
+        const integration = integrations[key];
+        if (integration && typeof integration.cleanup === 'function') {
+          try {
+            integration.cleanup();
+          } catch (_e) {
+            // 忽略清理过程中的错误
+          }
+        }
+      }
+    }
+    return super.close(timeout);
   }
 
   /**

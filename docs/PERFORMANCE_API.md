@@ -166,3 +166,25 @@ wx.performance.measure('operation-duration', 'operation-start', 'operation-end')
 2. 确认 `reportInterval` 设置合理
 3. 查看控制台是否有错误信息
 4. 验证 Sentry DSN 配置正确
+
+## Performance Monitoring vs Profiling
+
+本集成提供的是 **Performance Monitoring（性能监控）**，而非 Sentry 的 **Profiling（性能剖析）** 功能。两者的区别如下：
+
+| | Performance Monitoring（已实现） | Profiling（不可行） |
+|---|---|---|
+| **粒度** | 页面/组件/资源级 | 函数级 |
+| **采样方式** | 事件驱动（捕获导航、渲染、资源加载事件） | 时间驱动（每 ~10ms 采样一次调用栈） |
+| **回答的问题** | 哪个页面慢？哪个资源加载慢？setData 是否过慢？ | CPU 时间花在哪个函数？哪行代码是瓶颈？ |
+| **可视化** | Spans、面包屑、阈值告警、性能统计 | 火焰图（Flame Chart）、函数耗时排名 |
+| **采集数据** | duration、transferSize、内存占用 | 完整调用栈、CPU 时间归因 |
+
+### 为什么不支持 Profiling？
+
+Sentry 的 Profiling 功能依赖底层的栈采样 API（如浏览器的 [JS Self-Profiling API](https://wicg.github.io/js-self-profiling/)），而小程序平台存在以下限制：
+
+- **无底层栈采样 API** — 微信、支付宝等平台未暴露类似 `Profiler` 的接口
+- **受限的执行环境** — 小程序运行在沙箱中，无法访问 V8/JSCore 的 profiling 能力
+- **性能开销约束** — 100Hz 的栈采样对小程序的性能影响不可接受
+
+因此，本项目专注于**事件级的 Performance Monitoring**，这是小程序环境下最实际且高效的性能观测方案。对于需要函数级分析的场景，建议使用各平台开发者工具内置的 Profiler 进行离线分析。

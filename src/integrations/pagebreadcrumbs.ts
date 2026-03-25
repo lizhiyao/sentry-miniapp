@@ -50,6 +50,8 @@ export class PageBreadcrumbs implements Integration {
   public name: string = PageBreadcrumbs.id;
 
   private _options: Required<PageBreadcrumbsOptions>;
+  private _originalPage: ((...args: any[]) => any) | null = null;
+  private _originalApp: ((...args: any[]) => any) | null = null;
 
   constructor(options: PageBreadcrumbsOptions = {}) {
     this._options = {
@@ -71,6 +73,7 @@ export class PageBreadcrumbs implements Integration {
     const global = globalThis as any;
     if (typeof global.Page !== 'function') return;
 
+    this._originalPage = global.Page;
     const originalPage = global.Page;
     const options = this._options;
 
@@ -143,6 +146,7 @@ export class PageBreadcrumbs implements Integration {
     const global = globalThis as any;
     if (typeof global.App !== 'function') return;
 
+    this._originalApp = global.App;
     const originalApp = global.App;
     const options = this._options;
 
@@ -168,6 +172,21 @@ export class PageBreadcrumbs implements Integration {
 
       return originalApp(appOptions);
     };
+  }
+
+  /**
+   * 清理资源，恢复原始 Page/App 构造函数
+   */
+  public cleanup(): void {
+    const global = globalThis as any;
+    if (this._originalPage) {
+      global.Page = this._originalPage;
+      this._originalPage = null;
+    }
+    if (this._originalApp) {
+      global.App = this._originalApp;
+      this._originalApp = null;
+    }
   }
 }
 

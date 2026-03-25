@@ -91,27 +91,29 @@ var __yieldStar = (value) => {
 
   class URLSearchParamsPolyfill {
     constructor(init2) {
-      this.params = {};
+      this._entries = [];
       if (typeof init2 === "string") {
-        this.parseString(init2);
+        this._parseString(init2);
       } else if (Array.isArray(init2)) {
         for (const pair of init2) {
           if (Array.isArray(pair) && pair.length >= 2) {
-            this.append(pair[0] || "", pair[1] || "");
+            this._entries.push([pair[0] || "", pair[1] || ""]);
           }
         }
       } else if (init2 && typeof init2 === "object") {
         if (init2 instanceof URLSearchParamsPolyfill) {
-          this.params = __spreadValues({}, init2.params);
+          this._entries = init2._entries.map(([k, v]) => [k, v]);
         } else {
-          this.params = __spreadValues({}, init2);
+          for (const [key, value] of Object.entries(init2)) {
+            this._entries.push([key, value]);
+          }
         }
       }
     }
     get size() {
-      return Object.keys(this.params).length;
+      return this._entries.length;
     }
-    parseString(str) {
+    _parseString(str) {
       if (str.startsWith("?")) {
         str = str.slice(1);
       }
@@ -120,73 +122,84 @@ var __yieldStar = (value) => {
       }
       const pairs = str.split("&");
       for (const pair of pairs) {
-        const [key, value = ""] = pair.split("=");
-        if (key) {
-          this.params[decodeURIComponent(key)] = decodeURIComponent(value);
+        const eqIndex = pair.indexOf("=");
+        if (eqIndex === -1) {
+          if (pair) {
+            this._entries.push([decodeURIComponent(pair), ""]);
+          }
+        } else {
+          const key = pair.slice(0, eqIndex);
+          const value = pair.slice(eqIndex + 1);
+          if (key) {
+            this._entries.push([decodeURIComponent(key), decodeURIComponent(value)]);
+          }
         }
       }
     }
     append(name, value) {
-      const existing = this.params[name];
-      if (existing) {
-        this.params[name] = existing + "," + value;
-      } else {
-        this.params[name] = value;
-      }
+      this._entries.push([name, String(value)]);
     }
     delete(name) {
-      delete this.params[name];
+      this._entries = this._entries.filter(([key]) => key !== name);
     }
     get(name) {
-      var _a;
-      return (_a = this.params[name]) != null ? _a : null;
+      const entry = this._entries.find(([key]) => key === name);
+      return entry ? entry[1] : null;
     }
     getAll(name) {
-      const value = this.params[name];
-      return value ? [value] : [];
+      return this._entries.filter(([key]) => key === name).map(([, value]) => value);
     }
     has(name) {
-      return name in this.params;
+      return this._entries.some(([key]) => key === name);
     }
     set(name, value) {
-      this.params[name] = String(value);
+      const strValue = String(value);
+      let found = false;
+      this._entries = this._entries.filter(([key]) => {
+        if (key === name) {
+          if (!found) {
+            found = true;
+            return true;
+          }
+          return false;
+        }
+        return true;
+      });
+      if (found) {
+        const idx = this._entries.findIndex(([key]) => key === name);
+        if (idx !== -1) {
+          this._entries[idx] = [name, strValue];
+        }
+      } else {
+        this._entries.push([name, strValue]);
+      }
     }
     sort() {
-      const sortedKeys = Object.keys(this.params).sort();
-      const sortedParams = {};
-      for (const key of sortedKeys) {
-        sortedParams[key] = this.params[key] || "";
-      }
-      this.params = sortedParams;
+      this._entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
     }
     toString() {
-      const pairs = [];
-      for (const [key, value] of Object.entries(this.params)) {
-        pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-      }
-      return pairs.join("&");
+      return this._entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join("&");
     }
     forEach(callback) {
-      for (const [key, value] of Object.entries(this.params)) {
+      for (const [key, value] of this._entries) {
         callback(value, key, this);
       }
     }
     *keys() {
-      for (const key of Object.keys(this.params)) {
+      for (const [key] of this._entries) {
         yield key;
       }
     }
     *values() {
-      for (const value of Object.values(this.params)) {
+      for (const [, value] of this._entries) {
         yield value;
       }
     }
     *entries() {
-      for (const [key, value] of Object.entries(this.params)) {
-        yield [key, value];
+      for (const entry of this._entries) {
+        yield entry;
       }
     }
-    // Symbol.iterator to make it iterable
     *[Symbol.iterator]() {
       yield* __yieldStar(this.entries());
     }
@@ -226,7 +239,7 @@ var __yieldStar = (value) => {
     try {
       const globalObj = getGlobalObject();
       if (!globalObj) {
-        console.warn("[Sentry] Unable to detect global object, polyfills may not work correctly");
+        console.warn("[sentry-miniapp] Unable to detect global object, polyfills may not work correctly");
         return;
       }
       if (typeof globalObj.URLSearchParams === "undefined") {
@@ -240,7 +253,7 @@ var __yieldStar = (value) => {
         globalThis.URLSearchParams = URLSearchParamsPolyfill;
       }
     } catch (error2) {
-      console.warn("[Sentry] Failed to install polyfills:", error2);
+      console.warn("[sentry-miniapp] Failed to install polyfills:", error2);
     }
   }
   function ensurePolyfills() {
@@ -4940,7 +4953,7 @@ Reason: ${reason}`
     }
     isolationScope.addBreadcrumb(finalBreadcrumb, maxBreadcrumbs);
   }
-  const SDK_VERSION = "1.4.1";
+  const SDK_VERSION = "1.5.0";
   const SDK_NAME = "sentry.javascript.miniapp";
   const getSDK = () => {
     let currentSdk = {
@@ -4971,7 +4984,8 @@ Reason: ${reason}`
     } else if (typeof ks === "object" && ks !== null) {
       currentSdk = ks;
     } else {
-      throw new Error("sentry-miniapp 暂不支持此平台");
+      console.warn("[sentry-miniapp] 未检测到已支持的小程序平台，SDK 将以降级模式运行");
+      return currentSdk;
     }
     if (typeof my === "object" && my !== null && currentSdk === my && !currentSdk.request && currentSdk.httpRequest) {
       currentSdk.request = currentSdk.httpRequest;
@@ -5062,17 +5076,12 @@ Reason: ${reason}`
       }
       return null;
     } catch (error2) {
-      console.warn("[Sentry] Failed to get system info:", error2);
+      console.warn("[sentry-miniapp] Failed to get system info:", error2);
       return null;
     }
   };
   const isMiniappEnvironment = () => {
-    try {
-      getSDK();
-      return true;
-    } catch (e) {
-      return false;
-    }
+    return getAppName() !== "unknown";
   };
   let _sdk = null;
   let _appName = null;
@@ -5160,7 +5169,7 @@ Reason: ${reason}`
           }
           setStore(store);
         } catch (e) {
-          console.warn("[Sentry] Failed to push to offline store", e);
+          console.warn("[sentry-miniapp] Failed to push to offline store", e);
         }
       }),
       unshift: (env) => __async(null, null, function* () {
@@ -5172,7 +5181,7 @@ Reason: ${reason}`
           }
           setStore(store);
         } catch (e) {
-          console.warn("[Sentry] Failed to unshift to offline store", e);
+          console.warn("[sentry-miniapp] Failed to unshift to offline store", e);
         }
       }),
       shift: () => __async(null, null, function* () {
@@ -5185,7 +5194,7 @@ Reason: ${reason}`
           setStore(store);
           return env;
         } catch (e) {
-          console.warn("[Sentry] Failed to shift from offline store", e);
+          console.warn("[sentry-miniapp] Failed to shift from offline store", e);
           return void 0;
         }
       })
@@ -5232,8 +5241,9 @@ Reason: ${reason}`
           }));
           if (options.enableOfflineCache !== false) {
             return makeOfflineTransport(() => baseTransport)(__spreadProps(__spreadValues({}, transportOptions), {
-              offlineCacheLimit: options.offlineCacheLimit,
-              createStore: createMiniappOfflineStore,
+              createStore: (storeOptions) => createMiniappOfflineStore(__spreadProps(__spreadValues({}, storeOptions), {
+                offlineCacheLimit: options.offlineCacheLimit
+              })),
               flushAtStartup: true
               // 启动时自动重试发送
             }));
@@ -5329,6 +5339,24 @@ Reason: ${reason}`
       }
     }
     /**
+     * 关闭客户端，清理所有集成资源
+     */
+    close(timeout) {
+      const integrations = this._integrations;
+      if (integrations && typeof integrations === "object") {
+        for (const key of Object.keys(integrations)) {
+          const integration = integrations[key];
+          if (integration && typeof integration.cleanup === "function") {
+            try {
+              integration.cleanup();
+            } catch (_e) {
+            }
+          }
+        }
+      }
+      return super.close(timeout);
+    }
+    /**
      * @deprecated Miniapp environment does not support Sentry's default HTML report dialog.
      * Please implement your own UI form to collect user feedback (name, email, comments)
      * and use `Sentry.captureFeedback()` to submit it to Sentry.
@@ -5373,6 +5401,10 @@ Reason: ${reason}`
       this._onUnhandledRejectionHandlerInstalled = false;
       this._onPageNotFoundHandlerInstalled = false;
       this._onMemoryWarningHandlerInstalled = false;
+      this._errorHandler = null;
+      this._rejectionHandler = null;
+      this._pageNotFoundHandler = null;
+      this._memoryWarningHandler = null;
       this._options = __spreadValues({
         onerror: true,
         onunhandledrejection: true,
@@ -5405,7 +5437,7 @@ Reason: ${reason}`
         return;
       }
       if (sdk().onError) {
-        (_b = (_a = sdk()).onError) == null ? void 0 : _b.call(_a, (err) => {
+        this._errorHandler = (err) => {
           const error2 = typeof err === "string" ? new Error(err) : err;
           captureException(error2, {
             mechanism: {
@@ -5413,7 +5445,8 @@ Reason: ${reason}`
               handled: false
             }
           });
-        });
+        };
+        (_b = (_a = sdk()).onError) == null ? void 0 : _b.call(_a, this._errorHandler);
       }
       this._onErrorHandlerInstalled = true;
     }
@@ -5424,18 +5457,19 @@ Reason: ${reason}`
         return;
       }
       if (sdk().onUnhandledRejection) {
-        (_b = (_a = sdk()).onUnhandledRejection) == null ? void 0 : _b.call(_a, ({ reason, promise }) => {
+        this._rejectionHandler = ({ reason, promise }) => {
           const error2 = typeof reason === "string" ? new Error(reason) : reason;
           captureException(error2, {
             mechanism: {
               type: "onunhandledrejection",
               handled: false
             },
-            extra: {
+            data: {
               promise
             }
           });
-        });
+        };
+        (_b = (_a = sdk()).onUnhandledRejection) == null ? void 0 : _b.call(_a, this._rejectionHandler);
       }
       this._onUnhandledRejectionHandlerInstalled = true;
     }
@@ -5446,26 +5480,23 @@ Reason: ${reason}`
         return;
       }
       if (sdk().onPageNotFound) {
-        (_b = (_a = sdk()).onPageNotFound) == null ? void 0 : _b.call(
-          _a,
-          (res) => {
-            const scope = getCurrentScope();
-            const url = res.path.split("?")[0];
-            scope.setTag("pagenotfound", url);
-            scope.setContext("page_not_found", {
-              path: res.path,
-              query: res.query,
-              isEntryPage: res.isEntryPage
-            });
-            captureException(new Error(`页面无法找到: ${url}`), {
-              level: "warning",
-              mechanism: {
-                type: "onpagenotfound",
-                handled: true
-              }
-            });
-          }
-        );
+        this._pageNotFoundHandler = (res) => {
+          const scope = getCurrentScope();
+          const url = res.path.split("?")[0];
+          scope.setTag("pagenotfound", url);
+          scope.setContext("page_not_found", {
+            path: res.path,
+            query: res.query,
+            isEntryPage: res.isEntryPage
+          });
+          captureException(new Error(`页面无法找到: ${url}`), {
+            mechanism: {
+              type: "onpagenotfound",
+              handled: true
+            }
+          });
+        };
+        (_b = (_a = sdk()).onPageNotFound) == null ? void 0 : _b.call(_a, this._pageNotFoundHandler);
       }
       this._onPageNotFoundHandlerInstalled = true;
     }
@@ -5476,7 +5507,7 @@ Reason: ${reason}`
         return;
       }
       if (sdk().onMemoryWarning) {
-        (_b = (_a = sdk()).onMemoryWarning) == null ? void 0 : _b.call(_a, ({ level = -1 }) => {
+        this._memoryWarningHandler = ({ level = -1 }) => {
           let levelMessage = "没有获取到告警级别信息";
           switch (level) {
             case 5:
@@ -5498,73 +5529,48 @@ Reason: ${reason}`
             message: levelMessage
           });
           captureException(new Error("内存不足告警"), {
-            level: "warning",
             mechanism: {
               type: "onmemorywarning",
               handled: true
             }
           });
-        });
+        };
+        (_b = (_a = sdk()).onMemoryWarning) == null ? void 0 : _b.call(_a, this._memoryWarningHandler);
       }
       this._onMemoryWarningHandlerInstalled = true;
+    }
+    /**
+     * 清理资源，注销全局事件处理器
+     */
+    cleanup() {
+      try {
+        const currentSdk = sdk();
+        if (this._errorHandler && currentSdk.offError) {
+          currentSdk.offError(this._errorHandler);
+        }
+        if (this._rejectionHandler && currentSdk.offUnhandledRejection) {
+          currentSdk.offUnhandledRejection(this._rejectionHandler);
+        }
+        if (this._pageNotFoundHandler && currentSdk.offPageNotFound) {
+          currentSdk.offPageNotFound(this._pageNotFoundHandler);
+        }
+        if (this._memoryWarningHandler && currentSdk.offMemoryWarning) {
+          currentSdk.offMemoryWarning(this._memoryWarningHandler);
+        }
+      } catch (_e) {
+      }
+      this._errorHandler = null;
+      this._rejectionHandler = null;
+      this._pageNotFoundHandler = null;
+      this._memoryWarningHandler = null;
+      this._onErrorHandlerInstalled = false;
+      this._onUnhandledRejectionHandlerInstalled = false;
+      this._onPageNotFoundHandlerInstalled = false;
+      this._onMemoryWarningHandlerInstalled = false;
     }
   };
   _GlobalHandlers.id = "GlobalHandlers";
   let GlobalHandlers = _GlobalHandlers;
-  const _TryCatch = class _TryCatch {
-    constructor() {
-      this.name = _TryCatch.id;
-    }
-    /** JSDoc */
-    _wrapTimeFunction(original) {
-      return function(...args) {
-        const originalCallback = args[0];
-        args[0] = wrap$1(originalCallback, {
-          mechanism: {
-            data: { function: getFunctionName(original) },
-            handled: true,
-            type: "instrument"
-          }
-        });
-        return original.apply(this, args);
-      };
-    }
-    /** JSDoc */
-    _wrapRAF(original) {
-      return function(callback) {
-        return original(
-          wrap$1(callback, {
-            mechanism: {
-              data: {
-                function: "requestAnimationFrame",
-                handler: getFunctionName(original)
-              },
-              handled: true,
-              type: "instrument"
-            }
-          })
-        );
-      };
-    }
-    /**
-     * Wrap timer functions and event targets to catch errors
-     * and provide better metadata.
-     */
-    setupOnce() {
-      const global2 = globalThis;
-      if (global2.setTimeout) {
-        fill$1(global2, "setTimeout", this._wrapTimeFunction.bind(this));
-      }
-      if (global2.setInterval) {
-        fill$1(global2, "setInterval", this._wrapTimeFunction.bind(this));
-      }
-      if (global2.requestAnimationFrame) {
-        fill$1(global2, "requestAnimationFrame", this._wrapRAF.bind(this));
-      }
-    }
-  };
-  _TryCatch.id = "TryCatch";
-  let TryCatch = _TryCatch;
   function wrap$1(fn, options = {}, before) {
     if (typeof fn !== "function") {
       return fn;
@@ -5581,11 +5587,7 @@ Reason: ${reason}`
     }
     const sentryWrapped = function(...args) {
       try {
-        const wrappedArguments = args.map((arg) => wrap$1(arg, options));
-        if (fn.handleEvent) {
-          return fn.handleEvent.apply(this, wrappedArguments);
-        }
-        return fn.apply(this, wrappedArguments);
+        return fn.apply(this, args);
       } catch (ex) {
         const scope = getCurrentScope();
         scope.addEventProcessor((event) => {
@@ -5640,7 +5642,14 @@ Reason: ${reason}`
     }
     return sentryWrapped;
   }
-  function fill$1(source, name, replacementFactory) {
+  function getFunctionName(fn) {
+    try {
+      return fn && fn.name || "<anonymous>";
+    } catch (_e) {
+      return "<anonymous>";
+    }
+  }
+  function fill(source, name, replacementFactory) {
     if (!(name in source)) {
       return;
     }
@@ -5655,13 +5664,60 @@ Reason: ${reason}`
     }
     source[name] = wrapped;
   }
-  function getFunctionName(fn) {
-    try {
-      return fn && fn.name || "<anonymous>";
-    } catch (_e) {
-      return "<anonymous>";
+  const _TryCatch = class _TryCatch {
+    constructor() {
+      this.name = _TryCatch.id;
     }
-  }
+    /** JSDoc */
+    _wrapTimeFunction(original) {
+      return function(...args) {
+        const originalCallback = args[0];
+        args[0] = wrap$1(originalCallback, {
+          mechanism: {
+            data: { function: getFunctionName(original) },
+            handled: true,
+            type: "instrument"
+          }
+        });
+        return original.apply(this, args);
+      };
+    }
+    /** JSDoc */
+    _wrapRAF(original) {
+      return function(callback) {
+        return original(
+          wrap$1(callback, {
+            mechanism: {
+              data: {
+                function: "requestAnimationFrame",
+                handler: getFunctionName(original)
+              },
+              handled: true,
+              type: "instrument"
+            }
+          })
+        );
+      };
+    }
+    /**
+     * Wrap timer functions and event targets to catch errors
+     * and provide better metadata.
+     */
+    setupOnce() {
+      const global2 = globalThis;
+      if (global2.setTimeout) {
+        fill(global2, "setTimeout", this._wrapTimeFunction.bind(this));
+      }
+      if (global2.setInterval) {
+        fill(global2, "setInterval", this._wrapTimeFunction.bind(this));
+      }
+      if (global2.requestAnimationFrame) {
+        fill(global2, "requestAnimationFrame", this._wrapRAF.bind(this));
+      }
+    }
+  };
+  _TryCatch.id = "TryCatch";
+  let TryCatch = _TryCatch;
   const DEFAULT_KEY = "cause";
   const DEFAULT_LIMIT = 5;
   const _LinkedErrors = class _LinkedErrors {
@@ -5849,9 +5905,11 @@ Reason: ${reason}`
           return null;
         }
       } catch (_oO) {
-        return this._previousEvent = currentEvent;
+        this._previousEvent = this._cloneEventForComparison(currentEvent);
+        return currentEvent;
       }
-      return this._previousEvent = currentEvent;
+      this._previousEvent = this._cloneEventForComparison(currentEvent);
+      return currentEvent;
     }
     /** JSDoc */
     _shouldDropEvent(currentEvent, previousEvent) {
@@ -5950,6 +6008,26 @@ Reason: ${reason}`
     /** JSDoc */
     _getExceptionFromEvent(event) {
       return event.exception && event.exception.values && event.exception.values[0];
+    }
+    /** 浅拷贝事件的关键去重字段 */
+    _cloneEventForComparison(event) {
+      var _a;
+      return {
+        message: event.message,
+        fingerprint: event.fingerprint ? [...event.fingerprint] : void 0,
+        exception: event.exception ? {
+          values: (_a = event.exception.values) == null ? void 0 : _a.map((v) => {
+            var _a2;
+            return {
+              type: v.type,
+              value: v.value,
+              stacktrace: v.stacktrace ? {
+                frames: (_a2 = v.stacktrace.frames) == null ? void 0 : _a2.map((f) => __spreadValues({}, f))
+              } : void 0
+            };
+          })
+        } : void 0
+      };
     }
     /** JSDoc */
     _getFramesFromEvent(event) {
@@ -6069,6 +6147,7 @@ Reason: ${reason}`
     constructor() {
       this.name = _Router.id;
       this._lastRoute = "";
+      this._monitorTimer = null;
     }
     /**
      * @inheritDoc
@@ -6109,13 +6188,22 @@ Reason: ${reason}`
      * Start monitoring route changes
      */
     _startRouteMonitoring() {
-      setInterval(() => {
+      this._monitorTimer = setInterval(() => {
         const currentRoute = this._getCurrentRoute();
         if (currentRoute && currentRoute !== this._lastRoute) {
           this._recordRouteChange(this._lastRoute, currentRoute);
           this._lastRoute = currentRoute;
         }
       }, 1e3);
+    }
+    /**
+     * 清理资源
+     */
+    cleanup() {
+      if (this._monitorTimer) {
+        clearInterval(this._monitorTimer);
+        this._monitorTimer = null;
+      }
     }
     /**
      * Get current route
@@ -6225,7 +6313,7 @@ Reason: ${reason}`
       try {
         this._performanceManager = getPerformanceManager();
         if (!this._performanceManager) {
-          console.warn("[Sentry Performance] Performance API not available");
+          console.warn("[sentry-miniapp] Performance API not available");
           return;
         }
         const scope = getCurrentScope();
@@ -6236,7 +6324,7 @@ Reason: ${reason}`
           buffer_size: this._options.bufferSize
         });
       } catch (error2) {
-        console.warn("[Sentry Performance] Failed to initialize performance manager:", error2);
+        console.warn("[sentry-miniapp] Failed to initialize performance manager:", error2);
       }
     }
     /**
@@ -6292,7 +6380,7 @@ Reason: ${reason}`
           if (safeTypes.length < entryTypes.length && safeTypes.length > 0) {
             observer.observe({ entryTypes: safeTypes });
             console.warn(
-              "[Sentry Performance] Failed to observe all types, falling back to:",
+              "[sentry-miniapp] Failed to observe all types, falling back to:",
               safeTypes
             );
             entryTypes.length = 0;
@@ -6304,10 +6392,10 @@ Reason: ${reason}`
         this._observers.push(observer);
         const globalProcess = typeof globalThis !== "undefined" ? globalThis.process : void 0;
         if (globalProcess && globalProcess.env && globalProcess.env.NODE_ENV !== "production") {
-          console.log("[Sentry Performance] Performance observers setup for:", entryTypes);
+          console.log("[sentry-miniapp] Performance observers setup for:", entryTypes);
         }
       } catch (error2) {
-        console.warn("[Sentry Performance] Failed to setup performance observers:", error2);
+        console.warn("[sentry-miniapp] Failed to setup performance observers:", error2);
       }
     }
     /**
@@ -6325,7 +6413,7 @@ Reason: ${reason}`
       } else if (typeof entries === "object") {
         entriesArray = [entries];
       } else {
-        console.warn("[Sentry Performance] Invalid entries format:", typeof entries);
+        console.warn("[sentry-miniapp] Invalid entries format:", typeof entries);
         return;
       }
       if (entriesArray.length === 0) {
@@ -6339,7 +6427,7 @@ Reason: ${reason}`
           this._processPerformanceEntry(entry);
           this._addToBuffer(entry);
         } catch (error2) {
-          console.warn("[Sentry Performance] Failed to process performance entry:", error2);
+          console.warn("[sentry-miniapp] Failed to process performance entry:", error2);
         }
       });
     }
@@ -6362,7 +6450,7 @@ Reason: ${reason}`
           this._processUserTimingEntry(entry);
           break;
         default:
-          console.log("[Sentry Performance] Unknown entry type:", entry.entryType);
+          console.log("[sentry-miniapp] Unknown entry type:", entry.entryType);
       }
     }
     /**
@@ -6509,8 +6597,8 @@ Reason: ${reason}`
      */
     _addToBuffer(entry) {
       this._entryBuffer.push(entry);
-      if (this._entryBuffer.length > this._options.bufferSize) {
-        this._entryBuffer = this._entryBuffer.slice(-this._options.bufferSize);
+      while (this._entryBuffer.length > this._options.bufferSize) {
+        this._entryBuffer.shift();
       }
     }
     /**
@@ -6551,7 +6639,7 @@ Reason: ${reason}`
         this._reportToNativeAPI();
         this._entryBuffer = [];
       } catch (error2) {
-        console.warn("[Sentry Performance] Failed to report buffered entries:", error2);
+        console.warn("[sentry-miniapp] Failed to report buffered entries:", error2);
       }
     }
     /**
@@ -6661,7 +6749,7 @@ Reason: ${reason}`
           currentSdk.reportPerformance(performanceData);
         }
       } catch (error2) {
-        console.warn("[Sentry Performance] Failed to report to native API:", error2);
+        console.warn("[sentry-miniapp] Failed to report to native API:", error2);
       }
     }
     /**
@@ -6701,7 +6789,7 @@ Reason: ${reason}`
         });
         scope.setTag("performance.integration", "enabled");
       } catch (error2) {
-        console.warn("[Sentry Performance] Failed to add performance context:", error2);
+        console.warn("[sentry-miniapp] Failed to add performance context:", error2);
       }
     }
     /**
@@ -6712,7 +6800,7 @@ Reason: ${reason}`
         try {
           observer.disconnect();
         } catch (error2) {
-          console.warn("[Sentry Performance] Failed to disconnect observer:", error2);
+          console.warn("[sentry-miniapp] Failed to disconnect observer:", error2);
         }
       });
       this._observers = [];
@@ -6769,25 +6857,30 @@ Reason: ${reason}`
   };
   _RewriteFrames.id = "RewriteFrames";
   let RewriteFrames = _RewriteFrames;
-  function fill(source, name, replacementFactory) {
-    if (!(name in source)) {
-      return;
-    }
-    const original = source[name];
-    const wrapped = replacementFactory(original);
-    if (typeof wrapped === "function") {
-      try {
-        wrapped.prototype = wrapped.prototype || {};
-        wrapped.prototype.constructor = wrapped;
-      } catch (_Oo) {
-      }
-    }
-    source[name] = wrapped;
-  }
   const _NetworkBreadcrumbs = class _NetworkBreadcrumbs {
     constructor(options = {}) {
       this.name = _NetworkBreadcrumbs.id;
       this._traceNetworkBody = !!options.traceNetworkBody;
+      this._sensitiveKeys = (options.sensitiveKeys || [
+        "password",
+        "passwd",
+        "secret",
+        "token",
+        "access_token",
+        "refresh_token",
+        "authorization",
+        "cookie",
+        "session",
+        "creditcard",
+        "credit_card",
+        "card_number",
+        "cvv",
+        "ssn",
+        "id_card"
+      ]).map((k) => k.toLowerCase());
+      this._denyUrls = (options.denyBodyUrls || []).map(
+        (pattern) => typeof pattern === "string" ? new RegExp(pattern) : pattern
+      );
     }
     /**
      * @inheritDoc
@@ -6806,6 +6899,8 @@ Reason: ${reason}`
      */
     _createRequestWrapper(originalRequest) {
       const traceNetworkBody = this._traceNetworkBody;
+      const sanitizeBody = this._sanitizeBody.bind(this);
+      const shouldDenyBodyUrl = this._shouldDenyBodyUrl.bind(this);
       return function(options) {
         if (!options || typeof options !== "object") {
           return originalRequest.call(this, options);
@@ -6839,9 +6934,10 @@ Reason: ${reason}`
           url,
           method
         };
-        if (traceNetworkBody && requestData) {
+        if (traceNetworkBody && requestData && !shouldDenyBodyUrl(url)) {
           try {
-            breadcrumbData["request_body"] = typeof requestData === "string" ? requestData : JSON.stringify(requestData);
+            const body = typeof requestData === "string" ? requestData : JSON.stringify(requestData);
+            breadcrumbData["request_body"] = sanitizeBody(body);
           } catch (_e) {
             breadcrumbData["request_body"] = "[Cannot serialize request body]";
           }
@@ -6852,9 +6948,10 @@ Reason: ${reason}`
           const res = args[0] || {};
           const statusCode = res.statusCode || res.status;
           breadcrumbData["status_code"] = statusCode;
-          if (traceNetworkBody && res.data) {
+          if (traceNetworkBody && res.data && !shouldDenyBodyUrl(url)) {
             try {
-              breadcrumbData["response_body"] = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+              const body = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+              breadcrumbData["response_body"] = sanitizeBody(body);
             } catch (_e) {
               breadcrumbData["response_body"] = "[Cannot serialize response body]";
             }
@@ -6885,6 +6982,43 @@ Reason: ${reason}`
         return originalRequest.call(this, options);
       };
     }
+    /**
+     * 检查 URL 是否在拒绝记录请求体的列表中
+     */
+    _shouldDenyBodyUrl(url) {
+      return this._denyUrls.some((pattern) => pattern.test(url));
+    }
+    /**
+     * 对请求/响应体进行敏感字段脱敏
+     */
+    _sanitizeBody(body) {
+      if (this._sensitiveKeys.length === 0) return body;
+      try {
+        const parsed = JSON.parse(body);
+        if (typeof parsed === "object" && parsed !== null) {
+          this._sanitizeObject(parsed);
+          return JSON.stringify(parsed);
+        }
+      } catch (_e) {
+        for (const key of this._sensitiveKeys) {
+          const regex = new RegExp(`(${key})=[^&]*`, "gi");
+          body = body.replace(regex, "$1=[Filtered]");
+        }
+      }
+      return body;
+    }
+    /**
+     * 递归脱敏对象中的敏感字段
+     */
+    _sanitizeObject(obj) {
+      for (const key of Object.keys(obj)) {
+        if (this._sensitiveKeys.includes(key.toLowerCase())) {
+          obj[key] = "[Filtered]";
+        } else if (typeof obj[key] === "object" && obj[key] !== null) {
+          this._sanitizeObject(obj[key]);
+        }
+      }
+    }
   };
   _NetworkBreadcrumbs.id = "NetworkBreadcrumbs";
   let NetworkBreadcrumbs = _NetworkBreadcrumbs;
@@ -6898,6 +7032,8 @@ Reason: ${reason}`
   const _PageBreadcrumbs = class _PageBreadcrumbs {
     constructor(options = {}) {
       this.name = _PageBreadcrumbs.id;
+      this._originalPage = null;
+      this._originalApp = null;
       this._options = __spreadValues({
         enableLifecycle: true,
         enableUserInteraction: true
@@ -6913,6 +7049,7 @@ Reason: ${reason}`
     _wrapPage() {
       const global2 = globalThis;
       if (typeof global2.Page !== "function") return;
+      this._originalPage = global2.Page;
       const originalPage = global2.Page;
       const options = this._options;
       global2.Page = function(pageOptions) {
@@ -6975,6 +7112,7 @@ Reason: ${reason}`
     _wrapApp() {
       const global2 = globalThis;
       if (typeof global2.App !== "function") return;
+      this._originalApp = global2.App;
       const originalApp = global2.App;
       const options = this._options;
       global2.App = function(appOptions) {
@@ -6999,6 +7137,20 @@ Reason: ${reason}`
         return originalApp(appOptions);
       };
     }
+    /**
+     * 清理资源，恢复原始 Page/App 构造函数
+     */
+    cleanup() {
+      const global2 = globalThis;
+      if (this._originalPage) {
+        global2.Page = this._originalPage;
+        this._originalPage = null;
+      }
+      if (this._originalApp) {
+        global2.App = this._originalApp;
+        this._originalApp = null;
+      }
+    }
   };
   _PageBreadcrumbs.id = "PageBreadcrumbs";
   let PageBreadcrumbs = _PageBreadcrumbs;
@@ -7016,12 +7168,14 @@ Reason: ${reason}`
   const _ConsoleBreadcrumbs = class _ConsoleBreadcrumbs {
     constructor(options = {}) {
       this.name = _ConsoleBreadcrumbs.id;
+      this._originalMethods = {};
       this._levels = options.levels || [...CONSOLE_LEVELS];
     }
     setupOnce() {
       for (const level of this._levels) {
         if (typeof console[level] !== "function") continue;
         const original = console[level];
+        this._originalMethods[level] = original;
         console[level] = function(...args) {
           addBreadcrumb({
             category: "console",
@@ -7038,6 +7192,18 @@ Reason: ${reason}`
           return original.apply(console, args);
         };
       }
+    }
+    /**
+     * 清理资源，恢复原始 console 方法
+     */
+    cleanup() {
+      for (const level of this._levels) {
+        const original = this._originalMethods[level];
+        if (original) {
+          console[level] = original;
+        }
+      }
+      this._originalMethods = {};
     }
   };
   _ConsoleBreadcrumbs.id = "ConsoleBreadcrumbs";
@@ -7085,7 +7251,7 @@ Reason: ${reason}`
   }
   function init(options = {}) {
     if (!isMiniappEnvironment()) {
-      console.warn("sentry-miniapp: Not running in a supported miniapp environment");
+      console.warn("[sentry-miniapp] Not running in a supported miniapp environment");
       return void 0;
     }
     const opts = __spreadProps(__spreadValues({}, options), {
@@ -7147,7 +7313,7 @@ Reason: ${reason}`
     if (client) {
       return client.captureFeedback(params);
     } else {
-      console.warn("sentry-miniapp: No client available for captureFeedback");
+      console.warn("[sentry-miniapp] No client available for captureFeedback");
       return "";
     }
   }

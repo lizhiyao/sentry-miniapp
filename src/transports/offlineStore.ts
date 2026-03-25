@@ -28,7 +28,7 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
         }
         setStore(store);
       } catch (e) {
-        console.warn('[Sentry] Failed to push to offline store', e);
+        console.warn('[sentry-miniapp] Failed to push to offline store', e);
       }
     },
     unshift: async (env: Envelope): Promise<void> => {
@@ -40,7 +40,7 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
         }
         setStore(store);
       } catch (e) {
-        console.warn('[Sentry] Failed to unshift to offline store', e);
+        console.warn('[sentry-miniapp] Failed to unshift to offline store', e);
       }
     },
     shift: async (): Promise<Envelope | undefined> => {
@@ -53,7 +53,7 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
         setStore(store);
         return env;
       } catch (e) {
-        console.warn('[Sentry] Failed to shift from offline store', e);
+        console.warn('[sentry-miniapp] Failed to shift from offline store', e);
         return undefined;
       }
     },

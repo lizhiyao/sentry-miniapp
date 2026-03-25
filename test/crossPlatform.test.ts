@@ -126,9 +126,16 @@ describe('CrossPlatform', () => {
       expect(result).toBe(mockKs);
     });
 
-    it('should throw error when no SDK available', async () => {
+    it('should return fallback SDK when no platform available', async () => {
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
       const { getSDK } = await import('../src/crossPlatform');
-      expect(() => getSDK()).toThrow('sentry-miniapp 暂不支持此平台');
+      const result = getSDK();
+      expect(result).toBeDefined();
+      expect(typeof result.request).toBe('function');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('未检测到已支持的小程序平台'),
+      );
+      consoleSpy.mockRestore();
     });
   });
 

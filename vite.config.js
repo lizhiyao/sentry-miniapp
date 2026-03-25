@@ -53,8 +53,6 @@ export default defineConfig(({ mode }) => {
       lib: {
         entry: resolve(__dirname, 'src/index.ts'),
         name: 'SentryMiniapp',
-        fileName: (format) => `sentry-miniapp.${format}.js`,
-        formats: ['es', 'cjs', 'umd']
       },
       outDir: 'dist',
       rollupOptions: {

@@ -34,6 +34,7 @@ export class ConsoleBreadcrumbs implements Integration {
   public name: string = ConsoleBreadcrumbs.id;
 
   private _levels: ConsoleLevel[];
+  private _originalMethods: Partial<Record<ConsoleLevel, (...args: any[]) => void>> = {};
 
   constructor(options: ConsoleBreadcrumbsOptions = {}) {
     this._levels = options.levels || [...CONSOLE_LEVELS];
@@ -44,6 +45,7 @@ export class ConsoleBreadcrumbs implements Integration {
       if (typeof console[level] !== 'function') continue;
 
       const original = console[level];
+      this._originalMethods[level] = original;
 
       console[level] = function (...args: any[]) {
         addBreadcrumb({
@@ -64,6 +66,19 @@ export class ConsoleBreadcrumbs implements Integration {
         return original.apply(console, args);
       };
     }
+  }
+
+  /**
+   * 清理资源，恢复原始 console 方法
+   */
+  public cleanup(): void {
+    for (const level of this._levels) {
+      const original = this._originalMethods[level];
+      if (original) {
+        console[level] = original;
+      }
+    }
+    this._originalMethods = {};
   }
 }
 

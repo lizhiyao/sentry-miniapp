@@ -40,10 +40,12 @@ export class Dedupe implements Integration {
         return null;
       }
     } catch (_oO) {
-      return (this._previousEvent = currentEvent);
+      this._previousEvent = this._cloneEventForComparison(currentEvent);
+      return currentEvent;
     }
 
-    return (this._previousEvent = currentEvent);
+    this._previousEvent = this._cloneEventForComparison(currentEvent);
+    return currentEvent;
   }
 
   /** JSDoc */
@@ -193,6 +195,27 @@ export class Dedupe implements Integration {
   /** JSDoc */
   private _getExceptionFromEvent(event: Event): any {
     return event.exception && event.exception.values && event.exception.values[0];
+  }
+
+  /** 浅拷贝事件的关键去重字段 */
+  private _cloneEventForComparison(event: Event): Event {
+    return {
+      message: event.message,
+      fingerprint: event.fingerprint ? [...event.fingerprint] : undefined,
+      exception: event.exception
+        ? {
+            values: event.exception.values?.map((v) => ({
+              type: v.type,
+              value: v.value,
+              stacktrace: v.stacktrace
+                ? {
+                    frames: v.stacktrace.frames?.map((f) => ({ ...f })),
+                  }
+                : undefined,
+            })),
+          }
+        : undefined,
+    } as Event;
   }
 
   /** JSDoc */

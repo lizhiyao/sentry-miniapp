@@ -50,9 +50,9 @@ export function getDefaultIntegrations(): Integration[] {
  * Initialize the Sentry Miniapp SDK
  * @param options Configuration options for the SDK
  */
-export function init(options: MiniappOptions = {} as any): MiniappClient | undefined {
+export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   if (!isMiniappEnvironment()) {
-    console.warn('sentry-miniapp: Not running in a supported miniapp environment');
+    console.warn('[sentry-miniapp] Not running in a supported miniapp environment');
     return undefined;
   }
 
@@ -103,6 +103,7 @@ export function init(options: MiniappOptions = {} as any): MiniappClient | undef
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initAndBind(MiniappClient as any, opts as any);
   return getCurrentScope().getClient() as MiniappClient;
 }
@@ -179,7 +180,7 @@ export function captureFeedback(params: SendFeedbackParams): string {
   if (client) {
     return client.captureFeedback(params);
   } else {
-    console.warn('sentry-miniapp: No client available for captureFeedback');
+    console.warn('[sentry-miniapp] No client available for captureFeedback');
     return '';
   }
 }

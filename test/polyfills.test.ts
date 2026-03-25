@@ -131,7 +131,8 @@ describe('Polyfills', () => {
       it('should append to existing parameter', () => {
         const params = new URLSearchParamsPolyfill('key=value1');
         params.append('key', 'value2');
-        expect(params.get('key')).toBe('value1,value2');
+        expect(params.get('key')).toBe('value1');
+        expect(params.getAll('key')).toEqual(['value1', 'value2']);
       });
     });
 
@@ -329,7 +330,7 @@ describe('Polyfills', () => {
 
       expect(() => installPolyfills()).not.toThrow();
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[Sentry] Failed to install polyfills:',
+        '[sentry-miniapp] Failed to install polyfills:',
         expect.any(Error),
       );
 
@@ -424,7 +425,7 @@ describe('Polyfills', () => {
       installPolyfills();
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[Sentry] Failed to install polyfills:',
+        '[sentry-miniapp] Failed to install polyfills:',
         expect.any(Error),
       );
 

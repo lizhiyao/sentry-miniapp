@@ -64,7 +64,7 @@ export class PerformanceIntegration implements Integration {
   private _performanceManager: PerformanceManager | null = null;
   private _observers: PerformanceObserver[] = [];
   private _entryBuffer: PerformanceEntry[] = [];
-  private _reportTimer: any = null;
+  private _reportTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: PerformanceIntegrationOptions = {}) {
     this._options = {
@@ -104,7 +104,7 @@ export class PerformanceIntegration implements Integration {
     try {
       this._performanceManager = getPerformanceManager();
       if (!this._performanceManager) {
-        console.warn('[Sentry Performance] Performance API not available');
+        console.warn('[sentry-miniapp] Performance API not available');
         return;
       }
 
@@ -117,7 +117,7 @@ export class PerformanceIntegration implements Integration {
         buffer_size: this._options.bufferSize,
       });
     } catch (error) {
-      console.warn('[Sentry Performance] Failed to initialize performance manager:', error);
+      console.warn('[sentry-miniapp] Failed to initialize performance manager:', error);
     }
   }
 
@@ -202,10 +202,7 @@ export class PerformanceIntegration implements Integration {
         if (safeTypes.length < entryTypes.length && safeTypes.length > 0) {
           // 降级重试
           observer.observe({ entryTypes: safeTypes });
-          console.warn(
-            '[Sentry Performance] Failed to observe all types, falling back to:',
-            safeTypes,
-          );
+          console.warn('[sentry-miniapp] Failed to observe all types, falling back to:', safeTypes);
 
           // 更新 entryTypes 以便日志记录正确
           entryTypes.length = 0;
@@ -220,10 +217,10 @@ export class PerformanceIntegration implements Integration {
       const globalProcess =
         typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
       if (globalProcess && globalProcess.env && globalProcess.env.NODE_ENV !== 'production') {
-        console.log('[Sentry Performance] Performance observers setup for:', entryTypes);
+        console.log('[sentry-miniapp] Performance observers setup for:', entryTypes);
       }
     } catch (error) {
-      console.warn('[Sentry Performance] Failed to setup performance observers:', error);
+      console.warn('[sentry-miniapp] Failed to setup performance observers:', error);
     }
   }
 
@@ -246,7 +243,7 @@ export class PerformanceIntegration implements Integration {
       // 如果是单个对象，转换为数组
       entriesArray = [entries];
     } else {
-      console.warn('[Sentry Performance] Invalid entries format:', typeof entries);
+      console.warn('[sentry-miniapp] Invalid entries format:', typeof entries);
       return;
     }
 
@@ -264,7 +261,7 @@ export class PerformanceIntegration implements Integration {
         this._processPerformanceEntry(entry);
         this._addToBuffer(entry);
       } catch (error) {
-        console.warn('[Sentry Performance] Failed to process performance entry:', error);
+        console.warn('[sentry-miniapp] Failed to process performance entry:', error);
       }
     });
   }
@@ -288,7 +285,7 @@ export class PerformanceIntegration implements Integration {
         this._processUserTimingEntry(entry as UserTimingPerformanceEntry);
         break;
       default:
-        console.log('[Sentry Performance] Unknown entry type:', entry.entryType);
+        console.log('[sentry-miniapp] Unknown entry type:', entry.entryType);
     }
   }
 
@@ -450,9 +447,9 @@ export class PerformanceIntegration implements Integration {
   private _addToBuffer(entry: PerformanceEntry): void {
     this._entryBuffer.push(entry);
 
-    // 缓冲区溢出处理
-    if (this._entryBuffer.length > this._options.bufferSize) {
-      this._entryBuffer = this._entryBuffer.slice(-this._options.bufferSize);
+    // 缓冲区溢出处理：移除最早的条目
+    while (this._entryBuffer.length > this._options.bufferSize) {
+      this._entryBuffer.shift();
     }
   }
 
@@ -509,7 +506,7 @@ export class PerformanceIntegration implements Integration {
       // 清空缓冲区
       this._entryBuffer = [];
     } catch (error) {
-      console.warn('[Sentry Performance] Failed to report buffered entries:', error);
+      console.warn('[sentry-miniapp] Failed to report buffered entries:', error);
     }
   }
 
@@ -637,7 +634,7 @@ export class PerformanceIntegration implements Integration {
         currentSdk.reportPerformance(performanceData);
       }
     } catch (error) {
-      console.warn('[Sentry Performance] Failed to report to native API:', error);
+      console.warn('[sentry-miniapp] Failed to report to native API:', error);
     }
   }
 
@@ -686,7 +683,7 @@ export class PerformanceIntegration implements Integration {
 
       scope.setTag('performance.integration', 'enabled');
     } catch (error) {
-      console.warn('[Sentry Performance] Failed to add performance context:', error);
+      console.warn('[sentry-miniapp] Failed to add performance context:', error);
     }
   }
 
@@ -699,7 +696,7 @@ export class PerformanceIntegration implements Integration {
       try {
         observer.disconnect();
       } catch (error) {
-        console.warn('[Sentry Performance] Failed to disconnect observer:', error);
+        console.warn('[sentry-miniapp] Failed to disconnect observer:', error);
       }
     });
     this._observers = [];
