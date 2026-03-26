@@ -54,9 +54,10 @@ describe('OfflineStore', () => {
     const cached = JSON.parse(cachedStr);
 
     expect(cached.length).toBe(30);
+    // New format: CachedEnvelope { envelope, timestamp }
     // The first 5 should be dropped, so the first one in cache is '5'
-    expect(cached[0][0].event_id).toBe('5');
-    expect(cached[29][0].event_id).toBe('34');
+    expect(cached[0].envelope[0].event_id).toBe('5');
+    expect(cached[29].envelope[0].event_id).toBe('34');
   });
 
   it('should unshift envelopes', async () => {

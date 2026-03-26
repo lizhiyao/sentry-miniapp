@@ -16,6 +16,11 @@ export class Dedupe implements Integration {
    * @inheritDoc
    */
   private _previousEvent?: Event;
+  private readonly _fuzzyMatch: boolean;
+
+  constructor(options: { fuzzyMatch?: boolean } = {}) {
+    this._fuzzyMatch = !!options.fuzzyMatch;
+  }
 
   /**
    * @inheritDoc
@@ -104,11 +109,18 @@ export class Dedupe implements Integration {
       return false;
     }
 
-    if (
-      currentException.type !== previousException.type ||
-      currentException.value !== previousException.value
-    ) {
+    if (currentException.type !== previousException.type) {
       return false;
+    }
+
+    if (this._fuzzyMatch) {
+      if (!fuzzyValueMatch(currentException.value, previousException.value)) {
+        return false;
+      }
+    } else {
+      if (currentException.value !== previousException.value) {
+        return false;
+      }
     }
 
     if (!this._isSameFingerprint(currentEvent, previousEvent)) {
@@ -242,3 +254,17 @@ export class Dedupe implements Integration {
 export const dedupeIntegration: IntegrationFn = () => {
   return new Dedupe();
 };
+
+/**
+ * 模糊匹配：忽略错误消息中的动态部分（时间戳、UUID、数字 ID 等）
+ */
+const DYNAMIC_PATTERNS =
+  /\d{10,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/g;
+
+function fuzzyValueMatch(a: string | undefined, b: string | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const normalizedA = a.replace(DYNAMIC_PATTERNS, '<dynamic>');
+  const normalizedB = b.replace(DYNAMIC_PATTERNS, '<dynamic>');
+  return normalizedA === normalizedB;
+}

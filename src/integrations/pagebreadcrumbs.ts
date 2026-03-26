@@ -1,4 +1,4 @@
-import { addBreadcrumb } from '@sentry/core';
+import { addBreadcrumb, setContext } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 
 /**
@@ -52,6 +52,8 @@ export class PageBreadcrumbs implements Integration {
   private _options: Required<PageBreadcrumbsOptions>;
   private _originalPage: ((...args: any[]) => any) | null = null;
   private _originalApp: ((...args: any[]) => any) | null = null;
+  private _launchTime: number = 0;
+  private _firstPageReady: boolean = false;
 
   constructor(options: PageBreadcrumbsOptions = {}) {
     this._options = {
@@ -76,6 +78,11 @@ export class PageBreadcrumbs implements Integration {
     this._originalPage = global.Page;
     const originalPage = global.Page;
     const options = this._options;
+    const getFirstPageReady = () => this._firstPageReady;
+    const setFirstPageReady = (v: boolean) => {
+      this._firstPageReady = v;
+    };
+    const getLaunchTime = () => this._launchTime;
 
     global.Page = function (pageOptions: any) {
       if (pageOptions && typeof pageOptions === 'object') {
@@ -86,14 +93,32 @@ export class PageBreadcrumbs implements Integration {
               const original = pageOptions[method];
               pageOptions[method] = function (this: any, ...args: any[]) {
                 const route = this?.route || this?.__route__ || 'unknown';
+                const breadcrumbData: Record<string, any> = {
+                  action: method,
+                  page: route,
+                };
+
+                // 记录 onLoad 的 query 参数
+                if (method === 'onLoad' && args[0] && typeof args[0] === 'object') {
+                  breadcrumbData['query'] = args[0];
+                }
+
+                // 记录冷启动耗时（首次 onReady）
+                if (method === 'onReady' && !getFirstPageReady() && getLaunchTime() > 0) {
+                  setFirstPageReady(true);
+                  const coldStartDuration = Date.now() - getLaunchTime();
+                  breadcrumbData['coldStartDuration'] = coldStartDuration;
+                  setContext('startup', {
+                    coldStartDuration,
+                    firstPage: route,
+                  });
+                }
+
                 addBreadcrumb({
                   category: 'page.lifecycle',
                   message: `${method}: ${route}`,
                   level: 'info',
-                  data: {
-                    action: method,
-                    page: route,
-                  },
+                  data: breadcrumbData,
                 });
                 return original.apply(this, args);
               };
@@ -113,13 +138,26 @@ export class PageBreadcrumbs implements Integration {
                   page: route,
                 };
 
-                // 提取事件目标信息
+                // 提取事件目标和交互详情
                 if (event && typeof event === 'object') {
                   if (event.target) {
                     if (event.target.id) breadcrumbData['targetId'] = event.target.id;
                     if (event.target.dataset) breadcrumbData['dataset'] = event.target.dataset;
                   }
                   if (event.type) breadcrumbData['eventType'] = event.type;
+                  // 提取触摸坐标
+                  if (event.detail) {
+                    if (typeof event.detail.x === 'number') breadcrumbData['x'] = event.detail.x;
+                    if (typeof event.detail.y === 'number') breadcrumbData['y'] = event.detail.y;
+                  }
+                  // 提取触摸点信息
+                  if (event.touches && event.touches.length > 0) {
+                    const touch = event.touches[0];
+                    if (touch) {
+                      breadcrumbData['touchX'] = touch.pageX;
+                      breadcrumbData['touchY'] = touch.pageY;
+                    }
+                  }
                 }
 
                 addBreadcrumb({
@@ -148,14 +186,22 @@ export class PageBreadcrumbs implements Integration {
 
     this._originalApp = global.App;
     const originalApp = global.App;
-    const options = this._options;
+    const optionsRef = this._options;
+    const setLaunchTime = (t: number) => {
+      this._launchTime = t;
+    };
 
     global.App = function (appOptions: any) {
-      if (appOptions && typeof appOptions === 'object' && options.enableLifecycle) {
+      if (appOptions && typeof appOptions === 'object' && optionsRef.enableLifecycle) {
         for (const method of APP_LIFECYCLE_METHODS) {
           if (typeof appOptions[method] === 'function') {
             const original = appOptions[method];
             appOptions[method] = function (this: any, ...args: any[]) {
+              // 记录 App.onLaunch 时间，用于计算冷启动耗时
+              if (method === 'onLaunch') {
+                setLaunchTime(Date.now());
+              }
+
               addBreadcrumb({
                 category: 'app.lifecycle',
                 message: `App.${method}`,

@@ -57,14 +57,25 @@ export class MiniappClient extends Client<any> {
    * @inheritDoc
    */
   public eventFromException(exception: any): PromiseLike<Event> {
+    const exceptionValue: Record<string, any> = {
+      type: exception.name || 'Error',
+      value: exception.message || String(exception),
+    };
+
+    // 使用 stackParser 解析堆栈信息
+    if (exception.stack) {
+      const stackParser = this.getOptions().stackParser;
+      if (stackParser && typeof stackParser === 'function') {
+        const frames = stackParser(exception.stack, 1);
+        if (frames.length) {
+          exceptionValue['stacktrace'] = { frames };
+        }
+      }
+    }
+
     return Promise.resolve({
       exception: {
-        values: [
-          {
-            type: exception.name || 'Error',
-            value: exception.message || String(exception),
-          },
-        ],
+        values: [exceptionValue],
       },
       level: 'error',
     } as Event);

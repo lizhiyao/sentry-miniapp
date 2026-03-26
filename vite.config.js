@@ -6,7 +6,7 @@ import dts from 'vite-plugin-dts';
 const baseConfig = {
   build: {
     sourcemap: true,
-    minify: false, // 保持代码可读性，便于调试
+    minify: 'esbuild',
     target: 'es2015',
   },
   resolve: {

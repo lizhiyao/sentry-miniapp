@@ -1,5 +1,6 @@
 import { getCurrentScope, initAndBind, setContext, withScope } from '@sentry/core';
 import type { Integration } from '@sentry/core';
+import { miniappStackParser } from './stacktrace';
 
 import { MiniappClient } from './client';
 import { appName, getSystemInfo, isMiniappEnvironment } from './crossPlatform';
@@ -14,6 +15,8 @@ import {
   NetworkBreadcrumbs,
   PageBreadcrumbs,
   ConsoleBreadcrumbs,
+  SessionIntegration,
+  NetworkStatusIntegration,
 } from './integrations/index';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
@@ -59,7 +62,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   const opts = {
     ...options,
     integrations: options.integrations || defaultIntegrations,
-    stackParser: () => [],
+    stackParser: miniappStackParser,
     transport: options.transport,
   };
 
@@ -67,11 +70,28 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     opts.integrations.push(new RewriteFrames());
   }
 
-  opts.integrations.push(new NetworkBreadcrumbs({ traceNetworkBody: opts.traceNetworkBody }));
+  const networkOptions: Record<string, any> = { traceNetworkBody: opts.traceNetworkBody };
+  if (opts.enableTracePropagation !== undefined) {
+    networkOptions['enableTracePropagation'] = opts.enableTracePropagation;
+  }
+  if (opts.tracePropagationTargets !== undefined) {
+    networkOptions['tracePropagationTargets'] = opts.tracePropagationTargets;
+  }
+  opts.integrations.push(new NetworkBreadcrumbs(networkOptions));
+
+  // 自动 Session 管理（默认启用）
+  if (opts.enableAutoSessionTracking !== false) {
+    opts.integrations.push(new SessionIntegration());
+  }
 
   // 页面生命周期和用户交互面包屑（默认启用）
   if (opts.enableUserInteractionBreadcrumbs !== false) {
     opts.integrations.push(new PageBreadcrumbs());
+  }
+
+  // 网络状态实时监控（默认启用）
+  if (opts.enableNetworkStatusMonitoring !== false) {
+    opts.integrations.push(new NetworkStatusIntegration());
   }
 
   // Console 面包屑（默认禁用，需手动开启）

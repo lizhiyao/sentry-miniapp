@@ -1,4 +1,4 @@
-import { getCurrentScope } from '@sentry/core';
+import { getCurrentScope, addBreadcrumb } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 
 import { getSystemInfo, sdk } from '../crossPlatform';
@@ -22,6 +22,8 @@ export class System implements Integration {
     this._addSystemContext();
     this._addNetworkContext();
     this._addLocationContext();
+    this._addStorageContext();
+    this._checkAppUpdate();
   }
 
   /**
@@ -123,6 +125,82 @@ export class System implements Integration {
       }
     } catch (_e) {
       // Ignore errors when getting location info
+    }
+  }
+  /**
+   * 采集存储配额信息
+   */
+  private _addStorageContext(): void {
+    try {
+      const miniappSdk = sdk();
+      if (miniappSdk && typeof miniappSdk.getStorageInfoSync === 'function') {
+        const info = miniappSdk.getStorageInfoSync();
+        if (info) {
+          const currentSize = info.currentSize || 0; // KB
+          const limitSize = info.limitSize || 0; // KB
+          const usagePercent = limitSize > 0 ? Math.round((currentSize / limitSize) * 100) : 0;
+
+          const scope = getCurrentScope();
+          scope.setContext('storage', {
+            currentSize,
+            limitSize,
+            usagePercent,
+          });
+
+          if (usagePercent >= 80) {
+            addBreadcrumb({
+              category: 'storage.warning',
+              message: `存储使用率 ${usagePercent}%（${currentSize}KB / ${limitSize}KB）`,
+              level: 'warning',
+              data: { currentSize, limitSize, usagePercent },
+            });
+          }
+        }
+      }
+    } catch (_e) {
+      // ignore
+    }
+  }
+
+  /**
+   * 检测小程序更新
+   */
+  private _checkAppUpdate(): void {
+    try {
+      const miniappSdk = sdk();
+      if (miniappSdk && typeof miniappSdk.getUpdateManager === 'function') {
+        const updateManager = miniappSdk.getUpdateManager();
+        if (updateManager) {
+          if (typeof updateManager.onCheckForUpdate === 'function') {
+            updateManager.onCheckForUpdate((res: any) => {
+              if (res && res.hasUpdate) {
+                const scope = getCurrentScope();
+                scope.setTag('has_update', 'true');
+
+                addBreadcrumb({
+                  category: 'app.update',
+                  message: '检测到新版本可用',
+                  level: 'info',
+                  data: { hasUpdate: true },
+                });
+              }
+            });
+          }
+
+          if (typeof updateManager.onUpdateReady === 'function') {
+            updateManager.onUpdateReady(() => {
+              addBreadcrumb({
+                category: 'app.update',
+                message: '新版本已下载完成',
+                level: 'info',
+                data: { updateReady: true },
+              });
+            });
+          }
+        }
+      }
+    } catch (_e) {
+      // ignore
     }
   }
 }

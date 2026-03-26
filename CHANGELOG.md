@@ -1,6 +1,28 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.6.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.5.0...v1.6.0) (2026-03-26)
+
+
+### ✨ Features | 新功能
+
+* 新增 13 项功能优化，全面提升监控能力 ([f407bf0](https://github.com/lizhiyao/sentry-miniapp/commit/f407bf0615315259cf1aa8fdad41d74494f699f2))
+
+
+### 🐛 Bug Fixes | 修复
+
+* 修复技术审查发现的 16 项问题 ([2cd5a82](https://github.com/lizhiyao/sentry-miniapp/commit/2cd5a82b549753afecd4f616d0f2714e62b57273))
+
+
+### ⚡ Performance Improvements | 性能优化
+
+* 启用 esbuild 压缩，包体积减少约 59% ([2c98974](https://github.com/lizhiyao/sentry-miniapp/commit/2c989745bb3a9bebe9c85d29792c7b9c45e07b34))
+
+
+### ✅ Tests | 测试
+
+* 补充测试覆盖率，新增 Performance vs Profiling 文档 ([7b24c68](https://github.com/lizhiyao/sentry-miniapp/commit/7b24c6807b853269c8ef3ed00ac06e8d588f8790))
+
 ## [1.5.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.4.1...v1.5.0) (2026-03-24)
 
 
