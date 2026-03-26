@@ -87,3 +87,6 @@ export { makeSession, closeSession, updateSession } from '@sentry/core';
 
 // Export default integrations
 export { defaultIntegrations, getDefaultIntegrations } from './sdk';
+
+// Export stack trace parser for advanced customization
+export { miniappStackParser } from './stacktrace';

@@ -36,6 +36,15 @@ interface SDK {
   getStorageSync?: Function;
   getStorageInfoSync?: Function;
   removeStorageSync?: Function;
+  // Network Status API
+  getNetworkType?: Function;
+  onNetworkStatusChange?: Function;
+  offNetworkStatusChange?: Function;
+  // Off handlers for cleanup
+  offError?: Function;
+  offUnhandledRejection?: Function;
+  offPageNotFound?: Function;
+  offMemoryWarning?: Function;
 }
 
 /**

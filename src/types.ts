@@ -69,6 +69,21 @@ export interface MiniappOptions {
   /** Maximum number of events to store in offline cache (default: 30) */
   offlineCacheLimit?: number;
 
+  /** 离线缓存过期时间（ms），超过此时间的缓存事件将被丢弃（默认 86400000 即 24 小时） */
+  offlineCacheMaxAge?: number;
+
+  /** 是否启用分布式追踪头注入（默认 true） */
+  enableTracePropagation?: boolean;
+
+  /** 追踪目标 URL 白名单，仅匹配的请求才注入 sentry-trace/baggage 头。为空则对所有非 Sentry 请求注入 */
+  tracePropagationTargets?: Array<string | RegExp>;
+
+  /** 是否启用自动 Session 管理（默认 true），为 Sentry Release Health 提供会话数据 */
+  enableAutoSessionTracking?: boolean;
+
+  /** 是否启用网络状态实时监控（默认 true） */
+  enableNetworkStatusMonitoring?: boolean;
+
   /** Array of strings or regexes that match error URLs which should be exclusively sent to Sentry */
   allowUrls?: Array<string | RegExp>;
 

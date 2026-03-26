@@ -27,6 +27,10 @@
 - **⚡ 深度性能监控**：集成小程序 Performance API，全面采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及用户自定义性能标记。
 - **�️ 智能降噪与过滤**：内置强大的错误去重和采样率控制机制，避免日志风暴。
 - **🔧 跨端框架友好**：完美支持在 Taro、uni-app 等第三方多端编译框架中集成使用。
+- **🔗 分布式追踪**：自动在网络请求中注入 `sentry-trace` / `baggage` 头，串联小程序与后端服务的完整调用链。
+- **📊 Session 健康监控**：自动管理会话生命周期，在 Sentry Release Health 面板展示崩溃率和会话健康数据。
+- **📶 网络状态监控**：实时追踪网络变化（WiFi/4G/离线），帮助排查网络相关的异常。
+- **🔍 堆栈解析**：内置多平台堆栈解析器，支持 V8/Safari/JavaScriptCore 格式，配合 SourceMap 精准定位错误。
 
 ---
 
@@ -79,7 +83,15 @@ Sentry.init({
   
   // --- 性能与采样率 ---
   sampleRate: 1.0, // 异常上报采样率 (0.0 - 1.0)
-  
+
+  // --- 分布式追踪 ---
+  enableTracePropagation: true, // [新增] 自动在请求头中注入 sentry-trace/baggage（默认 true）
+  tracePropagationTargets: ['api.example.com'], // [新增] 仅对指定域名注入追踪头（为空则全部注入）
+
+  // --- Session 与网络监控 ---
+  enableAutoSessionTracking: true, // [新增] 自动管理 Session 生命周期（默认 true）
+  enableNetworkStatusMonitoring: true, // [新增] 实时监控网络状态变化（默认 true）
+
   // 可选：性能监控配置
   integrations: [
     Sentry.performanceIntegration({

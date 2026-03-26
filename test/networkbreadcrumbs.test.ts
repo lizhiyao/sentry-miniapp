@@ -8,6 +8,9 @@ jest.mock('@sentry/core', () => {
     getClient: jest.fn(() => ({
       getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
     })),
+    getCurrentScope: jest.fn(() => ({
+      getPropagationContext: () => ({ traceId: 'abc123', parentSpanId: 'def456' }),
+    })),
   };
 });
 import { addBreadcrumb, getClient } from '@sentry/core';
@@ -53,6 +56,7 @@ describe('NetworkBreadcrumbs Integration', () => {
         url: 'https://api.example.com/users',
         method: 'POST',
         status_code: 200,
+        duration: 0,
       },
     });
   });
@@ -77,8 +81,11 @@ describe('NetworkBreadcrumbs Integration', () => {
         url: 'https://api.example.com/users',
         method: 'POST',
         status_code: 200,
+        duration: 0,
         request_body: '{"userId":1}',
+        request_size: 12,
         response_body: '{"status":"ok"}',
+        response_size: 15,
       },
     });
   });
@@ -181,6 +188,7 @@ describe('NetworkBreadcrumbs Integration', () => {
         url: 'https://api.example.com/timeout',
         method: 'GET',
         error: 'request:fail timeout',
+        duration: 0,
       },
     });
   });
