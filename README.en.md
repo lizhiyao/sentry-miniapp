@@ -1,4 +1,4 @@
-# Sentry Miniapp SDK
+# Sentry Miniapp SDK — Mini Program Monitoring SDK
 
 ![npm version](https://img.shields.io/npm/v/sentry-miniapp)
 ![npm downloads/month](https://img.shields.io/npm/dm/sentry-miniapp)
@@ -9,7 +9,7 @@
 
 [简体中文](./README.md) | English
 
-A **multi-platform mini program error and performance monitoring SDK** built on `@sentry/core` (v10.45.0). It brings the powerful, modern Sentry monitoring experience to mini program developers — consistent with the Web SDK.
+A **mini program monitoring SDK** built on `@sentry/core` (v10.45.0), providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou mini programs and cross-platform frameworks (Taro / uni-app).
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western tech stack. Think of them as a hybrid between PWAs and native apps, but hosted within a platform's sandbox.
 

@@ -1,7 +1,7 @@
 {
   "name": "sentry-miniapp",
   "version": "1.6.0",
-  "description": "Sentry SDK for Mini Programs (WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou) & Taro / uni-app | 小程序 Sentry SDK",
+  "description": "Sentry SDK for Mini Programs (WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou) & Taro / uni-app | 小程序监控 SDK，支持异常监控、性能监控、错误收集",
   "repository": {
     "type": "git",
     "url": "git://github.com/lizhiyao/sentry-miniapp.git"
@@ -134,6 +134,9 @@
   "keywords": [
     "sentry",
     "miniapp",
+    "mini-program",
+    "miniprogram",
+    "weapp",
     "wechat",
     "alipay",
     "bytedance",
@@ -144,11 +147,17 @@
     "taro",
     "uniapp",
     "error-monitoring",
+    "error-tracking",
     "exception-tracking",
     "performance-monitoring",
+    "crash-report",
+    "crash-reporting",
     "sourcemap",
     "offline-cache",
+    "breadcrumbs",
+    "distributed-tracing",
     "小程序",
+    "小程序监控",
     "微信小程序",
     "支付宝小程序",
     "字节跳动小程序",
@@ -161,6 +170,8 @@
     "异常监控",
     "错误收集",
     "性能监控",
-    "前端监控"
+    "前端监控",
+    "前端异常监控",
+    "小程序错误监控"
   ]
 }
