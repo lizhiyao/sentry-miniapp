@@ -1,4 +1,4 @@
-# Sentry Miniapp SDK
+# Sentry Miniapp SDK — 小程序监控 SDK
 
 ![npm version](https://img.shields.io/npm/v/sentry-miniapp)
 ![npm download](https://img.shields.io/npm/dm/sentry-miniapp)
@@ -7,9 +7,9 @@
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
 ![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
 
-[English](./README.en.md)
+简体中文 | [English](./README.en.md)
 
-一个基于 `@sentry/core` (v10.45.0) 核心构建的**多端小程序异常与性能监控 SDK**。旨在为小程序开发者提供与 Web 端一致的、强大且现代的 Sentry 监控体验。
+一个基于 `@sentry/core` (v10.45.0) 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序及 Taro / uni-app 等跨端框架。
 
 > **💡 版本说明**
 >
@@ -165,26 +165,45 @@ Sentry.addPerformanceMark('api-request-end');
 Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-end');
 ```
 
+### 动态采样 (tracesSampler)
+
+除了全局 `sampleRate`，你还可以通过 `tracesSampler` 回调实现按页面、按场景的精细化采样控制：
+
+```javascript
+Sentry.init({
+  dsn: '...',
+  tracesSampler: ({ name, inheritOrSampleWith }) => {
+    // 核心页面 100% 采样
+    if (name.includes('pages/index') || name.includes('pages/pay')) {
+      return 1;
+    }
+    // 低优先级页面降低采样率
+    if (name.includes('pages/about') || name.includes('pages/settings')) {
+      return 0.1;
+    }
+    // 继承上游采样决策，或使用默认 50% 采样率
+    return inheritOrSampleWith(0.5);
+  },
+});
+```
+
+> **注意：** 设置 `tracesSampler` 后，`tracesSampleRate` 将被忽略。`tracesSampler` 的优先级更高。
+
 ---
 
 ## 🗺️ Source Map 支持与配置
 
-在小程序中，报错堆栈的路径通常是各种虚拟路径（如 `appservice/pages/index.js`），这导致直接上传的 Source Map 无法被 Sentry 正确解析。
+SDK 内置了多端堆栈路径归一化能力（`enableSourceMap: true`，默认开启），自动将各平台虚拟路径转换为统一的 `app:///` 前缀，配合 sentry-cli 即可实现 Source Map 解析。
 
-SDK 内部已经为您解决了这个痛点：
-只要在 `Sentry.init` 时开启了 `enableSourceMap: true`（默认开启），SDK 会在报错时自动拦截并抹平各平台的虚拟路径，统一替换为标准前缀 `app:///`。
-
-您**只需要在打包上传 Source Map 时，确保配置的 `url-prefix` 为 `app:///` 即可**。
-
-**使用 sentry-cli 上传示例：**
+**快速上传示例：**
 
 ```bash
-sentry-cli releases files "your-project-release-id" upload-sourcemaps ./dist \
-  --url-prefix "app:///" \
-  --ext .js --ext .map
+sentry-cli releases files “my-miniapp@1.0.0” upload-sourcemaps ./dist \
+  --url-prefix “app:///” \
+  --ext js --ext map
 ```
 
-*(注：在微信开发者工具上传代码时，请**务必关闭**工具自带的“ES6转ES5”和“代码压缩”功能，将这些工作交给 Webpack/Vite 等构建工具，以防行列号错位。)*
+> 详细的端到端配置指南（包括各构建工具配置、CI/CD 集成、验证与排查），请参阅 **[Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md)**。
 
 ---
 
@@ -290,6 +309,18 @@ App({
 
 目前 **不支持** `Sentry.replayIntegration()`。
 Sentry 官方的 Replay 功能强依赖于浏览器标准 DOM 环境（通过 rrweb 录制）。小程序采用双线程架构且没有开放标准 DOM 接口，无法直接复用。建议通过完善**Breadcrumbs（面包屑路径）**结合**自定义日志**来还原用户操作现场。
+
+---
+
+## 📖 文档导航
+
+| 文档 | 说明 |
+|------|------|
+| [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md) | 端到端 Source Map 配置，覆盖各构建工具、CI/CD 集成、验证与排查 |
+| [多端兼容性报告](./docs/MultiPlatformCompatibilityReport.md) | 各小程序平台 API 兼容性矩阵与差异说明 |
+| [示例项目](./examples/wxapp/) | 微信小程序完整接入示例 |
+| [开发指南](./DEVELOPMENT.md) | 本地开发环境搭建与调试 |
+| [贡献指南](./CONTRIBUTING.md) | 如何参与项目贡献 |
 
 ---
 

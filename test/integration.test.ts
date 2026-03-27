@@ -328,6 +328,26 @@ describe('Integration Tests', () => {
       expect(scope).toBeDefined();
     });
 
+    it('should accept tracesSampler option and pass it to client', () => {
+      const mockRequest = jest.fn().mockImplementation((options) => {
+        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
+      });
+      (global as any).wx.request = mockRequest;
+
+      const tracesSampler = jest.fn<() => number>().mockReturnValue(0.5);
+
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        tracesSampler,
+        integrations: [],
+      });
+
+      // tracesSampler should be passed through to client options
+      expect(client).toBeDefined();
+      const options = client!.getOptions();
+      expect(options.tracesSampler).toBe(tracesSampler);
+    });
+
     it('should respect sampling rates', () => {
       const mockRequest = jest.fn().mockImplementation((options) => {
         (options as any).success({ statusCode: 200, data: 'OK', header: {} });

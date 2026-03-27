@@ -1,4 +1,4 @@
-# Sentry Miniapp SDK
+# Sentry Miniapp SDK — Mini Program Monitoring SDK
 
 ![npm version](https://img.shields.io/npm/v/sentry-miniapp)
 ![npm downloads/month](https://img.shields.io/npm/dm/sentry-miniapp)
@@ -7,9 +7,9 @@
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
 ![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
 
-**[中文文档 / Chinese Documentation](./README.md)** — Mini programs are primarily a Chinese mobile ecosystem; most users of this SDK are Chinese developers.
+[简体中文](./README.md) | English
 
-A **multi-platform mini program error and performance monitoring SDK** built on `@sentry/core` (v10.45.0). It brings the powerful, modern Sentry monitoring experience to mini program developers — consistent with the Web SDK.
+A **mini program monitoring SDK** built on `@sentry/core` (v10.45.0), providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou mini programs and cross-platform frameworks (Taro / uni-app).
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western tech stack. Think of them as a hybrid between PWAs and native apps, but hosted within a platform's sandbox.
 
@@ -164,23 +164,45 @@ Sentry.addPerformanceMark('api-request-end');
 Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-end');
 ```
 
+### Dynamic Sampling (tracesSampler)
+
+Beyond the global `sampleRate`, you can use the `tracesSampler` callback for fine-grained, per-page sampling control:
+
+```javascript
+Sentry.init({
+  dsn: '...',
+  tracesSampler: ({ name, inheritOrSampleWith }) => {
+    // 100% sampling for critical pages
+    if (name.includes('pages/index') || name.includes('pages/pay')) {
+      return 1;
+    }
+    // Lower sampling for low-priority pages
+    if (name.includes('pages/about') || name.includes('pages/settings')) {
+      return 0.1;
+    }
+    // Inherit upstream decision or fall back to 50%
+    return inheritOrSampleWith(0.5);
+  },
+});
+```
+
+> **Note:** When `tracesSampler` is set, `tracesSampleRate` is ignored. `tracesSampler` takes priority.
+
 ---
 
 ## SourceMap Support
 
-In mini programs, error stack traces typically contain virtual paths (e.g., `appservice/pages/index.js`), which prevents Sentry from resolving uploaded SourceMaps.
+The SDK includes built-in multi-platform stack path normalization (`enableSourceMap: true`, enabled by default), automatically converting platform-specific virtual paths to the `app:///` prefix for seamless SourceMap resolution with sentry-cli.
 
-The SDK solves this automatically: when `enableSourceMap: true` (enabled by default), the SDK intercepts and normalizes platform-specific virtual paths to a standard `app:///` prefix.
-
-**You only need to ensure `url-prefix` is set to `app:///` when uploading SourceMaps:**
+**Quick upload example:**
 
 ```bash
-sentry-cli releases files "your-project-release-id" upload-sourcemaps ./dist \
+sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
   --url-prefix "app:///" \
-  --ext .js --ext .map
+  --ext js --ext map
 ```
 
-*(Note: When using WeChat DevTools to upload code, make sure to **disable** the built-in "ES6 to ES5" and "Code Minification" features. Delegate these tasks to Webpack/Vite to prevent line/column number misalignment.)*
+> For a complete end-to-end setup guide (build tool configs, CI/CD integration, verification & troubleshooting), see **[Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md)**.
 
 ---
 
@@ -272,6 +294,18 @@ If errors are not being reported, check:
 ### 2. Does this SDK support Session Replay?
 
 **Not currently.** Sentry's official Replay feature relies on standard browser DOM (via rrweb recording). Mini programs use a dual-thread architecture without standard DOM access. We recommend using **Breadcrumbs** combined with **custom logging** to reconstruct user action sequences.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [SourceMap Configuration Guide](./docs/SOURCEMAP_GUIDE.md) | End-to-end SourceMap setup, build tools, CI/CD, verification & troubleshooting |
+| [Multi-Platform Compatibility Report](./docs/MultiPlatformCompatibilityReport.md) | Platform API compatibility matrix and differences |
+| [Example Project](./examples/wxapp/) | Complete WeChat mini program integration example |
+| [Development Guide](./DEVELOPMENT.md) | Local development setup and debugging |
+| [Contributing Guide](./CONTRIBUTING.md) | How to contribute to the project |
 
 ---
 
