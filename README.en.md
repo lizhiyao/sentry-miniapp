@@ -7,7 +7,7 @@
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
 ![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
 
-**[中文文档 / Chinese Documentation](./README.md)** — Mini programs are primarily a Chinese mobile ecosystem; most users of this SDK are Chinese developers.
+[简体中文](./README.md) | English
 
 A **multi-platform mini program error and performance monitoring SDK** built on `@sentry/core` (v10.45.0). It brings the powerful, modern Sentry monitoring experience to mini program developers — consistent with the Web SDK.
 
