@@ -1,6 +1,29 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.7.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.6.0...v1.7.0) (2026-03-27)
+
+
+### ✨ Features | 新功能
+
+* 新增 tracesSampler 动态采样支持 ([176e4ad](https://github.com/lizhiyao/sentry-miniapp/commit/176e4ad406d746b5e04c4f5fdb238059f6d0babb))
+
+
+### 🎫 Chores | 其他更新
+
+* **deps:** bump handlebars from 4.7.8 to 4.7.9 ([d317617](https://github.com/lizhiyao/sentry-miniapp/commit/d317617dfe37c877f1ea5bd050a9f17292c9974d))
+* 优化项目 SEO，提升搜索引擎可发现性 ([706cba5](https://github.com/lizhiyao/sentry-miniapp/commit/706cba56080f6452cd9b0a1547f55480f0f3a230))
+* 精简项目文档，删除冗余内容 ([a0bb3c1](https://github.com/lizhiyao/sentry-miniapp/commit/a0bb3c1b5ba592ece603c353eb67cbbfaeed6239))
+
+
+### 📝 Documentation | 文档
+
+* 国际化项目文档，提升开源治理规范 ([9904970](https://github.com/lizhiyao/sentry-miniapp/commit/9904970b84063921c44fbb1e43f01faccb76871e))
+* 恢复中文优先 README，英文版移至 README.en.md ([6f8059f](https://github.com/lizhiyao/sentry-miniapp/commit/6f8059f6cacda46ff9c1797f72e757ecf3ea5c19))
+* 新增 Source Map 完整配置指南 ([162faa7](https://github.com/lizhiyao/sentry-miniapp/commit/162faa735551f32f4252c0f149f0f7e4f8197731))
+* 移除 npm 总下载量 badge ([3a79301](https://github.com/lizhiyao/sentry-miniapp/commit/3a793015d80887a135dd8b24b77807fb8170fbed))
+* 统一中英文 README 语言切换样式 ([fc1cc70](https://github.com/lizhiyao/sentry-miniapp/commit/fc1cc708e6dab3fd79f389dfa7c370fc61bbc9b9))
+
 ## [1.6.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.5.0...v1.6.0) (2026-03-26)
 
 
