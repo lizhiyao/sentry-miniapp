@@ -71,7 +71,7 @@ Page({
         brand: sys.brand || '--'
       },
       'sdkStatus.connected': isConnected,
-      'sdkStatus.version': '1.1.0', // 硬编码或从 SDK 获取
+      'sdkStatus.version': Sentry.SDK_VERSION || '--',
       'sdkStatus.dsnConfigured': !!dsn,
       'sdkStatus.initTime': timeString
     });
@@ -99,6 +99,9 @@ Page({
             'usageStats.npmDownloads': res.data.downloads.toString()
           });
         }
+      },
+      fail() {
+        that.setData({ 'usageStats.npmDownloads': '获取失败' });
       }
     });
 
@@ -111,6 +114,9 @@ Page({
             'usageStats.npmDownloadsMonth': res.data.downloads.toString()
           });
         }
+      },
+      fail() {
+        that.setData({ 'usageStats.npmDownloadsMonth': '获取失败' });
       }
     });
 
@@ -141,6 +147,13 @@ Page({
             that.setData(dataToUpdate);
           }
         }
+      },
+      fail() {
+        that.setData({
+          'usageStats.githubStars': '获取失败',
+          'usageStats.githubForks': '获取失败',
+          'usageStats.githubOpenIssues': '获取失败'
+        });
       }
     });
   },
@@ -163,6 +176,9 @@ Page({
             });
           }
         }
+      },
+      fail() {
+        that.setData({ 'sdkStatus.releaseDate': '获取失败' });
       }
     });
   },

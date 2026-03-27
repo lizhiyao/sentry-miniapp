@@ -21,6 +21,13 @@ Sentry.init({
   sampleRate: 1.0,
   tracesSampleRate: 1.0, // 启用性能追踪，100% 采样
 
+  // 动态采样（可替代 tracesSampleRate，优先级更高）
+  // tracesSampler: ({ name, inheritOrSampleWith }) => {
+  //   if (name.includes('pages/index')) return 1;    // 首页 100% 采样
+  //   if (name.includes('pages/test')) return 0.5;    // 测试页 50% 采样
+  //   return inheritOrSampleWith(0.2);                // 其他默认 20%
+  // },
+
   // 限制事件大小以避免 400 错误
   beforeSend(event) {
     // 过滤包含敏感信息的事件

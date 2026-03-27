@@ -55,6 +55,16 @@
       </view>
       <view class="action-btn">测试</view>
     </view>
+
+    <view class="action-item"
+          bindtap="testUnhandledRejection">
+      <view class="icon-box warning">🔥</view>
+      <view class="action-content">
+        <text class="action-name">Promise 异常</text>
+        <text class="action-desc">触发未处理的 Promise rejection</text>
+      </view>
+      <view class="action-btn">测试</view>
+    </view>
   </view>
 
   <!-- 性能与网络 -->
@@ -89,7 +99,7 @@
       <view class="icon-box primary">💬</view>
       <view class="action-content">
         <text class="action-name">用户反馈</text>
-        <text class="action-desc">提交带有上下文的用户反馈</text>
+        <text class="action-desc">Sentry.captureFeedback() API</text>
       </view>
       <view class="action-btn">测试</view>
     </view>
