@@ -164,6 +164,30 @@ Sentry.addPerformanceMark('api-request-end');
 Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-end');
 ```
 
+### Dynamic Sampling (tracesSampler)
+
+Beyond the global `sampleRate`, you can use the `tracesSampler` callback for fine-grained, per-page sampling control:
+
+```javascript
+Sentry.init({
+  dsn: '...',
+  tracesSampler: ({ name, inheritOrSampleWith }) => {
+    // 100% sampling for critical pages
+    if (name.includes('pages/index') || name.includes('pages/pay')) {
+      return 1;
+    }
+    // Lower sampling for low-priority pages
+    if (name.includes('pages/about') || name.includes('pages/settings')) {
+      return 0.1;
+    }
+    // Inherit upstream decision or fall back to 50%
+    return inheritOrSampleWith(0.5);
+  },
+});
+```
+
+> **Note:** When `tracesSampler` is set, `tracesSampleRate` is ignored. `tracesSampler` takes priority.
+
 ---
 
 ## SourceMap Support

@@ -165,6 +165,30 @@ Sentry.addPerformanceMark('api-request-end');
 Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-end');
 ```
 
+### 动态采样 (tracesSampler)
+
+除了全局 `sampleRate`，你还可以通过 `tracesSampler` 回调实现按页面、按场景的精细化采样控制：
+
+```javascript
+Sentry.init({
+  dsn: '...',
+  tracesSampler: ({ name, inheritOrSampleWith }) => {
+    // 核心页面 100% 采样
+    if (name.includes('pages/index') || name.includes('pages/pay')) {
+      return 1;
+    }
+    // 低优先级页面降低采样率
+    if (name.includes('pages/about') || name.includes('pages/settings')) {
+      return 0.1;
+    }
+    // 继承上游采样决策，或使用默认 50% 采样率
+    return inheritOrSampleWith(0.5);
+  },
+});
+```
+
+> **注意：** 设置 `tracesSampler` 后，`tracesSampleRate` 将被忽略。`tracesSampler` 的优先级更高。
+
 ---
 
 ## 🗺️ Source Map 支持与配置

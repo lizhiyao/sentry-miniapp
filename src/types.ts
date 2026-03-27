@@ -33,6 +33,37 @@ export interface MiniappOptions {
   /** Traces sample rate */
   tracesSampleRate?: number;
 
+  /**
+   * 动态采样函数，根据上下文决定每个 trace 的采样率。
+   * 优先级高于 tracesSampleRate，设置后 tracesSampleRate 将被忽略。
+   *
+   * @param samplingContext - 采样上下文信息
+   * @returns 0~1 之间的数字（采样概率），或 true（100% 采样）/ false（丢弃）
+   *
+   * @example
+   * ```typescript
+   * Sentry.init({
+   *   tracesSampler: ({ name, inheritOrSampleWith }) => {
+   *     if (name.includes('pages/index')) return 1;    // 首页 100% 采样
+   *     if (name.includes('pages/about')) return 0.1;  // 关于页 10% 采样
+   *     return inheritOrSampleWith(0.5);                // 其他默认 50%
+   *   },
+   * });
+   * ```
+   */
+  tracesSampler?: (samplingContext: {
+    /** span 名称 */
+    name: string;
+    /** span 初始属性 */
+    attributes?: Record<string, unknown>;
+    /** 父级 span 是否被采样 */
+    parentSampled?: boolean;
+    /** 来自上游 trace 的采样率 */
+    parentSampleRate?: number;
+    /** 继承父级采样决策或使用回退采样率 */
+    inheritOrSampleWith: (fallbackSampleRate: number) => number;
+  }) => number | boolean;
+
   /** Transport function */
   transport?: (transportOptions: BaseTransportOptions) => Transport;
 
