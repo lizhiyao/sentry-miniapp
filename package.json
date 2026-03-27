@@ -1,7 +1,7 @@
 {
   "name": "sentry-miniapp",
   "version": "1.6.0",
-  "description": "用于小程序平台的 Sentry SDK",
+  "description": "Sentry SDK for Mini Programs (WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou) & Taro / uni-app | 小程序 Sentry SDK",
   "repository": {
     "type": "git",
     "url": "git://github.com/lizhiyao/sentry-miniapp.git"
@@ -21,38 +21,6 @@
     "prepare": "husky",
     "release": "commit-and-tag-version"
   },
-  "keywords": [
-    "sentry",
-    "miniapp",
-    "wechat",
-    "alipay",
-    "bytedance",
-    "swan",
-    "kuaishou",
-    "dingtalk",
-    "qq",
-    "taro",
-    "uniapp",
-    "error-monitoring",
-    "exception-tracking",
-    "performance-monitoring",
-    "sourcemap",
-    "offline-cache",
-    "小程序",
-    "微信小程序",
-    "支付宝小程序",
-    "字节跳动小程序",
-    "抖音小程序",
-    "百度小程序",
-    "快手小程序",
-    "钉钉小程序",
-    "QQ小程序",
-    "跨端开发",
-    "异常监控",
-    "错误收集",
-    "性能监控",
-    "前端监控"
-  ],
   "author": "dancerlzy@gmail.com",
   "license": "MIT",
   "engines": {
@@ -162,5 +130,37 @@
         "section": "👷‍ Build System | 构建"
       }
     ]
-  }
+  },
+  "keywords": [
+    "sentry",
+    "miniapp",
+    "wechat",
+    "alipay",
+    "bytedance",
+    "swan",
+    "kuaishou",
+    "dingtalk",
+    "qq",
+    "taro",
+    "uniapp",
+    "error-monitoring",
+    "exception-tracking",
+    "performance-monitoring",
+    "sourcemap",
+    "offline-cache",
+    "小程序",
+    "微信小程序",
+    "支付宝小程序",
+    "字节跳动小程序",
+    "抖音小程序",
+    "百度小程序",
+    "快手小程序",
+    "钉钉小程序",
+    "QQ小程序",
+    "跨端开发",
+    "异常监控",
+    "错误收集",
+    "性能监控",
+    "前端监控"
+  ]
 }
