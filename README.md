@@ -2,7 +2,6 @@
 
 ![npm version](https://img.shields.io/npm/v/sentry-miniapp)
 ![npm downloads/month](https://img.shields.io/npm/dm/sentry-miniapp)
-![npm downloads/total](https://img.shields.io/npm/dt/sentry-miniapp)
 ![github forks](https://img.shields.io/github/forks/lizhiyao/sentry-miniapp?style=social)
 ![github stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp?style=social)
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
