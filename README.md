@@ -169,22 +169,17 @@ Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-e
 
 ## 🗺️ Source Map 支持与配置
 
-在小程序中，报错堆栈的路径通常是各种虚拟路径（如 `appservice/pages/index.js`），这导致直接上传的 Source Map 无法被 Sentry 正确解析。
+SDK 内置了多端堆栈路径归一化能力（`enableSourceMap: true`，默认开启），自动将各平台虚拟路径转换为统一的 `app:///` 前缀，配合 sentry-cli 即可实现 Source Map 解析。
 
-SDK 内部已经为您解决了这个痛点：
-只要在 `Sentry.init` 时开启了 `enableSourceMap: true`（默认开启），SDK 会在报错时自动拦截并抹平各平台的虚拟路径，统一替换为标准前缀 `app:///`。
-
-您**只需要在打包上传 Source Map 时，确保配置的 `url-prefix` 为 `app:///` 即可**。
-
-**使用 sentry-cli 上传示例：**
+**快速上传示例：**
 
 ```bash
-sentry-cli releases files "your-project-release-id" upload-sourcemaps ./dist \
-  --url-prefix "app:///" \
-  --ext .js --ext .map
+sentry-cli releases files “my-miniapp@1.0.0” upload-sourcemaps ./dist \
+  --url-prefix “app:///” \
+  --ext js --ext map
 ```
 
-*(注：在微信开发者工具上传代码时，请**务必关闭**工具自带的“ES6转ES5”和“代码压缩”功能，将这些工作交给 Webpack/Vite 等构建工具，以防行列号错位。)*
+> 详细的端到端配置指南（包括各构建工具配置、CI/CD 集成、验证与排查），请参阅 **[Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md)**。
 
 ---
 

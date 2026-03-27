@@ -168,19 +168,17 @@ Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-e
 
 ## SourceMap Support
 
-In mini programs, error stack traces typically contain virtual paths (e.g., `appservice/pages/index.js`), which prevents Sentry from resolving uploaded SourceMaps.
+The SDK includes built-in multi-platform stack path normalization (`enableSourceMap: true`, enabled by default), automatically converting platform-specific virtual paths to the `app:///` prefix for seamless SourceMap resolution with sentry-cli.
 
-The SDK solves this automatically: when `enableSourceMap: true` (enabled by default), the SDK intercepts and normalizes platform-specific virtual paths to a standard `app:///` prefix.
-
-**You only need to ensure `url-prefix` is set to `app:///` when uploading SourceMaps:**
+**Quick upload example:**
 
 ```bash
-sentry-cli releases files "your-project-release-id" upload-sourcemaps ./dist \
+sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
   --url-prefix "app:///" \
-  --ext .js --ext .map
+  --ext js --ext map
 ```
 
-*(Note: When using WeChat DevTools to upload code, make sure to **disable** the built-in "ES6 to ES5" and "Code Minification" features. Delegate these tasks to Webpack/Vite to prevent line/column number misalignment.)*
+> For a complete end-to-end setup guide (build tool configs, CI/CD integration, verification & troubleshooting), see **[Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md)**.
 
 ---
 
