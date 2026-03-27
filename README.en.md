@@ -297,6 +297,18 @@ If errors are not being reported, check:
 
 ---
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [SourceMap Configuration Guide](./docs/SOURCEMAP_GUIDE.md) | End-to-end SourceMap setup, build tools, CI/CD, verification & troubleshooting |
+| [Multi-Platform Compatibility Report](./docs/MultiPlatformCompatibilityReport.md) | Platform API compatibility matrix and differences |
+| [Example Project](./examples/wxapp/) | Complete WeChat mini program integration example |
+| [Development Guide](./DEVELOPMENT.md) | Local development setup and debugging |
+| [Contributing Guide](./CONTRIBUTING.md) | How to contribute to the project |
+
+---
+
 ## Contributing
 
 We welcome Pull Requests and Issues!

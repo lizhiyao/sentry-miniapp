@@ -312,6 +312,18 @@ Sentry 官方的 Replay 功能强依赖于浏览器标准 DOM 环境（通过 rr
 
 ---
 
+## 📖 文档导航
+
+| 文档 | 说明 |
+|------|------|
+| [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md) | 端到端 Source Map 配置，覆盖各构建工具、CI/CD 集成、验证与排查 |
+| [多端兼容性报告](./docs/MultiPlatformCompatibilityReport.md) | 各小程序平台 API 兼容性矩阵与差异说明 |
+| [示例项目](./examples/wxapp/) | 微信小程序完整接入示例 |
+| [开发指南](./DEVELOPMENT.md) | 本地开发环境搭建与调试 |
+| [贡献指南](./CONTRIBUTING.md) | 如何参与项目贡献 |
+
+---
+
 ## 🤝 参与贡献
 
 我们非常欢迎开发者提交 `Pull Request` 或通过 `Issues` 提出宝贵意见！

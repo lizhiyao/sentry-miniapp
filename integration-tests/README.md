@@ -62,9 +62,8 @@ node integration-tests/脚本名称.js
 
 ## 相关文档
 
-- [解决方案文档](../docs/solutions/)
 - [示例项目](../examples/wxapp/)
-- [开发指南](../DEVELOPMENT_GUIDE.md)
+- [开发指南](../DEVELOPMENT.md)
 
 ## 注意事项
 
