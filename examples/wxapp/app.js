@@ -2,6 +2,25 @@
 // 引用 npm 包
 const Sentry = require('./lib/sentry-miniapp.js');
 
+const launchState = {
+  launchId: '',
+  launchStartedAt: 0,
+  firstShowTracked: false,
+  launchSpan: null
+};
+
+function createLaunchId() {
+  return `launch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildLaunchContext(options) {
+  return {
+    scene: options && options.scene,
+    path: options && options.path,
+    query: options && options.query
+  };
+}
+
 // console.log('Sentry SDK 已加载:', typeof Sentry);
 
 // 在 App() 之前初始化 Sentry
@@ -110,7 +129,29 @@ Sentry.setTag('app.version', '1.0.0');
 Sentry.setTag('miniapp.platform', 'wechat');
 
 App({
-  onLaunch: function () {
+  onLaunch: function (options) {
+    const launchId = createLaunchId();
+    const launchContext = buildLaunchContext(options || {});
+
+    launchState.launchId = launchId;
+    launchState.launchStartedAt = Date.now();
+    launchState.firstShowTracked = false;
+    launchState.launchSpan = Sentry.startInactiveSpan({
+      name: 'miniapp.launch',
+      op: 'app.startup',
+      forceTransaction: true,
+      attributes: {
+        'demo.launch_id': launchId
+      }
+    });
+
+    Sentry.setTag('demo.entry', 'app');
+    Sentry.setTag('demo.launch_id', launchId);
+    Sentry.setContext('app_launch', {
+      launchId,
+      startedAt: new Date(launchState.launchStartedAt).toISOString(),
+      ...launchContext
+    });
     // console.log('小程序启动');
 
     // 记录应用启动事件
@@ -118,10 +159,26 @@ App({
       message: '小程序启动',
       category: 'app',
       level: 'info',
+      data: {
+        launchId,
+        ...launchContext
+      }
     });
   },
 
   onShow: function (options) {
+    const showContext = buildLaunchContext(options || {});
+
+    if (launchState.launchId) {
+      Sentry.setTag('demo.launch_id', launchState.launchId);
+    }
+
+    Sentry.setContext('app_visibility', {
+      state: 'show',
+      shownAt: new Date().toISOString(),
+      ...showContext
+    });
+
     // console.log('小程序显示', options);
 
     // 记录应用显示事件
@@ -133,11 +190,31 @@ App({
         scene: options.scene,
         path: options.path,
         query: options.query,
+        launchId: launchState.launchId
       },
     });
+
+    if (!launchState.firstShowTracked && launchState.launchStartedAt) {
+      launchState.firstShowTracked = true;
+      if (launchState.launchSpan) {
+        launchState.launchSpan.setAttributes({
+          'app.launch.scene': showContext.scene || 'unknown',
+          'app.launch.path': showContext.path || '/',
+          'app.launch.first_show_ms': Date.now() - launchState.launchStartedAt
+        });
+        launchState.launchSpan.end();
+        launchState.launchSpan = null;
+      }
+    }
   },
 
   onHide: function () {
+    Sentry.setContext('app_visibility', {
+      state: 'hide',
+      hiddenAt: new Date().toISOString(),
+      launchId: launchState.launchId
+    });
+
     // console.log('小程序隐藏');
 
     // 记录应用隐藏事件
@@ -145,6 +222,9 @@ App({
       message: '小程序隐藏',
       category: 'app',
       level: 'info',
+      data: {
+        launchId: launchState.launchId
+      }
     });
   },
 

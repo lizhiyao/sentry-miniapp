@@ -167,13 +167,15 @@ Sentry.addBreadcrumb({
 ### Custom Performance Measurement
 
 ```javascript
-// Mark start point
-Sentry.addPerformanceMark('api-request-start');
-// ... perform operation
-Sentry.addPerformanceMark('api-request-end');
-
-// Measure the interval
-Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-end');
+await Sentry.startSpan(
+  {
+    name: 'fetch-user-data',
+    op: 'http.client',
+  },
+  async () => {
+    await fetchUserData();
+  },
+);
 ```
 
 ### Dynamic Sampling (tracesSampler)

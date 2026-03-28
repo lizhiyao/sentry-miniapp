@@ -7,6 +7,66 @@ Page({
     hasUserInfo: false
   },
 
+  createEventMeta(type) {
+    const now = new Date();
+    const triggerId = `${type}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    return {
+      type,
+      triggerId,
+      occurredAt: now.toISOString(),
+      fingerprint: ['wxapp-demo', type, triggerId]
+    };
+  },
+
+  applyEventScope(scope, eventMeta, level) {
+    scope.setFingerprint(eventMeta.fingerprint);
+    scope.setTag('page', 'test');
+    scope.setTag('demo_mode', 'unique_issue');
+    scope.setTag('demo_event_type', eventMeta.type);
+    scope.setTag('demo_trigger_id', eventMeta.triggerId);
+    scope.setContext('demo_trigger', {
+      type: eventMeta.type,
+      triggerId: eventMeta.triggerId,
+      occurredAt: eventMeta.occurredAt,
+      page: '/pages/test/test'
+    });
+
+    if (level) {
+      scope.setLevel(level);
+    }
+  },
+
+  captureUniqueException(type, baseMessage) {
+    const eventMeta = this.createEventMeta(type);
+    const error = new Error(`${baseMessage} [${eventMeta.triggerId}]`);
+    const eventId = Sentry.withScope((scope) => {
+      this.applyEventScope(scope, eventMeta);
+      return Sentry.captureException(error);
+    });
+
+    return {
+      error,
+      eventId,
+      eventMeta
+    };
+  },
+
+  captureUniqueMessage(type, baseMessage, level) {
+    const eventMeta = this.createEventMeta(type);
+    const message = `${baseMessage} [${eventMeta.triggerId}]`;
+    const eventId = Sentry.withScope((scope) => {
+      this.applyEventScope(scope, eventMeta, level);
+      return Sentry.captureMessage(message);
+    });
+
+    return {
+      message,
+      eventId,
+      eventMeta
+    };
+  },
+
   onLoad() {
     Sentry.setTag('page', 'test');
     Sentry.addBreadcrumb({
@@ -79,45 +139,42 @@ Page({
   // --- 错误捕获测试 ---
 
   testException() {
-    try {
-      throw new Error('Sentry 测试异常: ' + new Date().toLocaleTimeString());
-    } catch (e) {
-      const eventId = Sentry.captureException(e);
-      console.error(e);
-      this.showReportModal('异常已上报', {
-        type: 'exception',
-        message: e.message,
-        eventId: eventId || '未知',
-        time: new Date().toLocaleString()
-      });
-    }
+    const { error, eventId, eventMeta } = this.captureUniqueException('sync_exception', 'Sentry 测试异常');
+
+    console.error(error);
+    this.showReportModal('异常已上报', {
+      type: 'exception',
+      message: error.message,
+      eventId: eventId || '未知',
+      triggerId: eventMeta.triggerId,
+      time: new Date().toLocaleString()
+    });
   },
 
   testAsyncError() {
     setTimeout(() => {
-      try {
-        throw new Error('Sentry 异步异常测试');
-      } catch (e) {
-        const eventId = Sentry.captureException(e);
-        console.error(e);
-        this.showReportModal('异步异常已上报', {
-          type: 'exception',
-          message: e.message,
-          eventId: eventId || '未知',
-          time: new Date().toLocaleString()
-        });
-      }
+      const { error, eventId, eventMeta } = this.captureUniqueException('async_exception', 'Sentry 异步异常测试');
+
+      console.error(error);
+      this.showReportModal('异常已上报', {
+        type: 'exception',
+        message: error.message,
+        eventId: eventId || '未知',
+        triggerId: eventMeta.triggerId,
+        time: new Date().toLocaleString()
+      });
     }, 500);
   },
 
   testMessage() {
-    const message = '这是一条测试消息';
-    const eventId = Sentry.captureMessage(message, 'info');
+    const { message, eventId, eventMeta } = this.captureUniqueMessage('message', '这是一条测试消息', 'info');
+
     this.showReportModal('消息已上报', {
       type: 'message',
       message,
       level: 'info',
       eventId: eventId || '未知',
+      triggerId: eventMeta.triggerId,
       time: new Date().toLocaleString()
     });
   },
@@ -192,8 +249,7 @@ Page({
   // --- 高级功能 ---
 
   testUserFeedback() {
-    // 先捕获一个关联事件
-    const eventId = Sentry.captureMessage('用户反馈关联事件');
+    const { message, eventId, eventMeta } = this.captureUniqueMessage('feedback_link', '用户反馈关联事件', 'info');
 
     wx.showModal({
       title: '提交用户反馈',
@@ -210,8 +266,10 @@ Page({
           this.showReportModal('反馈已提交', {
             type: 'user_feedback',
             API: 'Sentry.captureFeedback()',
+            relatedMessage: message,
             relatedEventId: eventId || '未知',
             feedbackId: feedbackId || '未知',
+            triggerId: eventMeta.triggerId,
             time: new Date().toLocaleString()
           });
         }
@@ -222,13 +280,25 @@ Page({
   // --- Promise 异常测试 ---
 
   testUnhandledRejection() {
-    // 触发一个未处理的 Promise rejection
-    // SDK 的 GlobalHandlers 集成会自动捕获 onUnhandledRejection
-    Promise.reject(new Error('未处理的 Promise 异常: ' + new Date().toLocaleTimeString()));
+    const eventMeta = this.createEventMeta('unhandled_rejection');
+    const message = `未处理的 Promise 异常 [${eventMeta.triggerId}]`;
+
+    Sentry.addBreadcrumb({
+      category: 'demo.unhandled_rejection',
+      message,
+      level: 'warning',
+      data: {
+        triggerId: eventMeta.triggerId,
+        occurredAt: eventMeta.occurredAt
+      }
+    });
+
+    Promise.reject(new Error(message));
 
     this.showReportModal('Promise 异常已触发', {
       type: 'unhandled_rejection',
-      message: 'SDK 将通过 onUnhandledRejection 自动捕获',
+      message,
+      triggerId: eventMeta.triggerId,
       time: new Date().toLocaleString()
     });
   }
