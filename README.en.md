@@ -50,6 +50,18 @@ npm install sentry-miniapp
 
 ---
 
+## AI-Assisted Setup
+
+If you use [Claude Code](https://claude.ai/code) or [Cursor](https://cursor.com), get AI-guided setup with one command:
+
+```bash
+npx skills add https://github.com/lizhiyao/sentry-miniapp --skill sentry-miniapp-sdk
+```
+
+After installation, just ask "help me set up Sentry monitoring" in your AI editor.
+
+---
+
 ## Quick Start
 
 ### 1. Prerequisites

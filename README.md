@@ -50,6 +50,18 @@ npm install sentry-miniapp
 
 ---
 
+## 🤖 AI 辅助接入
+
+如果你使用 [Claude Code](https://claude.ai/code) 或 [Cursor](https://cursor.com)，AI 可以自动引导你完成接入：
+
+```bash
+npx skills add https://github.com/lizhiyao/sentry-miniapp --skill sentry-miniapp-sdk
+```
+
+安装后，在 AI 编辑器中输入"帮我接入 Sentry 监控"即可触发向导。
+
+---
+
 ## 🚀 快速接入
 
 ### 1. 前置准备

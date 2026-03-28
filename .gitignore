@@ -24,7 +24,8 @@ local.log
 *.sublime-*
 
 # ai
-.claude/
+.claude/*
+!.claude/skills/
 
 # env
 .env.local
