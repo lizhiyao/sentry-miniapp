@@ -168,13 +168,15 @@ Sentry.addBreadcrumb({
 ### 自定义性能测速 (Performance)
 
 ```javascript
-// 标记起始点
-Sentry.addPerformanceMark('api-request-start');
-// ... 执行耗时操作
-Sentry.addPerformanceMark('api-request-end');
-
-// 测量并记录该区间
-Sentry.measurePerformance('fetch-user-data', 'api-request-start', 'api-request-end');
+await Sentry.startSpan(
+  {
+    name: 'fetch-user-data',
+    op: 'http.client',
+  },
+  async () => {
+    await fetchUserData();
+  },
+);
 ```
 
 ### 动态采样 (tracesSampler)
