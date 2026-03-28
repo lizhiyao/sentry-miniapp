@@ -1,6 +1,24 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.8.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.7.0...v1.8.0) (2026-03-28)
+
+
+### ✨ Features | 新功能
+
+* 新增 AI 辅助接入 skill，支持 Claude Code / Cursor 自动引导 ([08aa5c6](https://github.com/lizhiyao/sentry-miniapp/commit/08aa5c656afeac8e4f8632c971f77123342b4327))
+
+
+### 🐛 Bug Fixes | 修复
+
+* 改进示例小程序，修复功能缺陷并补全 SDK 演示 ([e95dc79](https://github.com/lizhiyao/sentry-miniapp/commit/e95dc79ff54c08d97df3eb385b844280998cb686))
+
+
+### 📝 Documentation | 文档
+
+* 删除 README 中重复的"参与贡献"板块 ([ca7073b](https://github.com/lizhiyao/sentry-miniapp/commit/ca7073b56abbae155d269b4cfebd6d26884909af))
+* 更新安装命令并添加技术文章 ([d682d80](https://github.com/lizhiyao/sentry-miniapp/commit/d682d8068aceb5da00e96038d02f8d3951666c83))
+
 ## [1.7.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.6.0...v1.7.0) (2026-03-27)
 
 

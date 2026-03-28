@@ -1,6 +1,6 @@
 {
   "name": "sentry-miniapp",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Sentry SDK for Mini Programs (WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou) & Taro / uni-app | 小程序监控 SDK，支持异常监控、性能监控、错误收集",
   "repository": {
     "type": "git",
