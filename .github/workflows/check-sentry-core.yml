@@ -1,0 +1,72 @@
+name: Check Sentry Core Update
+
+on:
+  schedule:
+    # 每周一早上 9 点（UTC+8）检查
+    - cron: '3 1 * * 1'
+  workflow_dispatch: # 支持手动触发
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get current and latest version
+        id: versions
+        run: |
+          CURRENT=$(node -p "require('./package.json').dependencies['@sentry/core']")
+          LATEST=$(npm view @sentry/core version)
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "Current: $CURRENT, Latest: $LATEST"
+
+      - name: Check if update needed
+        if: steps.versions.outputs.current != steps.versions.outputs.latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT: ${{ steps.versions.outputs.current }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: |
+          TITLE="chore(deps): @sentry/core $CURRENT → $LATEST"
+
+          # 检查是否已有同标题的 open Issue
+          EXISTING=$(gh issue list --state open --search "$TITLE" --json number --jq length)
+          if [ "$EXISTING" -gt "0" ]; then
+            echo "Issue already exists, skipping."
+            exit 0
+          fi
+
+          gh issue create \
+            --title "$TITLE" \
+            --label "dependencies" \
+            --body "$(cat <<EOF
+          ## @sentry/core 有新版本
+
+          | | 版本 |
+          |---|---|
+          | 当前 | \`$CURRENT\` |
+          | 最新 | \`$LATEST\` |
+
+          ### 参考链接
+
+          - [Changelog](https://github.com/getsentry/sentry-javascript/blob/develop/CHANGELOG.md)
+          - [Releases](https://github.com/getsentry/sentry-javascript/releases)
+          - [npm](https://www.npmjs.com/package/@sentry/core)
+
+          ### 升级建议
+
+          1. 查看 changelog 确认是否有 breaking changes
+          2. 更新 \`package.json\` 中的版本号
+          3. 运行 \`yarn install && yarn test:all\` 验证兼容性
+          4. 如有 API 变更，同步更新 SDK 代码
+
+          > 此 Issue 由 GitHub Action 自动创建。
+          EOF
+          )"
