@@ -309,20 +309,6 @@ If errors are not being reported, check:
 
 ---
 
-## Contributing
-
-We welcome Pull Requests and Issues!
-
-Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
-
-Quick start:
-
-1. `npm install` — install dependencies
-2. `npm run dev` — start watch mode
-3. `npm run test:all` — run full test suite (unit + integration)
-
----
-
 ## Community
 
 Have questions or want to discuss mini program monitoring? Join our community.
