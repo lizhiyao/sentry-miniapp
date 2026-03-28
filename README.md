@@ -41,12 +41,24 @@
 推荐使用 `npm` 进行安装。
 
 ```bash
-npm install sentry-miniapp --save
+npm install sentry-miniapp
 ```
 
 > **注意：** `v1.1.0` 及以上版本已优化构建策略（内联依赖），**无需**再额外安装 `@sentry/core`。
 
 *提示：如果您不使用 npm，也可以直接将项目仓库中 `examples/wxapp/lib/sentry-miniapp.js` 文件复制到小程序项目中引入。*
+
+---
+
+## 🤖 AI 辅助接入
+
+如果你使用 [Claude Code](https://claude.ai/code) 或 [Cursor](https://cursor.com)，AI 可以自动引导你完成接入：
+
+```bash
+npx skills add https://github.com/lizhiyao/sentry-miniapp --skill sentry-miniapp-sdk
+```
+
+安装后，在 AI 编辑器中输入"帮我接入 Sentry 监控"即可触发向导。
 
 ---
 
@@ -321,18 +333,6 @@ Sentry 官方的 Replay 功能强依赖于浏览器标准 DOM 环境（通过 rr
 | [示例项目](./examples/wxapp/) | 微信小程序完整接入示例 |
 | [开发指南](./DEVELOPMENT.md) | 本地开发环境搭建与调试 |
 | [贡献指南](./CONTRIBUTING.md) | 如何参与项目贡献 |
-
----
-
-## 🤝 参与贡献
-
-我们非常欢迎开发者提交 `Pull Request` 或通过 `Issues` 提出宝贵意见！
-
-要参与本地开发：
-
-1. `npm install` 安装依赖
-2. `npm run dev` 启动监听编译
-3. `npm run test:all` 运行完整的单元测试与集成测试套件
 
 ---
 

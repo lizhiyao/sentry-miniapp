@@ -192,32 +192,44 @@ Page({
   // --- 高级功能 ---
 
   testUserFeedback() {
-    const eventId = Sentry.captureMessage('User Feedback Event');
+    // 先捕获一个关联事件
+    const eventId = Sentry.captureMessage('用户反馈关联事件');
 
-    // 模拟弹窗收集反馈
     wx.showModal({
-      title: '提交反馈',
-      content: '是否对此错误提交反馈？',
-      editable: true,
-      placeholderText: '请输入您的反馈意见',
+      title: '提交用户反馈',
+      content: '是否提交一条测试反馈到 Sentry？',
       success: (res) => {
-        if (res.confirm && res.content) {
-          // 注意：Sentry 小程序 SDK 可能没有内置 UserFeedback API，
-          // 这里通常是发送一个新的 Message 包含反馈内容，或者调用 Sentry API
-          // 这是一个模拟实现
-          const feedbackEventId = Sentry.captureMessage(`User Feedback: ${res.content}`, {
-            level: 'info',
-            tags: { eventId: eventId }
+        if (res.confirm) {
+          // 使用 SDK 的 captureFeedback API
+          const feedbackId = Sentry.captureFeedback({
+            message: '这是一条来自小程序的测试反馈',
+            name: '测试用户',
+            email: 'test@example.com',
+            associatedEventId: eventId,
           });
           this.showReportModal('反馈已提交', {
             type: 'user_feedback',
+            API: 'Sentry.captureFeedback()',
             relatedEventId: eventId || '未知',
-            eventId: feedbackEventId || '未知',
-            content: res.content,
+            feedbackId: feedbackId || '未知',
             time: new Date().toLocaleString()
           });
         }
       }
+    });
+  },
+
+  // --- Promise 异常测试 ---
+
+  testUnhandledRejection() {
+    // 触发一个未处理的 Promise rejection
+    // SDK 的 GlobalHandlers 集成会自动捕获 onUnhandledRejection
+    Promise.reject(new Error('未处理的 Promise 异常: ' + new Date().toLocaleTimeString()));
+
+    this.showReportModal('Promise 异常已触发', {
+      type: 'unhandled_rejection',
+      message: 'SDK 将通过 onUnhandledRejection 自动捕获',
+      time: new Date().toLocaleString()
     });
   }
 });

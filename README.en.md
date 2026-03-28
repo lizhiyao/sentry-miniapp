@@ -41,12 +41,24 @@ A **mini program monitoring SDK** built on `@sentry/core` (v10.45.0), providing 
 ## Installation
 
 ```bash
-npm install sentry-miniapp --save
+npm install sentry-miniapp
 ```
 
 > **Note:** Starting from `v1.1.0`, the build strategy has been optimized (dependencies are inlined), so there is **no need** to install `@sentry/core` separately.
 
 *Tip: If you don't use npm, you can also copy `examples/wxapp/lib/sentry-miniapp.js` from this repository directly into your mini program project.*
+
+---
+
+## AI-Assisted Setup
+
+If you use [Claude Code](https://claude.ai/code) or [Cursor](https://cursor.com), get AI-guided setup with one command:
+
+```bash
+npx skills add https://github.com/lizhiyao/sentry-miniapp --skill sentry-miniapp-sdk
+```
+
+After installation, just ask "help me set up Sentry monitoring" in your AI editor.
 
 ---
 
@@ -306,20 +318,6 @@ If errors are not being reported, check:
 | [Example Project](./examples/wxapp/) | Complete WeChat mini program integration example |
 | [Development Guide](./DEVELOPMENT.md) | Local development setup and debugging |
 | [Contributing Guide](./CONTRIBUTING.md) | How to contribute to the project |
-
----
-
-## Contributing
-
-We welcome Pull Requests and Issues!
-
-Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
-
-Quick start:
-
-1. `npm install` — install dependencies
-2. `npm run dev` — start watch mode
-3. `npm run test:all` — run full test suite (unit + integration)
 
 ---
 
