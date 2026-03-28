@@ -41,7 +41,7 @@ A **mini program monitoring SDK** built on `@sentry/core` (v10.45.0), providing 
 ## Installation
 
 ```bash
-npm install sentry-miniapp --save
+npm install sentry-miniapp
 ```
 
 > **Note:** Starting from `v1.1.0`, the build strategy has been optimized (dependencies are inlined), so there is **no need** to install `@sentry/core` separately.

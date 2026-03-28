@@ -41,7 +41,7 @@
 推荐使用 `npm` 进行安装。
 
 ```bash
-npm install sentry-miniapp --save
+npm install sentry-miniapp
 ```
 
 > **注意：** `v1.1.0` 及以上版本已优化构建策略（内联依赖），**无需**再额外安装 `@sentry/core`。
