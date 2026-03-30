@@ -1226,10 +1226,10 @@
     argparse "~1.0.9"
     string-argv "~0.3.1"
 
-"@sentry/core@10.45.0":
-  version "10.45.0"
-  resolved "https://registry.npmjs.org/@sentry/core/-/core-10.45.0.tgz#4bac78dd4815588d0089e6594ab20da5b5ed467e"
-  integrity sha512-s69UXxvefeQxuZ5nY7/THtTrIEvJxNVCp3ns4kwoCw1qMpgpvn/296WCKVmM7MiwnaAdzEKnAvLAwaxZc2nM7Q==
+"@sentry/core@10.46.0":
+  version "10.46.0"
+  resolved "https://registry.npmjs.org/@sentry/core/-/core-10.46.0.tgz#f3d6398acccddfea27dda656e639494f83d0bb09"
+  integrity sha512-N3fj4zqBQOhXliS1Ne9euqIKuciHCGOJfPGQLwBoW9DNz03jF+NB8+dUKtrJ79YLoftjVgf8nbgwtADK7NR+2Q==
 
 "@simple-libs/child-process-utils@^1.0.0":
   version "1.0.2"
@@ -2294,7 +2294,7 @@ de-indent@^1.0.2:
 debug@^4.1.0, debug@^4.1.1, debug@^4.3.1, debug@^4.3.2, debug@^4.4.0, debug@^4.4.3:
   version "4.4.3"
   resolved "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz#67e1599f2c0f0eec4a7de08e3ad5e880765cbc64"
-  integrity sha512-HAJOBmBAjgCWu9EqgW+JPwK/ANredks5yoaznWqopccruDm6Q/1XI5b3vhse2teaM7lNK9PYPhOBhv+vF8yY8Q==
+  integrity "sha1-xq5DLZvZZiWC/OCHCbA4xY6ePWo= sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="
   dependencies:
     ms "^2.1.3"
 
