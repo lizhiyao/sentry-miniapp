@@ -65,7 +65,7 @@
     "vite-plugin-dts": "^4.5.4"
   },
   "dependencies": {
-    "@sentry/core": "10.47.0"
+    "@sentry/core": "10.48.0"
   },
   "lint-staged": {
     "src/**/*.{ts,js}": [
