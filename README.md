@@ -1,11 +1,11 @@
 # Sentry Miniapp SDK — 小程序监控 SDK
 
-![npm version](https://img.shields.io/npm/v/sentry-miniapp)
-![npm download](https://img.shields.io/npm/dm/sentry-miniapp)
-![github forks](https://img.shields.io/github/forks/lizhiyao/sentry-miniapp?style=social)
-![github stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp?style=social)
+[![npm version](https://img.shields.io/npm/v/sentry-miniapp)](https://www.npmjs.com/package/sentry-miniapp)
+[![npm download](https://img.shields.io/npm/dm/sentry-miniapp)](https://www.npmjs.com/package/sentry-miniapp)
+[![github forks](https://img.shields.io/github/forks/lizhiyao/sentry-miniapp?style=social)](https://github.com/lizhiyao/sentry-miniapp/network/members)
+[![github stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp?style=social)](https://github.com/lizhiyao/sentry-miniapp/stargazers)
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
-![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)
+[![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)](./LICENSE)
 
 简体中文 | [English](./README.en.md)
 
