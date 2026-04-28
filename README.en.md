@@ -13,6 +13,24 @@ A **mini program monitoring SDK** built on `@sentry/core`, providing **error mon
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western tech stack. Think of them as a hybrid between PWAs and native apps, but hosted within a platform's sandbox.
 
+> **📰 Featured Article (Chinese)**: [《我把 Sentry 接进了 7 端小程序：从异常捕获、Breadcrumb 到 Source Map 定位》](https://juejin.cn/post/7621871037853843465) — multi-platform integration, Breadcrumb context, offline buffering, and Source Map workflow walked through end-to-end. If you find this project useful, please consider giving it a ⭐ Star.
+
+<details>
+<summary><b>🆕 What's New: v1.3 → v1.8 (click to expand)</b></summary>
+
+| Version | Highlights |
+|---|---|
+| **v1.8.0** | AI-assisted integration skill — auto onboarding via Claude Code / Cursor |
+| **v1.7.0** | New `tracesSampler` for dynamic sampling; complete Source Map configuration guide |
+| **v1.6.0** | 13 enhancements + 16 fixes; enabled esbuild minification — bundle size reduced by ~**59%** |
+| **v1.5.0** | Performance enhancements (configurable thresholds / slow `setData` detection / memory sampling); new page lifecycle, user interaction, and Console breadcrumbs; route integration covers all platforms |
+| **v1.4.0** | `NetworkBreadcrumbs` captures Request / Response body; configurable offline cache limit; deprecated `showReportDialog` in favor of `captureFeedback` |
+| **v1.3.0** | 🎯 Build pipeline rewrite (Vite + bundle-inline): **zero external deps**, fully resolves the `miniprogram_npm` module-resolution issue; 🎯 built-in Source Map path normalization across all platforms |
+
+See [CHANGELOG.md](./CHANGELOG.md) for full details.
+
+</details>
+
 ---
 
 ## Core Features
