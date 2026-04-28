@@ -11,6 +11,24 @@
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序及 Taro / uni-app 等跨端框架。
 
+> **📰 最新文章**：[《我把 Sentry 接进了 7 端小程序：从异常捕获、Breadcrumb 到 Source Map 定位》](https://juejin.cn/post/7621871037853843465) — 多端统一接入、Breadcrumb 上下文、弱网兜底、Source Map 实战，一篇串完整套方案。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
+
+<details>
+<summary><b>🆕 v1.3 → v1.8 What's New（点击展开）</b></summary>
+
+| 版本 | 亮点 |
+|---|---|
+| **v1.8.0** | AI 辅助接入 skill — Claude Code / Cursor 自动引导集成 |
+| **v1.7.0** | 新增 `tracesSampler` 动态采样；新增 Source Map 完整配置指南 |
+| **v1.6.0** | 13 项功能优化 + 16 项问题修复；启用 esbuild 压缩，包体积减少约 **59%** |
+| **v1.5.0** | Performance 增强（可配阈值 / setData 慢渲染检测 / 内存采集）；新增页面生命周期、用户交互、Console 三类 Breadcrumb；Route 集成全平台适配 |
+| **v1.4.0** | NetworkBreadcrumbs 抓 Request / Response Body；离线缓存上限可配；废弃 `showReportDialog` 引导至 `captureFeedback` |
+| **v1.3.0** | 🎯 重构构建（迁移 Vite + bundle-inline）：对外**零依赖**，彻底修掉「`miniprogram_npm` 模块解析」问题；🎯 内置 Source Map 路径自动抹平，跨端堆栈统一映射 |
+
+完整变更见 [CHANGELOG.md](./CHANGELOG.md)。
+
+</details>
+
 ---
 
 ## ✨ 核心特性
