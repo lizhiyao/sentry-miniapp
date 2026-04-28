@@ -1,6 +1,36 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.8.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.8.0...v1.8.1) (2026-04-28)
+
+
+### ✨ Features | 新功能
+
+* **example:** 增强微信小程序示例的监控能力与文档 ([55298f2](https://github.com/lizhiyao/sentry-miniapp/commit/55298f2f9e33e5c6303e75a84c57b8ff616212cd))
+
+
+### 🎫 Chores | 其他更新
+
+* checkpoint wxapp sentry demo alignment ([5777a3e](https://github.com/lizhiyao/sentry-miniapp/commit/5777a3e1133d081fdbcaf44c45988e005bd166ba))
+* **deps-dev:** bump lodash from 4.17.23 to 4.18.1 ([bfc78d5](https://github.com/lizhiyao/sentry-miniapp/commit/bfc78d58cf178e1c26b1791423ce598fe39ce2ed))
+* **deps-dev:** bump vite from 6.4.1 to 6.4.2 ([782db81](https://github.com/lizhiyao/sentry-miniapp/commit/782db8113a6cc1298287ad3afb4a3fd2cf0c8468))
+* **deps:** bump fast-xml-parser from 5.5.8 to 5.7.1 ([3daee64](https://github.com/lizhiyao/sentry-miniapp/commit/3daee6455218f8eed07975d134b3440678b8fb22))
+* **deps:** bump postcss from 8.5.8 to 8.5.10 ([f816c55](https://github.com/lizhiyao/sentry-miniapp/commit/f816c55e696e76304ba76da72b40d103d22e4aa8))
+* **deps:** 升级 @sentry/core 10.45.0 → 10.46.0 ([04bbecb](https://github.com/lizhiyao/sentry-miniapp/commit/04bbecb814e33a72fa4b6b190662f07c37cf6ae2)), closes [#109](https://github.com/lizhiyao/sentry-miniapp/issues/109)
+* **deps:** 升级 @sentry/core 10.46.0 → 10.47.0 ([3a3ad6b](https://github.com/lizhiyao/sentry-miniapp/commit/3a3ad6bfe1295cd876d262799044772d85763e38))
+* **deps:** 升级 @sentry/core 10.47.0 → 10.48.0 ([d20fff1](https://github.com/lizhiyao/sentry-miniapp/commit/d20fff1f3c9069a25cfbf1acf405cc4f9e0cccb4)), closes [#115](https://github.com/lizhiyao/sentry-miniapp/issues/115)
+* **deps:** 升级 @sentry/core 10.48.0 → 10.49.0 ([27810f1](https://github.com/lizhiyao/sentry-miniapp/commit/27810f11584bf530afb5d33162ad837b77209bb5)), closes [#117](https://github.com/lizhiyao/sentry-miniapp/issues/117)
+* **deps:** 升级 @sentry/core 10.49.0 → 10.50.0 ([c7dd544](https://github.com/lizhiyao/sentry-miniapp/commit/c7dd5443ce8b16ae0ab4042fab42348280cc9562)), closes [#121](https://github.com/lizhiyao/sentry-miniapp/issues/121)
+
+
+### 📝 Documentation | 文档
+
+* 在 README 顶部增加最新文章卡片与版本更新摘要 ([57812eb](https://github.com/lizhiyao/sentry-miniapp/commit/57812eb60c3f32f9145b3fa6a556f09fbe89b74e))
+* 新增 GitHub Social Preview 图片及生成模板 ([aec7300](https://github.com/lizhiyao/sentry-miniapp/commit/aec730057829a090cc437556c7b7cc06473d6e94))
+* 新增掘金文章与线上配图资源 ([1217432](https://github.com/lizhiyao/sentry-miniapp/commit/1217432c5f0db53d344cd1de94c33e78f92db040))
+* 清理 README 顶部的过时版本说明 ([88a50c3](https://github.com/lizhiyao/sentry-miniapp/commit/88a50c3602e500fd54e8dafcaaaa9c9fc9296c3d))
+* 让 README 顶部 badge 可点击跳转到对应页面 ([443c451](https://github.com/lizhiyao/sentry-miniapp/commit/443c451f8eab49859e83628f24cc2557abac74b7))
+
 ## [1.8.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.7.0...v1.8.0) (2026-03-28)
 
 
