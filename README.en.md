@@ -38,7 +38,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full details.
 - **Modern Architecture**: Built on the latest Sentry JavaScript V10 SDK core modules.
 - **True Multi-Platform Support**: Built-in API abstraction engine — one codebase seamlessly supports **WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou** mini program platforms.
 - **Automatic Exception Capture**: No business code intrusion required. Automatically hooks into lifecycle error listeners (`onError`, `onUnhandledRejection`, `onPageNotFound`, `onMemoryWarning`).
-- **Rich Context Breadcrumbs**: Automatically records device info, user tap/touch interactions, network requests (XHR/Fetch), and page navigation paths.
+- **Rich Context Breadcrumbs**: Automatically records device info, user tap/touch interactions, network requests (XHR/Fetch), and page lifecycle events.
 - **Built-in SourceMap Path Normalization**: Handles virtual stack paths across WeChat, Alipay, ByteDance and other platforms. Works with sentry-cli for seamless SourceMap resolution.
 - **Offline Caching for Weak Networks**: Designed for mini program network conditions. Automatically caches events to local storage on network failure, silently retries when connectivity is restored.
 - **Deep Performance Monitoring**: Integrates mini program Performance API for navigation timing (FCP/LCP), render performance, resource loading, and custom performance marks.
@@ -56,8 +56,6 @@ See [CHANGELOG.md](./CHANGELOG.md) for full details.
 ```bash
 npm install sentry-miniapp
 ```
-
-> **Note:** Starting from `v1.1.0`, the build strategy has been optimized (dependencies are inlined), so there is **no need** to install `@sentry/core` separately.
 
 *Tip: If you don't use npm, you can also copy `examples/wxapp/lib/sentry-miniapp.js` from this repository directly into your mini program project.*
 
@@ -95,11 +93,10 @@ Sentry.init({
   release: 'my-project-name@1.0.0',
 
   // --- Mini Program Configuration ---
-  platform: 'wechat', // Current platform (wechat | alipay | bytedance | dd | swan, etc.)
-  enableSystemInfo: true, // Auto-collect system and device info
+  platform: 'wechat', // Optional event platform label; runtime platform is auto-detected
   enableUserInteractionBreadcrumbs: true, // Auto-record user tap events
-  enableNavigationBreadcrumbs: true, // Auto-record page navigation
-  traceNetworkBody: true, // Record request/response bodies in breadcrumbs (default: false)
+  enableConsoleBreadcrumbs: false, // Record console output as breadcrumbs (default: false)
+  traceNetworkBody: false, // Record request/response bodies in breadcrumbs (default: false)
 
   // --- Offline Cache & Reliability ---
   enableOfflineCache: true, // Enable offline caching with retry (default: true)
@@ -118,15 +115,6 @@ Sentry.init({
   // --- Session & Network Monitoring ---
   enableAutoSessionTracking: true, // Auto session lifecycle management (default: true)
   enableNetworkStatusMonitoring: true, // Real-time network status monitoring (default: true)
-
-  // Optional: Performance monitoring
-  integrations: [
-    Sentry.performanceIntegration({
-      enableNavigation: true, // Navigation timing
-      enableRender: true, // Render timing
-      enableResource: true, // Resource loading timing
-    }),
-  ]
 });
 
 App({
@@ -135,6 +123,8 @@ App({
   }
 });
 ```
+
+Default integrations already include automatic exception capture, performance monitoring, SourceMap path normalization, network breadcrumbs, session tracking, and network status monitoring. Only pass `integrations` when you intentionally want to take over the full integration list, because it replaces the defaults.
 
 ---
 

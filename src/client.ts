@@ -43,6 +43,7 @@ export class MiniappClient extends Client<any> {
                 createMiniappOfflineStore({
                   ...storeOptions,
                   offlineCacheLimit: options.offlineCacheLimit,
+                  offlineCacheMaxAge: options.offlineCacheMaxAge,
                 }),
               flushAtStartup: true, // 启动时自动重试发送
             } as any);
@@ -120,47 +121,49 @@ export class MiniappClient extends Client<any> {
       sdk_version: SDK_VERSION,
     };
 
-    // Add system info if available
-    const systemInfo = getSystemInfo();
-    if (systemInfo) {
-      event.contexts.device = {
-        brand: systemInfo.brand || 'unknown',
-        model: systemInfo.model || 'unknown',
-        screen_resolution: `${systemInfo.screenWidth || 0}x${systemInfo.screenHeight || 0}`,
-        language: systemInfo.language || 'unknown',
-        version: systemInfo.version || 'unknown',
-        system: systemInfo.system || 'unknown',
-        platform: systemInfo.platform || 'unknown',
-      };
+    if (this.getOptions().enableSystemInfo !== false) {
+      // Add system info if available
+      const systemInfo = getSystemInfo();
+      if (systemInfo) {
+        event.contexts.device = {
+          brand: systemInfo.brand || 'unknown',
+          model: systemInfo.model || 'unknown',
+          screen_resolution: `${systemInfo.screenWidth || 0}x${systemInfo.screenHeight || 0}`,
+          language: systemInfo.language || 'unknown',
+          version: systemInfo.version || 'unknown',
+          system: systemInfo.system || 'unknown',
+          platform: systemInfo.platform || 'unknown',
+        };
 
-      event.contexts.os = {
-        name: systemInfo.system || 'unknown',
-        version: systemInfo.version || 'unknown',
-      };
+        event.contexts.os = {
+          name: systemInfo.system || 'unknown',
+          version: systemInfo.version || 'unknown',
+        };
 
-      event.contexts.app = {
-        app_version: systemInfo.SDKVersion || 'unknown',
-      };
-    } else {
-      // Provide fallback values when system info is not available
-      event.contexts.device = {
-        brand: 'unknown',
-        model: 'unknown',
-        screen_resolution: '0x0',
-        language: 'unknown',
-        version: 'unknown',
-        system: 'unknown',
-        platform: 'unknown',
-      };
+        event.contexts.app = {
+          app_version: systemInfo.SDKVersion || 'unknown',
+        };
+      } else {
+        // Provide fallback values when system info is not available
+        event.contexts.device = {
+          brand: 'unknown',
+          model: 'unknown',
+          screen_resolution: '0x0',
+          language: 'unknown',
+          version: 'unknown',
+          system: 'unknown',
+          platform: 'unknown',
+        };
 
-      event.contexts.os = {
-        name: 'unknown',
-        version: 'unknown',
-      };
+        event.contexts.os = {
+          name: 'unknown',
+          version: 'unknown',
+        };
 
-      event.contexts.app = {
-        app_version: 'unknown',
-      };
+        event.contexts.app = {
+          app_version: 'unknown',
+        };
+      }
     }
 
     try {

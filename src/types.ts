@@ -73,8 +73,8 @@ export interface MiniappOptions {
   /** Before breadcrumb hook */
   beforeBreadcrumb?: (breadcrumb: Breadcrumb, hint?: Record<string, unknown>) => Breadcrumb | null;
 
-  /** Miniapp platform type */
-  platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'baidu' | 'dingtalk';
+  /** Miniapp platform label stored on events. Runtime platform detection is automatic. */
+  platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'baidu' | 'swan' | 'dingtalk' | 'kuaishou';
 
   /** Whether to enable system info collection */
   enableSystemInfo?: boolean;
@@ -85,7 +85,7 @@ export interface MiniappOptions {
   /** Whether to enable console breadcrumbs */
   enableConsoleBreadcrumbs?: boolean;
 
-  /** Whether to enable navigation breadcrumbs */
+  /** Whether to enable page lifecycle breadcrumbs */
   enableNavigationBreadcrumbs?: boolean;
 
   /** Whether to enable automatic source map path rewrite */

@@ -53,8 +53,10 @@ describe('SDK', () => {
     });
 
     it('should use default integrations when not specified', () => {
+      const defaultIntegrationCount = defaultIntegrations.length;
       const client = init({ dsn: 'https://test@sentry.io/123' });
       expect(client).toBeInstanceOf(MiniappClient);
+      expect(defaultIntegrations).toHaveLength(defaultIntegrationCount);
     });
 
     it('should use provided custom integrations', () => {
@@ -90,13 +92,39 @@ describe('SDK', () => {
       expect(client).toBeInstanceOf(MiniappClient);
     });
 
-    it('should skip PageBreadcrumbs when enableUserInteractionBreadcrumbs is false', () => {
+    it('should keep lifecycle breadcrumbs when only user interaction breadcrumbs are disabled', () => {
       const client = init({
         dsn: 'https://test@sentry.io/123',
         integrations: [],
         enableUserInteractionBreadcrumbs: false,
       });
       expect(client).toBeInstanceOf(MiniappClient);
+
+      const pageBreadcrumbs = client
+        ?.getOptions()
+        .integrations?.find((integration: any) => integration.name === 'PageBreadcrumbs') as any;
+
+      expect(pageBreadcrumbs).toBeDefined();
+      expect(pageBreadcrumbs._options).toEqual({
+        enableLifecycle: true,
+        enableUserInteraction: false,
+      });
+    });
+
+    it('should skip PageBreadcrumbs when lifecycle and user interaction breadcrumbs are disabled', () => {
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        integrations: [],
+        enableNavigationBreadcrumbs: false,
+        enableUserInteractionBreadcrumbs: false,
+      });
+      expect(client).toBeInstanceOf(MiniappClient);
+
+      const pageBreadcrumbs = client
+        ?.getOptions()
+        .integrations?.find((integration: any) => integration.name === 'PageBreadcrumbs');
+
+      expect(pageBreadcrumbs).toBeUndefined();
     });
 
     it('should add ConsoleBreadcrumbs when enableConsoleBreadcrumbs is true', () => {

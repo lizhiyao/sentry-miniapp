@@ -59,9 +59,11 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     return undefined;
   }
 
+  const integrations = [...(options.integrations || defaultIntegrations)];
+
   const opts = {
     ...options,
-    integrations: options.integrations || defaultIntegrations,
+    integrations,
     stackParser: miniappStackParser,
     transport: options.transport,
   };
@@ -84,9 +86,16 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     opts.integrations.push(new SessionIntegration());
   }
 
-  // 页面生命周期和用户交互面包屑（默认启用）
-  if (opts.enableUserInteractionBreadcrumbs !== false) {
-    opts.integrations.push(new PageBreadcrumbs());
+  // 页面生命周期和用户交互面包屑（默认启用，可分别关闭）
+  const enablePageLifecycleBreadcrumbs = opts.enableNavigationBreadcrumbs !== false;
+  const enableUserInteractionBreadcrumbs = opts.enableUserInteractionBreadcrumbs !== false;
+  if (enablePageLifecycleBreadcrumbs || enableUserInteractionBreadcrumbs) {
+    opts.integrations.push(
+      new PageBreadcrumbs({
+        enableLifecycle: enablePageLifecycleBreadcrumbs,
+        enableUserInteraction: enableUserInteractionBreadcrumbs,
+      }),
+    );
   }
 
   // 网络状态实时监控（默认启用）
@@ -101,12 +110,12 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
 
   // Set platform context
   setContext('miniapp', {
-    platform: appName,
+    platform: appName(),
     environment: 'miniapp',
   });
 
   // Add system information
-  const systemInfo = getSystemInfo();
+  const systemInfo = opts.enableSystemInfo === false ? null : getSystemInfo();
   if (systemInfo) {
     setContext('device', {
       brand: systemInfo.brand,

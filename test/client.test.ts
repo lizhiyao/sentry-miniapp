@@ -102,6 +102,19 @@ describe('MiniappClient', () => {
       expect(preparedEvent?.contexts?.['os']).toBeDefined();
     });
 
+    it('should skip system information when enableSystemInfo is false', async () => {
+      const client = new MiniappClient({
+        dsn: 'https://test@sentry.io/123',
+        enableSystemInfo: false,
+      });
+      const event = await client['_prepareEvent']({ message: 'test' }, {});
+
+      expect(event?.contexts?.['miniapp']).toBeDefined();
+      expect(event?.contexts?.['device']).toBeUndefined();
+      expect(event?.contexts?.['os']).toBeUndefined();
+      expect(event?.contexts?.['app']).toBeUndefined();
+    });
+
     it('should prepare event with system info', async () => {
       // Mock system info
       (global as any).wx = {
