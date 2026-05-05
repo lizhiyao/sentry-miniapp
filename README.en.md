@@ -14,7 +14,7 @@ A **mini program monitoring SDK** built on `@sentry/core`, providing **error mon
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western tech stack. Think of them as a hybrid between PWAs and native apps, but hosted within a platform's sandbox.
 
-> **📰 Featured Article (Chinese)**: [《我把 Sentry 接进了 7 端小程序：从异常捕获、Breadcrumb 到 Source Map 定位》](https://juejin.cn/post/7621871037853843465) — multi-platform integration, Breadcrumb context, offline buffering, and Source Map workflow walked through end-to-end. If you find this project useful, please consider giving it a ⭐ Star.
+> **📰 Featured Article (Chinese)**: [《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — How sentry-miniapp got listed in Sentry's official community-supported SDKs documentation. If you find this project useful, please consider giving it a ⭐ Star.
 
 <details>
 <summary><b>🆕 What's New: v1.3 → v1.8 (click to expand)</b></summary>

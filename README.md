@@ -12,7 +12,7 @@
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序及 Taro / uni-app 等跨端框架。
 
-> **📰 最新文章**：[《我把 Sentry 接进了 7 端小程序：从异常捕获、Breadcrumb 到 Source Map 定位》](https://juejin.cn/post/7621871037853843465) — 多端统一接入、Breadcrumb 上下文、弱网兜底、Source Map 实战，一篇串完整套方案。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
+> **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表，这篇文章记录这件事的来龙去脉。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
 <details>
 <summary><b>🆕 v1.3 → v1.8 What's New（点击展开）</b></summary>
