@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif">
+  <defs>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1f1633" flood-opacity="0.08"/>
+    </filter>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#6c5fc7" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="560" fill="#f7f7f9"/>
+
+  <g filter="url(#softShadow)">
+    <rect x="40" y="30" width="1120" height="44" rx="10" fill="#ffffff"/>
+  </g>
+  <circle cx="62" cy="52" r="6" fill="#ff5f56"/>
+  <circle cx="82" cy="52" r="6" fill="#ffbd2e"/>
+  <circle cx="102" cy="52" r="6" fill="#27c93f"/>
+  <rect x="140" y="40" width="900" height="24" rx="6" fill="#f0eef4"/>
+  <text x="156" y="56" font-size="13" fill="#80708f">docs.sentry.io / platforms</text>
+
+  <text x="60" y="130" font-size="30" font-weight="700" fill="#1f1633">Community-Supported SDKs</text>
+  <text x="60" y="156" font-size="13" fill="#80708f">Built and maintained by the community — now including Mini Programs</text>
+
+  <g transform="translate(60, 190)">
+    <g>
+      <rect width="240" height="92" rx="12" fill="#ffffff" filter="url(#softShadow)"/>
+      <rect x="20" y="26" width="40" height="40" rx="10" fill="#5881d8"/>
+      <text x="40" y="52" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">Cl</text>
+      <text x="76" y="51" font-size="15" font-weight="600" fill="#1f1633">Clojure</text>
+      <text x="76" y="68" font-size="11" fill="#9b8eb1">getsentry/sentry-clj</text>
+    </g>
+
+    <g transform="translate(260, 0)">
+      <rect width="240" height="92" rx="12" fill="#ffffff" filter="url(#softShadow)"/>
+      <rect x="20" y="26" width="40" height="40" rx="10" fill="#ff7e2c"/>
+      <text x="40" y="52" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">H</text>
+      <text x="76" y="51" font-size="15" font-weight="600" fill="#1f1633">Hono</text>
+      <text x="76" y="68" font-size="11" fill="#9b8eb1">honojs/middleware</text>
+    </g>
+
+    <g transform="translate(520, 0)" filter="url(#glow)">
+      <rect width="240" height="92" rx="12" fill="#f5f3ff" stroke="#6c5fc7" stroke-width="2"/>
+      <rect x="20" y="26" width="40" height="40" rx="10" fill="#6c5fc7"/>
+      <text x="40" y="54" text-anchor="middle" font-size="18" font-weight="700" fill="#ffffff">小</text>
+      <text x="76" y="51" font-size="15" font-weight="700" fill="#362d59">Mini Programs</text>
+      <text x="76" y="68" font-size="11" fill="#6c5fc7">lizhiyao/sentry-miniapp</text>
+      <rect x="190" y="14" width="38" height="18" rx="9" fill="#ff45a8"/>
+      <text x="209" y="27" text-anchor="middle" font-size="10" font-weight="700" fill="#ffffff">NEW</text>
+    </g>
+
+    <g transform="translate(780, 0)">
+      <rect width="240" height="92" rx="12" fill="#ffffff" filter="url(#softShadow)"/>
+      <rect x="20" y="26" width="40" height="40" rx="10" fill="#00c58e"/>
+      <text x="40" y="52" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">N</text>
+      <text x="76" y="51" font-size="15" font-weight="600" fill="#1f1633">Nuxt 2</text>
+      <text x="76" y="68" font-size="11" fill="#9b8eb1">nuxt-community/sentry</text>
+    </g>
+  </g>
+
+  <g transform="translate(60, 302)">
+    <g>
+      <rect width="240" height="92" rx="12" fill="#ffffff" filter="url(#softShadow)"/>
+      <rect x="20" y="26" width="40" height="40" rx="10" fill="#326ce5"/>
+      <text x="40" y="52" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">K</text>
+      <text x="76" y="51" font-size="15" font-weight="600" fill="#1f1633">Kubernetes</text>
+      <text x="76" y="68" font-size="11" fill="#9b8eb1">alekitto/sentry-kubernetes</text>
+    </g>
+
+    <g transform="translate(260, 0)">
+      <rect width="240" height="92" rx="12" fill="#ffffff" filter="url(#softShadow)"/>
+      <rect x="20" y="26" width="40" height="40" rx="10" fill="#9b59b6"/>
+      <text x="40" y="52" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">L</text>
+      <text x="76" y="51" font-size="15" font-weight="600" fill="#1f1633">Lua</text>
+      <text x="76" y="68" font-size="11" fill="#9b8eb1">cloudflare/raven-lua</text>
+    </g>
+
+    <g transform="translate(520, 0)">
+      <rect width="240" height="92" rx="12" fill="#ffffff" filter="url(#softShadow)"/>
+      <rect x="20" y="26" width="40" height="40" rx="10" fill="#1f1633"/>
+      <text x="40" y="52" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">O</text>
+      <text x="76" y="51" font-size="15" font-weight="600" fill="#1f1633">OCaml</text>
+      <text x="76" y="68" font-size="11" fill="#9b8eb1">brendanlong/sentry-ocaml</text>
+    </g>
+
+    <g transform="translate(780, 0)">
+      <rect width="240" height="92" rx="12" fill="#ffffff" filter="url(#softShadow)"/>
+      <rect x="20" y="26" width="40" height="40" rx="10" fill="#7b42bc"/>
+      <text x="40" y="52" text-anchor="middle" font-size="16" font-weight="700" fill="#ffffff">T</text>
+      <text x="76" y="51" font-size="15" font-weight="600" fill="#1f1633">Terraform</text>
+      <text x="76" y="68" font-size="11" fill="#9b8eb1">jianyuan/terraform-sentry</text>
+    </g>
+  </g>
+
+  <g transform="translate(60, 440)">
+    <rect width="1080" height="64" rx="12" fill="#ffffff" filter="url(#softShadow)"/>
+    <circle cx="36" cy="32" r="14" fill="#dcfce7"/>
+    <path d="M 30 32 L 35 37 L 44 27" stroke="#16a34a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="64" y="29" font-size="14" font-weight="600" fill="#1f1633">PR #17152 merged on May 4, 2026</text>
+    <text x="64" y="48" font-size="12" fill="#80708f">getsentry/sentry-docs · "feat: Add Mini Programs to community-supported SDKs"</text>
+    <rect x="900" y="14" width="160" height="36" rx="18" fill="#362d59"/>
+    <text x="980" y="37" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">View on docs.sentry.io →</text>
+  </g>
+</svg>
