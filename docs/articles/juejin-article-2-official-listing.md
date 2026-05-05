@@ -1,4 +1,4 @@
-# sentry-miniapp 被 Sentry 官方文档收录了：中国小程序生态终于有了一个官方入口
+# 做一个被 Sentry 官方收录的小程序 SDK，是种什么体验
 
 [![npm version](https://img.shields.io/npm/v/sentry-miniapp.svg?style=flat-square&color=cb3837)](https://www.npmjs.com/package/sentry-miniapp)
 [![npm downloads](https://img.shields.io/npm/dm/sentry-miniapp.svg?style=flat-square&color=4c1)](https://www.npmjs.com/package/sentry-miniapp)
@@ -10,9 +10,9 @@
 
 > 这是一篇短文，记录一个对小程序监控生态来说不算小的小事。
 
-## 一、一条挺让我意外的合并通知
+## 一、上周提的 PR，昨天合了
 
-昨天（2026 年 5 月 4 日），我提给 [getsentry/sentry-docs](https://github.com/getsentry/sentry-docs) 的一个 PR 被 Sentry 官方合并了：
+昨天（2026 年 5 月 4 日），我提给 [getsentry/sentry-docs](https://github.com/getsentry/sentry-docs) 的 PR 被 Sentry 官方合并了：
 
 > **PR #17152 — feat: Add Mini Programs to community-supported SDKs**
 >
@@ -28,13 +28,11 @@
 
 我自己是这么理解的：
 
-### 1. 中国小程序在国际监控生态里第一次"被看见"
+### 1. 国内小程序，在国际监控体系里第一次有了名字
 
-微信、支付宝、字节小程序加起来覆盖了上亿日活用户，但在 Sentry、Datadog、New Relic 这类国际主流监控平台的官方文档里，过去几乎找不到任何对应入口。
+Sentry 的 community SDK 列表里有大约 18 个 SDK：Clojure、Hono、Kubernetes、Lua、OCaml、Quarkus、Terraform、WordPress……基本都是国际工程社区耳熟能详的项目。**Mini Programs（指向 sentry-miniapp）这次就排在它们中间。**
 
-这次是 Sentry 官方文档第一次正式列出"Mini Programs"这个平台分类。
-
-也就是说，国内小程序生态终于不再是国际监控体系里的盲区。
+虽然小程序在国内是一个上亿日活的生态，但它过去从来没有以"一个独立的平台分类"出现在 Sentry、Datadog、New Relic 这种国际主流监控平台的文档里。这次至少是个起点。
 
 ### 2. `sentry-miniapp` 从"个人项目"变成"官方推荐方案"之一
 
@@ -79,17 +77,19 @@
 
 这个 PR 给 Sentry 的 AI 工具链补一个 skill，让 Claude Code、Cursor 这类编码助手能够"一句话"引导开发者完成 sentry-miniapp 的完整集成（错误监控 / 性能追踪 / 离线缓存 / Source Map 一条龙）。
 
-如果这个也合入，那国内开发者接小程序监控这件事会变得更轻 —— 不用看文档，AI 助手会带着你接完。
+在 AI Coding 已经成为主流开发入口的今天，**"让 AI 知道你的库"本身就是一种新的分发渠道** —— 不只是写文档给人看，也要把"接入路径"写给 AI 看。
 
-后续合入了我会再写一篇。
+如果这个也合入，国内开发者接小程序监控会变得更轻：不用翻文档，AI 助手会带着你接完。后续合入了我会再写一篇。
 
 ## 五、想说一句的话
 
-做开源最难的从来不是技术问题，是"会不会有人用"和"怎么走出去"这两件事。
+如果你也在维护一个国内自用、不上国际榜的项目，这次我至少印证了一件事：
 
-被官方文档收录不会让一个项目突然变好，但它会让"被发现"这件事容易很多。
+**只要英文 README 写到位、PR 描述写得让人能 review，机会真的会来。**
 
-如果你正在维护一个小众但真实有人需要的项目，希望我的经历能给你一点信心 —— 持续做下去，机会通常比你想的要多。
+`sentry-miniapp` 在被收录前已经做到 100% 测试覆盖率了 —— 但真正让"收录"这件事发生的，是"主动提 PR 这一步"，不是技术本身。
+
+被官方收录不会让一个项目突然变好，它只是让"被发现"这件事容易了一些。这一步省下来的，是后面所有内容输出、合作沟通的隐性成本。
 
 ## 项目地址
 
