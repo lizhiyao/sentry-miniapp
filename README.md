@@ -5,6 +5,7 @@
 [![github forks](https://img.shields.io/github/forks/lizhiyao/sentry-miniapp?style=social)](https://github.com/lizhiyao/sentry-miniapp/network/members)
 [![github stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp?style=social)](https://github.com/lizhiyao/sentry-miniapp/stargazers)
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
+[![Sentry Community SDK](https://img.shields.io/badge/Sentry-Community%20SDK-362d59?logo=sentry)](https://docs.sentry.io/platforms/#sdks-supported-by-our-community)
 [![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)](./LICENSE)
 
 简体中文 | [English](./README.en.md)
