@@ -1,6 +1,27 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.8.2](https://github.com/lizhiyao/sentry-miniapp/compare/v1.8.1...v1.8.2) (2026-05-06)
+
+
+### 🐛 Bug Fixes | 修复
+
+* 对齐小程序配置行为与文档 ([221cdd8](https://github.com/lizhiyao/sentry-miniapp/commit/221cdd855da132167b765c63918119686968ccff))
+
+
+### 🎫 Chores | 其他更新
+
+* **deps:** 升级 @sentry/core 10.50.0 → 10.51.0 ([#128](https://github.com/lizhiyao/sentry-miniapp/issues/128)) ([e15fa78](https://github.com/lizhiyao/sentry-miniapp/commit/e15fa788c0808407e9ce79cb11abfe4ef84ba7b1)), closes [#127](https://github.com/lizhiyao/sentry-miniapp/issues/127)
+
+
+### 📝 Documentation | 文档
+
+* 在 CLAUDE.md 中明确采用 GitHub Flow 工作流 ([#129](https://github.com/lizhiyao/sentry-miniapp/issues/129)) ([560d0cd](https://github.com/lizhiyao/sentry-miniapp/commit/560d0cd84a3e502d6beff87bf42c85175d60bf0e))
+* 在 README 顶部新增 Sentry 官方收录徽章 ([#131](https://github.com/lizhiyao/sentry-miniapp/issues/131)) ([c2481ce](https://github.com/lizhiyao/sentry-miniapp/commit/c2481ce29cbc57e2c590e0d39d604e96bce71fd4)), closes [getsentry/sentry-docs#17152](https://github.com/getsentry/sentry-docs/issues/17152)
+* 新增"被 Sentry 官方收录"里程碑文章及配图 ([#130](https://github.com/lizhiyao/sentry-miniapp/issues/130)) ([758e72d](https://github.com/lizhiyao/sentry-miniapp/commit/758e72d12ffa797e427f97c220b1e0d8148c4a38)), closes [#83](https://github.com/lizhiyao/sentry-miniapp/issues/83)
+* 新增公众号版官方收录文章 ([#132](https://github.com/lizhiyao/sentry-miniapp/issues/132)) ([1ea05bf](https://github.com/lizhiyao/sentry-miniapp/commit/1ea05bf0c920a038c9185f7ff722dd2e3d51321c)), closes [#83](https://github.com/lizhiyao/sentry-miniapp/issues/83)
+* 更新 README 顶部"最新文章"卡片 ([#133](https://github.com/lizhiyao/sentry-miniapp/issues/133)) ([ba6a3ae](https://github.com/lizhiyao/sentry-miniapp/commit/ba6a3aeab6646191af69c8bdf06b31734193f2c9))
+
 ## [1.8.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.8.0...v1.8.1) (2026-04-28)
 
 
