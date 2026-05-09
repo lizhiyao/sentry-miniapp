@@ -313,6 +313,41 @@ If errors are not being reported, check:
 
 **Not currently.** Sentry's official Replay feature relies on standard browser DOM (via rrweb recording). Mini programs use a dual-thread architecture without standard DOM access. We recommend using **Breadcrumbs** combined with **custom logging** to reconstruct user action sequences.
 
+### 3. How do I monitor the H5 build of a uni-app / Taro project?
+
+`sentry-miniapp` **only adapts mini program platforms** and does not implement browser-native signals (`window.onerror`, `fetch` / `XHR` interception, `PerformanceObserver`, etc.). For the H5 build, use Sentry's official [`@sentry/browser`](https://docs.sentry.io/platforms/javascript/) directly — full feature coverage, maintained upstream.
+
+> When this SDK is initialized in a browser environment, it logs a warning suggesting you switch to `@sentry/browser`.
+
+Recommended pattern: split SDKs by platform via **uni-app conditional compilation**:
+
+```ts
+// utils/sentry.ts
+let Sentry: any;
+
+// #ifdef H5
+Sentry = require('@sentry/browser');
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  environment: 'production',
+  tracesSampleRate: 0.2,
+});
+// #endif
+
+// #ifdef MP-WEIXIN || MP-ALIPAY || MP-BAIDU || MP-TOUTIAO || MP-QQ || MP-KUAISHOU || MP-DINGTALK
+Sentry = require('sentry-miniapp');
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  environment: 'production',
+  tracesSampleRate: 0.2,
+});
+// #endif
+
+export default Sentry;
+```
+
+Both sides report to the same Sentry DSN so all errors land in a single project. For Taro, use `process.env.TARO_ENV === 'h5'` to branch similarly.
+
 ---
 
 ## Documentation
