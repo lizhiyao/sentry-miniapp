@@ -137,6 +137,38 @@ describe('CrossPlatform', () => {
       );
       consoleSpy.mockRestore();
     });
+
+    it('should suggest @sentry/browser when running in a browser/H5 environment', async () => {
+      const originalWindow = (global as any).window;
+      const originalDocument = (global as any).document;
+      (global as any).window = {};
+      (global as any).document = {};
+
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const { getSDK } = await import('../src/crossPlatform');
+        const result = getSDK();
+        expect(result).toBeDefined();
+        expect(typeof result.request).toBe('function');
+        expect(consoleSpy).toHaveBeenCalledTimes(1);
+        const message = (consoleSpy.mock.calls[0] as unknown[])[0] as string;
+        expect(message).toContain('浏览器/H5 环境');
+        expect(message).toContain('@sentry/browser');
+        expect(message).not.toContain('未检测到已支持的小程序平台');
+      } finally {
+        consoleSpy.mockRestore();
+        if (originalWindow === undefined) {
+          delete (global as any).window;
+        } else {
+          (global as any).window = originalWindow;
+        }
+        if (originalDocument === undefined) {
+          delete (global as any).document;
+        } else {
+          (global as any).document = originalDocument;
+        }
+      }
+    });
   });
 
   describe('getSystemInfo', () => {

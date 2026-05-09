@@ -98,6 +98,19 @@ export interface SystemInfo {
 }
 
 /**
+ * 判断当前运行时是否为标准浏览器环境（含 uni-app H5、Taro H5、纯 Web 等）。
+ * 仅在所有小程序全局对象都未命中时作为兜底分支调用。
+ */
+const isBrowserRuntime = (): boolean => {
+  return (
+    typeof window !== 'undefined' &&
+    window !== null &&
+    typeof document !== 'undefined' &&
+    document !== null
+  );
+};
+
+/**
  * 获取跨平台的 SDK
  */
 const getSDK = (): SDK => {
@@ -134,7 +147,17 @@ const getSDK = (): SDK => {
     // tslint:disable-next-line: no-unsafe-any
     currentSdk = ks;
   } else {
-    console.warn('[sentry-miniapp] 未检测到已支持的小程序平台，SDK 将以降级模式运行');
+    if (isBrowserRuntime()) {
+      console.warn(
+        '[sentry-miniapp] 检测到当前运行在浏览器/H5 环境（如 uni-app H5、Taro H5）。\n' +
+          '本 SDK 仅适配各小程序平台，不支持浏览器原生信号（window.onerror、fetch/XHR 拦截、PerformanceObserver 等）。\n' +
+          '建议改用 Sentry 官方浏览器 SDK：@sentry/browser。\n' +
+          '若使用 uni-app/Taro，可结合条件编译按端引入：H5 用 @sentry/browser，小程序端用 sentry-miniapp。\n' +
+          '详情参考：https://docs.sentry.io/platforms/javascript/',
+      );
+    } else {
+      console.warn('[sentry-miniapp] 未检测到已支持的小程序平台，SDK 将以降级模式运行');
+    }
     // 返回带有空操作方法的默认 SDK，而非抛出异常
     return currentSdk;
   }

@@ -328,6 +328,41 @@ App({
 目前 **不支持** `Sentry.replayIntegration()`。
 Sentry 官方的 Replay 功能强依赖于浏览器标准 DOM 环境（通过 rrweb 录制）。小程序采用双线程架构且没有开放标准 DOM 接口，无法直接复用。建议通过完善**Breadcrumbs（面包屑路径）**结合**自定义日志**来还原用户操作现场。
 
+### 3. uni-app / Taro 项目的 H5 端如何监控？
+
+`sentry-miniapp` **仅适配各小程序平台**，不内置浏览器原生信号（`window.onerror`、`fetch` / `XHR` 拦截、`PerformanceObserver` 等）。H5 端请直接使用 Sentry 官方的 [`@sentry/browser`](https://docs.sentry.io/platforms/javascript/)，能力完整、长期由官方维护。
+
+> SDK 在 H5 环境下被错误初始化时，会输出引导提示，提醒切换到 `@sentry/browser`。
+
+推荐通过 **uni-app 条件编译**按端引入：
+
+```ts
+// utils/sentry.ts
+let Sentry: any;
+
+// #ifdef H5
+Sentry = require('@sentry/browser');
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  environment: 'production',
+  tracesSampleRate: 0.2,
+});
+// #endif
+
+// #ifdef MP-WEIXIN || MP-ALIPAY || MP-BAIDU || MP-TOUTIAO || MP-QQ || MP-KUAISHOU || MP-DINGTALK
+Sentry = require('sentry-miniapp');
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  environment: 'production',
+  tracesSampleRate: 0.2,
+});
+// #endif
+
+export default Sentry;
+```
+
+两端上报同一个 Sentry DSN，可以在同一个 Project 里聚合查看错误。Taro 用户可以用类似的 `process.env.TARO_ENV === 'h5'` 判断分端引入。
+
 ---
 
 ## 📖 文档导航
