@@ -1231,10 +1231,10 @@
     argparse "~1.0.9"
     string-argv "~0.3.1"
 
-"@sentry/core@10.52.0":
-  version "10.52.0"
-  resolved "https://registry.npmjs.org/@sentry/core/-/core-10.52.0.tgz#13842ef35db9909d64770d84656704cb929de445"
-  integrity sha512-VA/kAqLhkMnRWY2RXdBLyTemR9D4m7MVRy/gyapoq9yvllVPx9WXbvKgnMP2LQp7mFgT/oLFvw58aQKaYTGn3A==
+"@sentry/core@10.53.1":
+  version "10.53.1"
+  resolved "https://registry.npmjs.org/@sentry/core/-/core-10.53.1.tgz#68bed0e5857be6a8d5009268337c4153ab87514d"
+  integrity sha512-XG4ezlkyuAPjBC5+9kXC94rXXuqYTw9NRhfaDHssbTFaGnqBR8vQX2UUgZfY7ucbeelRDGfBu1sywoU+mB04uA==
 
 "@simple-libs/child-process-utils@^1.0.0":
   version "1.0.2"
