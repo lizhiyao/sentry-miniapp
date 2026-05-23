@@ -1,6 +1,32 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.9.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.8.2...v1.9.0) (2026-05-23)
+
+
+### ✨ Features | 新功能
+
+* 在浏览器/H5 环境下输出引导提示，建议改用 @sentry/browser ([#138](https://github.com/lizhiyao/sentry-miniapp/issues/138)) ([0cfab8f](https://github.com/lizhiyao/sentry-miniapp/commit/0cfab8f474b7d805eff97790428526e994d728e3)), closes [#135](https://github.com/lizhiyao/sentry-miniapp/issues/135)
+
+
+### 🐛 Bug Fixes | 修复
+
+* **deps:** 修复依赖漏洞告警 ([#145](https://github.com/lizhiyao/sentry-miniapp/issues/145)) ([2dd0a99](https://github.com/lizhiyao/sentry-miniapp/commit/2dd0a99610719c1dcf41efc4d11c7bc92a60cbff))
+
+
+### 🎫 Chores | 其他更新
+
+* **deps:** bump fast-uri from 3.1.0 to 3.1.2 ([#137](https://github.com/lizhiyao/sentry-miniapp/issues/137)) ([9238b45](https://github.com/lizhiyao/sentry-miniapp/commit/9238b45aedc5ba1fc7719546ebf1c829c9ac5666))
+* **deps:** bump fast-xml-builder from 1.1.5 to 1.2.0 ([#136](https://github.com/lizhiyao/sentry-miniapp/issues/136)) ([9689b23](https://github.com/lizhiyao/sentry-miniapp/commit/9689b23a0ba82f4a030b35083921ddf6937e9454))
+* **deps:** 升级 @sentry/core 从 10.51.0 到 10.52.0 ([#141](https://github.com/lizhiyao/sentry-miniapp/issues/141)) ([5396090](https://github.com/lizhiyao/sentry-miniapp/commit/5396090c162228f7fe60deb88d6524523e53d532)), closes [#140](https://github.com/lizhiyao/sentry-miniapp/issues/140)
+* **deps:** 升级 @sentry/core 从 10.52.0 到 10.53.1 ([#143](https://github.com/lizhiyao/sentry-miniapp/issues/143)) ([a75bbaa](https://github.com/lizhiyao/sentry-miniapp/commit/a75bbaaf7fa76bc1451a46ddca54b49fa92f3dc9)), closes [#142](https://github.com/lizhiyao/sentry-miniapp/issues/142)
+* 为 CI workflow 显式声明最小 GITHUB_TOKEN 权限 ([#139](https://github.com/lizhiyao/sentry-miniapp/issues/139)) ([0fa122f](https://github.com/lizhiyao/sentry-miniapp/commit/0fa122f38b7289d37bb59fc2e5f41e48ac92d9fa)), closes [#8](https://github.com/lizhiyao/sentry-miniapp/issues/8)
+
+
+### 📝 Documentation | 文档
+
+* **agents-md:** 统一 agent 入场清单 ([#144](https://github.com/lizhiyao/sentry-miniapp/issues/144)) ([d38a595](https://github.com/lizhiyao/sentry-miniapp/commit/d38a595f1b827c6cfbc91b93871ce074e5370c57))
+
 ## [1.8.2](https://github.com/lizhiyao/sentry-miniapp/compare/v1.8.1...v1.8.2) (2026-05-06)
 
 
