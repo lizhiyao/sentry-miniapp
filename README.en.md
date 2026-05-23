@@ -14,6 +14,17 @@ A **mini program monitoring SDK** built on `@sentry/core`, providing **error mon
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western tech stack. Think of them as a hybrid between PWAs and native apps, but hosted within a platform's sandbox.
 
+## Quick Decision
+
+| Scenario | Recommendation |
+|---|---|
+| WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, or Kuaishou mini programs | Use `sentry-miniapp` |
+| Taro / uni-app builds targeting mini program platforms | Use `sentry-miniapp` |
+| Taro / uni-app H5 / browser builds | Use `@sentry/browser` and branch by target platform |
+| Pure Web, Node.js, React Native, or other environments | Prefer the official Sentry SDK for that platform |
+
+To integrate now, start with [Quick Start](#quick-start). For Source Map / release / CI upload, see the [Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md).
+
 > **📰 Featured Article (Chinese)**: [《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — How sentry-miniapp got listed in Sentry's official community-supported SDKs documentation. If you find this project useful, please consider giving it a ⭐ Star.
 
 <details>
@@ -126,6 +137,28 @@ App({
 ```
 
 Default integrations already include automatic exception capture, performance monitoring, SourceMap path normalization, network breadcrumbs, session tracking, and network status monitoring. Only pass `integrations` when you intentionally want to take over the full integration list, because it replaces the defaults.
+
+### 3. Verify Reporting
+
+Before shipping, verify two things:
+
+- Add the Sentry reporting endpoint domain to the `request` trusted domain list in your mini program admin console.
+- Trigger a test error and confirm it appears in Sentry Issues:
+
+```javascript
+Sentry.captureException(new Error('sentry-miniapp smoke test'));
+```
+
+### 4. Common Next Steps
+
+| Goal | Start Here |
+|---|---|
+| Manual reporting, user context, breadcrumbs, performance spans | [Advanced Usage](#advanced-usage) |
+| Source Map / release / CI upload | [Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md) |
+| H5 builds in Taro / uni-app projects | [FAQ: How do I monitor the H5 build of a uni-app / Taro project?](#3-how-do-i-monitor-the-h5-build-of-a-uni-app--taro-project) |
+| WeChat mini program example | [examples/wxapp](./examples/wxapp/README.md) |
+| Multi-platform compatibility details | [Multi-Platform Compatibility Report](./docs/MultiPlatformCompatibilityReport.md) |
+| AI-assisted setup | [AI-Assisted Setup](#ai-assisted-setup) |
 
 ---
 

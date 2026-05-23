@@ -12,6 +12,17 @@
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序及 Taro / uni-app 等跨端框架。
 
+## 快速判断
+
+| 场景 | 建议 |
+|---|---|
+| 微信、支付宝、字节、百度、QQ、钉钉、快手小程序 | 使用 `sentry-miniapp` |
+| Taro / uni-app 编译到小程序端 | 使用 `sentry-miniapp` |
+| Taro / uni-app 的 H5 / 浏览器端 | 使用 `@sentry/browser`，按端条件引入 |
+| 纯 Web、Node.js、React Native 等其它环境 | 优先使用 Sentry 官方 SDK |
+
+想立刻接入，从 [快速接入](#-快速接入) 开始；需要 Source Map / release / CI 上传，直接看 [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md)。
+
 > **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表，这篇文章记录这件事的来龙去脉。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
 <details>
@@ -127,6 +138,28 @@ App({
 ```
 
 默认集成已经包含自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 和网络状态监控。只有在需要完全接管集成列表时才传入 `integrations`，否则会覆盖默认集成。
+
+### 3. 验证上报
+
+上线前请确认两件事：
+
+- 在小程序管理后台把 Sentry 上报域名加入 `request` 合法域名。
+- 触发一次测试错误，并在 Sentry Issues 中确认收到事件：
+
+```javascript
+Sentry.captureException(new Error('sentry-miniapp smoke test'));
+```
+
+### 4. 常用入口
+
+| 目标 | 入口 |
+|---|---|
+| 手动上报、用户信息、Breadcrumb、性能 Span | [常用进阶用法](#-常用进阶用法) |
+| Source Map / release / CI 上传 | [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md) |
+| Taro / uni-app 的 H5 端怎么处理 | [FAQ：uni-app / Taro 项目的 H5 端如何监控？](#3-uni-app--taro-项目的-h5-端如何监控) |
+| 微信小程序示例工程 | [examples/wxapp](./examples/wxapp/README.md) |
+| 多平台兼容性细节 | [多平台兼容性报告](./docs/MultiPlatformCompatibilityReport.md) |
+| 想让 AI 帮你接入 | [AI 辅助接入](#-ai-辅助接入) |
 
 ---
 
