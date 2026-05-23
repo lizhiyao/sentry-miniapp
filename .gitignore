@@ -24,8 +24,12 @@ local.log
 *.sublime-*
 
 # ai
+# Codex / other agent CLI local hooks and config are personal preferences.
+# Shared agent entrypoint lives in AGENTS.md; skill source lives in .claude/skills/.
 .claude/*
 !.claude/skills/
+.codex/
+.agents/
 
 # env
 .env.local
