@@ -1,5 +1,5 @@
 // Sentry Miniapp SDK for WeChat Mini Program
-// Based on @sentry/core 10.45.0
+// Based on @sentry/core
 // Development Mode: Auto-rebuild enabled
 
 // Install polyfills for miniapp environment
@@ -60,12 +60,7 @@ export {
 
 // Export SDK specific exports
 export { SDK_NAME, SDK_VERSION } from './version';
-export {
-  init,
-  showReportDialog,
-  wrap,
-  captureFeedback,
-} from './sdk';
+export { init, showReportDialog, wrap, captureFeedback } from './sdk';
 export type { MiniappOptions, SendFeedbackParams } from './types';
 export { MiniappClient } from './client';
 export * as Integrations from './integrations/index';
