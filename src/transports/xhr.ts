@@ -14,6 +14,10 @@ export interface MiniappTransportOptions extends BaseTransportOptions {
 export function createMiniappTransport(options: MiniappTransportOptions): Transport {
   // 保存 URL 到局部变量
   const transportUrl = options.url;
+  const defaultHeaders = {
+    'Content-Type': 'application/x-sentry-envelope',
+    ...options.headers,
+  };
 
   /**
    * Make a request using miniapp request API
@@ -28,12 +32,12 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
         method: 'POST' as const,
         data: request.body,
         header: {
-          'Content-Type': 'application/json',
+          ...defaultHeaders,
           ...request.headers,
         },
         // Alipay uses `headers` instead of `header`
         headers: {
-          'Content-Type': 'application/json',
+          ...defaultHeaders,
           ...request.headers,
         },
         timeout: 10000,

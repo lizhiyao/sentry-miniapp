@@ -37,10 +37,10 @@ describe('Transport', () => {
         method: 'POST',
         data: expect.any(String),
         header: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-sentry-envelope',
         },
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-sentry-envelope',
         },
         timeout: 10000,
         success: expect.any(Function),
@@ -183,40 +183,66 @@ describe('Transport', () => {
           header: {},
         });
       });
-      // We must set it to a fresh object to clear the memoized _sdk in crossPlatform
-      jest.isolateModules(async () => {
-        (global as any).wx = { request: mockRequest };
-        const { createMiniappTransport } = await import('../src/transports');
+      (global as any).wx = { request: mockRequest };
+      (_sdk as any) = null;
 
-        const transport = createMiniappTransport({
-          url: 'https://sentry.io/api/123/store/',
-          recordDroppedEvent: jest.fn(),
-          headers: {
-            'X-Custom-Header': 'value',
-          },
-        });
-
-        const envelope = [
-          { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
-          [[{ type: 'event' }, { message: 'test message', event_id: 'test-id' }]],
-        ];
-
-        const response = await transport.send(envelope as any);
-
-        expect(mockRequest).toHaveBeenCalled();
-        const callArgs = (mockRequest.mock.calls as any)[0][0] as any;
-
-        expect(callArgs.url).toBe('https://sentry.io/api/123/store/');
-        expect(callArgs.method).toBe('POST');
-        if (callArgs.header && callArgs.header['X-Custom-Header']) {
-          expect(callArgs.header['X-Custom-Header']).toBe('value');
-        }
-        if (callArgs.headers && callArgs.headers['X-Custom-Header']) {
-          expect(callArgs.headers['X-Custom-Header']).toBe('value');
-        }
-
-        expect(response.statusCode).toBe(200);
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/store/',
+        recordDroppedEvent: jest.fn(),
+        headers: {
+          'X-Custom-Header': 'value',
+        },
       });
+
+      const envelope = [
+        { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[{ type: 'event' }, { message: 'test message', event_id: 'test-id' }]],
+      ];
+
+      const response = await transport.send(envelope as any);
+
+      expect(mockRequest).toHaveBeenCalled();
+      const callArgs = (mockRequest.mock.calls as any)[0][0] as any;
+
+      expect(callArgs.url).toBe('https://sentry.io/api/123/store/');
+      expect(callArgs.method).toBe('POST');
+      expect(callArgs.header['Content-Type']).toBe('application/x-sentry-envelope');
+      expect(callArgs.headers['Content-Type']).toBe('application/x-sentry-envelope');
+      expect(callArgs.header['X-Custom-Header']).toBe('value');
+      expect(callArgs.headers['X-Custom-Header']).toBe('value');
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should allow custom headers to override default envelope headers', async () => {
+      const mockRequest = jest.fn().mockImplementation((options) => {
+        (options as any).success({
+          statusCode: 200,
+          data: 'OK',
+          header: {},
+        });
+      });
+      (global as any).wx = { request: mockRequest };
+      (_sdk as any) = null;
+
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/store/',
+        recordDroppedEvent: jest.fn(),
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+      });
+
+      const envelope: Envelope = [
+        { event_id: 'test-header-override', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[{ type: 'event' }, { message: 'header override test' }]],
+      ];
+
+      await transport.send(envelope);
+
+      const callArgs = (mockRequest.mock.calls as any)[0][0] as any;
+      expect(callArgs.header['Content-Type']).toBe('text/plain');
+      expect(callArgs.headers['Content-Type']).toBe('text/plain');
     });
 
     it('should create transport with default options', () => {
