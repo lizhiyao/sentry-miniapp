@@ -342,7 +342,7 @@ Sentry.init({
 | **帧率 / 卡顿监控** | ✅ 新增 | `FrameRateIntegration`（RAF 采样 FPS，长帧记 jank，周期上报 `framerate` 上下文） |
 | 页面生命周期 / 点击面包屑 | ➖ | 小游戏无页面，自动跳过；行为追踪请用 `onShow/onHide` 面包屑或手动 `addBreadcrumb` |
 
-> 普通小程序默认**不**启用上述两个小游戏专属集成；如需在小程序中也开启帧率监控，显式设置 `enableFrameRateMonitoring: true` 即可。
+> 上述两个集成仅在小游戏环境默认启用。其中**帧率监控依赖全局 `requestAnimationFrame`**：小游戏有（绑定真实渲染帧），而小程序为双线程架构、逻辑层没有全局 `requestAnimationFrame`，因此在小程序中即使开启也会安全 no-op（无法测量页面渲染帧率）。
 
 ---
 

@@ -118,7 +118,11 @@ export interface MiniappOptions {
   /** 是否启用小游戏生命周期监控（冷启动首帧耗时、启动场景、onShow/onHide 面包屑）。小游戏环境下默认启用，普通小程序默认关闭 */
   enableMinigameLifecycle?: boolean;
 
-  /** 是否启用帧率/卡顿监控（RAF 采样 FPS + jank）。小游戏环境下默认启用，普通小程序默认关闭 */
+  /**
+   * 是否启用帧率/卡顿监控（采样全局 requestAnimationFrame 估算 FPS + jank）。
+   * 仅适用于小游戏（有绑定渲染帧的全局 requestAnimationFrame）；小程序为双线程架构、
+   * 逻辑层无全局 requestAnimationFrame，开启也会安全 no-op。小游戏环境下默认启用。
+   */
   enableFrameRateMonitoring?: boolean;
 
   /** 帧率告警阈值，周期 FPS 低于此值时上报标记为 warning（默认 30） */

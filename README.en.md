@@ -329,7 +329,7 @@ Sentry.init({
 | **Frame rate / jank monitoring** | ✅ New | `FrameRateIntegration` (RAF FPS sampling, long frames → jank, periodic `framerate` context) |
 | Page lifecycle / tap breadcrumbs | ➖ | No pages in mini games — auto-skipped; use `onShow/onHide` breadcrumbs or manual `addBreadcrumb` |
 
-> Regular mini programs do **not** enable the two mini-game integrations by default. To enable frame-rate monitoring in a mini program, set `enableFrameRateMonitoring: true` explicitly.
+> These two integrations are enabled by default only in mini-game environments. In particular, **frame-rate monitoring relies on a global `requestAnimationFrame`**: mini games have one (bound to the real render loop), whereas mini programs use a dual-thread architecture whose logic layer has no global `requestAnimationFrame` — so even if enabled there, it safely no-ops (it cannot measure page render frame rate).
 
 ---
 
