@@ -23,6 +23,11 @@ interface SDK {
   onUnhandledRejection?: Function;
   onPageNotFound?: Function;
   onMemoryWarning?: Function;
+  // App / 小游戏全局生命周期（小游戏没有 App()，用全局 onShow/onHide）
+  onShow?: Function;
+  onHide?: Function;
+  offShow?: Function;
+  offHide?: Function;
   getLaunchOptionsSync?: Function;
   getAccountInfoSync?: Function;
   getUpdateManager?: Function;
@@ -319,6 +324,34 @@ export const appName = (): string => {
     _appName = getAppName();
   }
   return _appName;
+};
+
+// 小游戏环境检测缓存
+let _isMinigame: boolean | null = null;
+
+/**
+ * 判断当前是否运行在「小游戏」环境（微信小游戏 / 抖音小游戏 / QQ 小游戏等）。
+ *
+ * 小游戏与小程序的运行时差异：小游戏没有 App()/Page()/getCurrentPages() 等
+ * 页面与路由构造函数，但同样存在平台 sdk（wx/tt/qq…）。因此判定规则为：
+ * 检测到平台 sdk，且不存在 App/Page/getCurrentPages，或存在全局 GameGlobal。
+ */
+export const isMinigame = (): boolean => {
+  if (_isMinigame === null) {
+    const g = globalThis as any;
+    const hasGameGlobal = typeof g.GameGlobal !== 'undefined';
+    const lacksMiniprogramHost =
+      typeof g.App !== 'function' &&
+      typeof g.Page !== 'function' &&
+      typeof g.getCurrentPages !== 'function';
+    _isMinigame = isMiniappEnvironment() && (hasGameGlobal || lacksMiniprogramHost);
+  }
+  return _isMinigame;
+};
+
+/** 重置小游戏检测缓存（仅供测试使用）。 */
+export const resetMinigameCache = (): void => {
+  _isMinigame = null;
 };
 
 /**

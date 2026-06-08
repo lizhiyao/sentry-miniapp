@@ -298,6 +298,41 @@ App({
 
 ---
 
+## Mini Game Support
+
+`sentry-miniapp` also works in **mini games** (WeChat / ByteDance mini games, etc.). Mini games have no `App()`/`Page()`/page routing, but expose platform APIs like `wx.onError`, `wx.request`, `wx.getDeviceInfo`, and `wx.getPerformance`. Most SDK capabilities work out of the box, plus mini-game-specific cold-start and frame-rate monitoring.
+
+**Initialization is identical to mini programs** — the SDK auto-detects the mini-game environment and enables the relevant features:
+
+```js
+import * as Sentry from 'sentry-miniapp';
+
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  // Enabled by default in mini-game environments; set to false to disable:
+  // enableMinigameLifecycle: true,   // cold-start first-frame timing + launch scene + onShow/onHide breadcrumbs
+  // enableFrameRateMonitoring: true, // FPS / jank monitoring
+  // fpsWarningThreshold: 30,         // report flagged as warning when FPS drops below this
+});
+```
+
+### Capability matrix
+
+| Capability | Mini Game | Notes |
+|------------|:---------:|-------|
+| Exception / unhandled rejection capture | ✅ | `wx.onError` / `wx.onUnhandledRejection` |
+| API request monitoring (count / duration / status) | ✅ | wraps `wx.request` |
+| Network status monitoring | ✅ | `wx.onNetworkStatusChange` |
+| Device info / context breadcrumbs | ✅ | `wx.getDeviceInfo` etc. |
+| Resource load timing | ✅ | `wx.getPerformance()` |
+| **Cold-start first-frame timing + launch scene** | ✅ New | `MinigameIntegration` (first `requestAnimationFrame` ≈ first frame) |
+| **Frame rate / jank monitoring** | ✅ New | `FrameRateIntegration` (RAF FPS sampling, long frames → jank, periodic `minigame.performance`) |
+| Page lifecycle / tap breadcrumbs | ➖ | No pages in mini games — auto-skipped; use `onShow/onHide` breadcrumbs or manual `addBreadcrumb` |
+
+> Regular mini programs do **not** enable the two mini-game integrations by default. To enable frame-rate monitoring in a mini program, set `enableFrameRateMonitoring: true` explicitly.
+
+---
+
 ## FAQ
 
 ### 1. Do I need to manually report errors in `onError`?

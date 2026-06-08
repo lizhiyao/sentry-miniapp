@@ -311,6 +311,41 @@ App({
 
 ---
 
+## 🎮 小游戏支持
+
+`sentry-miniapp` 同样适用于**小游戏**（微信小游戏 / 抖音小游戏等）。小游戏没有 `App()`/`Page()`/页面路由，但具备 `wx.onError`、`wx.request`、`wx.getDeviceInfo`、`wx.getPerformance` 等平台能力，因此 SDK 的大部分能力开箱即用，并额外提供小游戏专属的冷启动与帧率监控。
+
+**初始化与小程序完全一致**，SDK 会自动检测小游戏环境并启用对应能力：
+
+```js
+import * as Sentry from 'sentry-miniapp';
+
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  // 小游戏环境下，以下两项默认即为开启，可显式关闭：
+  // enableMinigameLifecycle: true,   // 冷启动首帧耗时 + 启动场景 + onShow/onHide 面包屑
+  // enableFrameRateMonitoring: true, // 帧率(FPS)/卡顿(jank)监控
+  // fpsWarningThreshold: 30,         // FPS 低于该值时上报标记为 warning
+});
+```
+
+### 能力矩阵
+
+| 能力 | 小游戏 | 说明 |
+|------|:------:|------|
+| 异常 / 未处理 Promise 捕获 | ✅ | `wx.onError` / `wx.onUnhandledRejection` |
+| API 请求监控（请求数 / 耗时 / 状态码） | ✅ | 包裹 `wx.request` |
+| 网络状态监控 | ✅ | `wx.onNetworkStatusChange` |
+| 设备信息 / 上下文面包屑 | ✅ | `wx.getDeviceInfo` 等 |
+| 资源加载耗时 | ✅ | `wx.getPerformance()` |
+| **冷启动首帧耗时 + 启动场景** | ✅ 新增 | `MinigameIntegration`（首个 `requestAnimationFrame` 近似首帧） |
+| **帧率 / 卡顿监控** | ✅ 新增 | `FrameRateIntegration`（RAF 采样 FPS，长帧记 jank，周期上报 `minigame.performance`） |
+| 页面生命周期 / 点击面包屑 | ➖ | 小游戏无页面，自动跳过；行为追踪请用 `onShow/onHide` 面包屑或手动 `addBreadcrumb` |
+
+> 普通小程序默认**不**启用上述两个小游戏专属集成；如需在小程序中也开启帧率监控，显式设置 `enableFrameRateMonitoring: true` 即可。
+
+---
+
 ## ❓ 常见问题 (FAQ)
 
 ### 1. 初始化后无法自动上报异常，必须在 `onError` 中手动调 API 吗？

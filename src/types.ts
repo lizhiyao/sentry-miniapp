@@ -115,6 +115,15 @@ export interface MiniappOptions {
   /** 是否启用网络状态实时监控（默认 true） */
   enableNetworkStatusMonitoring?: boolean;
 
+  /** 是否启用小游戏生命周期监控（冷启动首帧耗时、启动场景、onShow/onHide 面包屑）。小游戏环境下默认启用，普通小程序默认关闭 */
+  enableMinigameLifecycle?: boolean;
+
+  /** 是否启用帧率/卡顿监控（RAF 采样 FPS + jank）。小游戏环境下默认启用，普通小程序默认关闭 */
+  enableFrameRateMonitoring?: boolean;
+
+  /** 帧率告警阈值，周期 FPS 低于此值时上报标记为 warning（默认 30） */
+  fpsWarningThreshold?: number;
+
   /** Array of strings or regexes that match error URLs which should be exclusively sent to Sentry */
   allowUrls?: Array<string | RegExp>;
 

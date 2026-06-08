@@ -3,7 +3,7 @@ import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
 
 import { MiniappClient } from './client';
-import { appName, getSystemInfo, isMiniappEnvironment } from './crossPlatform';
+import { appName, getSystemInfo, isMiniappEnvironment, isMinigame } from './crossPlatform';
 import {
   GlobalHandlers,
   TryCatch,
@@ -17,6 +17,8 @@ import {
   ConsoleBreadcrumbs,
   SessionIntegration,
   NetworkStatusIntegration,
+  MinigameIntegration,
+  FrameRateIntegration,
 } from './integrations/index';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
@@ -106,6 +108,28 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   // Console 面包屑（默认禁用，需手动开启）
   if (opts.enableConsoleBreadcrumbs) {
     opts.integrations.push(new ConsoleBreadcrumbs());
+  }
+
+  // 小游戏专属能力：纯增量，仅在检测到小游戏（或显式开启）时追加。
+  // 小游戏无 App()/Page()，PageBreadcrumbs / SessionIntegration 已安全 no-op，这里不删除它们。
+  const minigame = isMinigame();
+  if (
+    opts.enableMinigameLifecycle === true ||
+    (minigame && opts.enableMinigameLifecycle !== false)
+  ) {
+    opts.integrations.push(new MinigameIntegration());
+  }
+  if (
+    opts.enableFrameRateMonitoring === true ||
+    (minigame && opts.enableFrameRateMonitoring !== false)
+  ) {
+    opts.integrations.push(
+      new FrameRateIntegration(
+        opts.fpsWarningThreshold !== undefined
+          ? { fpsWarningThreshold: opts.fpsWarningThreshold }
+          : {},
+      ),
+    );
   }
 
   // Set platform context
