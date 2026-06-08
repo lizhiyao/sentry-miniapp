@@ -23,7 +23,7 @@ export class MinigameIntegration implements Integration {
   private _coldStartReported: boolean = false;
   // 累积的 minigame 上下文。setContext 为「覆盖」语义，故内部维护完整对象，
   // 每次补充字段后整体写回，避免后续字段冲掉启动场景。
-  private _ctx: {
+  private _minigameContext: {
     runtime: string;
     scene?: unknown;
     path?: unknown;
@@ -39,10 +39,10 @@ export class MinigameIntegration implements Integration {
     if (typeof miniappSdk.getLaunchOptionsSync === 'function') {
       try {
         const launch = miniappSdk.getLaunchOptionsSync() || {};
-        this._ctx.scene = launch.scene;
-        this._ctx.path = launch.path;
-        this._ctx.query = launch.query;
-        setContext('minigame', { ...this._ctx });
+        this._minigameContext.scene = launch.scene;
+        this._minigameContext.path = launch.path;
+        this._minigameContext.query = launch.query;
+        setContext('minigame', { ...this._minigameContext });
         addBreadcrumb({
           category: 'minigame.launch',
           message: '小游戏冷启动',
@@ -91,8 +91,8 @@ export class MinigameIntegration implements Integration {
       if (this._coldStartReported) return;
       this._coldStartReported = true;
       const coldStartMs = Math.round(now() - this._initTs);
-      this._ctx.coldStartMs = coldStartMs;
-      setContext('minigame', { ...this._ctx });
+      this._minigameContext.coldStartMs = coldStartMs;
+      setContext('minigame', { ...this._minigameContext });
       addBreadcrumb({
         category: 'minigame.performance',
         message: `SDK 初始化到首帧耗时: ${coldStartMs}ms`,
