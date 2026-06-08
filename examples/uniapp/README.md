@@ -29,9 +29,9 @@ npm run build:mp-weixin
 
 然后用**微信开发者工具**导入产物目录（`dist/dev/mp-weixin` 或 `dist/build/mp-weixin`），即可预览。
 
-## 配置你自己的 DSN
+## DSN 配置
 
-`src/utils/sentry.js` 里的 `DSN` 是**格式合法的占位值**，不会真正上报。替换为你自己 Sentry 项目的 DSN 后，点击实验室按钮，即可在后台按 `demo_trigger_id` 看到事件。
+`src/utils/sentry.js` 里的 `DSN` 与 `examples/wxapp` **共用同一个演示 Sentry 项目**，开箱即可上报——点击实验室按钮后，可在后台按 `demo_trigger_id` 看到事件。换成你自己项目的 DSN 即可在你的后台观察数据。
 
 微信开发者工具中还需把 Sentry 上报域名加入小程序后台「合法域名」（开发期可临时勾选「不校验合法域名」）。
 

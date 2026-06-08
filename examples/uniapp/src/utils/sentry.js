@@ -13,9 +13,9 @@
  */
 import * as Sentry from 'sentry-miniapp';
 
-// ⚠️ 占位 DSN：格式合法但指向空项目，不会真正上报。
-// 请替换为你自己 Sentry 项目的 DSN 后再观察后台数据。
-const DSN = 'https://examplePublicKey@o0.ingest.sentry.io/0';
+// 与 examples/wxapp 共用同一个演示 Sentry 项目 DSN，开箱即可上报。
+// 换成你自己项目的 DSN 后，即可在你的后台观察数据。
+const DSN = 'https://47703e01ba4344b8b252c15e8fd980fd@o113510.ingest.us.sentry.io/1528228';
 
 Sentry.init({
   dsn: DSN,
