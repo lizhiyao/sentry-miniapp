@@ -10,7 +10,7 @@
 
 [简体中文](./README.md) | English
 
-A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou mini programs and cross-platform frameworks (Taro / uni-app).
+A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou mini programs, **WeChat / Douyin mini games**, and cross-platform frameworks (Taro / uni-app).
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western tech stack. Think of them as a hybrid between PWAs and native apps, but hosted within a platform's sandbox.
 
@@ -38,6 +38,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full details.
 
 - **Modern Architecture**: Built on the latest Sentry JavaScript V10 SDK core modules.
 - **True Multi-Platform Support**: Built-in API abstraction engine — one codebase seamlessly supports **WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou** mini program platforms.
+- **Mini Game Support**: Auto-detects mini-game environments — error / network / device monitoring works out of the box, plus mini-game-specific **cold-start first-frame timing** and **frame-rate / jank (FPS) monitoring** (see "Mini Game Support" below).
 - **Automatic Exception Capture**: No business code intrusion required. Automatically hooks into lifecycle error listeners (`onError`, `onUnhandledRejection`, `onPageNotFound`, `onMemoryWarning`).
 - **Rich Context Breadcrumbs**: Automatically records device info, user tap/touch interactions, network requests (XHR/Fetch), and page lifecycle events.
 - **Built-in SourceMap Path Normalization**: Handles virtual stack paths across WeChat, Alipay, ByteDance and other platforms. Works with sentry-cli for seamless SourceMap resolution.
