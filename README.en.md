@@ -10,7 +10,7 @@
 
 [简体中文](./README.md) | English
 
-A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou mini programs and cross-platform frameworks (Taro / uni-app).
+A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou mini programs, **WeChat / Douyin mini games**, and cross-platform frameworks (Taro / uni-app).
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western tech stack. Think of them as a hybrid between PWAs and native apps, but hosted within a platform's sandbox.
 
@@ -38,6 +38,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full details.
 
 - **Modern Architecture**: Built on the latest Sentry JavaScript V10 SDK core modules.
 - **True Multi-Platform Support**: Built-in API abstraction engine — one codebase seamlessly supports **WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou** mini program platforms.
+- **Mini Game Support**: Auto-detects mini-game environments — error / network / device monitoring works out of the box, plus mini-game-specific **cold-start first-frame timing** and **frame-rate / jank (FPS) monitoring** (see "Mini Game Support" below).
 - **Automatic Exception Capture**: No business code intrusion required. Automatically hooks into lifecycle error listeners (`onError`, `onUnhandledRejection`, `onPageNotFound`, `onMemoryWarning`).
 - **Rich Context Breadcrumbs**: Automatically records device info, user tap/touch interactions, network requests (XHR/Fetch), and page lifecycle events.
 - **Built-in SourceMap Path Normalization**: Handles virtual stack paths across WeChat, Alipay, ByteDance and other platforms. Works with sentry-cli for seamless SourceMap resolution.
@@ -295,6 +296,43 @@ App({
 ```
 
 *Note: If using Taro / uni-app, you can use `import('sentry-miniapp')` dynamic import syntax — the framework handles cross-platform differences at compile time.*
+
+---
+
+## Mini Game Support
+
+`sentry-miniapp` also works in **mini games** (WeChat / ByteDance mini games, etc.). Mini games have no `App()`/`Page()`/page routing, but expose platform APIs like `wx.onError`, `wx.request`, `wx.getDeviceInfo`, and `wx.getPerformance`. Most SDK capabilities work out of the box, plus mini-game-specific cold-start and frame-rate monitoring.
+
+**Initialization is identical to mini programs** — the SDK auto-detects the mini-game environment and enables the relevant features:
+
+```js
+import * as Sentry from 'sentry-miniapp';
+
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  // Enabled by default in mini-game environments; set to false to disable:
+  // enableMinigameLifecycle: true,  // cold-start first-frame timing + launch scene + onShow/onHide breadcrumbs
+  // enableMinigameFrameRate: true,  // FPS / jank monitoring
+
+  // Fine-tune frame-rate monitoring (FPS warning threshold, jank threshold, report interval, etc.):
+  // minigameFrameRateOptions: { fpsWarningThreshold: 45 },
+});
+```
+
+### Capability matrix
+
+| Capability | Mini Game | Notes |
+|------------|:---------:|-------|
+| Exception / unhandled rejection capture | ✅ | `wx.onError` / `wx.onUnhandledRejection` |
+| API request monitoring (count / duration / status) | ✅ | wraps `wx.request` |
+| Network status monitoring | ✅ | `wx.onNetworkStatusChange` |
+| Device info / context breadcrumbs | ✅ | `wx.getDeviceInfo` etc. |
+| Resource load timing | ✅ | `wx.getPerformance()` |
+| **Cold-start first-frame timing + launch scene** | ✅ New | `MinigameIntegration` (first `requestAnimationFrame` ≈ first frame) |
+| **Frame rate / jank monitoring** | ✅ New | `MinigameFrameRateIntegration` (RAF FPS sampling, long frames → jank, periodic `minigame.framerate` context) |
+| Page lifecycle / tap breadcrumbs | ➖ | No pages in mini games — auto-skipped; use `onShow/onHide` breadcrumbs or manual `addBreadcrumb` |
+
+> These two integrations are enabled by default only in mini-game environments. In particular, **frame-rate monitoring relies on a global `requestAnimationFrame`**: mini games have one (bound to the real render loop), whereas mini programs use a dual-thread architecture whose logic layer has no global `requestAnimationFrame` — so even if enabled there, it safely no-ops (it cannot measure page render frame rate).
 
 ---
 

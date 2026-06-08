@@ -10,7 +10,7 @@
 
 简体中文 | [English](./README.en.md)
 
-一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序及 Taro / uni-app 等跨端框架。
+一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
 > **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表，这篇文章记录这件事的来龙去脉。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
@@ -36,6 +36,7 @@
 
 - **🚀 现代架构**：基于最新的 Sentry JavaScript V10 SDK 核心模块构建。
 - **📱 真正的多端支持**：内置 API 抹平引擎，一套代码无缝兼容**微信、支付宝、字节、百度、QQ、钉钉、快手**等主流小程序平台。
+- **🎮 小游戏支持**：自动识别小游戏环境，异常 / 网络 / 设备监控开箱即用，并提供小游戏专属的**冷启动首帧耗时**与**帧率 / 卡顿（FPS / jank）监控**（详见下文「小游戏支持」）。
 - **🎯 全自动异常捕获**：无需侵入业务代码，自动监听并上报生命周期异常（`onError`、`onUnhandledRejection`、`onPageNotFound`、`onMemoryWarning`）。
 - **🍞 丰富的上下文面包屑**：自动记录设备信息、用户点击/触摸操作、网络请求（XHR/Fetch）以及页面生命周期。
 - **🗺️ 内置 SourceMap 路径抹平**：自动处理微信、支付宝、字节等多端小程序的虚拟堆栈路径，配合 sentry-cli 极简实现 SourceMap 解析。
@@ -308,6 +309,43 @@ App({
 ```
 
 *注：如果您使用的是 Taro / uni-app 等跨端框架，可以直接使用 `import('sentry-miniapp')` 动态导入语法，框架会在编译时自动抹平各端差异。*
+
+---
+
+## 🎮 小游戏支持
+
+`sentry-miniapp` 同样适用于**小游戏**（微信小游戏 / 抖音小游戏等）。小游戏没有 `App()`/`Page()`/页面路由，但具备 `wx.onError`、`wx.request`、`wx.getDeviceInfo`、`wx.getPerformance` 等平台能力，因此 SDK 的大部分能力开箱即用，并额外提供小游戏专属的冷启动与帧率监控。
+
+**初始化与小程序完全一致**，SDK 会自动检测小游戏环境并启用对应能力：
+
+```js
+import * as Sentry from 'sentry-miniapp';
+
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  // 小游戏环境下，以下两项默认即为开启，可显式关闭：
+  // enableMinigameLifecycle: true,  // 冷启动首帧耗时 + 启动场景 + onShow/onHide 面包屑
+  // enableMinigameFrameRate: true,  // 帧率(FPS)/卡顿(jank)监控
+
+  // 帧率监控细调（FPS 告警阈值、卡顿阈值、上报间隔等）：
+  // minigameFrameRateOptions: { fpsWarningThreshold: 45 },
+});
+```
+
+### 能力矩阵
+
+| 能力 | 小游戏 | 说明 |
+|------|:------:|------|
+| 异常 / 未处理 Promise 捕获 | ✅ | `wx.onError` / `wx.onUnhandledRejection` |
+| API 请求监控（请求数 / 耗时 / 状态码） | ✅ | 包裹 `wx.request` |
+| 网络状态监控 | ✅ | `wx.onNetworkStatusChange` |
+| 设备信息 / 上下文面包屑 | ✅ | `wx.getDeviceInfo` 等 |
+| 资源加载耗时 | ✅ | `wx.getPerformance()` |
+| **冷启动首帧耗时 + 启动场景** | ✅ 新增 | `MinigameIntegration`（首个 `requestAnimationFrame` 近似首帧） |
+| **帧率 / 卡顿监控** | ✅ 新增 | `MinigameFrameRateIntegration`（RAF 采样 FPS，长帧记 jank，周期上报 `minigame.framerate` 上下文） |
+| 页面生命周期 / 点击面包屑 | ➖ | 小游戏无页面，自动跳过；行为追踪请用 `onShow/onHide` 面包屑或手动 `addBreadcrumb` |
+
+> 上述两个集成仅在小游戏环境默认启用。其中**帧率监控依赖全局 `requestAnimationFrame`**：小游戏有（绑定真实渲染帧），而小程序为双线程架构、逻辑层没有全局 `requestAnimationFrame`，因此在小程序中即使开启也会安全 no-op（无法测量页面渲染帧率）。
 
 ---
 

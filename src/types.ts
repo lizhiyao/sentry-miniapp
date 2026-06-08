@@ -8,6 +8,18 @@ import type {
   Breadcrumb,
 } from '@sentry/core';
 
+/** 小游戏帧率/卡顿监控（MinigameFrameRateIntegration）的细调选项。 */
+export interface MinigameFrameRateOptions {
+  /** FPS 低于该值时，周期上报标记为 warning。默认 30。 */
+  fpsWarningThreshold?: number;
+  /** 单帧间隔超过该毫秒数视为一次卡顿（jank）。默认 50（约 < 20fps 的瞬时帧）。 */
+  longFrameThresholdMs?: number;
+  /** 周期性上报 FPS 的间隔（毫秒）。默认 10000。 */
+  reportInterval?: number;
+  /** 每个上报窗口内最多产出多少条 jank 面包屑（防刷屏）；超出仅计数不再打面包屑。默认 3。 */
+  maxJankBreadcrumbsPerWindow?: number;
+}
+
 /**
  * Configuration options for the Sentry Miniapp SDK.
  */
@@ -114,6 +126,19 @@ export interface MiniappOptions {
 
   /** 是否启用网络状态实时监控（默认 true） */
   enableNetworkStatusMonitoring?: boolean;
+
+  /** 是否启用小游戏生命周期监控（冷启动首帧耗时、启动场景、onShow/onHide 面包屑）。小游戏环境下默认启用，普通小程序默认关闭 */
+  enableMinigameLifecycle?: boolean;
+
+  /**
+   * 是否启用小游戏帧率/卡顿监控（采样全局 requestAnimationFrame 估算 FPS + jank）。
+   * 仅适用于小游戏（有绑定渲染帧的全局 requestAnimationFrame）；小程序为双线程架构、
+   * 逻辑层无全局 requestAnimationFrame，开启也会安全 no-op。小游戏环境下默认启用。
+   */
+  enableMinigameFrameRate?: boolean;
+
+  /** 小游戏帧率/卡顿监控的细调选项（仅在 enableMinigameFrameRate 生效时使用） */
+  minigameFrameRateOptions?: MinigameFrameRateOptions;
 
   /** Array of strings or regexes that match error URLs which should be exclusively sent to Sentry */
   allowUrls?: Array<string | RegExp>;

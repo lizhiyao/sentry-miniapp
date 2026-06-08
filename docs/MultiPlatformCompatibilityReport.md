@@ -107,6 +107,28 @@ Sentry 的路由集成用于收集用户的页面跳转路径。
 **✅ 已适配：**
 `router.ts` 通过 `sdk()` 获取当前平台 SDK 对象，在该对象上 instrument 导航方法（`navigateTo`、`redirectTo`、`switchTab`、`navigateBack`、`reLaunch`），全平台通用。不再硬编码微信 `wx.*`。
 
+> ⚠️ **小游戏例外**：小游戏（微信 / 抖音小游戏等）没有 `App()`/`Page()`/页面路由，也没有 `getCurrentPages()`。因此路由追踪与页面生命周期面包屑在小游戏中不适用，相关集成会自动守卫 no-op（不报错）。详见下方「7. 小游戏适配」。
+
+---
+
+## 7. 小游戏适配
+
+小游戏与小程序共用同一套平台全局对象（如 `wx`），但运行时缺少 `App()`/`Page()`/路由/页面栈。SDK 用 `crossPlatform.isMinigame()` 自动区分（检测到平台 sdk 且无 `App`/`Page`/`getCurrentPages`，或存在全局 `GameGlobal`）。
+
+| 能力 | 来源 API | 小游戏 |
+| :--- | :--- | :---: |
+| 异常 / 未处理 Promise 捕获 | `onError` / `onUnhandledRejection` | ✅ |
+| 网络请求监控 | `request` | ✅ |
+| 网络状态监控 | `onNetworkStatusChange` | ✅ |
+| 设备 / 系统信息 | `getDeviceInfo` / `getWindowInfo` / `getAppBaseInfo` | ✅ |
+| 资源加载耗时 | `getPerformance()` | ✅ |
+| 冷启动首帧耗时 + 启动场景 | `getLaunchOptionsSync` + `requestAnimationFrame` | ✅ `MinigameIntegration` |
+| 帧率 / 卡顿监控 | `requestAnimationFrame` 采样 | ✅ `MinigameFrameRateIntegration` |
+| 应用前后台生命周期面包屑 | 全局 `onShow` / `onHide` | ✅ `MinigameIntegration` |
+| 页面生命周期 / 路由 / 点击面包屑 | `App`/`Page`/`getCurrentPages` | ➖ 无页面，自动跳过 |
+
+`MinigameIntegration` 与 `MinigameFrameRateIntegration` 在检测到小游戏时默认启用，普通小程序默认不挂；所有平台 API 均守卫存在性，缺失即降级。
+
 ---
 
 ## 功能覆盖矩阵
@@ -126,3 +148,4 @@ Sentry 的路由集成用于收集用户的页面跳转路径。
 **说明：**
 - 钉钉的 `onPageNotFound` 和 `onMemoryWarning` 支持度有限
 - 字节跳动、QQ、百度的核心功能均已适配，但缺少平台专属的集成测试
+- 上表按「小程序」维度统计；**小游戏**（无 `App`/`Page`/路由）的能力差异见上方「7. 小游戏适配」，路由追踪与页面级面包屑不适用，另有冷启动与帧率监控两项专属能力

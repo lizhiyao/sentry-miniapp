@@ -12,3 +12,5 @@ export { PageBreadcrumbs, pageBreadcrumbsIntegration } from './pagebreadcrumbs';
 export { ConsoleBreadcrumbs, consoleBreadcrumbsIntegration } from './console';
 export { SessionIntegration } from './session';
 export { NetworkStatusIntegration } from './networkstatus';
+export { MinigameIntegration, minigameIntegration } from './minigame';
+export { MinigameFrameRateIntegration, minigameFrameRateIntegration } from './minigame-framerate';

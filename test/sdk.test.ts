@@ -12,6 +12,7 @@ import {
 } from '../src/sdk';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
+import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
 
 describe('SDK', () => {
   beforeEach(() => {
@@ -23,6 +24,30 @@ describe('SDK', () => {
       const client = init({ dsn: 'https://test@sentry.io/123456' });
       expect(client).toBeInstanceOf(MiniappClient);
       expect(client?.getOptions().dsn).toBe('https://test@sentry.io/123456');
+    });
+
+    it('帧率细调通过 minigameFrameRateOptions 透传给自动追加的集成', () => {
+      const client = init({
+        dsn: 'https://test@sentry.io/123456',
+        enableMinigameFrameRate: true,
+        minigameFrameRateOptions: { fpsWarningThreshold: 45 },
+      });
+      const integ: any = client?.getIntegrationByName?.('MinigameFrameRate');
+      expect(integ).toBeDefined();
+      expect(integ._options.fpsWarningThreshold).toBe(45);
+    });
+
+    it('用户已传入同名帧率集成时不重复追加，保留用户配置', () => {
+      const userInteg = new MinigameFrameRateIntegration({ fpsWarningThreshold: 50 });
+      const client = init({
+        dsn: 'https://test@sentry.io/123456',
+        enableMinigameFrameRate: true,
+        integrations: [userInteg],
+      });
+      const integ: any = client?.getIntegrationByName?.('MinigameFrameRate');
+      // 仍是用户实例，未被自动追加的默认实例覆盖
+      expect(integ).toBe(userInteg);
+      expect(integ._options.fpsWarningThreshold).toBe(50);
     });
 
     it('should initialize with full configuration', () => {

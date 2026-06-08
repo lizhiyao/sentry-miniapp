@@ -1,10 +1,5 @@
-declare const wx: any; // 微信小程序、微信小游戏
-declare const my: any; // 支付宝小程序
-declare const tt: any; // 字节跳动小程序
-declare const dd: any; // 钉钉小程序
-declare const qq: any; // QQ 小程序、QQ 小游戏
-declare const swan: any; // 百度小程序
-declare const ks: any; // 快手小程序
+// 各平台全局对象（wx/my/tt/dd/qq/swan/ks）通过下方 PLATFORMS 表 + globalThis 动态检测，
+// 不再使用 ambient declare，平台清单集中在 PLATFORMS 单一来源。
 
 /**
  * 小程序平台 SDK 接口
@@ -23,6 +18,11 @@ interface SDK {
   onUnhandledRejection?: Function;
   onPageNotFound?: Function;
   onMemoryWarning?: Function;
+  // App / 小游戏全局生命周期（小游戏没有 App()，用全局 onShow/onHide）
+  onShow?: Function;
+  onHide?: Function;
+  offShow?: Function;
+  offHide?: Function;
   getLaunchOptionsSync?: Function;
   getAccountInfoSync?: Function;
   getUpdateManager?: Function;
@@ -113,40 +113,39 @@ const isBrowserRuntime = (): boolean => {
 /**
  * 获取跨平台的 SDK
  */
-const getSDK = (): SDK => {
-  let currentSdk: SDK = {
-    // tslint:disable-next-line: no-empty
-    request: () => {},
-    // tslint:disable-next-line: no-empty
-    httpRequest: () => {},
-    // tslint:disable-next-line: no-empty
-    getSystemInfoSync: () => ({}),
-    // tslint:disable-next-line: no-empty
-    URLSearchParams: () => {},
-  };
+/**
+ * 平台描述表：全局对象名 → 平台标识。平台检测的唯一来源，getSDK() / getAppName() /
+ * isMiniappEnvironment() 均基于此。数组顺序即 first-match 优先级（多个平台全局对象
+ * 共存时取靠前者），新增平台或调整优先级只需改这一处。
+ */
+const PLATFORMS: ReadonlyArray<{ global: string; name: AppName }> = [
+  { global: 'wx', name: 'wechat' },
+  { global: 'my', name: 'alipay' },
+  { global: 'tt', name: 'bytedance' },
+  { global: 'dd', name: 'dingtalk' },
+  { global: 'qq', name: 'qq' },
+  { global: 'swan', name: 'swan' },
+  { global: 'ks', name: 'kuaishou' },
+];
 
-  if (typeof wx === 'object' && wx !== null) {
-    // tslint:disable-next-line: no-unsafe-any
-    currentSdk = wx;
-  } else if (typeof my === 'object' && my !== null) {
-    // tslint:disable-next-line: no-unsafe-any
-    currentSdk = my;
-  } else if (typeof tt === 'object' && tt !== null) {
-    // tslint:disable-next-line: no-unsafe-any
-    currentSdk = tt;
-  } else if (typeof dd === 'object' && dd !== null) {
-    // tslint:disable-next-line: no-unsafe-any
-    currentSdk = dd;
-  } else if (typeof qq === 'object' && qq !== null) {
-    // tslint:disable-next-line: no-unsafe-any
-    currentSdk = qq;
-  } else if (typeof swan === 'object' && swan !== null) {
-    // tslint:disable-next-line: no-unsafe-any
-    currentSdk = swan;
-  } else if (typeof ks === 'object' && ks !== null) {
-    // tslint:disable-next-line: no-unsafe-any
-    currentSdk = ks;
-  } else {
+/**
+ * 检测当前平台：返回首个命中的平台全局对象与标识，未命中返回 null。
+ */
+export const detectPlatform = (): { sdk: SDK; name: AppName } | null => {
+  const g = globalThis as Record<string, unknown>;
+  for (const platform of PLATFORMS) {
+    const candidate = g[platform.global];
+    if (typeof candidate === 'object' && candidate !== null) {
+      return { sdk: candidate as SDK, name: platform.name };
+    }
+  }
+  return null;
+};
+
+const getSDK = (): SDK => {
+  const detected = detectPlatform();
+
+  if (!detected) {
     if (isBrowserRuntime()) {
       console.warn(
         '[sentry-miniapp] 检测到当前运行在浏览器/H5 环境（如 uni-app H5、Taro H5）。\n' +
@@ -159,25 +158,23 @@ const getSDK = (): SDK => {
       console.warn('[sentry-miniapp] 未检测到已支持的小程序平台，SDK 将以降级模式运行');
     }
     // 返回带有空操作方法的默认 SDK，而非抛出异常
-    return currentSdk;
+    return {
+      request: () => {},
+      httpRequest: () => {},
+      getSystemInfoSync: () => ({}),
+      URLSearchParams: () => {},
+    };
   }
 
+  const currentSdk = detected.sdk;
+
   // 支付宝小程序的网络请求 API 是 my.httpRequest
-  if (
-    typeof my === 'object' &&
-    my !== null &&
-    currentSdk === my &&
-    !currentSdk.request &&
-    currentSdk.httpRequest
-  ) {
+  if (detected.name === 'alipay' && !currentSdk.request && currentSdk.httpRequest) {
     currentSdk.request = currentSdk.httpRequest;
   }
 
   // 支付宝和钉钉的 Storage API 参数是对象形式，这里做一层抹平包装
-  if (
-    (typeof my === 'object' && my !== null && currentSdk === my) ||
-    (typeof dd === 'object' && dd !== null && currentSdk === dd)
-  ) {
+  if (detected.name === 'alipay' || detected.name === 'dingtalk') {
     if (currentSdk.getStorageSync) {
       const originalGet = currentSdk.getStorageSync;
       currentSdk.getStorageSync = (key: string) => {
@@ -206,25 +203,7 @@ const getSDK = (): SDK => {
  * 获取平台名称
  */
 const getAppName = (): AppName => {
-  let currentAppName: AppName = 'unknown';
-
-  if (typeof wx === 'object' && wx !== null) {
-    currentAppName = 'wechat';
-  } else if (typeof my === 'object' && my !== null) {
-    currentAppName = 'alipay';
-  } else if (typeof tt === 'object' && tt !== null) {
-    currentAppName = 'bytedance';
-  } else if (typeof dd === 'object' && dd !== null) {
-    currentAppName = 'dingtalk';
-  } else if (typeof qq === 'object' && qq !== null) {
-    currentAppName = 'qq';
-  } else if (typeof swan === 'object' && swan !== null) {
-    currentAppName = 'swan';
-  } else if (typeof ks === 'object' && ks !== null) {
-    currentAppName = 'kuaishou';
-  }
-
-  return currentAppName;
+  return detectPlatform()?.name ?? 'unknown';
 };
 
 /**
@@ -319,6 +298,36 @@ export const appName = (): string => {
     _appName = getAppName();
   }
   return _appName;
+};
+
+// 小游戏环境检测缓存
+let _isMinigame: boolean | null = null;
+
+/**
+ * 判断当前是否运行在「小游戏」环境（微信小游戏 / 抖音小游戏 / QQ 小游戏等）。
+ *
+ * 小游戏与小程序的运行时差异：小游戏没有 App()/Page()/getCurrentPages() 等
+ * 页面与路由构造函数，但同样存在平台 sdk（wx/tt/qq…）。因此判定规则为：
+ * 检测到平台 sdk，且不存在 App/Page/getCurrentPages，或存在全局 GameGlobal。
+ */
+export const isMinigame = (): boolean => {
+  if (_isMinigame === null) {
+    const g = globalThis as any;
+    const hasGameGlobal = typeof g.GameGlobal !== 'undefined';
+    const lacksMiniprogramHost =
+      typeof g.App !== 'function' &&
+      typeof g.Page !== 'function' &&
+      typeof g.getCurrentPages !== 'function';
+    _isMinigame = isMiniappEnvironment() && (hasGameGlobal || lacksMiniprogramHost);
+  }
+  return _isMinigame;
+};
+
+/** 统一重置平台检测相关缓存（_sdk / _appName / _isMinigame），仅供测试使用。 */
+export const resetPlatformCache = (): void => {
+  _sdk = null;
+  _appName = null;
+  _isMinigame = null;
 };
 
 /**
@@ -439,6 +448,22 @@ export const getPerformanceManager = (): PerformanceManager | null => {
     console.warn('Failed to get performance manager:', error);
   }
   return null;
+};
+
+/**
+ * 取当前时间戳，优先使用平台 Performance.now()（单调时钟，不受系统时间回拨影响），
+ * 回退 Date.now()。供小游戏冷启动 / 帧率监控等需要高精度计时的场景复用。
+ */
+export const now = (): number => {
+  try {
+    const perf = sdk().getPerformance?.();
+    if (perf && typeof perf.now === 'function') {
+      return perf.now();
+    }
+  } catch (_e) {
+    // ignore，回退 Date.now
+  }
+  return Date.now();
 };
 
 export { getSDK, getSystemInfo, isMiniappEnvironment };
