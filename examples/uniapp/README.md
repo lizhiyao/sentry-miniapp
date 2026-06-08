@@ -33,6 +33,8 @@ npm run build:mp-weixin
 
 `src/utils/sentry.js` 里的 `DSN` 与 `examples/wxapp` **共用同一个演示 Sentry 项目**，开箱即可上报——点击实验室按钮后，可在后台按 `demo_trigger_id` 看到事件。换成你自己项目的 DSN 即可在你的后台观察数据。
 
+> 由于两端共用同一项目，后台里 uni-app 与 wxapp 的事件会混在一起。本示例给所有事件打了 `app.framework: uni-app` 标签（wxapp 示例未设该标签），需要区分时在 Sentry 后台按 `app.framework:uni-app` 过滤即可。
+
 微信开发者工具中还需把 Sentry 上报域名加入小程序后台「合法域名」（开发期可临时勾选「不校验合法域名」）。
 
 ## 用本地源码而非已发布版
