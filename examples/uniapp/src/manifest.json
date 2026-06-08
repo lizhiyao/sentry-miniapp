@@ -1,0 +1,18 @@
+{
+  "name": "sentry-miniapp-uniapp",
+  "appid": "",
+  "description": "sentry-miniapp 在 uni-app 中的集成示例",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "wxdbfd54b141498286",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "minified": true
+    },
+    "usingComponents": true
+  },
+  "vueVersion": "3"
+}
