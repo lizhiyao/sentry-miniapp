@@ -32,9 +32,9 @@ describe('MinigameIntegration', () => {
       return 1;
     });
 
+    jest.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
     jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
       request: jest.fn(),
-      getPerformance: () => ({ now: () => clock }),
       getLaunchOptionsSync: () => ({ scene: 1001, path: 'game.js', query: { a: '1' } }),
       onShow: jest.fn((cb: any) => {
         showCb = cb;

@@ -1,6 +1,6 @@
 import { addBreadcrumb, setContext } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
-import { now } from '../timing';
+import { now } from '../crossPlatform';
 
 export interface FrameRateIntegrationOptions {
   /** FPS 低于该值时，周期上报标记为 warning。默认 30。 */

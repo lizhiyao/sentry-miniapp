@@ -1,7 +1,6 @@
 import { addBreadcrumb, setContext } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
-import { sdk } from '../crossPlatform';
-import { now } from '../timing';
+import { sdk, now } from '../crossPlatform';
 
 /**
  * Minigame Integration

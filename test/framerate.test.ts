@@ -36,10 +36,7 @@ describe('FrameRateIntegration', () => {
       return 1;
     });
 
-    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
-      request: jest.fn(),
-      getPerformance: () => ({ now: () => clock }),
-    } as any);
+    jest.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
   });
 
   afterEach(() => {
