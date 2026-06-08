@@ -112,20 +112,23 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
 
   // 小游戏专属能力：纯增量，仅在检测到小游戏（或显式开启）时追加。
   // 小游戏无 App()/Page()，PageBreadcrumbs / SessionIntegration 已安全 no-op，这里不删除它们。
+  // 若用户已通过 integrations 自行传入同名集成，则不再自动追加，避免默认实例覆盖用户配置。
   const minigame = isMinigame();
+  const hasIntegration = (id: string): boolean =>
+    opts.integrations.some((integration) => integration && integration.name === id);
+
   if (
-    opts.enableMinigameLifecycle === true ||
-    (minigame && opts.enableMinigameLifecycle !== false)
+    !hasIntegration(MinigameIntegration.id) &&
+    (opts.enableMinigameLifecycle === true || (minigame && opts.enableMinigameLifecycle !== false))
   ) {
     opts.integrations.push(new MinigameIntegration());
   }
   if (
-    opts.enableMinigameFrameRate === true ||
-    (minigame && opts.enableMinigameFrameRate !== false)
+    !hasIntegration(MinigameFrameRateIntegration.id) &&
+    (opts.enableMinigameFrameRate === true || (minigame && opts.enableMinigameFrameRate !== false))
   ) {
-    // 细粒度调参（fpsWarningThreshold / longFrameThresholdMs 等）请通过
-    // integrations 传入配置好的 MinigameFrameRateIntegration 实例。
-    opts.integrations.push(new MinigameFrameRateIntegration());
+    // 细调通过 minigameFrameRateOptions 传入（见 MiniappOptions）。
+    opts.integrations.push(new MinigameFrameRateIntegration(opts.minigameFrameRateOptions));
   }
 
   // Set platform context

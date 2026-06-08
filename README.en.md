@@ -313,11 +313,11 @@ Sentry.init({
   // Enabled by default in mini-game environments; set to false to disable:
   // enableMinigameLifecycle: true,  // cold-start first-frame timing + launch scene + onShow/onHide breadcrumbs
   // enableMinigameFrameRate: true,  // FPS / jank monitoring
+
+  // Fine-tune frame-rate monitoring (FPS warning threshold, jank threshold, report interval, etc.):
+  // minigameFrameRateOptions: { fpsWarningThreshold: 45 },
 });
 ```
-
-> Fine-tuning frame-rate monitoring (FPS warning threshold, jank threshold, report interval, etc.) is done by passing a configured integration instance:
-> `integrations: [new Sentry.Integrations.MinigameFrameRateIntegration({ fpsWarningThreshold: 45 })]`.
 
 ### Capability matrix
 

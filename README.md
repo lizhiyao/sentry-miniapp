@@ -326,11 +326,11 @@ Sentry.init({
   // 小游戏环境下，以下两项默认即为开启，可显式关闭：
   // enableMinigameLifecycle: true,  // 冷启动首帧耗时 + 启动场景 + onShow/onHide 面包屑
   // enableMinigameFrameRate: true,  // 帧率(FPS)/卡顿(jank)监控
+
+  // 帧率监控细调（FPS 告警阈值、卡顿阈值、上报间隔等）：
+  // minigameFrameRateOptions: { fpsWarningThreshold: 45 },
 });
 ```
-
-> 帧率监控的细调（FPS 告警阈值、卡顿阈值、上报间隔等）通过传入配置好的集成实例完成：
-> `integrations: [new Sentry.Integrations.MinigameFrameRateIntegration({ fpsWarningThreshold: 45 })]`。
 
 ### 能力矩阵
 

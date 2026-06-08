@@ -1,17 +1,7 @@
 import { addBreadcrumb, setContext } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 import { now } from '../crossPlatform';
-
-export interface MinigameFrameRateOptions {
-  /** FPS 低于该值时，周期上报标记为 warning。默认 30。 */
-  fpsWarningThreshold?: number;
-  /** 单帧间隔超过该毫秒数视为一次卡顿（jank）。默认 50（约 < 20fps 的瞬时帧）。 */
-  longFrameThresholdMs?: number;
-  /** 周期性上报 FPS 的间隔（毫秒）。默认 10000。 */
-  reportInterval?: number;
-  /** 每个上报窗口内最多产出多少条 jank 面包屑（防刷屏）；超出仅计数不再打面包屑。默认 3。 */
-  maxJankBreadcrumbsPerWindow?: number;
-}
+import type { MinigameFrameRateOptions } from '../types';
 
 /**
  * Minigame FrameRate Integration
