@@ -27,8 +27,11 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
 
+    - name: Enable Corepack
+      run: corepack enable
+
     - name: Install dependencies
-      run: yarn cache clean && yarn install --update-checksums
+      run: yarn install --immutable
 
     - name: Run Lint
       run: yarn run lint

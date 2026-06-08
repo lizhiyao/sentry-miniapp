@@ -23,6 +23,7 @@
   },
   "author": "dancerlzy@gmail.com",
   "license": "MIT",
+  "packageManager": "yarn@4.16.0",
   "engines": {
     "node": ">=20"
   },

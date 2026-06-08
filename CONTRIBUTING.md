@@ -11,6 +11,7 @@ Quick start:
 ```bash
 git clone https://github.com/<your-username>/sentry-miniapp.git
 cd sentry-miniapp
+corepack enable   # 启用后 yarn 自动对齐到 package.json 固定的 Yarn 4 版本
 yarn install
 yarn dev
 ```
