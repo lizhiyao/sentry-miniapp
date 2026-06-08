@@ -125,9 +125,6 @@ export interface MiniappOptions {
    */
   enableMinigameFrameRate?: boolean;
 
-  /** 帧率告警阈值，周期 FPS 低于此值时上报标记为 warning（默认 30） */
-  fpsWarningThreshold?: number;
-
   /** Array of strings or regexes that match error URLs which should be exclusively sent to Sentry */
   allowUrls?: Array<string | RegExp>;
 

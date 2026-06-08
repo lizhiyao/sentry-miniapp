@@ -123,13 +123,9 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     opts.enableMinigameFrameRate === true ||
     (minigame && opts.enableMinigameFrameRate !== false)
   ) {
-    opts.integrations.push(
-      new MinigameFrameRateIntegration(
-        opts.fpsWarningThreshold !== undefined
-          ? { fpsWarningThreshold: opts.fpsWarningThreshold }
-          : {},
-      ),
-    );
+    // 细粒度调参（fpsWarningThreshold / longFrameThresholdMs 等）请通过
+    // integrations 传入配置好的 MinigameFrameRateIntegration 实例。
+    opts.integrations.push(new MinigameFrameRateIntegration());
   }
 
   // Set platform context
