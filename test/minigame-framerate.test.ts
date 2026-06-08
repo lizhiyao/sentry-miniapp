@@ -9,9 +9,9 @@ jest.mock('@sentry/core', () => ({
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
-import { FrameRateIntegration } from '../src/integrations/framerate';
+import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
 
-describe('FrameRateIntegration', () => {
+describe('MinigameFrameRateIntegration', () => {
   const g = global as any;
   let rafCallback: (() => void) | null;
   let clock: number;
@@ -45,7 +45,7 @@ describe('FrameRateIntegration', () => {
   });
 
   it('长帧触发 jank 面包屑，周期到达时上报 framerate', () => {
-    const integration = new FrameRateIntegration({
+    const integration = new MinigameFrameRateIntegration({
       longFrameThresholdMs: 50,
       reportInterval: 1000,
       fpsWarningThreshold: 30,
@@ -58,23 +58,23 @@ describe('FrameRateIntegration', () => {
     frame(1010); // delta 110 → jank #2；t-windowStart=1010>=1000 → 上报
 
     const jankCrumbs = mockAddBreadcrumb.mock.calls.filter(
-      (c: any) => c[0] && c[0].category === 'ui.jank',
+      (c: any) => c[0] && c[0].category === 'minigame.jank',
     );
     expect(jankCrumbs.length).toBe(2);
 
     expect(mockSetContext).toHaveBeenCalledWith(
-      'framerate',
+      'minigame.framerate',
       expect.objectContaining({ jankCount: 2, frames: 4 }),
     );
     // fps 远低于阈值 → 上报面包屑应为 warning
     const perfCrumb = mockAddBreadcrumb.mock.calls.find(
-      (c: any) => c[0] && c[0].category === 'ui.framerate',
+      (c: any) => c[0] && c[0].category === 'minigame.framerate',
     );
     expect((perfCrumb?.[0] as any)?.level).toBe('warning');
   });
 
   it('jank 面包屑按窗口限频，但 jankCount 如实统计', () => {
-    const integration = new FrameRateIntegration({
+    const integration = new MinigameFrameRateIntegration({
       longFrameThresholdMs: 50,
       reportInterval: 1000,
       maxJankBreadcrumbsPerWindow: 2,
@@ -87,18 +87,18 @@ describe('FrameRateIntegration', () => {
     frame(1100); // delta 800 → jank #4（超限）；窗口到达 → 上报
 
     const jankCrumbs = mockAddBreadcrumb.mock.calls.filter(
-      (c: any) => c[0] && c[0].category === 'ui.jank',
+      (c: any) => c[0] && c[0].category === 'minigame.jank',
     );
     expect(jankCrumbs.length).toBe(2); // 限频到 2 条
 
     expect(mockSetContext).toHaveBeenCalledWith(
-      'framerate',
+      'minigame.framerate',
       expect.objectContaining({ jankCount: 4 }), // 实际 jank 全部计入
     );
   });
 
   it('cleanup 后停止采样循环', () => {
-    const integration = new FrameRateIntegration({ reportInterval: 1000 });
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
     integration.setupOnce();
     integration.cleanup();
 
@@ -111,7 +111,7 @@ describe('FrameRateIntegration', () => {
 
   it('无 requestAnimationFrame 时安全降级（不报错、不注册）', () => {
     delete g.requestAnimationFrame;
-    const integration = new FrameRateIntegration();
+    const integration = new MinigameFrameRateIntegration();
     expect(() => integration.setupOnce()).not.toThrow();
   });
 });

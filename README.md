@@ -324,7 +324,7 @@ Sentry.init({
   dsn: 'YOUR_DSN',
   // 小游戏环境下，以下两项默认即为开启，可显式关闭：
   // enableMinigameLifecycle: true,   // 冷启动首帧耗时 + 启动场景 + onShow/onHide 面包屑
-  // enableFrameRateMonitoring: true, // 帧率(FPS)/卡顿(jank)监控
+  // enableMinigameFrameRate: true, // 帧率(FPS)/卡顿(jank)监控
   // fpsWarningThreshold: 30,         // FPS 低于该值时上报标记为 warning
 });
 ```
@@ -339,7 +339,7 @@ Sentry.init({
 | 设备信息 / 上下文面包屑 | ✅ | `wx.getDeviceInfo` 等 |
 | 资源加载耗时 | ✅ | `wx.getPerformance()` |
 | **冷启动首帧耗时 + 启动场景** | ✅ 新增 | `MinigameIntegration`（首个 `requestAnimationFrame` 近似首帧） |
-| **帧率 / 卡顿监控** | ✅ 新增 | `FrameRateIntegration`（RAF 采样 FPS，长帧记 jank，周期上报 `framerate` 上下文） |
+| **帧率 / 卡顿监控** | ✅ 新增 | `MinigameFrameRateIntegration`（RAF 采样 FPS，长帧记 jank，周期上报 `minigame.framerate` 上下文） |
 | 页面生命周期 / 点击面包屑 | ➖ | 小游戏无页面，自动跳过；行为追踪请用 `onShow/onHide` 面包屑或手动 `addBreadcrumb` |
 
 > 上述两个集成仅在小游戏环境默认启用。其中**帧率监控依赖全局 `requestAnimationFrame`**：小游戏有（绑定真实渲染帧），而小程序为双线程架构、逻辑层没有全局 `requestAnimationFrame`，因此在小程序中即使开启也会安全 no-op（无法测量页面渲染帧率）。

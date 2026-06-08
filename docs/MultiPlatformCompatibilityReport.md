@@ -123,11 +123,11 @@ Sentry 的路由集成用于收集用户的页面跳转路径。
 | 设备 / 系统信息 | `getDeviceInfo` / `getWindowInfo` / `getAppBaseInfo` | ✅ |
 | 资源加载耗时 | `getPerformance()` | ✅ |
 | 冷启动首帧耗时 + 启动场景 | `getLaunchOptionsSync` + `requestAnimationFrame` | ✅ `MinigameIntegration` |
-| 帧率 / 卡顿监控 | `requestAnimationFrame` 采样 | ✅ `FrameRateIntegration` |
+| 帧率 / 卡顿监控 | `requestAnimationFrame` 采样 | ✅ `MinigameFrameRateIntegration` |
 | 应用前后台生命周期面包屑 | 全局 `onShow` / `onHide` | ✅ `MinigameIntegration` |
 | 页面生命周期 / 路由 / 点击面包屑 | `App`/`Page`/`getCurrentPages` | ➖ 无页面，自动跳过 |
 
-`MinigameIntegration` 与 `FrameRateIntegration` 在检测到小游戏时默认启用，普通小程序默认不挂；所有平台 API 均守卫存在性，缺失即降级。
+`MinigameIntegration` 与 `MinigameFrameRateIntegration` 在检测到小游戏时默认启用，普通小程序默认不挂；所有平台 API 均守卫存在性，缺失即降级。
 
 ---
 

@@ -2,7 +2,7 @@ import { addBreadcrumb, setContext } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 import { now } from '../crossPlatform';
 
-export interface FrameRateIntegrationOptions {
+export interface MinigameFrameRateOptions {
   /** FPS 低于该值时，周期上报标记为 warning。默认 30。 */
   fpsWarningThreshold?: number;
   /** 单帧间隔超过该毫秒数视为一次卡顿（jank）。默认 50（约 < 20fps 的瞬时帧）。 */
@@ -14,19 +14,21 @@ export interface FrameRateIntegrationOptions {
 }
 
 /**
- * FrameRate Integration
+ * Minigame FrameRate Integration
  *
- * 通过自循环采样 requestAnimationFrame 估算帧率（FPS）并检测卡顿（jank），面向
- * 小游戏的渲染性能监控。每帧记录间隔：超过 longFrameThresholdMs 记一次 jank（面包屑
- * 按窗口限频，最多 maxJankBreadcrumbsPerWindow 条，避免持续掉帧时刷屏）；每
- * reportInterval 周期性上报窗口内 FPS / 最低瞬时 FPS / 最差帧耗时 / jank 次数到
- * `minigame.performance` 上下文。requestAnimationFrame 不可用时安全降级（不工作）。
+ * 面向「小游戏」的帧率（FPS）/ 卡顿（jank）监控。通过自循环采样全局
+ * requestAnimationFrame 估算帧率：单帧间隔超过 longFrameThresholdMs 记一次 jank
+ * （面包屑按窗口限频，避免持续掉帧刷屏）；每 reportInterval 周期性上报窗口内
+ * FPS / 最低瞬时 FPS / 最差帧耗时 / jank 次数到 `minigame.framerate` 上下文。
+ *
+ * 仅适用于小游戏：小游戏有绑定真实渲染帧的全局 requestAnimationFrame；小程序为
+ * 双线程架构、逻辑层无全局 requestAnimationFrame，缺失时安全降级（不工作）。
  */
-export class FrameRateIntegration implements Integration {
-  public static id: string = 'FrameRate';
-  public name: string = FrameRateIntegration.id;
+export class MinigameFrameRateIntegration implements Integration {
+  public static id: string = 'MinigameFrameRate';
+  public name: string = MinigameFrameRateIntegration.id;
 
-  private _options: Required<FrameRateIntegrationOptions>;
+  private _options: Required<MinigameFrameRateOptions>;
   private _running: boolean = false;
   private _windowStart: number = 0;
   private _lastFrameTs: number = 0;
@@ -35,7 +37,7 @@ export class FrameRateIntegration implements Integration {
   private _jankBreadcrumbs: number = 0;
   private _maxFrameDelta: number = 0;
 
-  constructor(options: FrameRateIntegrationOptions = {}) {
+  constructor(options: MinigameFrameRateOptions = {}) {
     this._options = {
       fpsWarningThreshold: options.fpsWarningThreshold ?? 30,
       longFrameThresholdMs: options.longFrameThresholdMs ?? 50,
@@ -47,7 +49,9 @@ export class FrameRateIntegration implements Integration {
   public setupOnce(): void {
     const raf = (globalThis as any).requestAnimationFrame;
     if (typeof raf !== 'function') {
-      console.warn('[sentry-miniapp] requestAnimationFrame 不可用，FrameRate 监控已跳过');
+      console.warn(
+        '[sentry-miniapp] requestAnimationFrame 不可用，小游戏帧率监控已跳过（小程序逻辑层不支持）',
+      );
       return;
     }
 
@@ -76,7 +80,7 @@ export class FrameRateIntegration implements Integration {
       if (this._jankBreadcrumbs < this._options.maxJankBreadcrumbsPerWindow) {
         this._jankBreadcrumbs += 1;
         addBreadcrumb({
-          category: 'ui.jank',
+          category: 'minigame.jank',
           message: `检测到卡顿帧: ${Math.round(delta)}ms`,
           level: 'warning',
           data: { frameDurationMs: Math.round(delta) },
@@ -96,7 +100,7 @@ export class FrameRateIntegration implements Integration {
     const worstFrameMs = Math.round(this._maxFrameDelta);
     const jankCount = this._jankCount;
 
-    setContext('framerate', {
+    setContext('minigame.framerate', {
       fps,
       minFps,
       worstFrameMs,
@@ -104,7 +108,7 @@ export class FrameRateIntegration implements Integration {
       frames: this._frameCount,
     });
     addBreadcrumb({
-      category: 'ui.framerate',
+      category: 'minigame.framerate',
       message: `FPS: ${fps}（最低 ${minFps}，卡顿 ${jankCount} 次）`,
       level: fps < this._options.fpsWarningThreshold ? 'warning' : 'info',
       data: { fps, minFps, worstFrameMs, jankCount, frames: this._frameCount },
@@ -126,6 +130,6 @@ export class FrameRateIntegration implements Integration {
 /**
  * 函数式工厂，风格对齐 performanceIntegration。
  */
-export const frameRateIntegration = (options?: FrameRateIntegrationOptions): IntegrationFn => {
-  return () => new FrameRateIntegration(options);
+export const minigameFrameRateIntegration = (options?: MinigameFrameRateOptions): IntegrationFn => {
+  return () => new MinigameFrameRateIntegration(options);
 };

@@ -18,7 +18,7 @@ import {
   SessionIntegration,
   NetworkStatusIntegration,
   MinigameIntegration,
-  FrameRateIntegration,
+  MinigameFrameRateIntegration,
 } from './integrations/index';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
@@ -120,11 +120,11 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     opts.integrations.push(new MinigameIntegration());
   }
   if (
-    opts.enableFrameRateMonitoring === true ||
-    (minigame && opts.enableFrameRateMonitoring !== false)
+    opts.enableMinigameFrameRate === true ||
+    (minigame && opts.enableMinigameFrameRate !== false)
   ) {
     opts.integrations.push(
-      new FrameRateIntegration(
+      new MinigameFrameRateIntegration(
         opts.fpsWarningThreshold !== undefined
           ? { fpsWarningThreshold: opts.fpsWarningThreshold }
           : {},

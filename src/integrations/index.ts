@@ -13,4 +13,4 @@ export { ConsoleBreadcrumbs, consoleBreadcrumbsIntegration } from './console';
 export { SessionIntegration } from './session';
 export { NetworkStatusIntegration } from './networkstatus';
 export { MinigameIntegration, minigameIntegration } from './minigame';
-export { FrameRateIntegration, frameRateIntegration } from './framerate';
+export { MinigameFrameRateIntegration, minigameFrameRateIntegration } from './minigame-framerate';

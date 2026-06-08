@@ -311,7 +311,7 @@ Sentry.init({
   dsn: 'YOUR_DSN',
   // Enabled by default in mini-game environments; set to false to disable:
   // enableMinigameLifecycle: true,   // cold-start first-frame timing + launch scene + onShow/onHide breadcrumbs
-  // enableFrameRateMonitoring: true, // FPS / jank monitoring
+  // enableMinigameFrameRate: true, // FPS / jank monitoring
   // fpsWarningThreshold: 30,         // report flagged as warning when FPS drops below this
 });
 ```
@@ -326,7 +326,7 @@ Sentry.init({
 | Device info / context breadcrumbs | ✅ | `wx.getDeviceInfo` etc. |
 | Resource load timing | ✅ | `wx.getPerformance()` |
 | **Cold-start first-frame timing + launch scene** | ✅ New | `MinigameIntegration` (first `requestAnimationFrame` ≈ first frame) |
-| **Frame rate / jank monitoring** | ✅ New | `FrameRateIntegration` (RAF FPS sampling, long frames → jank, periodic `framerate` context) |
+| **Frame rate / jank monitoring** | ✅ New | `MinigameFrameRateIntegration` (RAF FPS sampling, long frames → jank, periodic `minigame.framerate` context) |
 | Page lifecycle / tap breadcrumbs | ➖ | No pages in mini games — auto-skipped; use `onShow/onHide` breadcrumbs or manual `addBreadcrumb` |
 
 > These two integrations are enabled by default only in mini-game environments. In particular, **frame-rate monitoring relies on a global `requestAnimationFrame`**: mini games have one (bound to the real render loop), whereas mini programs use a dual-thread architecture whose logic layer has no global `requestAnimationFrame` — so even if enabled there, it safely no-ops (it cannot measure page render frame rate).
