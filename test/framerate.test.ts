@@ -76,6 +76,30 @@ describe('FrameRateIntegration', () => {
     expect((perfCrumb?.[0] as any)?.level).toBe('warning');
   });
 
+  it('jank 面包屑按窗口限频，但 jankCount 如实统计', () => {
+    const integration = new FrameRateIntegration({
+      longFrameThresholdMs: 50,
+      reportInterval: 1000,
+      maxJankBreadcrumbsPerWindow: 2,
+    });
+    integration.setupOnce();
+
+    frame(100); // delta 100 → jank #1（面包屑 1）
+    frame(200); // delta 100 → jank #2（面包屑 2）
+    frame(300); // delta 100 → jank #3（超限，仅计数）
+    frame(1100); // delta 800 → jank #4（超限）；窗口到达 → 上报
+
+    const jankCrumbs = mockAddBreadcrumb.mock.calls.filter(
+      (c: any) => c[0] && c[0].category === 'ui.jank',
+    );
+    expect(jankCrumbs.length).toBe(2); // 限频到 2 条
+
+    expect(mockSetContext).toHaveBeenCalledWith(
+      'minigame.performance',
+      expect.objectContaining({ jankCount: 4 }), // 实际 jank 全部计入
+    );
+  });
+
   it('cleanup 后停止采样循环', () => {
     const integration = new FrameRateIntegration({ reportInterval: 1000 });
     integration.setupOnce();

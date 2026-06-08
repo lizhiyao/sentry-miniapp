@@ -1,21 +1,7 @@
 import { addBreadcrumb, setContext } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 import { sdk } from '../crossPlatform';
-
-/**
- * 取当前时间戳，优先使用平台 Performance.now()（单调时钟），回退 Date.now()。
- */
-function now(): number {
-  try {
-    const perf = sdk().getPerformance?.();
-    if (perf && typeof perf.now === 'function') {
-      return perf.now();
-    }
-  } catch (_e) {
-    // ignore，回退 Date.now
-  }
-  return Date.now();
-}
+import { now } from '../timing';
 
 /**
  * Minigame Integration
@@ -24,7 +10,7 @@ function now(): number {
  * 生命周期与冷启动监控，弥补小程序专用的 PageBreadcrumbs / SessionIntegration 在
  * 小游戏中无法工作的空缺。能力：
  * - 读取 getLaunchOptionsSync() 记录启动场景（scene / path / query）上下文与面包屑；
- * - 测量「冷启动 → 首帧」耗时（首个 requestAnimationFrame 回调）；
+ * - 测量「SDK 初始化 → 首帧」耗时（首个 requestAnimationFrame 回调，近似首帧渲染）；
  * - 监听 onShow / onHide 记录前后台切换面包屑（携带场景值）。
  */
 export class MinigameIntegration implements Integration {
@@ -35,6 +21,15 @@ export class MinigameIntegration implements Integration {
   private _showHandler: ((res: any) => void) | null = null;
   private _hideHandler: (() => void) | null = null;
   private _coldStartReported: boolean = false;
+  // 累积的 minigame 上下文。setContext 为「覆盖」语义，故内部维护完整对象，
+  // 每次补充字段后整体写回，避免后续字段冲掉启动场景。
+  private _ctx: {
+    runtime: string;
+    scene?: unknown;
+    path?: unknown;
+    query?: unknown;
+    coldStartMs?: number;
+  } = { runtime: 'minigame' };
 
   public setupOnce(): void {
     const miniappSdk = sdk();
@@ -44,12 +39,10 @@ export class MinigameIntegration implements Integration {
     if (typeof miniappSdk.getLaunchOptionsSync === 'function') {
       try {
         const launch = miniappSdk.getLaunchOptionsSync() || {};
-        setContext('minigame', {
-          runtime: 'minigame',
-          scene: launch.scene,
-          path: launch.path,
-          query: launch.query,
-        });
+        this._ctx.scene = launch.scene;
+        this._ctx.path = launch.path;
+        this._ctx.query = launch.query;
+        setContext('minigame', { ...this._ctx });
         addBreadcrumb({
           category: 'minigame.launch',
           message: '小游戏冷启动',
@@ -88,7 +81,7 @@ export class MinigameIntegration implements Integration {
   }
 
   /**
-   * 用首个 requestAnimationFrame 回调近似「首帧渲染完成」，计算冷启动耗时。
+   * 用首个 requestAnimationFrame 回调近似「首帧渲染完成」，计算 SDK 初始化 → 首帧的耗时。
    */
   private _measureColdStart(): void {
     const raf = (globalThis as any).requestAnimationFrame;
@@ -98,10 +91,11 @@ export class MinigameIntegration implements Integration {
       if (this._coldStartReported) return;
       this._coldStartReported = true;
       const coldStartMs = Math.round(now() - this._initTs);
-      setContext('minigame', { runtime: 'minigame', coldStartMs });
+      this._ctx.coldStartMs = coldStartMs;
+      setContext('minigame', { ...this._ctx });
       addBreadcrumb({
         category: 'minigame.performance',
-        message: `冷启动首帧耗时: ${coldStartMs}ms`,
+        message: `SDK 初始化到首帧耗时: ${coldStartMs}ms`,
         level: 'info',
         data: { coldStartMs },
       });

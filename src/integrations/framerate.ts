@@ -1,6 +1,6 @@
 import { addBreadcrumb, setContext } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
-import { sdk } from '../crossPlatform';
+import { now } from '../timing';
 
 export interface FrameRateIntegrationOptions {
   /** FPS 低于该值时，周期上报标记为 warning。默认 30。 */
@@ -9,29 +9,17 @@ export interface FrameRateIntegrationOptions {
   longFrameThresholdMs?: number;
   /** 周期性上报 FPS 的间隔（毫秒）。默认 10000。 */
   reportInterval?: number;
-}
-
-/**
- * 取当前时间戳，优先平台 Performance.now()（单调时钟），回退 Date.now()。
- */
-function now(): number {
-  try {
-    const perf = sdk().getPerformance?.();
-    if (perf && typeof perf.now === 'function') {
-      return perf.now();
-    }
-  } catch (_e) {
-    // ignore
-  }
-  return Date.now();
+  /** 每个上报窗口内最多产出多少条 jank 面包屑（防刷屏）；超出仅计数不再打面包屑。默认 3。 */
+  maxJankBreadcrumbsPerWindow?: number;
 }
 
 /**
  * FrameRate Integration
  *
  * 通过自循环采样 requestAnimationFrame 估算帧率（FPS）并检测卡顿（jank），面向
- * 小游戏的渲染性能监控。每帧记录间隔：超过 longFrameThresholdMs 记一次 jank 面包屑；
- * 每 reportInterval 周期性上报窗口内 FPS / 最低瞬时 FPS / jank 次数到
+ * 小游戏的渲染性能监控。每帧记录间隔：超过 longFrameThresholdMs 记一次 jank（面包屑
+ * 按窗口限频，最多 maxJankBreadcrumbsPerWindow 条，避免持续掉帧时刷屏）；每
+ * reportInterval 周期性上报窗口内 FPS / 最低瞬时 FPS / 最差帧耗时 / jank 次数到
  * `minigame.performance` 上下文。requestAnimationFrame 不可用时安全降级（不工作）。
  */
 export class FrameRateIntegration implements Integration {
@@ -44,6 +32,7 @@ export class FrameRateIntegration implements Integration {
   private _lastFrameTs: number = 0;
   private _frames: number = 0;
   private _jank: number = 0;
+  private _jankCrumbs: number = 0;
   private _maxDelta: number = 0;
 
   constructor(options: FrameRateIntegrationOptions = {}) {
@@ -51,6 +40,7 @@ export class FrameRateIntegration implements Integration {
       fpsWarningThreshold: options.fpsWarningThreshold ?? 30,
       longFrameThresholdMs: options.longFrameThresholdMs ?? 50,
       reportInterval: options.reportInterval ?? 10000,
+      maxJankBreadcrumbsPerWindow: options.maxJankBreadcrumbsPerWindow ?? 3,
     };
   }
 
@@ -82,12 +72,16 @@ export class FrameRateIntegration implements Integration {
 
     if (delta > this._options.longFrameThresholdMs) {
       this._jank += 1;
-      addBreadcrumb({
-        category: 'ui.jank',
-        message: `检测到卡顿帧: ${Math.round(delta)}ms`,
-        level: 'warning',
-        data: { frameDurationMs: Math.round(delta) },
-      });
+      // 面包屑按窗口限频，避免持续掉帧刷屏；超出阈值仅计数（jankCount 仍如实统计）。
+      if (this._jankCrumbs < this._options.maxJankBreadcrumbsPerWindow) {
+        this._jankCrumbs += 1;
+        addBreadcrumb({
+          category: 'ui.jank',
+          message: `检测到卡顿帧: ${Math.round(delta)}ms`,
+          level: 'warning',
+          data: { frameDurationMs: Math.round(delta) },
+        });
+      }
     }
 
     if (t - this._windowStart >= this._options.reportInterval) {
@@ -99,11 +93,13 @@ export class FrameRateIntegration implements Integration {
     const elapsed = t - this._windowStart;
     const fps = elapsed > 0 ? Math.round((this._frames / elapsed) * 1000) : 0;
     const minFps = this._maxDelta > 0 ? Math.round(1000 / this._maxDelta) : fps;
+    const worstFrameMs = Math.round(this._maxDelta);
     const jankCount = this._jank;
 
     setContext('minigame.performance', {
       fps,
       minFps,
+      worstFrameMs,
       jankCount,
       frames: this._frames,
     });
@@ -111,13 +107,14 @@ export class FrameRateIntegration implements Integration {
       category: 'minigame.performance',
       message: `FPS: ${fps}（最低 ${minFps}，卡顿 ${jankCount} 次）`,
       level: fps < this._options.fpsWarningThreshold ? 'warning' : 'info',
-      data: { fps, minFps, jankCount, frames: this._frames },
+      data: { fps, minFps, worstFrameMs, jankCount, frames: this._frames },
     });
 
     // 重置窗口
     this._windowStart = t;
     this._frames = 0;
     this._jank = 0;
+    this._jankCrumbs = 0;
     this._maxDelta = 0;
   }
 

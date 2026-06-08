@@ -81,6 +81,19 @@ describe('MinigameIntegration', () => {
     );
   });
 
+  it('冷启动上报不覆盖启动场景上下文（setContext 合并）', () => {
+    const integration = new MinigameIntegration();
+    integration.setupOnce();
+    clock = 1150;
+    rafCallback!();
+
+    // 首帧后的 minigame 上下文应同时保留 scene 与 coldStartMs
+    expect(mockSetContext).toHaveBeenLastCalledWith(
+      'minigame',
+      expect.objectContaining({ scene: 1001, path: 'game.js', coldStartMs: 150 }),
+    );
+  });
+
   it('首帧只上报一次冷启动', () => {
     const integration = new MinigameIntegration();
     integration.setupOnce();
