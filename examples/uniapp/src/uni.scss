@@ -1,0 +1,19 @@
+/**
+ * uni-app 全局 SCSS 变量（每个组件 <style lang="scss"> 自动注入）。
+ * 配色沿用 examples/wxapp 的设计 token（Sentry 品牌色 #6C5FC7）。
+ */
+$sentry-primary: #6c5fc7;
+$sentry-primary-light: #e0dbf9;
+$bg-page: #f5f7fa;
+$bg-card: #ffffff;
+$text-primary: #1a1a2e;
+$text-secondary: #5c5c7a;
+$text-tertiary: #94a3b8;
+$color-success: #2da98c;
+$color-warning: #f5a623;
+$color-danger: #e0566d;
+
+$radius-card: 24rpx;
+$radius-btn: 16rpx;
+$gap: 24rpx;
+$page-padding: 32rpx;
