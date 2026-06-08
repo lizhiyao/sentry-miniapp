@@ -1,6 +1,22 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.10.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.9.0...v1.10.0) (2026-06-08)
+
+
+### ✨ Features | 新功能
+
+* **examples:** 新增 uni-app(Vue3 + Vite) 集成示例 ([#156](https://github.com/lizhiyao/sentry-miniapp/issues/156)) ([b6e4572](https://github.com/lizhiyao/sentry-miniapp/commit/b6e45729c2dc97a92b5a823dfa7ea26ecf39ffd4))
+* **integrations:** 小游戏支持（冷启动 / 帧率监控 + 自动检测） ([#158](https://github.com/lizhiyao/sentry-miniapp/issues/158)) ([e0d4e01](https://github.com/lizhiyao/sentry-miniapp/commit/e0d4e013440fadf651745790432f9345e7e8dd33)), closes [#155](https://github.com/lizhiyao/sentry-miniapp/issues/155)
+
+
+### 🎫 Chores | 其他更新
+
+* **deps-dev:** bump vite from 5.2.8 to 6.4.2 in /examples/uniapp ([#157](https://github.com/lizhiyao/sentry-miniapp/issues/157)) ([7b96bbc](https://github.com/lizhiyao/sentry-miniapp/commit/7b96bbc5512d05db18e697dfd2c3f3679d17fd35))
+* **deps:** 升级 @sentry/core 到 10.55.0 ([#149](https://github.com/lizhiyao/sentry-miniapp/issues/149)) ([779a9a8](https://github.com/lizhiyao/sentry-miniapp/commit/779a9a8ea4477b7d2ae8b021ba3ba8fcb03d08d8))
+* **deps:** 升级 @sentry/core 到 10.56.0 ([#152](https://github.com/lizhiyao/sentry-miniapp/issues/152)) ([#153](https://github.com/lizhiyao/sentry-miniapp/issues/153)) ([40401b5](https://github.com/lizhiyao/sentry-miniapp/commit/40401b5701bdc29c41e96c5ef5bdd940e42bbc83))
+* **deps:** 固定 Yarn 4 版本并补齐 berry 配置 ([#154](https://github.com/lizhiyao/sentry-miniapp/issues/154)) ([9cb6303](https://github.com/lizhiyao/sentry-miniapp/commit/9cb63037db1ba3c53b789113beaed3701ae218d6))
+
 ## [1.9.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.8.2...v1.9.0) (2026-05-23)
 
 
