@@ -54,11 +54,18 @@ describe('isMinigame', () => {
     expect(isMinigame()).toBe(false);
   });
 
-  it('resetMinigameCache 可清除缓存以便重新检测', async () => {
+  it('resetPlatformCache 统一清除 _sdk / _appName / _isMinigame 缓存', async () => {
     g.wx = { request: jest.fn() };
     const mod = await import('../src/crossPlatform');
+    // 先用小游戏态填充缓存
     expect(mod.isMinigame()).toBe(true);
-    mod.resetMinigameCache();
-    expect(mod.isMinigame()).toBe(true);
+    expect(mod.appName()).toBe('wechat');
+
+    // 切到「小程序态」（补上 App/Page）后，重置缓存应能重新检测为非小游戏
+    g.App = () => {};
+    g.Page = () => {};
+    g.getCurrentPages = () => [];
+    mod.resetPlatformCache();
+    expect(mod.isMinigame()).toBe(false);
   });
 });

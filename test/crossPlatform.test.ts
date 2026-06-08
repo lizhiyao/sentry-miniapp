@@ -55,6 +55,18 @@ describe('CrossPlatform', () => {
       expect(result).toBe(mockWx);
     });
 
+    it('多个平台全局对象共存时，按 PLATFORMS 顺序 first-match（wx 优先于 my）', async () => {
+      const mockWx = { request: jest.fn() };
+      const mockMy = { request: jest.fn() };
+      (global as any).wx = mockWx;
+      (global as any).my = mockMy;
+
+      const { getSDK, appName, detectPlatform } = await import('../src/crossPlatform');
+      expect(getSDK()).toBe(mockWx);
+      expect(appName()).toBe('wechat');
+      expect(detectPlatform()?.name).toBe('wechat');
+    });
+
     it('should return my SDK when wx not available but my is', async () => {
       const mockMy = {
         request: jest.fn(),
