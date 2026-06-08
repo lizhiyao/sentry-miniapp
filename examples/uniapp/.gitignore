@@ -1,0 +1,6 @@
+# uni-app 示例的本地依赖与构建产物，不进仓库
+node_modules/
+dist/
+unpackage/
+.DS_Store
+*.log
