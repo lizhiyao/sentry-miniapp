@@ -326,7 +326,7 @@ Sentry.init({
 | Device info / context breadcrumbs | ✅ | `wx.getDeviceInfo` etc. |
 | Resource load timing | ✅ | `wx.getPerformance()` |
 | **Cold-start first-frame timing + launch scene** | ✅ New | `MinigameIntegration` (first `requestAnimationFrame` ≈ first frame) |
-| **Frame rate / jank monitoring** | ✅ New | `FrameRateIntegration` (RAF FPS sampling, long frames → jank, periodic `minigame.performance`) |
+| **Frame rate / jank monitoring** | ✅ New | `FrameRateIntegration` (RAF FPS sampling, long frames → jank, periodic `framerate` context) |
 | Page lifecycle / tap breadcrumbs | ➖ | No pages in mini games — auto-skipped; use `onShow/onHide` breadcrumbs or manual `addBreadcrumb` |
 
 > Regular mini programs do **not** enable the two mini-game integrations by default. To enable frame-rate monitoring in a mini program, set `enableFrameRateMonitoring: true` explicitly.

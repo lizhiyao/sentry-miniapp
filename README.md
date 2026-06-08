@@ -339,7 +339,7 @@ Sentry.init({
 | 设备信息 / 上下文面包屑 | ✅ | `wx.getDeviceInfo` 等 |
 | 资源加载耗时 | ✅ | `wx.getPerformance()` |
 | **冷启动首帧耗时 + 启动场景** | ✅ 新增 | `MinigameIntegration`（首个 `requestAnimationFrame` 近似首帧） |
-| **帧率 / 卡顿监控** | ✅ 新增 | `FrameRateIntegration`（RAF 采样 FPS，长帧记 jank，周期上报 `minigame.performance`） |
+| **帧率 / 卡顿监控** | ✅ 新增 | `FrameRateIntegration`（RAF 采样 FPS，长帧记 jank，周期上报 `framerate` 上下文） |
 | 页面生命周期 / 点击面包屑 | ➖ | 小游戏无页面，自动跳过；行为追踪请用 `onShow/onHide` 面包屑或手动 `addBreadcrumb` |
 
 > 普通小程序默认**不**启用上述两个小游戏专属集成；如需在小程序中也开启帧率监控，显式设置 `enableFrameRateMonitoring: true` 即可。

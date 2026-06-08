@@ -44,7 +44,7 @@ describe('FrameRateIntegration', () => {
     jest.restoreAllMocks();
   });
 
-  it('长帧触发 jank 面包屑，周期到达时上报 minigame.performance', () => {
+  it('长帧触发 jank 面包屑，周期到达时上报 framerate', () => {
     const integration = new FrameRateIntegration({
       longFrameThresholdMs: 50,
       reportInterval: 1000,
@@ -63,12 +63,12 @@ describe('FrameRateIntegration', () => {
     expect(jankCrumbs.length).toBe(2);
 
     expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame.performance',
+      'framerate',
       expect.objectContaining({ jankCount: 2, frames: 4 }),
     );
     // fps 远低于阈值 → 上报面包屑应为 warning
     const perfCrumb = mockAddBreadcrumb.mock.calls.find(
-      (c: any) => c[0] && c[0].category === 'minigame.performance',
+      (c: any) => c[0] && c[0].category === 'ui.framerate',
     );
     expect((perfCrumb?.[0] as any)?.level).toBe('warning');
   });
@@ -92,7 +92,7 @@ describe('FrameRateIntegration', () => {
     expect(jankCrumbs.length).toBe(2); // 限频到 2 条
 
     expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame.performance',
+      'framerate',
       expect.objectContaining({ jankCount: 4 }), // 实际 jank 全部计入
     );
   });

@@ -30,10 +30,10 @@ export class FrameRateIntegration implements Integration {
   private _running: boolean = false;
   private _windowStart: number = 0;
   private _lastFrameTs: number = 0;
-  private _frames: number = 0;
-  private _jank: number = 0;
-  private _jankCrumbs: number = 0;
-  private _maxDelta: number = 0;
+  private _frameCount: number = 0;
+  private _jankCount: number = 0;
+  private _jankBreadcrumbs: number = 0;
+  private _maxFrameDelta: number = 0;
 
   constructor(options: FrameRateIntegrationOptions = {}) {
     this._options = {
@@ -67,14 +67,14 @@ export class FrameRateIntegration implements Integration {
   }
 
   private _onFrame(delta: number, t: number): void {
-    this._frames += 1;
-    if (delta > this._maxDelta) this._maxDelta = delta;
+    this._frameCount += 1;
+    if (delta > this._maxFrameDelta) this._maxFrameDelta = delta;
 
     if (delta > this._options.longFrameThresholdMs) {
-      this._jank += 1;
+      this._jankCount += 1;
       // 面包屑按窗口限频，避免持续掉帧刷屏；超出阈值仅计数（jankCount 仍如实统计）。
-      if (this._jankCrumbs < this._options.maxJankBreadcrumbsPerWindow) {
-        this._jankCrumbs += 1;
+      if (this._jankBreadcrumbs < this._options.maxJankBreadcrumbsPerWindow) {
+        this._jankBreadcrumbs += 1;
         addBreadcrumb({
           category: 'ui.jank',
           message: `检测到卡顿帧: ${Math.round(delta)}ms`,
@@ -91,31 +91,31 @@ export class FrameRateIntegration implements Integration {
 
   private _report(t: number): void {
     const elapsed = t - this._windowStart;
-    const fps = elapsed > 0 ? Math.round((this._frames / elapsed) * 1000) : 0;
-    const minFps = this._maxDelta > 0 ? Math.round(1000 / this._maxDelta) : fps;
-    const worstFrameMs = Math.round(this._maxDelta);
-    const jankCount = this._jank;
+    const fps = elapsed > 0 ? Math.round((this._frameCount / elapsed) * 1000) : 0;
+    const minFps = this._maxFrameDelta > 0 ? Math.round(1000 / this._maxFrameDelta) : fps;
+    const worstFrameMs = Math.round(this._maxFrameDelta);
+    const jankCount = this._jankCount;
 
-    setContext('minigame.performance', {
+    setContext('framerate', {
       fps,
       minFps,
       worstFrameMs,
       jankCount,
-      frames: this._frames,
+      frames: this._frameCount,
     });
     addBreadcrumb({
-      category: 'minigame.performance',
+      category: 'ui.framerate',
       message: `FPS: ${fps}（最低 ${minFps}，卡顿 ${jankCount} 次）`,
       level: fps < this._options.fpsWarningThreshold ? 'warning' : 'info',
-      data: { fps, minFps, worstFrameMs, jankCount, frames: this._frames },
+      data: { fps, minFps, worstFrameMs, jankCount, frames: this._frameCount },
     });
 
     // 重置窗口
     this._windowStart = t;
-    this._frames = 0;
-    this._jank = 0;
-    this._jankCrumbs = 0;
-    this._maxDelta = 0;
+    this._frameCount = 0;
+    this._jankCount = 0;
+    this._jankBreadcrumbs = 0;
+    this._maxFrameDelta = 0;
   }
 
   public cleanup(): void {
