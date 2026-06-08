@@ -4,3 +4,8 @@ dist/
 unpackage/
 .DS_Store
 *.log
+
+# 示例锁文件不入库：避免重型 dcloudio 工具链的传递依赖持续触发 Dependabot 告警
+# （示例工程非发布产物，fresh npm install 即可，无需锁版本）
+package-lock.json
+yarn.lock
