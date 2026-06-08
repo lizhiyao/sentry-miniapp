@@ -4,6 +4,15 @@
 
 ## 🚀 快速开始
 
+### 0. 环境要求
+
+- **Node.js** ≥ 20
+- **Yarn 4**：项目通过 `package.json` 的 `packageManager` 字段固定 Yarn 版本，推荐用 [Corepack](https://nodejs.org/api/corepack.html) 自动对齐，无需全局手动安装：
+
+  ```bash
+  corepack enable   # 启用后，仓库内执行 yarn 会自动使用固定的 Yarn 4 版本
+  ```
+
 ### 1. 安装依赖
 
 ```bash

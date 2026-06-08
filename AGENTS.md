@@ -41,6 +41,8 @@ cp -r .claude/skills/sentry-miniapp-sdk ~/.codex/agents/skills/sentry-miniapp-sd
 
 ## 常用命令
 
+> 环境要求：Node ≥ 20、Yarn 4（由 `package.json` 的 `packageManager` 固定）。首次先跑 `corepack enable`，让仓库内的 `yarn` 自动对齐到固定版本。
+
 - `yarn install` - 安装依赖
 - `yarn run lint` - 代码检查
 - `yarn run test` - 运行单元测试
