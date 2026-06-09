@@ -82,6 +82,7 @@ describe('NetworkBreadcrumbs Integration', () => {
       expect.objectContaining({
         name: 'POST https://api.example.com/users',
         op: 'http.client',
+        kind: 2,
         attributes: expect.objectContaining({
           'http.request.method': 'POST',
           'url.full': 'https://api.example.com/users',
@@ -100,6 +101,25 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(mockSpanSetAttribute).toHaveBeenCalledWith('http.response.status_code', 200);
     expect(mockSpanSetStatus).toHaveBeenCalledWith({ code: 1 });
     expect(mockSpanEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('should sanitize query and fragment from request span name', () => {
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    const miniappSdk = crossPlatform.sdk();
+    miniappSdk.request({
+      url: 'https://api.example.com/users?token=secret#profile',
+    });
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'GET https://api.example.com/users',
+        attributes: expect.objectContaining({
+          'url.full': 'https://api.example.com/users?token=secret#profile',
+        }),
+      }),
+    );
   });
 
   it('should include request and response body when traceNetworkBody is true', () => {
@@ -275,6 +295,28 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(requestOptions.headers).toBeUndefined();
     expect(mockStartInactiveSpan).toHaveBeenCalledTimes(1);
     expect(mockSpanEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not let global tracePropagationTargets regexp lastIndex break repeated matches', () => {
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: [/api\.example\.com/g],
+    });
+    integration.setupOnce();
+
+    const miniappSdk = crossPlatform.sdk();
+    miniappSdk.request({
+      url: 'https://api.example.com/first',
+    });
+    miniappSdk.request({
+      url: 'https://api.example.com/second',
+    });
+
+    expect(requestMock.mock.calls[0]![0].header).toEqual(
+      expect.objectContaining({ 'sentry-trace': 'trace-id-span-id-1' }),
+    );
+    expect(requestMock.mock.calls[1]![0].header).toEqual(
+      expect.objectContaining({ 'sentry-trace': 'trace-id-span-id-1' }),
+    );
   });
 
   it('should finish request span from complete callback when success/fail are not called', () => {

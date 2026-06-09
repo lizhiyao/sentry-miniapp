@@ -293,7 +293,10 @@ export class NetworkBreadcrumbs implements Integration {
       if (typeof target === 'string') {
         return url.includes(target);
       }
-      return target.test(url);
+      target.lastIndex = 0;
+      const matches = target.test(url);
+      target.lastIndex = 0;
+      return matches;
     });
   }
 
@@ -350,8 +353,9 @@ function startRequestSpan(method: string, url: string): Span | null {
   try {
     const serverAddress = extractHost(url);
     return startInactiveSpan({
-      name: `${method} ${url}`,
+      name: `${method} ${sanitizeSpanNameUrl(url)}`,
       op: 'http.client',
+      kind: 2,
       attributes: {
         'http.request.method': method,
         'url.full': url,
@@ -361,6 +365,29 @@ function startRequestSpan(method: string, url: string): Span | null {
   } catch (_e) {
     return null;
   }
+}
+
+function sanitizeSpanNameUrl(url: string): string {
+  if (url.startsWith('data:')) {
+    return stripDataUrlContent(url);
+  }
+
+  const withoutQueryAndFragment = stripUrlQueryAndFragment(url);
+  return withoutQueryAndFragment.replace(
+    /^([a-z][a-z0-9+.-]*:\/\/)([^/?#@]+@)/i,
+    '$1[filtered]:[filtered]@',
+  );
+}
+
+function stripUrlQueryAndFragment(url: string): string {
+  const stripped = url.split(/[?#]/, 1)[0];
+  return stripped === undefined ? url : stripped;
+}
+
+function stripDataUrlContent(url: string): string {
+  const mimeTypeMatch = url.match(/^data:([^;,]+)/);
+  const mimeType = mimeTypeMatch && mimeTypeMatch[1] ? mimeTypeMatch[1] : 'text/plain';
+  return `data:${mimeType}`;
 }
 
 function injectTraceHeaders(options: any, span: Span | null): void {
