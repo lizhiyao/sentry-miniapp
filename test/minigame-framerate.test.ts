@@ -2,10 +2,21 @@ import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals
 
 const mockAddBreadcrumb = jest.fn();
 const mockSetContext = jest.fn();
+const mockSpanEnd = jest.fn((..._args: any[]) => {});
+const mockSpanSetAttributes = jest.fn((..._args: any[]) => {});
+const mockStartInactiveSpan = jest.fn((..._args: any[]) => ({
+  setAttributes: mockSpanSetAttributes,
+  end: mockSpanEnd,
+}));
+const mockSetMeasurement = jest.fn((..._args: any[]) => {});
+const mockFlush = jest.fn((_timeout?: number) => Promise.resolve(true));
 
 jest.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
+  flush: mockFlush,
   setContext: mockSetContext,
+  startInactiveSpan: mockStartInactiveSpan,
+  setMeasurement: mockSetMeasurement,
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
@@ -16,6 +27,8 @@ describe('MinigameFrameRateIntegration', () => {
   let rafCallback: (() => void) | null;
   let clock: number;
   let savedRaf: any;
+  let hideCb: (() => void) | null;
+  let showCb: (() => void) | null;
 
   function frame(t: number): void {
     clock = t;
@@ -29,6 +42,8 @@ describe('MinigameFrameRateIntegration', () => {
     jest.clearAllMocks();
     rafCallback = null;
     clock = 0;
+    hideCb = null;
+    showCb = null;
 
     savedRaf = g.requestAnimationFrame;
     g.requestAnimationFrame = jest.fn((cb: () => void) => {
@@ -37,6 +52,17 @@ describe('MinigameFrameRateIntegration', () => {
     });
 
     jest.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
+    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
+      request: jest.fn(),
+      onHide: jest.fn((cb: any) => {
+        hideCb = cb;
+      }),
+      onShow: jest.fn((cb: any) => {
+        showCb = cb;
+      }),
+      offHide: jest.fn(),
+      offShow: jest.fn(),
+    } as any);
   });
 
   afterEach(() => {
@@ -95,6 +121,129 @@ describe('MinigameFrameRateIntegration', () => {
       'minigame.framerate',
       expect.objectContaining({ jankCount: 4 }), // 实际 jank 全部计入
     );
+  });
+
+  it('onHide 发会话汇总 transaction（measurements），且不每窗口发事件', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
+    integration.setupOnce();
+
+    frame(20);
+    frame(40);
+    frame(1010); // 跨窗口 → _report 累积进会话
+
+    // 窗口上报阶段不应产生任何 transaction
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+
+    // 退后台 → 发一个汇总 transaction
+    expect(hideCb).not.toBeNull();
+    hideCb!();
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledTimes(1);
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'minigame.framerate.summary',
+        op: 'ui.framerate',
+        forceTransaction: true,
+        startTime: 1640995200000 / 1000, // epoch 锚点（Date.now mock），而非单调时钟的 0
+      }),
+    );
+    // 防回归：绝对时间是真实 epoch，不会落到 1970
+    const startTimeArg = (mockStartInactiveSpan.mock.calls[0]![0] as any).startTime;
+    expect(startTimeArg).toBeGreaterThan(1e9);
+    const measured = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
+    expect(measured).toEqual(expect.arrayContaining(['fps_avg', 'fps_p95', 'fps_min', 'jank_count']));
+    expect(mockSpanEnd).toHaveBeenCalled();
+    expect(mockFlush).toHaveBeenCalledWith(2000);
+  });
+
+  it('onHide 会先并入未满窗口，再发会话汇总 transaction', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
+    integration.setupOnce();
+
+    // 约 60fps 的短会话，尚未跨过 reportInterval。
+    for (let t = 16; t <= 496; t += 16) {
+      frame(t);
+    }
+    clock = 500;
+    hideCb!();
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledTimes(1);
+    expect(mockSpanSetAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'frames.total': 31,
+        'fps.avg': 63,
+      }),
+    );
+    expect(mockSetMeasurement).toHaveBeenCalledWith('fps_avg', 63, 'none', expect.anything());
+    expect(mockFlush).toHaveBeenCalledWith(2000);
+  });
+
+  it('会话无帧时 onHide 不发汇总 transaction', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
+    integration.setupOnce();
+    // 未跨窗口、无帧累积进会话
+    hideCb!();
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    expect(mockFlush).not.toHaveBeenCalled();
+  });
+
+  it('onShow 重置会话累积（重置后无帧则 onHide 不发汇总）', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
+    integration.setupOnce();
+    frame(20);
+    frame(1010); // 累积进会话
+    showCb!(); // 回前台 → 重置会话
+    hideCb!(); // 重置后无新帧
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+  });
+
+  it('回前台不把退后台间隔计为卡顿帧（恢复间隔不污染新会话）', () => {
+    const integration = new MinigameFrameRateIntegration({
+      longFrameThresholdMs: 50,
+      reportInterval: 1000,
+    });
+    integration.setupOnce(); // lastFrame=0
+    frame(20); // 退后台前最后一帧
+    hideCb!(); // 退后台（RAF 在真机会暂停）
+
+    jest.clearAllMocks();
+    // 后台经过很久（10 分钟）后回前台
+    clock = 600000;
+    showCb!(); // onShow：基线对齐到 600000，排除后台间隔
+    frame(600016); // 回前台第一帧：delta 应为 16ms，而非 599996ms
+
+    const jankCrumbs = mockAddBreadcrumb.mock.calls.filter(
+      (c: any) => c[0] && c[0].category === 'minigame.jank',
+    );
+    expect(jankCrumbs.length).toBe(0); // 后台间隔不得被误判为卡顿
+  });
+
+  it('异常超大 frame delta 视为采样断点，不污染 FPS 与 summary duration', () => {
+    const integration = new MinigameFrameRateIntegration({
+      longFrameThresholdMs: 50,
+      reportInterval: 1000,
+    });
+    integration.setupOnce();
+
+    frame(16);
+    frame(32);
+    frame(120000); // 超过 sanity 上限：应并入断点前窗口并重置，不按一帧 119968ms 统计
+    frame(120016);
+    clock = 120032;
+    hideCb!();
+
+    const jankCrumbs = mockAddBreadcrumb.mock.calls.filter(
+      (c: any) => c[0] && c[0].category === 'minigame.jank',
+    );
+    expect(jankCrumbs.length).toBe(0);
+    expect(mockSpanSetAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'frames.total': 3,
+        'fps.avg': 63,
+        'frame.worst_ms': 16,
+      }),
+    );
+    expect(mockSpanEnd).toHaveBeenCalledWith((1640995200000 + 48) / 1000);
   });
 
   it('cleanup 后停止采样循环', () => {

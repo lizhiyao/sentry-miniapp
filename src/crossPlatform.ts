@@ -410,6 +410,9 @@ export interface PerformanceObserverCallback {
  * Performance API 管理器接口
  */
 export interface PerformanceManager {
+  // 当前时间。微信小游戏文档返回微秒，SDK 内部统一归一为毫秒后使用。
+  now?: () => number;
+
   // 获取性能条目
   getEntries(): PerformanceEntry[];
   getEntriesByType(type: string): PerformanceEntry[];
@@ -450,20 +453,43 @@ export const getPerformanceManager = (): PerformanceManager | null => {
   return null;
 };
 
+// 微信小游戏 Performance.now() 官方返回微秒；SDK 内部的 now() 约定始终为毫秒。
+const MICROSECOND_PERFORMANCE_NOW_PLATFORMS: ReadonlyArray<AppName> = ['wechat'];
+
+const normalizePerformanceNow = (value: number): number | null => {
+  if (!Number.isFinite(value)) return null;
+
+  const detected = detectPlatform();
+  if (detected && MICROSECOND_PERFORMANCE_NOW_PLATFORMS.includes(detected.name)) {
+    return value / 1000;
+  }
+
+  return value;
+};
+
 /**
- * 取当前时间戳，优先使用平台 Performance.now()（单调时钟，不受系统时间回拨影响），
- * 回退 Date.now()。供小游戏冷启动 / 帧率监控等需要高精度计时的场景复用。
+ * 单调时钟：优先平台 Performance.now()（高精度、不受系统时间回拨影响），回退 Date.now()。
+ * 用于**测量时长 / 间隔**（帧间隔、冷启动 delta 等）。注意其返回值通常是「相对起点」的
+ * 相对时间，**不是 Unix epoch**，不可直接作为 Sentry span 的绝对时间戳——那种场景用 epochNow()。
+ * 返回值统一为毫秒；微信小游戏 Performance.now() 的微秒返回会在这里归一。
  */
 export const now = (): number => {
   try {
     const perf = sdk().getPerformance?.();
     if (perf && typeof perf.now === 'function') {
-      return perf.now();
+      const normalized = normalizePerformanceNow(perf.now());
+      if (normalized !== null) return normalized;
     }
   } catch (_e) {
     // ignore，回退 Date.now
   }
   return Date.now();
 };
+
+/**
+ * 墙钟时间戳（Unix epoch 毫秒）。用于需要**绝对时间点**的场景，如 Sentry span 的
+ * startTime / endTimestamp。与 now()（单调相对时钟）刻意区分，避免把相对时间误当 epoch。
+ */
+export const epochNow = (): number => Date.now();
 
 export { getSDK, getSystemInfo, isMiniappEnvironment };

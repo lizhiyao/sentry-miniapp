@@ -2,10 +2,19 @@ import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals
 
 const mockAddBreadcrumb = jest.fn();
 const mockSetContext = jest.fn();
+const mockSpanEnd = jest.fn((..._args: any[]) => {});
+const mockSpanSetAttributes = jest.fn((..._args: any[]) => {});
+const mockStartInactiveSpan = jest.fn((..._args: any[]) => ({
+  setAttributes: mockSpanSetAttributes,
+  end: mockSpanEnd,
+}));
+const mockSetMeasurement = jest.fn((..._args: any[]) => {});
 
 jest.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
   setContext: mockSetContext,
+  startInactiveSpan: mockStartInactiveSpan,
+  setMeasurement: mockSetMeasurement,
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
@@ -92,6 +101,30 @@ describe('MinigameIntegration', () => {
       'minigame',
       expect.objectContaining({ scene: 1001, path: 'game.js', coldStartMs: 150 }),
     );
+  });
+
+  it('首帧发独立冷启动 transaction（epoch 锚点 + cold_start measurement）', () => {
+    // Date.now 被 test/setup 固定为 1640995200000（2022-01-01）；now() 被 spy 为 clock。
+    const EPOCH = 1640995200000;
+    const integration = new MinigameIntegration(); // 构造 now()=1000、Date.now()=EPOCH
+    integration.setupOnce();
+    clock = 1150; // 首帧（单调 delta = 150ms）
+    rafCallback!();
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'minigame.coldstart',
+        op: 'app.start',
+        forceTransaction: true,
+        startTime: EPOCH / 1000, // 用 epoch 锚点，而非单调时钟
+      }),
+    );
+    // 防回归：span 绝对时间必须是真实 epoch（≫ 1），不能是单调时钟的小数值（会落到 1970）
+    const startTimeArg = (mockStartInactiveSpan.mock.calls[0]![0] as any).startTime;
+    expect(startTimeArg).toBeGreaterThan(1e9);
+
+    expect(mockSetMeasurement).toHaveBeenCalledWith('cold_start', 150, 'millisecond', expect.anything());
+    expect(mockSpanEnd).toHaveBeenCalledWith((EPOCH + 150) / 1000); // 时长 = 单调测得的 150ms
   });
 
   it('首帧只上报一次冷启动', () => {

@@ -1,6 +1,6 @@
-import { addBreadcrumb, setContext } from '@sentry/core';
+import { addBreadcrumb, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
-import { sdk, now } from '../crossPlatform';
+import { sdk, now, epochNow } from '../crossPlatform';
 
 /**
  * Minigame Integration
@@ -16,7 +16,10 @@ export class MinigameIntegration implements Integration {
   public static id: string = 'Minigame';
   public name: string = MinigameIntegration.id;
 
+  // _initTs 用单调时钟（now()，可能来自 getPerformance）测量耗时；
+  // _initEpoch 用墙钟（epochNow()）提供 span 的绝对时间锚点（单调时钟非 epoch，不能直接当 span 时间戳）。
   private _initTs: number = now();
+  private _initEpoch: number = epochNow();
   private _showHandler: ((res: any) => void) | null = null;
   private _hideHandler: (() => void) | null = null;
   private _coldStartReported: boolean = false;
@@ -89,7 +92,8 @@ export class MinigameIntegration implements Integration {
     raf(() => {
       if (this._coldStartReported) return;
       this._coldStartReported = true;
-      const coldStartMs = Math.round(now() - this._initTs);
+      const firstFrameTs = now();
+      const coldStartMs = Math.round(firstFrameTs - this._initTs);
       this._minigameContext.coldStartMs = coldStartMs;
       setContext('minigame', { ...this._minigameContext });
       addBreadcrumb({
@@ -98,6 +102,24 @@ export class MinigameIntegration implements Integration {
         level: 'info',
         data: { coldStartMs },
       });
+
+      // 独立性能事件：把「SDK 初始化 → 首帧」包成 transaction，进 Performance 页。
+      // 仅在 tracing 启用（tracesSampleRate/tracesSampler）时真正上报；否则为非记录 span、不发送。
+      // span 时间戳必须用墙钟 epoch（epochNow()），而非单调的 now()——后者会让 transaction 落到 1970。
+      // duration 用单调测得的 coldStartMs，叠加在 epoch 锚点上，保证绝对时间与时长都正确。
+      const span = startInactiveSpan({
+        name: 'minigame.coldstart',
+        op: 'app.start',
+        forceTransaction: true,
+        startTime: this._initEpoch / 1000,
+      });
+      span.setAttributes({
+        'minigame.scene': this._minigameContext.scene as any,
+        'minigame.path': this._minigameContext.path as any,
+        'minigame.cold_start_ms': coldStartMs,
+      });
+      setMeasurement('cold_start', coldStartMs, 'millisecond', span);
+      span.end((this._initEpoch + coldStartMs) / 1000);
     });
   }
 

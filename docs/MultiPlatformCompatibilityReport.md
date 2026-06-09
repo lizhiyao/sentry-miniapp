@@ -129,6 +129,8 @@ Sentry 的路由集成用于收集用户的页面跳转路径。
 
 `MinigameIntegration` 与 `MinigameFrameRateIntegration` 在检测到小游戏时默认启用，普通小程序默认不挂；所有平台 API 均守卫存在性，缺失即降级。
 
+性能数据（冷启动、帧率/卡顿）除挂在 error 事件的 context/breadcrumb 外，启用 tracing（`tracesSampleRate`）后还会作为独立 transaction 上报（冷启动 `minigame.coldstart`；帧率在 onHide 汇总为 `minigame.framerate.summary`，含 fps_avg/p95/min、jank 等 measurements），进 Sentry Performance 页、由性能采样率独立控制。
+
 ---
 
 ## 功能覆盖矩阵
