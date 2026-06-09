@@ -46,7 +46,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full details.
 - **Deep Performance Monitoring**: Integrates mini program Performance API for navigation timing (FCP/LCP), render performance, resource loading, and custom performance marks.
 - **Smart Deduplication & Filtering**: Built-in error deduplication and sample rate controls to prevent log storms.
 - **Cross-Platform Framework Friendly**: Works seamlessly with Taro, uni-app, and other cross-platform compilation frameworks.
-- **Distributed Tracing**: Automatically injects `sentry-trace` / `baggage` headers into network requests, connecting mini program and backend service call chains.
+- **Distributed Tracing**: Automatically injects `sentry-trace` / `baggage` headers into network requests and reports mini program API timing as `http.client` spans, connecting mini program and backend service call chains.
 - **Session Health Monitoring**: Automatic session lifecycle management with crash rate and session health data in the Sentry Release Health dashboard.
 - **Network Status Monitoring**: Real-time tracking of network changes (WiFi/4G/offline) to help diagnose network-related exceptions.
 - **Stack Trace Parsing**: Built-in multi-platform stack parser supporting V8/Safari/JavaScriptCore formats for precise error location with SourceMap.
@@ -109,10 +109,11 @@ Sentry.init({
 
   // --- Sampling ---
   sampleRate: 1.0, // Error reporting sample rate (0.0 - 1.0)
+  tracesSampleRate: 1.0, // Performance tracing sample rate; API requests are reported as http.client spans
 
   // --- Distributed Tracing ---
   enableTracePropagation: true, // Auto-inject sentry-trace/baggage headers (default: true)
-  tracePropagationTargets: ['api.example.com'], // Only inject tracing headers for specified domains
+  tracePropagationTargets: ['api.example.com'], // Only inject tracing headers for specified domains; spans still follow tracing sampling
 
   // --- Session & Network Monitoring ---
   enableAutoSessionTracking: true, // Auto session lifecycle management (default: true)
@@ -324,7 +325,7 @@ Sentry.init({
 | Capability | Mini Game | Notes |
 |------------|:---------:|-------|
 | Exception / unhandled rejection capture | ✅ | `wx.onError` / `wx.onUnhandledRejection` |
-| API request monitoring (count / duration / status) | ✅ | wraps `wx.request` |
+| API request monitoring (count / duration / status) | ✅ | wraps `wx.request`; creates `http.client` spans when tracing is enabled |
 | Network status monitoring | ✅ | `wx.onNetworkStatusChange` |
 | Device info / context breadcrumbs | ✅ | `wx.getDeviceInfo` etc. |
 | Resource load timing | ✅ | `wx.getPerformance()` |

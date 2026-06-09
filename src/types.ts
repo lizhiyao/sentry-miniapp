@@ -42,7 +42,7 @@ export interface MiniappOptions {
   /** Maximum number of breadcrumbs */
   maxBreadcrumbs?: number;
 
-  /** Traces sample rate */
+  /** Performance tracing sample rate. API request timing is reported as http.client spans when sampled. */
   tracesSampleRate?: number;
 
   /**
@@ -115,10 +115,10 @@ export interface MiniappOptions {
   /** 离线缓存过期时间（ms），超过此时间的缓存事件将被丢弃（默认 86400000 即 24 小时） */
   offlineCacheMaxAge?: number;
 
-  /** 是否启用分布式追踪头注入（默认 true） */
+  /** 是否启用分布式追踪头注入（默认 true）。只控制 sentry-trace/baggage 传播，不关闭本地 API 请求 span。 */
   enableTracePropagation?: boolean;
 
-  /** 追踪目标 URL 白名单，仅匹配的请求才注入 sentry-trace/baggage 头。为空则对所有非 Sentry 请求注入 */
+  /** 追踪目标 URL 白名单，仅匹配的请求才注入 sentry-trace/baggage 头。为空则对所有非 Sentry 请求注入；API 请求 span 仍按 tracing 采样记录 */
   tracePropagationTargets?: Array<string | RegExp>;
 
   /** 是否启用自动 Session 管理（默认 true），为 Sentry Release Health 提供会话数据 */
