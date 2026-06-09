@@ -44,7 +44,7 @@
 - **⚡ 深度性能监控**：集成小程序 Performance API，全面采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及用户自定义性能标记。
 - **🛡️ 智能降噪与过滤**：内置强大的错误去重和采样率控制机制，避免日志风暴。
 - **🔧 跨端框架友好**：完美支持在 Taro、uni-app 等第三方多端编译框架中集成使用。
-- **🔗 分布式追踪**：自动在网络请求中注入 `sentry-trace` / `baggage` 头，串联小程序与后端服务的完整调用链。
+- **🔗 分布式追踪**：自动在网络请求中注入 `sentry-trace` / `baggage` 头，并将小程序 API 请求耗时上报为 `http.client` span，串联小程序与后端服务的完整调用链。
 - **📊 Session 健康监控**：自动管理会话生命周期，在 Sentry Release Health 面板展示崩溃率和会话健康数据。
 - **📶 网络状态监控**：实时追踪网络变化（WiFi/4G/离线），帮助排查网络相关的异常。
 - **🔍 堆栈解析**：内置多平台堆栈解析器，支持 V8/Safari/JavaScriptCore 格式，配合 SourceMap 精准定位错误。
@@ -109,10 +109,11 @@ Sentry.init({
   
   // --- 性能与采样率 ---
   sampleRate: 1.0, // 异常上报采样率 (0.0 - 1.0)
+  tracesSampleRate: 1.0, // 性能追踪采样率；开启后 API 请求会作为 http.client span 上报
 
   // --- 分布式追踪 ---
   enableTracePropagation: true, // 自动在请求头中注入 sentry-trace/baggage（默认 true）
-  tracePropagationTargets: ['api.example.com'], // 仅对指定域名注入追踪头（为空则全部注入）
+  tracePropagationTargets: ['api.example.com'], // 仅对指定域名注入追踪头（为空则全部注入；span 仍按 tracing 采样记录）
 
   // --- Session 与网络监控 ---
   enableAutoSessionTracking: true, // 自动管理 Session 生命周期（默认 true）
@@ -337,7 +338,7 @@ Sentry.init({
 | 能力 | 小游戏 | 说明 |
 |------|:------:|------|
 | 异常 / 未处理 Promise 捕获 | ✅ | `wx.onError` / `wx.onUnhandledRejection` |
-| API 请求监控（请求数 / 耗时 / 状态码） | ✅ | 包裹 `wx.request` |
+| API 请求监控（请求数 / 耗时 / 状态码） | ✅ | 包裹 `wx.request`；开启 tracing 后生成 `http.client` span |
 | 网络状态监控 | ✅ | `wx.onNetworkStatusChange` |
 | 设备信息 / 上下文面包屑 | ✅ | `wx.getDeviceInfo` 等 |
 | 资源加载耗时 | ✅ | `wx.getPerformance()` |

@@ -1,5 +1,13 @@
-import { addBreadcrumb, getClient, getCurrentScope } from '@sentry/core';
-import type { Integration } from '@sentry/core';
+import {
+  addBreadcrumb,
+  getClient,
+  SPAN_STATUS_OK,
+  SPAN_STATUS_ERROR,
+  getTraceData,
+  setHttpStatus,
+  startInactiveSpan,
+} from '@sentry/core';
+import type { Integration, Span } from '@sentry/core';
 import { fill } from '../helpers';
 import { sdk } from '../crossPlatform';
 
@@ -119,7 +127,7 @@ export class NetworkBreadcrumbs implements Integration {
         return originalRequest.call(this, options);
       }
 
-      const url = options.url || '';
+      const url = normalizeUrl(options.url);
 
       // Get the configured DSN/Transport URL from the current client
       const client = getClient();
@@ -139,53 +147,31 @@ export class NetworkBreadcrumbs implements Integration {
       }
 
       // Ignore Sentry's own requests to prevent infinite loops
-      if (typeof url === 'string') {
-        const hostMatch = url.match(/^https?:\/\/([^:/\n]+)/i);
-        const requestHost = hostMatch && hostMatch[1] ? hostMatch[1] : '';
-        const isSentryRequest =
-          (dsnUrl && requestHost === dsnUrl) ||
-          requestHost === 'sentry.io' ||
-          requestHost.endsWith('.sentry.io');
-        if (isSentryRequest) {
-          return originalRequest.call(this, options);
-        }
+      const hostMatch = url.match(/^https?:\/\/([^:/\n]+)/i);
+      const requestHost = hostMatch && hostMatch[1] ? hostMatch[1] : '';
+      const isSentryRequest =
+        (dsnUrl && requestHost === dsnUrl) ||
+        requestHost === 'sentry.io' ||
+        requestHost.endsWith('.sentry.io');
+      if (isSentryRequest) {
+        return originalRequest.call(this, options);
       }
 
       // 注入分布式追踪头
-      if (enableTracePropagation && shouldPropagateTrace(url)) {
-        try {
-          const scope = getCurrentScope();
-          const propagationContext = scope.getPropagationContext();
-          if (propagationContext) {
-            const { traceId, parentSpanId } = propagationContext;
-            if (traceId) {
-              const header = options.header || options.headers || {};
-              header['sentry-trace'] = `${traceId}-${parentSpanId || '0000000000000000'}-1`;
-              // baggage header
-              const dsn = client?.getOptions()?.dsn || '';
-              const release = client?.getOptions()?.release || '';
-              const environment = client?.getOptions()?.environment || '';
-              const baggageItems: string[] = [];
-              if (traceId) baggageItems.push(`sentry-trace_id=${traceId}`);
-              if (dsn) baggageItems.push(`sentry-public_key=${extractPublicKey(dsn)}`);
-              if (release) baggageItems.push(`sentry-release=${release}`);
-              if (environment) baggageItems.push(`sentry-environment=${environment}`);
-              if (baggageItems.length > 0) {
-                header['baggage'] = baggageItems.join(',');
-              }
-              // 支持微信用 header、支付宝用 headers
-              options.header = header;
-              options.headers = header;
-            }
-          }
-        } catch (_e) {
-          // 追踪头注入失败不影响请求
-        }
-      }
-
-      const method = (options.method || 'GET').toUpperCase();
+      const method = normalizeMethod(options.method);
       const requestData = options.data;
       const startTime = Date.now();
+      const requestSpan = startRequestSpan(method, url);
+      let requestSpanFinished = false;
+      const finishSpanOnce = (finish: RequestSpanFinishOptions): void => {
+        if (requestSpanFinished) return;
+        requestSpanFinished = true;
+        finishRequestSpan(requestSpan, finish);
+      };
+
+      if (enableTracePropagation && shouldPropagateTrace(url)) {
+        injectTraceHeaders(options, requestSpan);
+      }
 
       const breadcrumbData: Record<string, any> = {
         url,
@@ -204,14 +190,19 @@ export class NetworkBreadcrumbs implements Integration {
 
       const originalSuccess = options.success;
       const originalFail = options.fail;
+      const originalComplete = options.complete;
 
       // Wrap success callback
       options.success = function (this: any, ...args: any[]) {
         const res = args[0] || {};
-        const statusCode = res.statusCode || res.status;
+        const statusCode = getResponseStatusCode(res);
         const duration = Date.now() - startTime;
         breadcrumbData['status_code'] = statusCode;
         breadcrumbData['duration'] = duration;
+        finishSpanOnce({
+          statusCode,
+          status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
+        });
 
         if (traceNetworkBody && res.data && !shouldDenyBodyUrl(url)) {
           try {
@@ -224,7 +215,11 @@ export class NetworkBreadcrumbs implements Integration {
         }
 
         // 慢请求标记为 warning
-        const level = statusCode >= 400 ? 'warning' : duration > 3000 ? 'warning' : 'info';
+        const level = isErrorStatusCode(statusCode)
+          ? 'warning'
+          : duration > 3000
+            ? 'warning'
+            : 'info';
 
         addBreadcrumb({
           type: 'http',
@@ -242,8 +237,13 @@ export class NetworkBreadcrumbs implements Integration {
       options.fail = function (this: any, ...args: any[]) {
         const err = args[0] || {};
         const duration = Date.now() - startTime;
-        breadcrumbData['error'] = err.errMsg || err.errorMessage || 'Network request failed';
+        const errorMessage = err.errMsg || err.errorMessage || 'Network request failed';
+        breadcrumbData['error'] = errorMessage;
         breadcrumbData['duration'] = duration;
+        finishSpanOnce({
+          status: 'error',
+          errorMessage,
+        });
 
         addBreadcrumb({
           type: 'http',
@@ -257,7 +257,28 @@ export class NetworkBreadcrumbs implements Integration {
         }
       };
 
-      return originalRequest.call(this, options);
+      options.complete = function (this: any, ...args: any[]) {
+        const res = args[0] || {};
+        const statusCode = getResponseStatusCode(res);
+        finishSpanOnce({
+          statusCode,
+          status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
+        });
+
+        if (typeof originalComplete === 'function') {
+          return originalComplete.apply(this, args);
+        }
+      };
+
+      try {
+        return originalRequest.call(this, options);
+      } catch (error) {
+        finishSpanOnce({
+          status: 'error',
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
     };
   }
 
@@ -272,7 +293,10 @@ export class NetworkBreadcrumbs implements Integration {
       if (typeof target === 'string') {
         return url.includes(target);
       }
-      return target.test(url);
+      target.lastIndex = 0;
+      const matches = target.test(url);
+      target.lastIndex = 0;
+      return matches;
     });
   }
 
@@ -319,13 +343,174 @@ export class NetworkBreadcrumbs implements Integration {
   }
 }
 
-/**
- * 从 DSN 中提取 public key
- */
-function extractPublicKey(dsn: string): string {
+type RequestSpanFinishOptions = {
+  status: 'ok' | 'error';
+  statusCode?: unknown;
+  errorMessage?: string;
+};
+
+function startRequestSpan(method: string, url: string): Span | null {
   try {
-    const match = dsn.match(/^https?:\/\/([^@]+)@/);
-    return match ? match[1]! : '';
+    const serverAddress = extractHost(url);
+    return startInactiveSpan({
+      name: `${method} ${sanitizeSpanNameUrl(url)}`,
+      op: 'http.client',
+      kind: 2,
+      attributes: {
+        'http.request.method': method,
+        'url.full': url,
+        'server.address': serverAddress || undefined,
+      },
+    });
+  } catch (_e) {
+    return null;
+  }
+}
+
+function sanitizeSpanNameUrl(url: string): string {
+  if (url.startsWith('data:')) {
+    return stripDataUrlContent(url);
+  }
+
+  const withoutQueryAndFragment = stripUrlQueryAndFragment(url);
+  return withoutQueryAndFragment.replace(
+    /^([a-z][a-z0-9+.-]*:\/\/)([^/?#@]+@)/i,
+    '$1[filtered]:[filtered]@',
+  );
+}
+
+function stripUrlQueryAndFragment(url: string): string {
+  const stripped = url.split(/[?#]/, 1)[0];
+  return stripped === undefined ? url : stripped;
+}
+
+function stripDataUrlContent(url: string): string {
+  const mimeTypeMatch = url.match(/^data:([^;,]+)/);
+  const mimeType = mimeTypeMatch && mimeTypeMatch[1] ? mimeTypeMatch[1] : 'text/plain';
+  return `data:${mimeType}`;
+}
+
+function injectTraceHeaders(options: any, span: Span | null): void {
+  if (!span) return;
+
+  try {
+    const traceData = getTraceData({ span });
+    const sentryTrace = traceData['sentry-trace'];
+    if (!sentryTrace) return;
+
+    const header = {
+      ...(isRecord(options.headers) ? options.headers : {}),
+      ...(isRecord(options.header) ? options.header : {}),
+    };
+    if (!header['sentry-trace']) {
+      header['sentry-trace'] = sentryTrace;
+    }
+
+    if (traceData.baggage) {
+      header['baggage'] = mergeBaggageHeader(header['baggage'], traceData.baggage);
+    }
+
+    // 支持微信用 header、支付宝用 headers
+    options.header = header;
+    options.headers = header;
+  } catch (_e) {
+    // 追踪头注入失败不影响请求
+  }
+}
+
+function finishRequestSpan(span: Span | null, options: RequestSpanFinishOptions): void {
+  if (!span) return;
+
+  try {
+    const statusCode = normalizeStatusCode(options.statusCode);
+    if (statusCode !== undefined) {
+      setHttpStatus(span, statusCode);
+    } else {
+      span.setStatus({
+        code: options.status === 'error' ? SPAN_STATUS_ERROR : SPAN_STATUS_OK,
+        message: options.status === 'error' ? options.errorMessage || 'error' : 'ok',
+      });
+    }
+    if (options.errorMessage) {
+      span.setAttribute('error.message', options.errorMessage);
+    }
+    span.end();
+  } catch (_e) {
+    // ignore
+  }
+}
+
+function normalizeUrl(url: unknown): string {
+  if (typeof url === 'string') {
+    return url;
+  }
+
+  if (url === undefined || url === null) {
+    return '';
+  }
+
+  return String(url);
+}
+
+function normalizeMethod(method: unknown): string {
+  return typeof method === 'string' && method.trim() !== '' ? method.toUpperCase() : 'GET';
+}
+
+function getResponseStatusCode(response: any): unknown {
+  if (!response || typeof response !== 'object') {
+    return undefined;
+  }
+
+  if (response.statusCode !== undefined && response.statusCode !== null) {
+    return response.statusCode;
+  }
+
+  return response.status;
+}
+
+function isErrorStatusCode(statusCode: unknown): boolean {
+  const normalizedStatusCode = normalizeStatusCode(statusCode);
+  return normalizedStatusCode !== undefined && normalizedStatusCode >= 400;
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergeBaggageHeader(existingBaggage: unknown, sentryBaggage: string): string {
+  const existing =
+    typeof existingBaggage === 'string'
+      ? existingBaggage
+      : Array.isArray(existingBaggage)
+        ? existingBaggage.filter((item) => typeof item === 'string').join(',')
+        : '';
+
+  if (!existing) {
+    return sentryBaggage;
+  }
+
+  const hasSentryBaggage = existing.split(',').some((item) => item.trim().startsWith('sentry-'));
+
+  return hasSentryBaggage ? existing : `${existing},${sentryBaggage}`;
+}
+
+function normalizeStatusCode(statusCode: unknown): number | undefined {
+  if (typeof statusCode === 'number' && Number.isFinite(statusCode)) {
+    return statusCode;
+  }
+
+  if (typeof statusCode === 'string' && statusCode.trim() !== '') {
+    const parsed = Number(statusCode);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return undefined;
+}
+
+function extractHost(url: string): string {
+  try {
+    const hostMatch = url.match(/^https?:\/\/([^:/\n]+)/i);
+    return hostMatch && hostMatch[1] ? hostMatch[1] : '';
   } catch (_e) {
     return '';
   }
