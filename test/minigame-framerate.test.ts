@@ -142,9 +142,12 @@ describe('MinigameFrameRateIntegration', () => {
         name: 'minigame.framerate.summary',
         op: 'ui.framerate',
         forceTransaction: true,
-        startTime: 0,
+        startTime: 1640995200000 / 1000, // epoch 锚点（Date.now mock），而非单调时钟的 0
       }),
     );
+    // 防回归：绝对时间是真实 epoch，不会落到 1970
+    const startTimeArg = (mockStartInactiveSpan.mock.calls[0]![0] as any).startTime;
+    expect(startTimeArg).toBeGreaterThan(1e9);
     const measured = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
     expect(measured).toEqual(expect.arrayContaining(['fps_avg', 'fps_p95', 'fps_min', 'jank_count']));
     expect(mockSpanEnd).toHaveBeenCalled();
