@@ -105,7 +105,7 @@ export class MinigameIntegration implements Integration {
 
       // 独立性能事件：把「SDK 初始化 → 首帧」包成 transaction，进 Performance 页。
       // 仅在 tracing 启用（tracesSampleRate/tracesSampler）时真正上报；否则为非记录 span、不发送。
-      // span 时间戳必须用 epoch（Date.now），而非单调的 now()——后者会让 transaction 落到 1970。
+      // span 时间戳必须用墙钟 epoch（epochNow()），而非单调的 now()——后者会让 transaction 落到 1970。
       // duration 用单调测得的 coldStartMs，叠加在 epoch 锚点上，保证绝对时间与时长都正确。
       const span = startInactiveSpan({
         name: 'minigame.coldstart',

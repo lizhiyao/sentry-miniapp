@@ -92,7 +92,7 @@ export class MinigameFrameRateIntegration implements Integration {
       miniappSdk.onHide(this._hideHandler);
     }
     if (miniappSdk && typeof miniappSdk.onShow === 'function') {
-      this._showHandler = () => this._resetSession();
+      this._showHandler = () => this._restartOnResume();
       miniappSdk.onShow(this._showHandler);
     }
   }
@@ -168,6 +168,22 @@ export class MinigameFrameRateIntegration implements Integration {
     this._sessionJank = 0;
     this._sessionWorstFrame = 0;
     this._fpsSamples = [];
+  }
+
+  /**
+   * 回前台（onShow）：开启新会话，并把帧循环 / 窗口基线对齐到当前时刻。
+   * 退后台时 RAF 暂停，回前台后第一帧的 delta 会等于整段后台时长——若不重置基线，
+   * 会被误判为一帧巨型卡顿，拉爆 worstFrame、把 minFps 打到 ~0、jank +1，污染新会话汇总。
+   */
+  private _restartOnResume(): void {
+    this._resetSession();
+    const t = now();
+    this._windowStart = t;
+    this._lastFrameTs = t;
+    this._frameCount = 0;
+    this._jankCount = 0;
+    this._jankBreadcrumbs = 0;
+    this._maxFrameDelta = 0;
   }
 
   /**

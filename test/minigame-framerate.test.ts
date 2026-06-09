@@ -171,6 +171,27 @@ describe('MinigameFrameRateIntegration', () => {
     expect(mockStartInactiveSpan).not.toHaveBeenCalled();
   });
 
+  it('回前台不把退后台间隔计为卡顿帧（恢复间隔不污染新会话）', () => {
+    const integration = new MinigameFrameRateIntegration({
+      longFrameThresholdMs: 50,
+      reportInterval: 1000,
+    });
+    integration.setupOnce(); // lastFrame=0
+    frame(20); // 退后台前最后一帧
+    hideCb!(); // 退后台（RAF 在真机会暂停）
+
+    jest.clearAllMocks();
+    // 后台经过很久（10 分钟）后回前台
+    clock = 600000;
+    showCb!(); // onShow：基线对齐到 600000，排除后台间隔
+    frame(600016); // 回前台第一帧：delta 应为 16ms，而非 599996ms
+
+    const jankCrumbs = mockAddBreadcrumb.mock.calls.filter(
+      (c: any) => c[0] && c[0].category === 'minigame.jank',
+    );
+    expect(jankCrumbs.length).toBe(0); // 后台间隔不得被误判为卡顿
+  });
+
   it('cleanup 后停止采样循环', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
     integration.setupOnce();
