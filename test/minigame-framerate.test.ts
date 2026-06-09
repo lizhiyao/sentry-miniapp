@@ -9,9 +9,11 @@ const mockStartInactiveSpan = jest.fn((..._args: any[]) => ({
   end: mockSpanEnd,
 }));
 const mockSetMeasurement = jest.fn((..._args: any[]) => {});
+const mockFlush = jest.fn((_timeout?: number) => Promise.resolve(true));
 
 jest.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
+  flush: mockFlush,
   setContext: mockSetContext,
   startInactiveSpan: mockStartInactiveSpan,
   setMeasurement: mockSetMeasurement,
@@ -151,6 +153,29 @@ describe('MinigameFrameRateIntegration', () => {
     const measured = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
     expect(measured).toEqual(expect.arrayContaining(['fps_avg', 'fps_p95', 'fps_min', 'jank_count']));
     expect(mockSpanEnd).toHaveBeenCalled();
+    expect(mockFlush).toHaveBeenCalledWith(2000);
+  });
+
+  it('onHide 会先并入未满窗口，再发会话汇总 transaction', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
+    integration.setupOnce();
+
+    // 约 60fps 的短会话，尚未跨过 reportInterval。
+    for (let t = 16; t <= 496; t += 16) {
+      frame(t);
+    }
+    clock = 500;
+    hideCb!();
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledTimes(1);
+    expect(mockSpanSetAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'frames.total': 31,
+        'fps.avg': 62,
+      }),
+    );
+    expect(mockSetMeasurement).toHaveBeenCalledWith('fps_avg', 62, 'none', expect.anything());
+    expect(mockFlush).toHaveBeenCalledWith(2000);
   });
 
   it('会话无帧时 onHide 不发汇总 transaction', () => {
@@ -159,6 +184,7 @@ describe('MinigameFrameRateIntegration', () => {
     // 未跨窗口、无帧累积进会话
     hideCb!();
     expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    expect(mockFlush).not.toHaveBeenCalled();
   });
 
   it('onShow 重置会话累积（重置后无帧则 onHide 不发汇总）', () => {
@@ -190,6 +216,26 @@ describe('MinigameFrameRateIntegration', () => {
       (c: any) => c[0] && c[0].category === 'minigame.jank',
     );
     expect(jankCrumbs.length).toBe(0); // 后台间隔不得被误判为卡顿
+  });
+
+  it('异常超大 frame delta 会被钳制，避免 worstFrame 被极端值污染', () => {
+    const integration = new MinigameFrameRateIntegration({
+      longFrameThresholdMs: 50,
+      reportInterval: 1000,
+    });
+    integration.setupOnce();
+
+    frame(16);
+    frame(120000);
+
+    const jankCrumb = mockAddBreadcrumb.mock.calls.find(
+      (c: any) => c[0] && c[0].category === 'minigame.jank',
+    );
+    expect((jankCrumb?.[0] as any)?.data).toEqual({ frameDurationMs: 5000 });
+    expect(mockSetContext).toHaveBeenCalledWith(
+      'minigame.framerate',
+      expect.objectContaining({ worstFrameMs: 5000 }),
+    );
   });
 
   it('cleanup 后停止采样循环', () => {

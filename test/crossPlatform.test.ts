@@ -346,6 +346,48 @@ describe('CrossPlatform', () => {
     });
   });
 
+  describe('now', () => {
+    it('微信 getPerformance().now() 返回微秒时归一为毫秒', async () => {
+      let rawNow = 1_000_000;
+      (global as any).wx = {
+        request: jest.fn(),
+        getPerformance: jest.fn(() => ({
+          now: jest.fn(() => rawNow),
+        })),
+      };
+
+      const { now } = await import('../src/crossPlatform');
+      expect(now()).toBe(1000);
+
+      rawNow = 1_150_000;
+      expect(now()).toBe(1150);
+    });
+
+    it('非微信平台 getPerformance().now() 按毫秒透传', async () => {
+      (global as any).tt = {
+        request: jest.fn(),
+        getPerformance: jest.fn(() => ({
+          now: jest.fn(() => 1150.5),
+        })),
+      };
+
+      const { now } = await import('../src/crossPlatform');
+      expect(now()).toBe(1150.5);
+    });
+
+    it('getPerformance().now() 不可用时回退 Date.now()', async () => {
+      (global as any).wx = {
+        request: jest.fn(),
+        getPerformance: jest.fn(() => ({
+          now: jest.fn(() => Number.NaN),
+        })),
+      };
+
+      const { now } = await import('../src/crossPlatform');
+      expect(now()).toBe(1640995200000);
+    });
+  });
+
   describe('appName', () => {
     it('should return "wechat" for wx', async () => {
       (global as any).wx = { request: jest.fn() };
