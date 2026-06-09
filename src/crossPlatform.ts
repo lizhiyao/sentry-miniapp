@@ -451,8 +451,9 @@ export const getPerformanceManager = (): PerformanceManager | null => {
 };
 
 /**
- * 取当前时间戳，优先使用平台 Performance.now()（单调时钟，不受系统时间回拨影响），
- * 回退 Date.now()。供小游戏冷启动 / 帧率监控等需要高精度计时的场景复用。
+ * 单调时钟：优先平台 Performance.now()（高精度、不受系统时间回拨影响），回退 Date.now()。
+ * 用于**测量时长 / 间隔**（帧间隔、冷启动 delta 等）。注意其返回值通常是「相对起点」的
+ * 相对时间，**不是 Unix epoch**，不可直接作为 Sentry span 的绝对时间戳——那种场景用 epochNow()。
  */
 export const now = (): number => {
   try {
@@ -465,5 +466,11 @@ export const now = (): number => {
   }
   return Date.now();
 };
+
+/**
+ * 墙钟时间戳（Unix epoch 毫秒）。用于需要**绝对时间点**的场景，如 Sentry span 的
+ * startTime / endTimestamp。与 now()（单调相对时钟）刻意区分，避免把相对时间误当 epoch。
+ */
+export const epochNow = (): number => Date.now();
 
 export { getSDK, getSystemInfo, isMiniappEnvironment };

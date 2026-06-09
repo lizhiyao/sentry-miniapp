@@ -1,6 +1,6 @@
 import { addBreadcrumb, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
-import { sdk, now } from '../crossPlatform';
+import { sdk, now, epochNow } from '../crossPlatform';
 import type { MinigameFrameRateOptions } from '../types';
 
 /** 取已排序样本的 P95（样本为空时回退到 fallback）。 */
@@ -40,7 +40,7 @@ export class MinigameFrameRateIntegration implements Integration {
   private _maxFrameDelta: number = 0;
 
   // 会话级累积（用于退后台 onHide 时发一个汇总 transaction）
-  // _sessionStart 单调时钟（测时长）；_sessionEpochStart 用 Date.now() 作 span 绝对时间锚点。
+  // _sessionStart 单调时钟（测时长）；_sessionEpochStart 用 epochNow()（墙钟）作 span 绝对时间锚点。
   private static readonly _MAX_FPS_SAMPLES = 2000;
   private _sessionStart: number = 0;
   private _sessionEpochStart: number = 0;
@@ -74,7 +74,7 @@ export class MinigameFrameRateIntegration implements Integration {
     this._windowStart = startTs;
     this._lastFrameTs = startTs;
     this._sessionStart = startTs;
-    this._sessionEpochStart = Date.now();
+    this._sessionEpochStart = epochNow();
 
     const loop = (): void => {
       if (!this._running) return;
@@ -163,7 +163,7 @@ export class MinigameFrameRateIntegration implements Integration {
   /** 重置会话累积（回前台开启新会话）。 */
   private _resetSession(): void {
     this._sessionStart = now();
-    this._sessionEpochStart = Date.now();
+    this._sessionEpochStart = epochNow();
     this._sessionFrames = 0;
     this._sessionJank = 0;
     this._sessionWorstFrame = 0;

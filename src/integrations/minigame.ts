@@ -1,6 +1,6 @@
 import { addBreadcrumb, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
-import { sdk, now } from '../crossPlatform';
+import { sdk, now, epochNow } from '../crossPlatform';
 
 /**
  * Minigame Integration
@@ -17,9 +17,9 @@ export class MinigameIntegration implements Integration {
   public name: string = MinigameIntegration.id;
 
   // _initTs 用单调时钟（now()，可能来自 getPerformance）测量耗时；
-  // _initEpoch 用 Date.now() 提供 span 的绝对时间锚点（单调时钟非 epoch，不能直接当 span 时间戳）。
+  // _initEpoch 用墙钟（epochNow()）提供 span 的绝对时间锚点（单调时钟非 epoch，不能直接当 span 时间戳）。
   private _initTs: number = now();
-  private _initEpoch: number = Date.now();
+  private _initEpoch: number = epochNow();
   private _showHandler: ((res: any) => void) | null = null;
   private _hideHandler: (() => void) | null = null;
   private _coldStartReported: boolean = false;
