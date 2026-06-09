@@ -1,6 +1,19 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.11.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.10.0...v1.11.0) (2026-06-09)
+
+
+### ✨ Features | 新功能
+
+* **integrations:** 小游戏性能数据独立上报为 transaction ([#163](https://github.com/lizhiyao/sentry-miniapp/issues/163)) ([a0b732a](https://github.com/lizhiyao/sentry-miniapp/commit/a0b732a2a0abb952b513d41b86fc5d9c6a7fa90a)), closes [#161](https://github.com/lizhiyao/sentry-miniapp/issues/161)
+* **integrations:** 小程序 API 请求上报为 http.client span ([073763b](https://github.com/lizhiyao/sentry-miniapp/commit/073763b827d689411b3e817ddd325d7ed3330dc0)), closes [#164](https://github.com/lizhiyao/sentry-miniapp/issues/164)
+
+
+### 🎫 Chores | 其他更新
+
+* **examples:** 撤出 uni-app 示例 lockfile，止住无关 Dependabot 告警 ([#160](https://github.com/lizhiyao/sentry-miniapp/issues/160)) ([8f6d22d](https://github.com/lizhiyao/sentry-miniapp/commit/8f6d22ded02d2f954942de2ab66c8035e9f5ba48))
+
 ## [1.10.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.9.0...v1.10.0) (2026-06-08)
 
 
