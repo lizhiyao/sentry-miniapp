@@ -171,10 +171,10 @@ describe('MinigameFrameRateIntegration', () => {
     expect(mockSpanSetAttributes).toHaveBeenCalledWith(
       expect.objectContaining({
         'frames.total': 31,
-        'fps.avg': 62,
+        'fps.avg': 63,
       }),
     );
-    expect(mockSetMeasurement).toHaveBeenCalledWith('fps_avg', 62, 'none', expect.anything());
+    expect(mockSetMeasurement).toHaveBeenCalledWith('fps_avg', 63, 'none', expect.anything());
     expect(mockFlush).toHaveBeenCalledWith(2000);
   });
 
@@ -218,7 +218,7 @@ describe('MinigameFrameRateIntegration', () => {
     expect(jankCrumbs.length).toBe(0); // 后台间隔不得被误判为卡顿
   });
 
-  it('异常超大 frame delta 会被钳制，避免 worstFrame 被极端值污染', () => {
+  it('异常超大 frame delta 视为采样断点，不污染 FPS 与 summary duration', () => {
     const integration = new MinigameFrameRateIntegration({
       longFrameThresholdMs: 50,
       reportInterval: 1000,
@@ -226,16 +226,24 @@ describe('MinigameFrameRateIntegration', () => {
     integration.setupOnce();
 
     frame(16);
-    frame(120000);
+    frame(32);
+    frame(120000); // 超过 sanity 上限：应并入断点前窗口并重置，不按一帧 119968ms 统计
+    frame(120016);
+    clock = 120032;
+    hideCb!();
 
-    const jankCrumb = mockAddBreadcrumb.mock.calls.find(
+    const jankCrumbs = mockAddBreadcrumb.mock.calls.filter(
       (c: any) => c[0] && c[0].category === 'minigame.jank',
     );
-    expect((jankCrumb?.[0] as any)?.data).toEqual({ frameDurationMs: 5000 });
-    expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame.framerate',
-      expect.objectContaining({ worstFrameMs: 5000 }),
+    expect(jankCrumbs.length).toBe(0);
+    expect(mockSpanSetAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'frames.total': 3,
+        'fps.avg': 63,
+        'frame.worst_ms': 16,
+      }),
     );
+    expect(mockSpanEnd).toHaveBeenCalledWith((1640995200000 + 48) / 1000);
   });
 
   it('cleanup 后停止采样循环', () => {

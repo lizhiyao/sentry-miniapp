@@ -40,7 +40,7 @@ export class MinigameFrameRateIntegration implements Integration {
 
   private _options: Required<MinigameFrameRateOptions>;
   private _running: boolean = false;
-  private _windowStart: number = 0;
+  private _windowElapsed: number = 0;
   private _lastFrameTs: number = 0;
   private _frameCount: number = 0;
   private _jankCount: number = 0;
@@ -48,12 +48,12 @@ export class MinigameFrameRateIntegration implements Integration {
   private _maxFrameDelta: number = 0;
 
   // 会话级累积（用于退后台 onHide 时发一个汇总 transaction）
-  // _sessionStart 单调时钟（测时长）；_sessionEpochStart 用 epochNow()（墙钟）作 span 绝对时间锚点。
+  // _sessionEpochStart 用 epochNow()（墙钟）作 span 绝对时间锚点；时长用有效帧 delta 累积。
   private static readonly _MAX_FPS_SAMPLES = 2000;
   private static readonly _MAX_REASONABLE_FRAME_DELTA_MS = 5000;
   private static readonly _HIDE_FLUSH_TIMEOUT_MS = 2000;
-  private _sessionStart: number = 0;
   private _sessionEpochStart: number = 0;
+  private _sessionElapsed: number = 0;
   private _sessionFrames: number = 0;
   private _sessionJank: number = 0;
   private _sessionWorstFrame: number = 0;
@@ -81,15 +81,13 @@ export class MinigameFrameRateIntegration implements Integration {
 
     this._running = true;
     const startTs = now();
-    this._windowStart = startTs;
     this._lastFrameTs = startTs;
-    this._sessionStart = startTs;
     this._sessionEpochStart = epochNow();
 
     const loop = (): void => {
       if (!this._running) return;
       const t = now();
-      this._onFrame(t - this._lastFrameTs, t);
+      this._onFrame(t - this._lastFrameTs);
       this._lastFrameTs = t;
       raf(loop);
     };
@@ -111,15 +109,27 @@ export class MinigameFrameRateIntegration implements Integration {
     }
   }
 
-  private _onFrame(delta: number, t: number): void {
+  private _onFrame(delta: number): void {
     const frameDelta = this._sanitizeFrameDelta(delta);
-    this._frameCount += 1;
+    if (frameDelta === null) {
+      if (
+        !Number.isFinite(delta) ||
+        delta > MinigameFrameRateIntegration._MAX_REASONABLE_FRAME_DELTA_MS
+      ) {
+        // 超大 delta 通常来自后台暂停 / 调试器停顿，作为采样断点处理，避免污染 FPS 与 duration。
+        this._rollupWindow();
+      }
+      return;
+    }
 
-    if (frameDelta !== null && frameDelta > this._maxFrameDelta) {
+    this._frameCount += 1;
+    this._windowElapsed += frameDelta;
+
+    if (frameDelta > this._maxFrameDelta) {
       this._maxFrameDelta = frameDelta;
     }
 
-    if (frameDelta !== null && frameDelta > this._options.longFrameThresholdMs) {
+    if (frameDelta > this._options.longFrameThresholdMs) {
       this._jankCount += 1;
       // 面包屑按窗口限频，避免持续掉帧刷屏；超出阈值仅计数（jankCount 仍如实统计）。
       if (this._jankBreadcrumbs < this._options.maxJankBreadcrumbsPerWindow) {
@@ -133,18 +143,19 @@ export class MinigameFrameRateIntegration implements Integration {
       }
     }
 
-    if (t - this._windowStart >= this._options.reportInterval) {
-      this._report(t);
+    if (this._windowElapsed >= this._options.reportInterval) {
+      this._report();
     }
   }
 
   private _sanitizeFrameDelta(delta: number): number | null {
     if (!Number.isFinite(delta) || delta <= 0) return null;
-    return Math.min(delta, MinigameFrameRateIntegration._MAX_REASONABLE_FRAME_DELTA_MS);
+    if (delta > MinigameFrameRateIntegration._MAX_REASONABLE_FRAME_DELTA_MS) return null;
+    return delta;
   }
 
-  private _report(t: number): void {
-    const stats = this._rollupWindow(t);
+  private _report(): void {
+    const stats = this._rollupWindow();
     if (!stats) return;
 
     setContext('minigame.framerate', {
@@ -162,10 +173,10 @@ export class MinigameFrameRateIntegration implements Integration {
     });
   }
 
-  private _rollupWindow(t: number): FrameRateWindowStats | null {
-    const elapsed = t - this._windowStart;
+  private _rollupWindow(): FrameRateWindowStats | null {
+    const elapsed = this._windowElapsed;
     if (this._frameCount === 0 || elapsed <= 0) {
-      this._resetWindow(t);
+      this._resetWindow();
       return null;
     }
 
@@ -184,19 +195,20 @@ export class MinigameFrameRateIntegration implements Integration {
     if (this._fpsSamples.length > MinigameFrameRateIntegration._MAX_FPS_SAMPLES) {
       this._fpsSamples.shift();
     }
+    this._sessionElapsed += elapsed;
     this._sessionFrames += this._frameCount;
     this._sessionJank += this._jankCount;
     if (this._maxFrameDelta > this._sessionWorstFrame) {
       this._sessionWorstFrame = this._maxFrameDelta;
     }
 
-    this._resetWindow(t);
+    this._resetWindow();
 
     return stats;
   }
 
-  private _resetWindow(t: number): void {
-    this._windowStart = t;
+  private _resetWindow(): void {
+    this._windowElapsed = 0;
     this._frameCount = 0;
     this._jankCount = 0;
     this._jankBreadcrumbs = 0;
@@ -205,8 +217,8 @@ export class MinigameFrameRateIntegration implements Integration {
 
   /** 重置会话累积（回前台开启新会话）。 */
   private _resetSession(): void {
-    this._sessionStart = now();
     this._sessionEpochStart = epochNow();
+    this._sessionElapsed = 0;
     this._sessionFrames = 0;
     this._sessionJank = 0;
     this._sessionWorstFrame = 0;
@@ -222,7 +234,7 @@ export class MinigameFrameRateIntegration implements Integration {
     this._resetSession();
     const t = now();
     this._lastFrameTs = t;
-    this._resetWindow(t);
+    this._resetWindow();
   }
 
   /**
@@ -230,11 +242,10 @@ export class MinigameFrameRateIntegration implements Integration {
    * 仅在 tracing 启用时真正上报；会话无帧则跳过。发完重置会话累积。
    */
   private _flushSummary(): boolean {
-    const end = now();
-    this._rollupWindow(end);
+    this._rollupWindow();
     if (this._sessionFrames === 0) return false;
 
-    const elapsed = end - this._sessionStart;
+    const elapsed = this._sessionElapsed;
     const avgFps = elapsed > 0 ? Math.round((this._sessionFrames / elapsed) * 1000) : 0;
     const minFps =
       this._sessionWorstFrame > 0 ? Math.round(1000 / this._sessionWorstFrame) : avgFps;
