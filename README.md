@@ -347,6 +347,22 @@ Sentry.init({
 
 > 上述两个集成仅在小游戏环境默认启用。其中**帧率监控依赖全局 `requestAnimationFrame`**：小游戏有（绑定真实渲染帧），而小程序为双线程架构、逻辑层没有全局 `requestAnimationFrame`，因此在小程序中即使开启也会安全 no-op（无法测量页面渲染帧率）。
 
+#### 性能数据独立上报（进 Performance 页）
+
+冷启动与帧率数据**不只挂在 error 事件上**——开启 tracing 后会作为独立 transaction 上报，可在 Sentry Performance 页做跨会话的趋势 / 分布 / P95 聚合：
+
+- **冷启动** → `minigame.coldstart` transaction（含 `cold_start` measurement）。
+- **帧率 / 卡顿** → 会话维度累积，在**退后台（onHide）/ 会话结束**时发一个 `minigame.framerate.summary` transaction（含 `fps_avg` / `fps_p95` / `fps_min` / `jank_count` measurements）——不每窗口发事件，配额友好。
+
+```js
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  tracesSampleRate: 1.0, // 启用性能采样（与 error sampleRate 解耦）
+});
+```
+
+> 需设置 `tracesSampleRate`（或 `tracesSampler`）才会上报性能 transaction；其采样**独立于** error 的 `sampleRate`。未启用 tracing 时退化为原有行为：性能数据仅作为 `minigame` / `minigame.framerate` 上下文 + 面包屑挂在 error 事件上。
+
 ---
 
 ## ❓ 常见问题 (FAQ)

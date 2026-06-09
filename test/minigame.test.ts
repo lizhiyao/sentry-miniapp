@@ -2,10 +2,19 @@ import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals
 
 const mockAddBreadcrumb = jest.fn();
 const mockSetContext = jest.fn();
+const mockSpanEnd = jest.fn((..._args: any[]) => {});
+const mockSpanSetAttributes = jest.fn((..._args: any[]) => {});
+const mockStartInactiveSpan = jest.fn((..._args: any[]) => ({
+  setAttributes: mockSpanSetAttributes,
+  end: mockSpanEnd,
+}));
+const mockSetMeasurement = jest.fn((..._args: any[]) => {});
 
 jest.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
   setContext: mockSetContext,
+  startInactiveSpan: mockStartInactiveSpan,
+  setMeasurement: mockSetMeasurement,
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
@@ -92,6 +101,24 @@ describe('MinigameIntegration', () => {
       'minigame',
       expect.objectContaining({ scene: 1001, path: 'game.js', coldStartMs: 150 }),
     );
+  });
+
+  it('首帧发独立冷启动 transaction（forceTransaction + cold_start measurement）', () => {
+    const integration = new MinigameIntegration(); // 构造 now()=1000
+    integration.setupOnce();
+    clock = 1150; // 首帧
+    rafCallback!();
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'minigame.coldstart',
+        op: 'app.start',
+        forceTransaction: true,
+        startTime: 1, // 1000ms / 1000
+      }),
+    );
+    expect(mockSetMeasurement).toHaveBeenCalledWith('cold_start', 150, 'millisecond', expect.anything());
+    expect(mockSpanEnd).toHaveBeenCalledWith(1.15); // 1150ms / 1000
   });
 
   it('首帧只上报一次冷启动', () => {

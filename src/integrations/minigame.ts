@@ -1,4 +1,4 @@
-import { addBreadcrumb, setContext } from '@sentry/core';
+import { addBreadcrumb, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now } from '../crossPlatform';
 
@@ -89,7 +89,8 @@ export class MinigameIntegration implements Integration {
     raf(() => {
       if (this._coldStartReported) return;
       this._coldStartReported = true;
-      const coldStartMs = Math.round(now() - this._initTs);
+      const firstFrameTs = now();
+      const coldStartMs = Math.round(firstFrameTs - this._initTs);
       this._minigameContext.coldStartMs = coldStartMs;
       setContext('minigame', { ...this._minigameContext });
       addBreadcrumb({
@@ -98,6 +99,22 @@ export class MinigameIntegration implements Integration {
         level: 'info',
         data: { coldStartMs },
       });
+
+      // 独立性能事件：把「SDK 初始化 → 首帧」包成 transaction，进 Performance 页。
+      // 仅在 tracing 启用（tracesSampleRate/tracesSampler）时真正上报；否则为非记录 span、不发送。
+      const span = startInactiveSpan({
+        name: 'minigame.coldstart',
+        op: 'app.start',
+        forceTransaction: true,
+        startTime: this._initTs / 1000,
+      });
+      span.setAttributes({
+        'minigame.scene': this._minigameContext.scene as any,
+        'minigame.path': this._minigameContext.path as any,
+        'minigame.cold_start_ms': coldStartMs,
+      });
+      setMeasurement('cold_start', coldStartMs, 'millisecond', span);
+      span.end(firstFrameTs / 1000);
     });
   }
 

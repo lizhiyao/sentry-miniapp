@@ -1,7 +1,14 @@
-import { addBreadcrumb, setContext } from '@sentry/core';
+import { addBreadcrumb, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
-import { now } from '../crossPlatform';
+import { sdk, now } from '../crossPlatform';
 import type { MinigameFrameRateOptions } from '../types';
+
+/** 取已排序样本的 P95（样本为空时回退到 fallback）。 */
+function percentile95(samples: number[], fallback: number): number {
+  if (samples.length === 0) return fallback;
+  const sorted = [...samples].sort((a, b) => a - b);
+  return sorted[Math.floor(0.95 * (sorted.length - 1))] ?? fallback;
+}
 
 /**
  * Minigame FrameRate Integration
@@ -10,6 +17,11 @@ import type { MinigameFrameRateOptions } from '../types';
  * requestAnimationFrame 估算帧率：单帧间隔超过 longFrameThresholdMs 记一次 jank
  * （面包屑按窗口限频，避免持续掉帧刷屏）；每 reportInterval 周期性上报窗口内
  * FPS / 最低瞬时 FPS / 最差帧耗时 / jank 次数到 `minigame.framerate` 上下文。
+ *
+ * 此外，会话维度累积帧率/卡顿，在退后台（onHide）或集成关闭时发一个汇总
+ * transaction（`minigame.framerate.summary`，含 fps_avg / fps_p95 / fps_min /
+ * jank_count measurements），独立于 error 事件、进 Sentry Performance 页，由
+ * tracesSampleRate 控制——不每窗口发事件，配额友好。
  *
  * 仅适用于小游戏：小游戏有绑定真实渲染帧的全局 requestAnimationFrame；小程序为
  * 双线程架构、逻辑层无全局 requestAnimationFrame，缺失时安全降级（不工作）。
@@ -26,6 +38,16 @@ export class MinigameFrameRateIntegration implements Integration {
   private _jankCount: number = 0;
   private _jankBreadcrumbs: number = 0;
   private _maxFrameDelta: number = 0;
+
+  // 会话级累积（用于退后台 onHide 时发一个汇总 transaction）
+  private static readonly _MAX_FPS_SAMPLES = 2000;
+  private _sessionStart: number = 0;
+  private _sessionFrames: number = 0;
+  private _sessionJank: number = 0;
+  private _sessionWorstFrame: number = 0;
+  private _fpsSamples: number[] = [];
+  private _showHandler: ((res: any) => void) | null = null;
+  private _hideHandler: (() => void) | null = null;
 
   constructor(options: MinigameFrameRateOptions = {}) {
     this._options = {
@@ -49,6 +71,7 @@ export class MinigameFrameRateIntegration implements Integration {
     const startTs = now();
     this._windowStart = startTs;
     this._lastFrameTs = startTs;
+    this._sessionStart = startTs;
 
     const loop = (): void => {
       if (!this._running) return;
@@ -58,6 +81,17 @@ export class MinigameFrameRateIntegration implements Integration {
       raf(loop);
     };
     raf(loop);
+
+    // 退后台 / 回前台：onHide 发会话汇总 transaction，onShow 开启新会话。
+    const miniappSdk = sdk();
+    if (miniappSdk && typeof miniappSdk.onHide === 'function') {
+      this._hideHandler = () => this._flushSummary();
+      miniappSdk.onHide(this._hideHandler);
+    }
+    if (miniappSdk && typeof miniappSdk.onShow === 'function') {
+      this._showHandler = () => this._resetSession();
+      miniappSdk.onShow(this._showHandler);
+    }
   }
 
   private _onFrame(delta: number, t: number): void {
@@ -104,6 +138,17 @@ export class MinigameFrameRateIntegration implements Integration {
       data: { fps, minFps, worstFrameMs, jankCount, frames: this._frameCount },
     });
 
+    // 并入会话累积（用于 onHide 汇总 transaction）
+    this._fpsSamples.push(fps);
+    if (this._fpsSamples.length > MinigameFrameRateIntegration._MAX_FPS_SAMPLES) {
+      this._fpsSamples.shift();
+    }
+    this._sessionFrames += this._frameCount;
+    this._sessionJank += jankCount;
+    if (this._maxFrameDelta > this._sessionWorstFrame) {
+      this._sessionWorstFrame = this._maxFrameDelta;
+    }
+
     // 重置窗口
     this._windowStart = t;
     this._frameCount = 0;
@@ -112,8 +157,74 @@ export class MinigameFrameRateIntegration implements Integration {
     this._maxFrameDelta = 0;
   }
 
+  /** 重置会话累积（回前台开启新会话）。 */
+  private _resetSession(): void {
+    this._sessionStart = now();
+    this._sessionFrames = 0;
+    this._sessionJank = 0;
+    this._sessionWorstFrame = 0;
+    this._fpsSamples = [];
+  }
+
+  /**
+   * 发一个会话汇总 transaction（独立于 error 上报，进 Performance 页）。
+   * 仅在 tracing 启用时真正上报；会话无帧则跳过。发完重置会话累积。
+   */
+  private _flushSummary(): void {
+    if (this._sessionFrames === 0) return;
+
+    const end = now();
+    const elapsed = end - this._sessionStart;
+    const avgFps = elapsed > 0 ? Math.round((this._sessionFrames / elapsed) * 1000) : 0;
+    const minFps =
+      this._sessionWorstFrame > 0 ? Math.round(1000 / this._sessionWorstFrame) : avgFps;
+    const p95Fps = percentile95(this._fpsSamples, avgFps);
+    const worstFrameMs = Math.round(this._sessionWorstFrame);
+    const jankCount = this._sessionJank;
+    const frames = this._sessionFrames;
+
+    const span = startInactiveSpan({
+      name: 'minigame.framerate.summary',
+      op: 'ui.framerate',
+      forceTransaction: true,
+      startTime: this._sessionStart / 1000,
+    });
+    span.setAttributes({
+      'fps.avg': avgFps,
+      'fps.p95': p95Fps,
+      'fps.min': minFps,
+      'frames.total': frames,
+      'jank.count': jankCount,
+      'frame.worst_ms': worstFrameMs,
+    });
+    setMeasurement('fps_avg', avgFps, 'none', span);
+    setMeasurement('fps_p95', p95Fps, 'none', span);
+    setMeasurement('fps_min', minFps, 'none', span);
+    setMeasurement('jank_count', jankCount, 'none', span);
+    span.end(end / 1000);
+
+    this._resetSession();
+  }
+
   public cleanup(): void {
     this._running = false;
+    // 会话结束兜底：再发一次汇总
+    this._flushSummary();
+    const miniappSdk = sdk();
+    if (miniappSdk) {
+      try {
+        if (this._hideHandler && typeof miniappSdk.offHide === 'function') {
+          miniappSdk.offHide(this._hideHandler);
+        }
+        if (this._showHandler && typeof miniappSdk.offShow === 'function') {
+          miniappSdk.offShow(this._showHandler);
+        }
+      } catch (_e) {
+        // ignore
+      }
+    }
+    this._hideHandler = null;
+    this._showHandler = null;
   }
 }
 

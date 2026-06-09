@@ -334,6 +334,22 @@ Sentry.init({
 
 > These two integrations are enabled by default only in mini-game environments. In particular, **frame-rate monitoring relies on a global `requestAnimationFrame`**: mini games have one (bound to the real render loop), whereas mini programs use a dual-thread architecture whose logic layer has no global `requestAnimationFrame` — so even if enabled there, it safely no-ops (it cannot measure page render frame rate).
 
+#### Independent performance reporting (Performance page)
+
+Cold-start and frame-rate data are **not only attached to error events** — with tracing enabled they are reported as independent transactions, so you can aggregate trends / distributions / P95 across sessions on the Sentry Performance page:
+
+- **Cold start** → a `minigame.coldstart` transaction (with a `cold_start` measurement).
+- **Frame rate / jank** → accumulated per session and flushed as a single `minigame.framerate.summary` transaction on **background (onHide) / session end** (with `fps_avg` / `fps_p95` / `fps_min` / `jank_count` measurements) — no per-window events, quota-friendly.
+
+```js
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  tracesSampleRate: 1.0, // enable performance sampling (decoupled from error sampleRate)
+});
+```
+
+> Requires `tracesSampleRate` (or `tracesSampler`) for performance transactions to be sent; this sampling is **independent of** the error `sampleRate`. Without tracing enabled, it degrades to the original behavior: performance data is only attached to error events as `minigame` / `minigame.framerate` contexts + breadcrumbs.
+
 ---
 
 ## FAQ

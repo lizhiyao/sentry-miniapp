@@ -2,10 +2,19 @@ import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals
 
 const mockAddBreadcrumb = jest.fn();
 const mockSetContext = jest.fn();
+const mockSpanEnd = jest.fn((..._args: any[]) => {});
+const mockSpanSetAttributes = jest.fn((..._args: any[]) => {});
+const mockStartInactiveSpan = jest.fn((..._args: any[]) => ({
+  setAttributes: mockSpanSetAttributes,
+  end: mockSpanEnd,
+}));
+const mockSetMeasurement = jest.fn((..._args: any[]) => {});
 
 jest.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
   setContext: mockSetContext,
+  startInactiveSpan: mockStartInactiveSpan,
+  setMeasurement: mockSetMeasurement,
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
@@ -16,6 +25,8 @@ describe('MinigameFrameRateIntegration', () => {
   let rafCallback: (() => void) | null;
   let clock: number;
   let savedRaf: any;
+  let hideCb: (() => void) | null;
+  let showCb: (() => void) | null;
 
   function frame(t: number): void {
     clock = t;
@@ -29,6 +40,8 @@ describe('MinigameFrameRateIntegration', () => {
     jest.clearAllMocks();
     rafCallback = null;
     clock = 0;
+    hideCb = null;
+    showCb = null;
 
     savedRaf = g.requestAnimationFrame;
     g.requestAnimationFrame = jest.fn((cb: () => void) => {
@@ -37,6 +50,17 @@ describe('MinigameFrameRateIntegration', () => {
     });
 
     jest.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
+    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
+      request: jest.fn(),
+      onHide: jest.fn((cb: any) => {
+        hideCb = cb;
+      }),
+      onShow: jest.fn((cb: any) => {
+        showCb = cb;
+      }),
+      offHide: jest.fn(),
+      offShow: jest.fn(),
+    } as any);
   });
 
   afterEach(() => {
@@ -95,6 +119,53 @@ describe('MinigameFrameRateIntegration', () => {
       'minigame.framerate',
       expect.objectContaining({ jankCount: 4 }), // 实际 jank 全部计入
     );
+  });
+
+  it('onHide 发会话汇总 transaction（measurements），且不每窗口发事件', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
+    integration.setupOnce();
+
+    frame(20);
+    frame(40);
+    frame(1010); // 跨窗口 → _report 累积进会话
+
+    // 窗口上报阶段不应产生任何 transaction
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+
+    // 退后台 → 发一个汇总 transaction
+    expect(hideCb).not.toBeNull();
+    hideCb!();
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledTimes(1);
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'minigame.framerate.summary',
+        op: 'ui.framerate',
+        forceTransaction: true,
+        startTime: 0,
+      }),
+    );
+    const measured = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
+    expect(measured).toEqual(expect.arrayContaining(['fps_avg', 'fps_p95', 'fps_min', 'jank_count']));
+    expect(mockSpanEnd).toHaveBeenCalled();
+  });
+
+  it('会话无帧时 onHide 不发汇总 transaction', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
+    integration.setupOnce();
+    // 未跨窗口、无帧累积进会话
+    hideCb!();
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+  });
+
+  it('onShow 重置会话累积（重置后无帧则 onHide 不发汇总）', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
+    integration.setupOnce();
+    frame(20);
+    frame(1010); // 累积进会话
+    showCb!(); // 回前台 → 重置会话
+    hideCb!(); // 重置后无新帧
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
   });
 
   it('cleanup 后停止采样循环', () => {
