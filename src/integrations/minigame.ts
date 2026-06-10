@@ -16,8 +16,8 @@ export class MinigameIntegration implements Integration {
   public static id: string = 'Minigame';
   public name: string = MinigameIntegration.id;
 
-  // _initTs 用单调时钟（now()，可能来自 getPerformance）测量耗时；
-  // _initEpoch 用墙钟（epochNow()）提供 span 的绝对时间锚点（单调时钟非 epoch，不能直接当 span 时间戳）。
+  // _initTs 用时长时钟（now()）测量耗时；_initEpoch 用 epochNow() 表达 span 的绝对起点。
+  // 两者目前同为墙钟毫秒，但保留语义区分：前者只做差值，后者用于 Sentry 时间戳。
   private _initTs: number = now();
   private _initEpoch: number = epochNow();
   private _showHandler: ((res: any) => void) | null = null;
@@ -93,7 +93,9 @@ export class MinigameIntegration implements Integration {
       if (this._coldStartReported) return;
       this._coldStartReported = true;
       const firstFrameTs = now();
-      const coldStartMs = Math.round(firstFrameTs - this._initTs);
+      // 夹下限 0：时长时钟用 Date.now()（见 crossPlatform.now），万一启动头几百 ms 内系统时钟
+      // 向后跳（NTP 校正 / 用户改表），不至于报出负数冷启动。
+      const coldStartMs = Math.max(0, Math.round(firstFrameTs - this._initTs));
       this._minigameContext.coldStartMs = coldStartMs;
       setContext('minigame', { ...this._minigameContext });
       addBreadcrumb({
@@ -105,8 +107,8 @@ export class MinigameIntegration implements Integration {
 
       // 独立性能事件：把「SDK 初始化 → 首帧」包成 transaction，进 Performance 页。
       // 仅在 tracing 启用（tracesSampleRate/tracesSampler）时真正上报；否则为非记录 span、不发送。
-      // span 时间戳必须用墙钟 epoch（epochNow()），而非单调的 now()——后者会让 transaction 落到 1970。
-      // duration 用单调测得的 coldStartMs，叠加在 epoch 锚点上，保证绝对时间与时长都正确。
+      // span 时间戳使用 epoch 锚点；duration 用 now() 测得的 coldStartMs 叠加上去，
+      // 保证绝对时间与时长语义各自清晰。
       const span = startInactiveSpan({
         name: 'minigame.coldstart',
         op: 'app.start',

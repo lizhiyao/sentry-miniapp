@@ -346,45 +346,24 @@ describe('CrossPlatform', () => {
     });
   });
 
-  describe('now', () => {
-    it('微信 getPerformance().now() 返回微秒时归一为毫秒', async () => {
-      let rawNow = 1_000_000;
+  describe('now（时长时钟用 Date.now，避开 Performance.now 单位歧义，见 issue #167）', () => {
+    it('返回 Date.now()，完全不受 getPerformance().now() 单位影响', async () => {
+      // 真机 perf.now() 可能返回微秒（5_000_000）、开发者工具返回毫秒——一律忽略，避免 1000× 偏差。
       (global as any).wx = {
         request: jest.fn(),
-        getPerformance: jest.fn(() => ({
-          now: jest.fn(() => rawNow),
-        })),
+        getPerformance: jest.fn(() => ({ now: jest.fn(() => 5_000_000) })),
       };
 
       const { now } = await import('../src/crossPlatform');
-      expect(now()).toBe(1000);
-
-      rawNow = 1_150_000;
-      expect(now()).toBe(1150);
-    });
-
-    it('非微信平台 getPerformance().now() 按毫秒透传', async () => {
-      (global as any).tt = {
-        request: jest.fn(),
-        getPerformance: jest.fn(() => ({
-          now: jest.fn(() => 1150.5),
-        })),
-      };
-
-      const { now } = await import('../src/crossPlatform');
-      expect(now()).toBe(1150.5);
-    });
-
-    it('getPerformance().now() 不可用时回退 Date.now()', async () => {
-      (global as any).wx = {
-        request: jest.fn(),
-        getPerformance: jest.fn(() => ({
-          now: jest.fn(() => Number.NaN),
-        })),
-      };
-
-      const { now } = await import('../src/crossPlatform');
+      // = Date.now() 的固定 mock，而非 5_000_000（微秒）或 5000（误除 1000）
       expect(now()).toBe(1640995200000);
+    });
+
+    it('与 epochNow() 一致（均为墙钟 epoch 毫秒）', async () => {
+      (global as any).wx = { request: jest.fn() };
+
+      const { now, epochNow } = await import('../src/crossPlatform');
+      expect(now()).toBe(epochNow());
     });
   });
 
