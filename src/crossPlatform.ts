@@ -468,7 +468,7 @@ export const now = (): number => Date.now();
 
 /**
  * 墙钟时间戳（Unix epoch 毫秒）。用于需要**绝对时间点**的场景，如 Sentry span 的
- * startTime / endTimestamp。与 now()（单调相对时钟）刻意区分，避免把相对时间误当 epoch。
+ * startTime / endTimestamp。与 now() 刻意区分调用语义，避免把时长采样点直接当业务时间点使用。
  */
 export const epochNow = (): number => Date.now();
 
