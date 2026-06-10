@@ -1,6 +1,18 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.11.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.11.0...v1.11.1) (2026-06-10)
+
+
+### 🐛 Bug Fixes | 修复
+
+* **cross-platform:** 时长时钟改用 Date.now，修复小游戏帧率被放大千倍 ([#169](https://github.com/lizhiyao/sentry-miniapp/issues/169)) ([81dbed1](https://github.com/lizhiyao/sentry-miniapp/commit/81dbed125a23e6938b59ddd956a75a08df9ecf0a)), closes [#167](https://github.com/lizhiyao/sentry-miniapp/issues/167)
+
+
+### 📝 Documentation | 文档
+
+* **sourcemap:** 补充 Taro 微信真机 appservice.app.js 解析说明 ([#170](https://github.com/lizhiyao/sentry-miniapp/issues/170)) ([62311e5](https://github.com/lizhiyao/sentry-miniapp/commit/62311e545720c84d7ce99891e34c4bf7f884af17)), closes [#162](https://github.com/lizhiyao/sentry-miniapp/issues/162)
+
 ## [1.11.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.10.0...v1.11.0) (2026-06-09)
 
 
