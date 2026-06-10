@@ -68,5 +68,20 @@ Sentry.setUser({ id: 'uniapp-demo-user', username: 'uniapp_demo' });
 Sentry.setTag('app.framework', 'uni-app');
 Sentry.setTag('miniapp.platform', 'wechat');
 
+// ---- 如何验证上报是否打通（自测用，验证完可删）----
+//
+// ⚠️ addBreadcrumb（面包屑）不会单独上报！它只是被缓存，等「下一次事件」发生时随事件一起发送。
+// 只调用 addBreadcrumb 而不捕获事件，后台会一直没有数据——这不是 SDK 没生效。
+//
+// 要验证上报链路，必须主动捕获一个「事件」：
+//
+//   import Sentry from '@/utils/sentry';
+//   Sentry.captureException(new Error('sentry test'));   // error 级，最直观
+//   // 或 Sentry.captureMessage('sentry test', 'error'); // 注意别用默认的 info 级，可能被列表筛选挡掉
+//
+// 然后到 Sentry「Issues」列表查看（与「警报规则」无关，事件照样进列表）。
+// 自建 Sentry / 真机时还需：把 Sentry 域名加入微信「request 合法域名」白名单
+// （开发者工具可临时勾选「不校验合法域名」绕过），否则请求会被拦截、事件发不出去。
+
 export default Sentry;
 export { Sentry };
