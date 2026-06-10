@@ -441,6 +441,27 @@ Page({
 
 **路径归一化：** SDK 自动剥离 `appservice/`、`app-service/`、`WAService/` 前缀。
 
+#### ⚠️ Taro / 跨端框架：真机错误栈是 `appservice.app.js`，分页 Source Map 解不出
+
+如果你用 Taro / uni-app 等框架，且在**真机**上发现 Sentry 里堆栈的文件名是 `app:///appservice.app.js`（行列号动辄上万 / 几十万），而你上传的是构建产物里的**分页 Source Map**（如 `app:///pages/index/index.js.map`），那么**无论 `release`、`--url-prefix` 配置得多正确都解析不出来**。原因：
+
+- **真机跑的是合并后的单文件。** 微信运行时会把逻辑层所有 JS 合并成一个 `appservice.app.js`（部分版本叫 `app-service.js`）来执行，错误栈的行列号是**这个合并大文件**里的位置。
+- **这个文件你的构建根本不产、也没上传。** Taro `taro build --type weapp` 的产物是 `app.js` / `pages/*/index.js` / `vendors.js` 等分页文件，`appservice.app.js` 是微信侧合并出来的——Sentry 里没有这个 artifact，自然匹配不到。这不是行号偏移，而是**目标文件压根没传**。
+- **产物默认是压缩混淆的。** Taro 生产构建默认用 Terser 压缩（函数名变成 `l` / `ge` / `nn` 这种）。这与微信开发者工具里的「代码压缩」开关**无关**，关那个开关不会取消 Taro 自己的压缩。
+
+**怎么办**（两种，按需要的深度选）：
+
+1. **快速定位到「分页编译后 JS」**
+   - 从微信 **「We 分析 → 性能 / JS 报错 → 下载线上 Source Map」** 拿到 `appservice.app.js` 对应的 `.map`（注意：只有**体验版 / 线上版**有，`miniprogram-ci` 预览的开发版拿不到；版本要与线上一致）；
+   - 以 **`app:///appservice.app.js`** 的名字上传到 Sentry（`--url-prefix "app:///"` 不变）；
+   - 想让解析结果可读，再关闭 Taro 的 JS 压缩（参考 Taro 文档对应版本的压缩 / `terser` 配置）。
+   - 结果：能定位到**分页文件 + 行列**，但停在 Taro 编译后的 JS，**不是源码 TSX**。Sentry 一次只应用一层 Source Map，不会自动再串到 Taro 的分页 map。
+
+2. **一路解析到源码 TSX**
+   把「微信合并 map（`appservice.app.js` → 分页 JS）」与「Taro 分页 map（分页 JS → TSX）」**离线合成一份** `appservice.app.js` → TSX 的 map，再以 `app:///appservice.app.js` 上传。能到源码，但需自己写 Source Map 合成脚本（`source-map` 库），目前 WeChat / Sentry / Taro 都没有一键方案。
+
+> 这不是 SDK 的问题：`sentry-miniapp` 的堆栈解析与 `RewriteFrames` 已正确把 `appservice.app.js` 归一为 `app:///appservice.app.js`；能否解析取决于你上传的 map 是否对应这个**合并后的文件**。相关讨论见 [issue #162](https://github.com/lizhiyao/sentry-miniapp/issues/162)。
+
 ### 支付宝小程序
 
 **路径归一化：** SDK 自动剥离 `https://appx/` 等 HTTP 协议前缀。
