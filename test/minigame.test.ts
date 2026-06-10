@@ -90,6 +90,19 @@ describe('MinigameIntegration', () => {
     );
   });
 
+  it('启动阶段系统时钟回拨时，冷启动耗时夹为 0（不报负数）', () => {
+    const integration = new MinigameIntegration(); // 构造时 now()=1000
+    integration.setupOnce();
+
+    clock = 950; // 首帧前系统时钟回拨 → firstFrameTs < initTs
+    rafCallback!();
+
+    expect(mockSetContext).toHaveBeenCalledWith(
+      'minigame',
+      expect.objectContaining({ coldStartMs: 0 }),
+    );
+  });
+
   it('冷启动上报不覆盖启动场景上下文（setContext 合并）', () => {
     const integration = new MinigameIntegration();
     integration.setupOnce();

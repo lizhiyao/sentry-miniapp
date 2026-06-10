@@ -93,7 +93,9 @@ export class MinigameIntegration implements Integration {
       if (this._coldStartReported) return;
       this._coldStartReported = true;
       const firstFrameTs = now();
-      const coldStartMs = Math.round(firstFrameTs - this._initTs);
+      // 夹下限 0：时长时钟用 Date.now()（见 crossPlatform.now），万一启动头几百 ms 内系统时钟
+      // 向后跳（NTP 校正 / 用户改表），不至于报出负数冷启动。
+      const coldStartMs = Math.max(0, Math.round(firstFrameTs - this._initTs));
       this._minigameContext.coldStartMs = coldStartMs;
       setContext('minigame', { ...this._minigameContext });
       addBreadcrumb({
