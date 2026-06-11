@@ -457,8 +457,30 @@ Page({
    - 想让解析结果可读，再关闭 Taro 的 JS 压缩（参考 Taro 文档对应版本的压缩 / `terser` 配置）。
    - 结果：能定位到**分页文件 + 行列**，但停在 Taro 编译后的 JS，**不是源码 TSX**。Sentry 一次只应用一层 Source Map，不会自动再串到 Taro 的分页 map。
 
-2. **一路解析到源码 TSX**
-   把「微信合并 map（`appservice.app.js` → 分页 JS）」与「Taro 分页 map（分页 JS → TSX）」**离线合成一份** `appservice.app.js` → TSX 的 map，再以 `app:///appservice.app.js` 上传。能到源码，但需自己写 Source Map 合成脚本（`source-map` 库），目前 WeChat / Sentry / Taro 都没有一键方案。
+2. **一路解析到源码（`.vue` / `.tsx`）**
+   把「微信合并 map（`appservice.app.js` → 编译产物 JS）」与「框架构建 map（编译产物 JS → 源码）」**离线合成一份** `appservice.app.js` → 源码 的 map，再以 `app:///appservice.app.js` 上传。能到源码，但需要自己合成——WeChat / Sentry / uni-app / Taro 都没有一键方案。
+
+   仓库提供了一个 best-effort 合成脚本 [`scripts/merge-sourcemap.mjs`](../scripts/merge-sourcemap.mjs)，用 `source-map` 的 `applySourceMap` 把两份 map 串起来：
+
+   ```bash
+   # 1) 装依赖（只在合成时用，不是 SDK 运行时依赖）
+   npm i -D source-map
+
+   # 2) 准备两份 map：
+   #    - Map B（外层）：微信「We 分析 → 性能 / JS 报错 → 下载线上 Source Map」拿 appservice.app.js 的 .map
+   #    - Map A（内层）：框架构建里开 sourcemap（uni-app 对 mp-weixin 默认常关；
+   #      vite 设 build.sourcemap、webpack 设 devtool: 'source-map'），得到一批编译产物 JS 的 .map
+
+   # 3) 合成
+   node scripts/merge-sourcemap.mjs \
+     --wechat   ./wechat/appservice.app.js.map \
+     --build-maps ./dist/dev/mp-weixin \
+     --out      ./merged/appservice.app.js.map
+
+   # 4) 把 ./merged/appservice.app.js.map 以 app:///appservice.app.js 的名字上传 Sentry
+   ```
+
+   合并算法是稳的，**难点在两份 map 的文件名能否对齐**（`B.sources` 里的名字 ↔ 构建 map 描述的文件名）。不同框架 / 打包器 / 版本命名各异，对不齐时脚本会逐条列出 `B.sources`，照提示加 `--strip <前缀>`（如 `--strip webpack://`）或对齐产物文件名即可。合成后精度取「两份 map 的较小值」，定位到行没问题。这是 best-effort 起点，其它框架的匹配策略欢迎 PR。
 
 > 这不是 SDK 的问题：`sentry-miniapp` 的堆栈解析与 `RewriteFrames` 已正确把 `appservice.app.js` 归一为 `app:///appservice.app.js`；能否解析取决于你上传的 map 是否对应这个**合并后的文件**。相关讨论见 [issue #162](https://github.com/lizhiyao/sentry-miniapp/issues/162)。
 
