@@ -403,6 +403,36 @@ export default Sentry;
 
 Both sides report to the same Sentry DSN so all errors land in a single project. For Taro, use `process.env.TARO_ENV === 'h5'` to branch similarly.
 
+### 4. Are network requests included with error events?
+
+**Yes, and it's on by default.** The SDK enables `NetworkBreadcrumbs` out of the box, which patches `wx.request` / `my.httpRequest` and records each request as a `category: xhr` breadcrumb. Those breadcrumbs ride along with the **next captured error event** (same as `@sentry/browser`), so you'll see the request trail leading up to the error in the event's **Breadcrumbs** section.
+
+- **Fields by default:** `url` / `method` / `status_code` / `duration`; failed requests are `error` level, slow ones (>3s) are `warning`.
+- **Bodies are NOT included by default.** Enable `traceNetworkBody: true` to capture request/response bodies (with built-in sensitive-field scrubbing; use `denyBodyUrls` to exclude specific URLs):
+
+  ```js
+  Sentry.init({ dsn: '...', traceNetworkBody: true });
+  ```
+
+- **No extra config for uni-app / Taro:** `uni.request` / `Taro.request` ultimately call the patched global `wx.request`, so they're captured too.
+
+If an error has no network breadcrumb, it's usually one of:
+
+1. **No request happened before the error fired** (e.g. calling `captureException` right on page load). To verify, make a request first and trigger the error in its callback:
+
+   ```js
+   wx.request({
+     url: 'https://httpbin.org/get',
+     success() {
+       Sentry.captureException(new Error('net test'));
+     },
+   });
+   ```
+
+   You should then see a `category: xhr` breadcrumb on the event.
+
+2. **`Sentry.init` ran after the request.** The patch is installed during `init`, so requests fired before `init` aren't captured. Always call `Sentry.init` before `App()` / any business request.
+
 ---
 
 ## Documentation
