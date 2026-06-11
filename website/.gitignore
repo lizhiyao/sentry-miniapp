@@ -1,0 +1,9 @@
+# 站点本地依赖与构建产物，不进仓库
+node_modules/
+.vitepress/dist/
+.vitepress/cache/
+*.log
+
+# 锁文件不入库：避免传递依赖持续触发 Dependabot 告警（与 examples 一致）
+package-lock.json
+yarn.lock
