@@ -418,6 +418,36 @@ export default Sentry;
 
 两端上报同一个 Sentry DSN，可以在同一个 Project 里聚合查看错误。Taro 用户可以用类似的 `process.env.TARO_ENV === 'h5'` 判断分端引入。
 
+### 4. 网络请求会随错误事件一起上报吗？
+
+**会，且默认开启。** SDK 默认启用 `NetworkBreadcrumbs`，自动劫持 `wx.request` / `my.httpRequest`，把每个网络请求记成 `category: xhr` 的面包屑，随**下一个被捕获的错误事件**一起上报（与 `@sentry/browser` 默认行为一致）。在 Sentry 错误详情的 **Breadcrumbs** 区即可看到出错前的请求链路。
+
+- **默认带的字段**：`url` / `method` / `status_code` / `duration`；失败请求标 `error` 级、慢请求（>3s）标 `warning` 级。
+- **默认不带请求 / 响应体**。需要 body 时开启 `traceNetworkBody: true`（内置常见敏感字段脱敏，可用 `denyBodyUrls` 排除指定 URL）：
+
+  ```js
+  Sentry.init({ dsn: '...', traceNetworkBody: true });
+  ```
+
+- **uni-app / Taro 无需额外配置**：`uni.request` / `Taro.request` 最终都会走到被包裹的全局 `wx.request`，照常记录。
+
+如果错误里没有网络面包屑，多半是这两点之一：
+
+1. **错误触发前没发过请求**（比如一进页面就手动 `captureException`，自然没有请求面包屑）。验证方式：先发一个请求，在回调里再触发错误——
+
+   ```js
+   wx.request({
+     url: 'https://httpbin.org/get',
+     success() {
+       Sentry.captureException(new Error('net test'));
+     },
+   });
+   ```
+
+   到事件 Breadcrumbs 里应能看到 `category: xhr` 那条。
+
+2. **`Sentry.init` 晚于请求执行**：面包屑包裹在 `init` 时装上，`init` 之前发出的请求抓不到。务必让 `Sentry.init` 在 `App()` / 任何业务请求**之前**执行。
+
 ---
 
 ## 📖 文档导航
