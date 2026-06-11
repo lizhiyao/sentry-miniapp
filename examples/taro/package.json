@@ -50,6 +50,6 @@
     "sass": "^1.75.0",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "typescript": "^5.4.5",
-    "webpack": "5.91.0"
+    "webpack": "5.104.1"
   }
 }
