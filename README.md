@@ -448,6 +448,54 @@ export default Sentry;
 
 2. **`Sentry.init` 晚于请求执行**：面包屑包裹在 `init` 时装上，`init` 之前发出的请求抓不到。务必让 `Sentry.init` 在 `App()` / 任何业务请求**之前**执行。
 
+### 5. uni-app（Vue）组件内的错误没上报 / 上报率很低？
+
+如果你用 **uni-app**（底层是 Vue），可能遇到「`sampleRate` 设成 1，却只偶尔上报一条」的情况。原因：**Vue 会用自己的错误处理接住组件内（render / 生命周期 / watch / 模板 `@click` 调用的方法）抛出的错误，默认只打印 console，不会再冒泡到 `wx.onError`**，于是 SDK 捕获不到。能上来的只剩「逃逸出 Vue」的那部分（`setTimeout` 回调、未处理 promise、硬崩溃），所以看起来只偶尔上报。
+
+把 Vue 的 `errorHandler` 接到 Sentry，组件内错误就会上报：
+
+**uni-app Vue3（`main.js` / `main.ts`，现在默认）：**
+
+```js
+import Sentry from '@/utils/sentry'; // 你封装的 sentry-miniapp 初始化
+import { createSSRApp } from 'vue';
+import App from './App.vue';
+
+export function createApp() {
+  const app = createSSRApp(App);
+  app.config.errorHandler = (err, instance, info) => {
+    Sentry.captureException(err, { extra: { lifecycleHook: info } });
+    console.error(err);
+  };
+  return { app };
+}
+```
+
+**Vue2（uni-app 旧版）：**
+
+```js
+Vue.config.errorHandler = (err, vm, info) => {
+  Sentry.captureException(err);
+  console.error(err);
+};
+```
+
+> **Taro 不是 Vue。** Taro 默认用 **React**（也支持 Vue）。用 **Vue** 时同理接 `errorHandler`；用 **React** 时，React 不会像 Vue 那样静默吞掉组件错误（未捕获的渲染错误会向上抛），但你可以加一个**错误边界（Error Boundary）**把渲染错误更完整地转给 Sentry：
+>
+> ```jsx
+> class SentryBoundary extends React.Component {
+>   componentDidCatch(error, info) {
+>     Sentry.captureException(error, { extra: info });
+>   }
+>   render() {
+>     return this.props.children;
+>   }
+> }
+> // 用它包住根组件：<SentryBoundary><App /></SentryBoundary>
+> ```
+
+接上之后还顺带提升送达率——`errorHandler` / 错误边界接住后应用不崩，上报请求能正常发完（硬崩溃会把还在飞的上报请求一起带走）。
+
 ---
 
 ## 📖 文档导航

@@ -433,6 +433,54 @@ If an error has no network breadcrumb, it's usually one of:
 
 2. **`Sentry.init` ran after the request.** The patch is installed during `init`, so requests fired before `init` aren't captured. Always call `Sentry.init` before `App()` / any business request.
 
+### 5. Errors in uni-app (Vue) components aren't reported / reporting rate is very low?
+
+With **uni-app** (Vue under the hood) you may hit "`sampleRate` is 1 but only an occasional error shows up". The reason: **Vue catches errors thrown inside components (render / lifecycle / watchers / methods invoked from `@click`) with its own error handler — by default it only logs to console and does NOT bubble them to `wx.onError`**, so the SDK never sees them. Only errors that escape Vue (e.g. `setTimeout` callbacks, unhandled promises, hard crashes) get through, which is why reporting looks sporadic.
+
+Wire Vue's `errorHandler` to Sentry so component errors are reported:
+
+**uni-app Vue3 (`main.js` / `main.ts`, the current default):**
+
+```js
+import Sentry from '@/utils/sentry'; // your sentry-miniapp init wrapper
+import { createSSRApp } from 'vue';
+import App from './App.vue';
+
+export function createApp() {
+  const app = createSSRApp(App);
+  app.config.errorHandler = (err, instance, info) => {
+    Sentry.captureException(err, { extra: { lifecycleHook: info } });
+    console.error(err);
+  };
+  return { app };
+}
+```
+
+**Vue2 (older uni-app):**
+
+```js
+Vue.config.errorHandler = (err, vm, info) => {
+  Sentry.captureException(err);
+  console.error(err);
+};
+```
+
+> **Taro is not Vue.** Taro defaults to **React** (and also supports Vue). With **Vue**, wire `errorHandler` the same way; with **React**, React does not silently swallow component errors like Vue (an uncaught render error propagates upward), but you can add an **Error Boundary** to forward render errors to Sentry with richer context:
+>
+> ```jsx
+> class SentryBoundary extends React.Component {
+>   componentDidCatch(error, info) {
+>     Sentry.captureException(error, { extra: info });
+>   }
+>   render() {
+>     return this.props.children;
+>   }
+> }
+> // Wrap your root: <SentryBoundary><App /></SentryBoundary>
+> ```
+
+This also improves delivery: once `errorHandler` / the boundary catches the error the app keeps running, so the in-flight report request completes (a hard crash would otherwise kill it).
+
 ---
 
 ## Documentation
