@@ -1,15 +1,16 @@
 # sentry-miniapp 文档站
 
-基于 [VitePress](https://vitepress.dev/) 的 `sentry-miniapp` 文档站，与 SDK 仓库同源维护。
+基于 [VitePress](https://vitepress.dev/) 的 `sentry-miniapp` 文档站，与 SDK 同仓库、同 Yarn 4 项目维护——`vitepress` 与 `docs:*` 脚本都在**仓库根 `package.json`**，`website/` 只放内容与 `.vitepress/config`，无单独的 `package.json` / 锁文件。
 
 ## 本地开发
 
+在**仓库根目录**执行（用与 SDK 一致的 Yarn 4）：
+
 ```bash
-cd website
-npm install
-npm run docs:dev      # 本地预览 http://localhost:5173
-npm run docs:build    # 构建到 .vitepress/dist
-npm run docs:preview  # 预览构建产物
+yarn install         # 安装含 vitepress 在内的全部 devDependencies
+yarn docs:dev        # 本地预览 http://localhost:5173
+yarn docs:build      # 构建到 website/.vitepress/dist
+yarn docs:preview    # 预览构建产物
 ```
 
 ## 单一来源
@@ -18,14 +19,13 @@ npm run docs:preview  # 预览构建产物
 
 ## 部署（Cloudflare Pages）
 
-在 Cloudflare Pages 控制台「连接到 Git」，选择本仓库，按如下设置：
+在 Cloudflare Pages 控制台「连接到 Git」选择本仓库，按如下设置（构建跑在仓库根、用 Yarn 4，与 SDK 完全一致，无 subdir / 包管理器特例）：
 
 | 配置项 | 值 |
 |--------|----|
-| Root directory（根目录） | `website` |
-| Build command（构建命令） | `npm run docs:build` |
-| Build output directory（输出目录） | `.vitepress/dist` |
-| Node 版本 | 20（环境变量 `NODE_VERSION=20`，按需） |
+| Root directory（根目录） | `/`（留空即根） |
+| Build command（构建命令） | `yarn docs:build` |
+| Build output directory（输出目录） | `website/.vitepress/dist` |
 
 之后每次 push 到 `master` 自动构建发布，PR 自带预览地址。默认地址形如 `https://<项目名>.pages.dev`，可在 Cloudflare 后续绑定自定义域名。
 
