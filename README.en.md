@@ -7,8 +7,11 @@
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
 [![Sentry Community SDK](https://img.shields.io/badge/Sentry-Community%20SDK-362d59?logo=sentry)](https://docs.sentry.io/platforms/#sdks-supported-by-our-community)
 [![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)](./LICENSE)
+[![docs](https://img.shields.io/badge/docs-sentry--miniapp.pages.dev-3eaf7c?logo=readthedocs&logoColor=white)](https://sentry-miniapp.pages.dev/)
 
 [简体中文](./README.md) | English
+
+> **📖 Documentation**: [https://sentry-miniapp.pages.dev/](https://sentry-miniapp.pages.dev/) — getting started, capability matrix, FAQ, Source Map setup, and examples, with nav and search. (Chinese for now)
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou mini programs, **WeChat / Douyin mini games**, and cross-platform frameworks (Taro / uni-app).
 
