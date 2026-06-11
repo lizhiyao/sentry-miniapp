@@ -1,6 +1,31 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.11.2](https://github.com/lizhiyao/sentry-miniapp/compare/v1.11.1...v1.11.2) (2026-06-11)
+
+> ⚠️ 本次为**文档 / 维护更新**：SDK 源码（`src/`）与 1.11.1 完全一致、`dist` 运行时产物无变化。npm 包此次仅刷新随包发布的 `README`（新增网络面包屑、uni-app / Taro 组件错误等 FAQ 与文档站链接）。下列条目均为**文档站 / 示例工程 / 构建工具**改动，不影响 SDK 运行时行为。
+
+
+### 🐛 Bug Fixes | 修复
+
+* **website:** 文档站并入根 Yarn 4 项目，修复 Cloudflare 构建 ([#181](https://github.com/lizhiyao/sentry-miniapp/issues/181)) ([557fb5a](https://github.com/lizhiyao/sentry-miniapp/commit/557fb5a36ea9a9c2d179bb459e4122ac2c809332))
+
+
+### 🎫 Chores | 其他更新
+
+* **deps-dev:** bump webpack from 5.91.0 to 5.104.1 in /examples/taro ([#179](https://github.com/lizhiyao/sentry-miniapp/issues/179)) ([f147219](https://github.com/lizhiyao/sentry-miniapp/commit/f1472192e4d4eb2f8c7465847cc037410259e646))
+
+
+### 📝 Documentation | 文档
+
+* **examples:** uni-app 示例补充「如何验证上报」说明 ([#172](https://github.com/lizhiyao/sentry-miniapp/issues/172)) ([024a51e](https://github.com/lizhiyao/sentry-miniapp/commit/024a51ed55bbce06447268ea6b697974120d35e8)), closes [#168](https://github.com/lizhiyao/sentry-miniapp/issues/168)
+* **examples:** 新增 Taro 4(React) 集成示例 ([#178](https://github.com/lizhiyao/sentry-miniapp/issues/178)) ([0f17f4d](https://github.com/lizhiyao/sentry-miniapp/commit/0f17f4d8aa873ce7df0c256abe312b9858c1c91d))
+* **sourcemap:** 新增两层 sourcemap 离线合成脚本与实操指南 ([#174](https://github.com/lizhiyao/sentry-miniapp/issues/174)) ([3a979e0](https://github.com/lizhiyao/sentry-miniapp/commit/3a979e0cedd7a2b58638e515cf9039d4a473f5f7)), closes [#173](https://github.com/lizhiyao/sentry-miniapp/issues/173)
+* uni-app（Vue）组件错误上报指引；澄清 Taro 框架 ([#177](https://github.com/lizhiyao/sentry-miniapp/issues/177)) ([544d1ae](https://github.com/lizhiyao/sentry-miniapp/commit/544d1ae30278f2629875e17c2b8994899f8ae370)), closes [#18](https://github.com/lizhiyao/sentry-miniapp/issues/18) [#168](https://github.com/lizhiyao/sentry-miniapp/issues/168)
+* **website:** 新增 VitePress 文档站（中文 MVP） ([#180](https://github.com/lizhiyao/sentry-miniapp/issues/180)) ([69707ef](https://github.com/lizhiyao/sentry-miniapp/commit/69707efda1dda477cfbd0b97bde154bcf7ecfcb7))
+* 澄清网络请求默认随错误事件上报 ([#176](https://github.com/lizhiyao/sentry-miniapp/issues/176)) ([1efd303](https://github.com/lizhiyao/sentry-miniapp/commit/1efd30380202ec7f0247fad2a4284ad42fd7f4c0)), closes [#175](https://github.com/lizhiyao/sentry-miniapp/issues/175)
+* 顶部加文档站链接（README / README.en） ([#182](https://github.com/lizhiyao/sentry-miniapp/issues/182)) ([f928589](https://github.com/lizhiyao/sentry-miniapp/commit/f928589244bab17869ee4ba59f607a3a51dcc053))
+
 ## [1.11.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.11.0...v1.11.1) (2026-06-10)
 
 
