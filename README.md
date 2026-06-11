@@ -7,8 +7,11 @@
 ![test coverage](https://img.shields.io/badge/test%20coverage-100%25-brightgreen.svg)
 [![Sentry Community SDK](https://img.shields.io/badge/Sentry-Community%20SDK-362d59?logo=sentry)](https://docs.sentry.io/platforms/#sdks-supported-by-our-community)
 [![license](https://img.shields.io/github/license/lizhiyao/sentry-miniapp)](./LICENSE)
+[![文档站 docs](https://img.shields.io/badge/docs-sentry--miniapp.pages.dev-3eaf7c?logo=readthedocs&logoColor=white)](https://sentry-miniapp.pages.dev/)
 
 简体中文 | [English](./README.en.md)
+
+> **📖 文档站**：[https://sentry-miniapp.pages.dev/](https://sentry-miniapp.pages.dev/) —— 快速接入、能力矩阵、FAQ、Source Map 配置、示例索引，带导航与搜索。
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
