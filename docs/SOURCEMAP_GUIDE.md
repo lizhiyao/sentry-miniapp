@@ -11,6 +11,7 @@
 - [第五步：CI/CD 自动化](#第五步cicd-自动化)
 - [第六步：验证 Source Map 是否生效](#第六步验证-source-map-是否生效)
 - [平台特殊说明](#平台特殊说明)
+- [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)
 - [安全注意事项](#安全注意事项)
 - [常见问题排查](#常见问题排查)
 - [完整配置示例](#完整配置示例)
@@ -31,6 +32,8 @@
 ```
 
 因此，你在上传 Source Map 时只需统一使用 `--url-prefix "app:///"` 即可，无需关心各平台差异。
+
+> ⚠️ **真机可能是另一种形态。** 上面的分页路径（如 `app:///pages/index.js`）是开发者工具 / 部分运行时的样子；**真机上微信常把逻辑层所有 JS 合并成单个 `app:///appservice.app.js`**，错误栈行列号落在这个合并大文件里，分页 Source Map 解不出。用 Taro / uni-app 等框架时几乎必然如此。**上传前请先在真机触发一个错误、看清堆栈里的文件名，再决定传哪种 map**——详见 [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)。
 
 **端到端流程：**
 
@@ -73,7 +76,7 @@ Sentry.init({
   dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0',
   release: 'my-miniapp@1.0.0',  // 必须与上传时的 release 名称一致
   environment: 'production',
-  // enableSourceMap: true,  // 默认已开启，无需显式设置
+  // enableSourceMap: true,  // 默认已开启，无需显式设置（仅控制堆栈路径归一化，与 .map 文件生成无关）
 });
 ```
 
@@ -122,7 +125,11 @@ Sentry.init({
 
 ### 关于 `enableSourceMap`
 
-SDK 默认开启路径归一化（`enableSourceMap: true`），通常无需修改。如果你因特殊原因需要禁用：
+SDK 默认开启路径归一化（`enableSourceMap: true`），通常无需修改。
+
+> ℹ️ **这个开关名容易误解：** 它**只控制错误上报时把平台虚拟路径归一化为 `app:///`**（即 `RewriteFrames`），**不负责生成 `.map` 文件**——`.map` 由你的构建工具产出。关掉它只是不再归一化堆栈路径，不会影响构建产物。
+
+如果你因特殊原因需要禁用：
 
 ```javascript
 Sentry.init({
@@ -418,12 +425,16 @@ Page({
 });
 ```
 
+> Taro / uni-app 等框架：在任意页面组件的生命周期或方法里 `throw new Error('Source Map 测试错误')` 同理，不必是 `Page({ onLoad })` 这种原生写法。
+
 ### 3. 在 Sentry 面板验证
 
 1. 登录 Sentry，进入对应项目
 2. 找到刚触发的错误事件
 3. 查看堆栈信息——如果显示的是**原始源码**而非压缩代码，说明 Source Map 配置成功
 4. 如果仍显示压缩代码，点击堆栈帧右侧的 **"Source Map Debug"** 按钮，Sentry 会告诉你匹配失败的原因
+
+> 📌 **先看堆栈帧的文件名**：若是 `app:///appservice.app.js`（真机合并大文件）而你只上传了分页 Source Map，再正确的 `release` / `--url-prefix` 也解不出——见 [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)。
 
 ---
 
@@ -441,26 +452,9 @@ Page({
 
 **路径归一化：** SDK 自动剥离 `appservice/`、`app-service/`、`WAService/` 前缀。
 
-#### ⚠️ Taro / 跨端框架：真机错误栈是 `appservice.app.js`，分页 Source Map 解不出
+#### ⚠️ 跨端框架（Taro / uni-app）：真机栈是合并的 `appservice.app.js`
 
-如果你用 Taro / uni-app 等框架，且在**真机**上发现 Sentry 里堆栈的文件名是 `app:///appservice.app.js`（行列号动辄上万 / 几十万），而你上传的是构建产物里的**分页 Source Map**（如 `app:///pages/index/index.js.map`），那么**无论 `release`、`--url-prefix` 配置得多正确都解析不出来**。原因：
-
-- **真机跑的是合并后的单文件。** 微信运行时会把逻辑层所有 JS 合并成一个 `appservice.app.js`（部分版本叫 `app-service.js`）来执行，错误栈的行列号是**这个合并大文件**里的位置。
-- **这个文件你的构建根本不产、也没上传。** Taro `taro build --type weapp` 的产物是 `app.js` / `pages/*/index.js` / `vendors.js` 等分页文件，`appservice.app.js` 是微信侧合并出来的——Sentry 里没有这个 artifact，自然匹配不到。这不是行号偏移，而是**目标文件压根没传**。
-- **产物默认是压缩混淆的。** Taro 生产构建默认用 Terser 压缩（函数名变成 `l` / `ge` / `nn` 这种）。这与微信开发者工具里的「代码压缩」开关**无关**，关那个开关不会取消 Taro 自己的压缩。
-
-**怎么办**（两种，按需要的深度选）：
-
-1. **快速定位到「分页编译后 JS」**
-   - 从微信 **「We 分析 → 性能 / JS 报错 → 下载线上 Source Map」** 拿到 `appservice.app.js` 对应的 `.map`（注意：只有**体验版 / 线上版**有，`miniprogram-ci` 预览的开发版拿不到；版本要与线上一致）；
-   - 以 **`app:///appservice.app.js`** 的名字上传到 Sentry（`--url-prefix "app:///"` 不变）；
-   - 想让解析结果可读，再关闭 Taro 的 JS 压缩（参考 Taro 文档对应版本的压缩 / `terser` 配置）。
-   - 结果：能定位到**分页文件 + 行列**，但停在 Taro 编译后的 JS，**不是源码 TSX**。Sentry 一次只应用一层 Source Map，不会自动再串到 Taro 的分页 map。
-
-2. **一路解析到源码 TSX**
-   把「微信合并 map（`appservice.app.js` → 分页 JS）」与「Taro 分页 map（分页 JS → TSX）」**离线合成一份** `appservice.app.js` → TSX 的 map，再以 `app:///appservice.app.js` 上传。能到源码，但需自己写 Source Map 合成脚本（`source-map` 库），目前 WeChat / Sentry / Taro 都没有一键方案。
-
-> 这不是 SDK 的问题：`sentry-miniapp` 的堆栈解析与 `RewriteFrames` 已正确把 `appservice.app.js` 归一为 `app:///appservice.app.js`；能否解析取决于你上传的 map 是否对应这个**合并后的文件**。相关讨论见 [issue #162](https://github.com/lizhiyao/sentry-miniapp/issues/162)。
+用 Taro / uni-app 等框架时，真机错误栈的文件名通常是合并后的 `app:///appservice.app.js`，分页 Source Map 解不出，需要单独处理（含两层 map 的离线合成脚本）——详见独立专节 [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)。
 
 ### 支付宝小程序
 
@@ -480,11 +474,59 @@ SDK 会自动剥离所有 `协议://` 格式的前缀，因此 QQ、钉钉、快
 
 ---
 
+## 跨端框架的两层 Source Map 串联
+
+如果你用 Taro / uni-app 等框架，且在**真机**上发现 Sentry 里堆栈的文件名是 `app:///appservice.app.js`（行列号动辄上万 / 几十万），而你上传的是构建产物里的**分页 Source Map**（如 `app:///pages/index/index.js.map`），那么**无论 `release`、`--url-prefix` 配置得多正确都解析不出来**。原因：
+
+- **真机跑的是合并后的单文件。** 微信运行时会把逻辑层所有 JS 合并成一个 `appservice.app.js`（部分版本叫 `app-service.js`）来执行，错误栈的行列号是**这个合并大文件**里的位置。
+- **这个文件你的构建根本不产、也没上传。** Taro `taro build --type weapp` 的产物是 `app.js` / `pages/*/index.js` / `vendors.js` 等分页文件，`appservice.app.js` 是微信侧合并出来的——Sentry 里没有这个 artifact，自然匹配不到。这不是行号偏移，而是**目标文件压根没传**。
+- **产物默认是压缩混淆的。** Taro 生产构建默认用 Terser 压缩（函数名变成 `l` / `ge` / `nn` 这种）。这与微信开发者工具里的「代码压缩」开关**无关**，关那个开关不会取消 Taro 自己的压缩。
+
+> **为什么会有「两层」map：** 框架构建（webpack / vite）先把源码压成「编译产物 JS」（产出第一层 map A：编译产物 JS → 源码）；微信上传时再 es6→es5 + 压缩，并合并成 `appservice.app.js`（产出第二层 map B：`appservice.app.js` → 编译产物 JS）。两层叠加，单独任一层的 map 都到不了源码——只传 A 对不上合并文件，只传 B 又停在编译产物 JS。
+
+**怎么办**（两种，按需要的深度选）：
+
+1. **快速定位到「分页编译后 JS」**
+   - 从微信 **「We 分析 → 性能 / JS 报错 → 下载线上 Source Map」** 拿到 `appservice.app.js` 对应的 `.map`（注意：只有**体验版 / 线上版**有，`miniprogram-ci` 预览的开发版拿不到；版本要与线上一致）；
+   - 以 **`app:///appservice.app.js`** 的名字上传到 Sentry（`--url-prefix "app:///"` 不变）；
+   - 想让解析结果可读，再关闭框架的 JS 压缩（参考 Taro / uni-app 文档对应版本的压缩 / `terser` 配置）。
+   - 结果：能定位到**分页文件 + 行列**，但停在框架编译后的 JS，**不是源码（`.vue` / `.tsx`）**。Sentry 一次只应用一层 Source Map，不会自动再串到框架的分页 map。
+
+2. **一路解析到源码（`.vue` / `.tsx`）**
+   把「微信合并 map（`appservice.app.js` → 编译产物 JS）」与「框架构建 map（编译产物 JS → 源码）」**离线合成一份** `appservice.app.js` → 源码 的 map，再以 `app:///appservice.app.js` 上传。能到源码，但需要自己合成——WeChat / Sentry / uni-app / Taro 都没有一键方案。
+
+   仓库提供了一个 best-effort 合成脚本 [`scripts/merge-sourcemap.mjs`](../scripts/merge-sourcemap.mjs)，用 `source-map` 的 `applySourceMap` 把两份 map 串起来：
+
+   ```bash
+   # 1) 装依赖（只在合成时用，不是 SDK 运行时依赖）
+   npm i -D source-map
+
+   # 2) 准备两份 map：
+   #    - Map B（外层）：微信「We 分析 → 性能 / JS 报错 → 下载线上 Source Map」拿 appservice.app.js 的 .map
+   #    - Map A（内层）：框架构建里开 sourcemap（uni-app 对 mp-weixin 默认常关；
+   #      vite 设 build.sourcemap、webpack 设 devtool: 'source-map'），得到一批编译产物 JS 的 .map
+
+   # 3) 合成
+   node scripts/merge-sourcemap.mjs \
+     --wechat   ./wechat/appservice.app.js.map \
+     --build-maps ./dist/dev/mp-weixin \
+     --out      ./merged/appservice.app.js.map
+
+   # 4) 把 ./merged/appservice.app.js.map 以 app:///appservice.app.js 的名字上传 Sentry
+   ```
+
+   合并算法是稳的，**难点在两份 map 的文件名能否对齐**（`B.sources` 里的名字 ↔ 构建 map 描述的文件名）。不同框架 / 打包器 / 版本命名各异，对不齐时脚本会逐条列出 `B.sources`，照提示加 `--strip <前缀>`（如 `--strip webpack://`）或对齐产物文件名即可。脚本会优先按相对路径精确匹配（如 `pages/foo/index.js`），最后才用文件名兜底；如果多个页面都叫 `index.js`，兜底匹配会被判为歧义并跳过，避免静默套错 map。合成后精度取「两份 map 的较小值」，定位到行没问题。这是 best-effort 起点，其它框架的匹配策略欢迎 PR。
+
+> 这不是 SDK 的问题：`sentry-miniapp` 的堆栈解析与 `RewriteFrames` 已正确把 `appservice.app.js` 归一为 `app:///appservice.app.js`；能否解析取决于你上传的 map 是否对应这个**合并后的文件**。相关讨论见 [issue #162](https://github.com/lizhiyao/sentry-miniapp/issues/162) 与 [#173](https://github.com/lizhiyao/sentry-miniapp/issues/173)。
+
+---
+
 ## 安全注意事项
 
 1. **不要将 `.map` 文件发布到生产环境**——Source Map 包含原始源码，泄露可能带来安全风险。上传到 Sentry 后应立即删除本地 `.map` 文件。
 2. **不要将 Auth Token 提交到代码仓库**——使用环境变量或将 `.sentryclirc` 添加到 `.gitignore`。
 3. **使用 `hidden-source-map`**——避免在产物中生成 `sourceMappingURL` 注释，防止浏览器或调试工具直接加载 `.map` 文件。
+4. **离线合成的 map 同样含源码**——`scripts/merge-sourcemap.mjs` 产出的合成 `.map` 内嵌 `sourcesContent`（即原始源码），只用于上传 Sentry，**别打进小程序包、别发布到任何公开位置**，用完即删。
 
 ---
 
