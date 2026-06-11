@@ -495,7 +495,7 @@ SDK 会自动剥离所有 `协议://` 格式的前缀，因此 QQ、钉钉、快
 2. **一路解析到源码（`.vue` / `.tsx`）**
    把「微信合并 map（`appservice.app.js` → 编译产物 JS）」与「框架构建 map（编译产物 JS → 源码）」**离线合成一份** `appservice.app.js` → 源码 的 map，再以 `app:///appservice.app.js` 上传。能到源码，但需要自己合成——WeChat / Sentry / uni-app / Taro 都没有一键方案。
 
-   仓库提供了一个 best-effort 合成脚本 [`scripts/merge-sourcemap.mjs`](../scripts/merge-sourcemap.mjs)，用 `source-map` 的 `applySourceMap` 把两份 map 串起来：
+   仓库提供了一个 best-effort 合成脚本 [`scripts/merge-sourcemap.mjs`](https://github.com/lizhiyao/sentry-miniapp/blob/master/scripts/merge-sourcemap.mjs)，用 `source-map` 的 `applySourceMap` 把两份 map 串起来：
 
    ```bash
    # 1) 装依赖（只在合成时用，不是 SDK 运行时依赖）
