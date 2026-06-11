@@ -526,6 +526,7 @@ SDK 会自动剥离所有 `协议://` 格式的前缀，因此 QQ、钉钉、快
 1. **不要将 `.map` 文件发布到生产环境**——Source Map 包含原始源码，泄露可能带来安全风险。上传到 Sentry 后应立即删除本地 `.map` 文件。
 2. **不要将 Auth Token 提交到代码仓库**——使用环境变量或将 `.sentryclirc` 添加到 `.gitignore`。
 3. **使用 `hidden-source-map`**——避免在产物中生成 `sourceMappingURL` 注释，防止浏览器或调试工具直接加载 `.map` 文件。
+4. **离线合成的 map 同样含源码**——`scripts/merge-sourcemap.mjs` 产出的合成 `.map` 内嵌 `sourcesContent`（即原始源码），只用于上传 Sentry，**别打进小程序包、别发布到任何公开位置**，用完即删。
 
 ---
 

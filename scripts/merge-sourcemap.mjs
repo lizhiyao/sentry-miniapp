@@ -47,7 +47,7 @@
  * `--url-prefix "app:///"` 不变）。
  */
 
-import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 
 // ---- 极简参数解析（不引第三方）----
@@ -58,7 +58,10 @@ function parseArgs(argv) {
     if (a === '--wechat') out.wechat = argv[++i];
     else if (a === '--build-maps') out.buildMaps = argv[++i];
     else if (a === '--out') out.out = argv[++i];
-    else if (a === '--strip') out.strip.push(argv[++i]);
+    else if (a === '--strip') {
+      const v = argv[++i];
+      if (v !== undefined) out.strip.push(v); // 防止 --strip 作为末尾参数时 push 进 undefined
+    }
     else if (a === '--verbose') out.verbose = true;
     else if (a === '--help' || a === '-h') out.help = true;
   }
@@ -133,11 +136,12 @@ function collectBuildMaps(dir) {
   const found = [];
   const root = resolve(dir);
   const walk = (d) => {
-    for (const entry of readdirSync(d)) {
-      const full = join(d, entry);
-      const st = statSync(full);
-      if (st.isDirectory()) walk(full);
-      else if (entry.endsWith('.map')) found.push(full);
+    // withFileTypes 省去逐条 statSync；symlink 既不算 isDirectory 也不算 isFile，
+    // 自然跳过，顺带避免符号链接成环。
+    for (const entry of readdirSync(d, { withFileTypes: true })) {
+      const full = join(d, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile() && entry.name.endsWith('.map')) found.push(full);
     }
   };
   walk(root);
@@ -153,12 +157,7 @@ function collectBuildMaps(dir) {
     } catch {
       continue; // 不是合法 JSON map，跳过
     }
-    const mapDir = dirname(relative(root, file));
-    const hit = {
-      file,
-      raw,
-      sourceMapPath: mapDir === '.' ? undefined : normalizeName(mapDir, []),
-    };
+    const hit = { file, raw };
     const keys = new Set();
     if (raw.file) keys.add(normalizeName(raw.file, []));
     keys.add(normalizeName(relative(root, file).replace(/\.map$/, ''), []));
@@ -213,9 +212,11 @@ for (const src of bSources) {
     continue;
   }
   const cA = await new SourceMapConsumer(hit.raw);
-  // sourceFile 必须严格等于 src 在 B.sources 里的原始字符串；sourceMapPath 用相对
-  // build-maps 根目录的路径，既能解析 A 里的相对源码路径，也避免把本机构建绝对路径写进 map。
-  generator.applySourceMap(cA, src, hit.sourceMapPath);
+  // sourceFile 必须严格等于 src 在 B.sources 里的原始字符串。不传 sourceMapPath：
+  // 让 A 的源码路径原样透传（多为 src/... 或 webpack:// 这类工程相对路径），既不写入
+  // 本机构建绝对路径，也不会被多套一层 map 目录前缀。源码内容靠 sourcesContent 透传，
+  // 路径仅作展示。
+  generator.applySourceMap(cA, src);
   destroyConsumer(cA);
   matched.push(src);
   if (args.verbose) console.log(`  ✓ 匹配    ${src}  ←  ${hit.file}`);
@@ -259,3 +260,4 @@ writeFileSync(outFile, generator.toString(), 'utf8');
 console.log(`\n✓ 已写出合成 map：${outFile}`);
 console.log('  接着以 `app:///appservice.app.js` 的名字上传到 Sentry（--url-prefix "app:///" 不变）。');
 console.log('  注意：合成后精度是「两份 map 的较小值」，定位到行没问题，个别列号可能略糙。');
+console.log('  ⚠ 合成 map 内嵌源码（sourcesContent），仅用于上传 Sentry，别打进小程序包或公开发布，用完即删。');
