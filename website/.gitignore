@@ -1,9 +1,3 @@
-# 站点本地依赖与构建产物，不进仓库
-node_modules/
+# VitePress 构建缓存与产物（产物也被仓库根 .gitignore 的 dist/ 规则覆盖）
 .vitepress/dist/
 .vitepress/cache/
-*.log
-
-# 锁文件不入库：避免传递依赖持续触发 Dependabot 告警（与 examples 一致）
-package-lock.json
-yarn.lock

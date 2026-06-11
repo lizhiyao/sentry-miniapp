@@ -13,6 +13,9 @@
     "build:miniapp": "vite build --mode miniapp",
     "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types",
     "dev": "vite build --watch",
+    "docs:dev": "vitepress dev website",
+    "docs:build": "vitepress build website",
+    "docs:preview": "vitepress preview website",
     "lint": "eslint src --ext .ts",
     "test": "jest",
     "test:integration": "npm run build && cp dist/sentry-miniapp.umd.js examples/wxapp/lib/sentry-miniapp.js && node integration-tests/test-duplicate-async-error.js && node integration-tests/test-multiple-exceptions.js && node integration-tests/test-size-limit-fix.js",
@@ -63,7 +66,8 @@
     "ts-jest": "^29.4.0",
     "typescript": "^5.8.3",
     "vite": "^6.4.1",
-    "vite-plugin-dts": "^4.5.4"
+    "vite-plugin-dts": "^4.5.4",
+    "vitepress": "^1.6.4"
   },
   "dependencies": {
     "@sentry/core": "10.56.0"
