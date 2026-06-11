@@ -515,7 +515,7 @@ SDK 会自动剥离所有 `协议://` 格式的前缀，因此 QQ、钉钉、快
    # 4) 把 ./merged/appservice.app.js.map 以 app:///appservice.app.js 的名字上传 Sentry
    ```
 
-   合并算法是稳的，**难点在两份 map 的文件名能否对齐**（`B.sources` 里的名字 ↔ 构建 map 描述的文件名）。不同框架 / 打包器 / 版本命名各异，对不齐时脚本会逐条列出 `B.sources`，照提示加 `--strip <前缀>`（如 `--strip webpack://`）或对齐产物文件名即可。合成后精度取「两份 map 的较小值」，定位到行没问题。这是 best-effort 起点，其它框架的匹配策略欢迎 PR。
+   合并算法是稳的，**难点在两份 map 的文件名能否对齐**（`B.sources` 里的名字 ↔ 构建 map 描述的文件名）。不同框架 / 打包器 / 版本命名各异，对不齐时脚本会逐条列出 `B.sources`，照提示加 `--strip <前缀>`（如 `--strip webpack://`）或对齐产物文件名即可。脚本会优先按相对路径精确匹配（如 `pages/foo/index.js`），最后才用文件名兜底；如果多个页面都叫 `index.js`，兜底匹配会被判为歧义并跳过，避免静默套错 map。合成后精度取「两份 map 的较小值」，定位到行没问题。这是 best-effort 起点，其它框架的匹配策略欢迎 PR。
 
 > 这不是 SDK 的问题：`sentry-miniapp` 的堆栈解析与 `RewriteFrames` 已正确把 `appservice.app.js` 归一为 `app:///appservice.app.js`；能否解析取决于你上传的 map 是否对应这个**合并后的文件**。相关讨论见 [issue #162](https://github.com/lizhiyao/sentry-miniapp/issues/162) 与 [#173](https://github.com/lizhiyao/sentry-miniapp/issues/173)。
 

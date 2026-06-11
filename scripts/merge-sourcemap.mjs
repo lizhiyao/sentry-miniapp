@@ -47,8 +47,8 @@
  * `--url-prefix "app:///"` 不变）。
  */
 
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 
 // ---- 极简参数解析（不引第三方）----
 function parseArgs(argv) {
@@ -98,17 +98,40 @@ const destroyConsumer = (c) => {
 
 // ---- 工具：把一个 source 名字归一成「裸文件名」用于匹配 ----
 function normalizeName(name, strip) {
-  let n = String(name).split('?')[0].split('#')[0]; // 去 query / hash
+  let n = String(name).split('?')[0].split('#')[0].replace(/\\/g, '/'); // 去 query / hash，统一路径分隔符
   for (const p of strip) {
-    if (n.startsWith(p)) n = n.slice(p.length);
+    const prefix = String(p).replace(/\\/g, '/');
+    if (n.startsWith(prefix)) n = n.slice(prefix.length);
   }
-  n = n.replace(/^\.?\//, ''); // 去开头的 ./ 或 /
+  while (n.startsWith('./') || n.startsWith('/')) {
+    n = n.startsWith('./') ? n.slice(2) : n.slice(1);
+  }
   return n;
+}
+
+function addBuildMapCandidate(index, key, hit) {
+  if (!key) return;
+  const existing = index.get(key);
+  if (!existing) {
+    index.set(key, [hit]);
+    return;
+  }
+  if (!existing.some((item) => item.file === hit.file)) {
+    existing.push(hit);
+  }
+}
+
+function pickBuildMapCandidate(index, key) {
+  const hits = index.get(key);
+  if (!hits) return { hit: null, ambiguous: null };
+  if (hits.length === 1) return { hit: hits[0], ambiguous: null };
+  return { hit: null, ambiguous: hits };
 }
 
 // ---- 递归收集构建 map 目录下的所有 *.map，建索引 ----
 function collectBuildMaps(dir) {
   const found = [];
+  const root = resolve(dir);
   const walk = (d) => {
     for (const entry of readdirSync(d)) {
       const full = join(d, entry);
@@ -117,10 +140,11 @@ function collectBuildMaps(dir) {
       else if (entry.endsWith('.map')) found.push(full);
     }
   };
-  walk(resolve(dir));
+  walk(root);
 
-  // 建多键索引：用「map 内部 file 字段」和「文件名去掉 .map」两种 key 都指向它，
-  // 命中率更高（不同打包器有的填 file、有的不填）。
+  // 建多键索引：用「map 内部 file 字段」「相对 build-maps 根目录的产物路径」
+  // 和「文件名去掉 .map」三种 key 都指向它。前两者保证 pages/a/index.js 与
+  // pages/b/index.js 这类同名文件能精确匹配；basename 只作为最后兜底。
   const index = new Map();
   for (const file of found) {
     let raw;
@@ -129,14 +153,21 @@ function collectBuildMaps(dir) {
     } catch {
       continue; // 不是合法 JSON map，跳过
     }
+    const mapDir = dirname(relative(root, file));
+    const hit = {
+      file,
+      raw,
+      sourceMapPath: mapDir === '.' ? undefined : normalizeName(mapDir, []),
+    };
     const keys = new Set();
     if (raw.file) keys.add(normalizeName(raw.file, []));
+    keys.add(normalizeName(relative(root, file).replace(/\.map$/, ''), []));
     keys.add(normalizeName(basename(file).replace(/\.map$/, ''), []));
     for (const k of keys) {
-      if (!index.has(k)) index.set(k, { file, raw });
+      addBuildMapCandidate(index, k, hit);
     }
   }
-  return index;
+  return { index, fileCount: found.length };
 }
 
 // ---- 主流程 ----
@@ -147,29 +178,44 @@ if (bSources.length === 0) {
   process.exit(1);
 }
 
-const buildIndex = collectBuildMaps(args.buildMaps);
+const { index: buildIndex, fileCount: buildMapCount } = collectBuildMaps(args.buildMaps);
 console.log(`· 外层 map B：${bSources.length} 个 source`);
-console.log(`· 构建 map A：索引到 ${buildIndex.size} 个候选文件\n`);
+console.log(`· 构建 map A：读取 ${buildMapCount} 个 map，索引到 ${buildIndex.size} 个匹配 key\n`);
 
 const consumerB = await new SourceMapConsumer(rawB);
 const generator = SourceMapGenerator.fromSourceMap(consumerB);
 
 const matched = [];
 const unmatched = [];
+const ambiguous = [];
 
 for (const src of bSources) {
   const key = normalizeName(src, args.strip);
   // 先精确 key，再退化为 basename 兜底
-  const hit = buildIndex.get(key) ?? buildIndex.get(normalizeName(basename(key), []));
+  let { hit, ambiguous: ambiguousHits } = pickBuildMapCandidate(buildIndex, key);
+  if (!hit && !ambiguousHits) {
+    ({ hit, ambiguous: ambiguousHits } = pickBuildMapCandidate(
+      buildIndex,
+      normalizeName(basename(key), []),
+    ));
+  }
+  if (ambiguousHits) {
+    ambiguous.push({ src, key, hits: ambiguousHits });
+    if (args.verbose) {
+      console.log(`  ✗ 歧义匹配  ${src}  (归一为 ${key})`);
+      for (const h of ambiguousHits) console.log(`      候选: ${h.file}`);
+    }
+    continue;
+  }
   if (!hit) {
     unmatched.push(src);
     if (args.verbose) console.log(`  ✗ 未匹配  ${src}  (归一为 ${key})`);
     continue;
   }
   const cA = await new SourceMapConsumer(hit.raw);
-  // sourceFile 必须严格等于 src 在 B.sources 里的原始字符串；sourceMapPath 给 A 所在目录，
-  // 好让 A 里的相对源码路径正确解析。
-  generator.applySourceMap(cA, src, dirname(hit.file));
+  // sourceFile 必须严格等于 src 在 B.sources 里的原始字符串；sourceMapPath 用相对
+  // build-maps 根目录的路径，既能解析 A 里的相对源码路径，也避免把本机构建绝对路径写进 map。
+  generator.applySourceMap(cA, src, hit.sourceMapPath);
   destroyConsumer(cA);
   matched.push(src);
   if (args.verbose) console.log(`  ✓ 匹配    ${src}  ←  ${hit.file}`);
@@ -180,10 +226,21 @@ destroyConsumer(consumerB);
 // ---- 输出 + 诚实的总结 ----
 console.log(`\n合成结果：匹配 ${matched.length} / ${bSources.length}，未匹配 ${unmatched.length}`);
 
+if (ambiguous.length > 0) {
+  console.warn(`\n⚠ 有 ${ambiguous.length} 个 source 匹配到多个同名 map，已跳过以避免误合成：`);
+  for (const item of ambiguous.slice(0, 10)) {
+    console.warn(`    ${item.src} (归一为 ${item.key})`);
+    for (const h of item.hits.slice(0, 5)) console.warn(`      - ${h.file}`);
+    if (item.hits.length > 5) console.warn(`      …（候选共 ${item.hits.length} 个）`);
+  }
+  if (ambiguous.length > 10) console.warn(`    …（共 ${ambiguous.length} 条，加 --verbose 看全部）`);
+}
+
 if (matched.length === 0) {
   console.error(
     '\n✗ 一个都没匹配上——通常是「B.sources 的名字」和「构建 map 的文件名」对不齐。\n' +
-      '  下面是 B.sources 的前若干条，照着它们的命名调 --strip 前缀，或对齐构建产物文件名：',
+      '  下面是 B.sources 的前若干条，照着它们的命名调 --strip 前缀，或对齐构建产物文件名。\n' +
+      '  如果提示“歧义匹配”，请优先让 B.sources 带上相对路径（如 pages/foo/index.js），避免只剩 index.js：',
   );
   for (const s of bSources.slice(0, 15)) console.error(`    ${s}`);
   if (bSources.length > 15) console.error(`    …（共 ${bSources.length} 条）`);
@@ -196,7 +253,9 @@ if (unmatched.length > 0) {
   if (unmatched.length > 10) console.warn(`    …（共 ${unmatched.length} 条，加 --verbose 看全部）`);
 }
 
-writeFileSync(resolve(args.out), generator.toString(), 'utf8');
-console.log(`\n✓ 已写出合成 map：${resolve(args.out)}`);
+const outFile = resolve(args.out);
+mkdirSync(dirname(outFile), { recursive: true });
+writeFileSync(outFile, generator.toString(), 'utf8');
+console.log(`\n✓ 已写出合成 map：${outFile}`);
 console.log('  接着以 `app:///appservice.app.js` 的名字上传到 Sentry（--url-prefix "app:///" 不变）。');
 console.log('  注意：合成后精度是「两份 map 的较小值」，定位到行没问题，个别列号可能略糙。');
