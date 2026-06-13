@@ -72,7 +72,7 @@ export default defineConfig({
 
     footer: {
       message: '基于 @sentry/core 的跨端小程序 SDK · MIT Licensed',
-      copyright: `Copyright © 2020-present <a href="${GITHUB}">sentry-miniapp</a>`,
+      copyright: `Copyright © 2019-present <a href="${GITHUB}">sentry-miniapp</a>`,
     },
   },
 });
