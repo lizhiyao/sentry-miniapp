@@ -11,23 +11,25 @@
 
 简体中文 | [English](./README.en.md)
 
-> **📖 文档站**：[https://sentry-miniapp.pages.dev/](https://sentry-miniapp.pages.dev/) —— 快速接入、能力矩阵、FAQ、Source Map 配置、示例索引，带导航与搜索。
-
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
-> **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表，这篇文章记录这件事的来龙去脉。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
+> **📖 完整文档请看文档站**：[sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) —— 快速接入、能力矩阵、各框架接入、FAQ、Source Map 配置、示例索引，带导航与搜索。本 README 只做速览与入口。
+
+> **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
 <details>
-<summary><b>🆕 v1.3 → v1.8 What's New（点击展开）</b></summary>
+<summary><b>🆕 v1.3 → v1.11 What's New（点击展开）</b></summary>
 
 | 版本 | 亮点 |
 |---|---|
+| **v1.11** | 小游戏性能数据**独立上报为 transaction**（进 Sentry Performance 页）；API 请求上报为 `http.client` span；上线[文档站](https://sentry-miniapp.pages.dev/)、新增 Taro / uni-app 集成示例与[两层 Source Map 离线合成脚本](./scripts/merge-sourcemap.mjs) |
+| **v1.10** | 🎮 **小游戏支持**：自动识别小游戏环境，新增冷启动首帧耗时、帧率 / 卡顿（FPS / jank）监控 |
 | **v1.8.0** | AI 辅助接入 skill — Claude Code / Cursor 自动引导集成 |
 | **v1.7.0** | 新增 `tracesSampler` 动态采样；新增 Source Map 完整配置指南 |
-| **v1.6.0** | 13 项功能优化 + 16 项问题修复；启用 esbuild 压缩，包体积减少约 **59%** |
-| **v1.5.0** | Performance 增强（可配阈值 / setData 慢渲染检测 / 内存采集）；新增页面生命周期、用户交互、Console 三类 Breadcrumb；Route 集成全平台适配 |
-| **v1.4.0** | NetworkBreadcrumbs 抓 Request / Response Body；离线缓存上限可配；废弃 `showReportDialog` 引导至 `captureFeedback` |
-| **v1.3.0** | 🎯 重构构建（迁移 Vite + bundle-inline）：对外**零依赖**，彻底修掉「`miniprogram_npm` 模块解析」问题；🎯 内置 Source Map 路径自动抹平，跨端堆栈统一映射 |
+| **v1.6.0** | 13 项功能优化 + 16 项问题修复；构建产物压缩，包体积减少约 **59%** |
+| **v1.5.0** | Performance 增强（可配阈值 / setData 慢渲染检测 / 内存采集）；新增页面生命周期、用户交互、Console 三类 Breadcrumb |
+| **v1.4.0** | NetworkBreadcrumbs 抓 Request / Response Body；离线缓存上限可配 |
+| **v1.3.0** | 🎯 重构构建（Vite + bundle-inline）：对外**零依赖**，修掉 `miniprogram_npm` 模块解析问题；内置 Source Map 路径自动抹平 |
 
 完整变更见 [CHANGELOG.md](./CHANGELOG.md)。
 
@@ -37,467 +39,140 @@
 
 ## ✨ 核心特性
 
-- **🚀 现代架构**：基于最新的 Sentry JavaScript V10 SDK 核心模块构建。
-- **📱 真正的多端支持**：内置 API 抹平引擎，一套代码无缝兼容**微信、支付宝、字节、百度、QQ、钉钉、快手**等主流小程序平台。
-- **🎮 小游戏支持**：自动识别小游戏环境，异常 / 网络 / 设备监控开箱即用，并提供小游戏专属的**冷启动首帧耗时**与**帧率 / 卡顿（FPS / jank）监控**（详见下文「小游戏支持」）。
+- **🚀 现代架构**：基于 Sentry JavaScript V10 SDK 核心模块构建。
+- **📱 真正的多端支持**：内置 API 抹平引擎，一套代码兼容**微信、支付宝、字节、百度、QQ、钉钉、快手**等主流小程序平台。
+- **🎮 小游戏支持**：自动识别小游戏环境，异常 / 网络 / 设备监控开箱即用，并提供小游戏专属的**冷启动首帧耗时**与**帧率 / 卡顿监控**。
 - **🎯 全自动异常捕获**：无需侵入业务代码，自动监听并上报生命周期异常（`onError`、`onUnhandledRejection`、`onPageNotFound`、`onMemoryWarning`）。
-- **🍞 丰富的上下文面包屑**：自动记录设备信息、用户点击/触摸操作、网络请求（XHR/Fetch）以及页面生命周期。
-- **🗺️ 内置 SourceMap 路径抹平**：自动处理微信、支付宝、字节等多端小程序的虚拟堆栈路径，配合 sentry-cli 极简实现 SourceMap 解析。
-- **📡 弱网离线缓存机制**：专为小程序网络环境设计，断网或发送失败时自动缓存 Event 到本地 Storage，网络恢复后静默重试上报，确保数据不丢失。
-- **⚡ 深度性能监控**：集成小程序 Performance API，全面采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及用户自定义性能标记。
-- **🛡️ 智能降噪与过滤**：内置强大的错误去重和采样率控制机制，避免日志风暴。
-- **🔧 跨端框架友好**：完美支持在 Taro、uni-app 等第三方多端编译框架中集成使用。
-- **🔗 分布式追踪**：自动在网络请求中注入 `sentry-trace` / `baggage` 头，并将小程序 API 请求耗时上报为 `http.client` span，串联小程序与后端服务的完整调用链。
-- **📊 Session 健康监控**：自动管理会话生命周期，在 Sentry Release Health 面板展示崩溃率和会话健康数据。
-- **📶 网络状态监控**：实时追踪网络变化（WiFi/4G/离线），帮助排查网络相关的异常。
-- **🔍 堆栈解析**：内置多平台堆栈解析器，支持 V8/Safari/JavaScriptCore 格式，配合 SourceMap 精准定位错误。
+- **🍞 丰富的上下文面包屑**：自动记录设备信息、用户点击 / 触摸、网络请求（XHR）以及页面生命周期。
+- **🗺️ 内置 SourceMap 路径抹平**：自动统一多端虚拟堆栈路径，配合 sentry-cli 极简实现 Source Map 解析。
+- **📡 弱网离线缓存**：断网或发送失败时自动缓存事件到本地 Storage，网络恢复后静默重试，确保数据不丢失。
+- **⚡ 深度性能监控**：采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及自定义性能标记。
+- **🔗 分布式追踪**：自动注入 `sentry-trace` / `baggage` 头，并将 API 请求耗时上报为 `http.client` span，串联小程序与后端调用链。
+- **📊 Session 健康监控** 与 **📶 网络状态监控**：会话生命周期管理 + 实时网络变化追踪（WiFi/4G/离线）。
+- **🛡️ 智能降噪**：内置错误去重与采样率控制，避免日志风暴。
 
 ---
 
 ## 📦 安装
 
-推荐使用 `npm` 进行安装。
-
 ```bash
 npm install sentry-miniapp
 ```
 
-*提示：如果您不使用 npm，也可以直接将项目仓库中 `examples/wxapp/lib/sentry-miniapp.js` 文件复制到小程序项目中引入。*
+> 不使用 npm 时，也可直接将 `examples/wxapp/lib/sentry-miniapp.js` 复制到小程序项目中引入。
 
----
+### 🤖 AI 辅助接入
 
-## 🤖 AI 辅助接入
-
-如果你使用 [Claude Code](https://claude.ai/code) 或 [Cursor](https://cursor.com)，AI 可以自动引导你完成接入：
+使用 [Claude Code](https://claude.ai/code) 或 [Cursor](https://cursor.com) 时，可让 AI 自动引导接入：
 
 ```bash
 npx skills add https://github.com/lizhiyao/sentry-miniapp --skill sentry-miniapp-sdk
 ```
 
-安装后，在 AI 编辑器中输入"帮我接入 Sentry 监控"即可触发向导。
+安装后在 AI 编辑器中输入“帮我接入 Sentry 监控”即可触发向导。
 
 ---
 
 ## 🚀 快速接入
 
-### 1. 前置准备
+**前置**：① 准备一个 Sentry 账号（[官方 SaaS](https://sentry.io/) 或私有化部署）；② 在小程序后台把 Sentry 上报域名加入 `request` 合法域名。
 
-1. 确保您有可用的 Sentry 平台账号（可以使用 [官方 Sentry SaaS](https://sentry.io/) 或 私有化部署服务）。
-2. **非常重要**：在各平台的小程序管理后台，将 Sentry 的上报接口域名添加到 `request` 合法域名列表中。
-
-### 2. 初始化 SDK
-
-请在小程序入口文件（如 `app.js` 或 `app.ts`）的**最顶部**（调用 `App()` 之前）初始化 Sentry。
+在入口文件（`app.js` / `app.ts`）**最顶部、`App()` 之前**初始化：
 
 ```javascript
 import * as Sentry from 'sentry-miniapp';
 
 Sentry.init({
   dsn: 'https://<key>@sentry.io/<project>',
-  environment: 'production', // 环境变量: production / development
-  release: 'my-project-name@1.0.0', // 版本号，建议与 sourcemap 配合使用
-  
-  // --- 小程序特性配置 ---
-  platform: 'wechat', // 可选：用于标识事件平台；SDK 会自动识别运行时平台
-  enableUserInteractionBreadcrumbs: true, // 自动记录用户点击行为
-  enableConsoleBreadcrumbs: false, // 是否记录 console 输出为面包屑（默认 false）
-  traceNetworkBody: false, // 是否在面包屑中记录网络请求/响应体（默认 false，按需开启）
-  
-  // --- 离线缓存与可靠性 ---
-  enableOfflineCache: true, // 开启断网离线缓存与重试机制 (默认开启)
-  offlineCacheLimit: 30, // 离线缓存的最大事件数 (默认 30，可调大以防弱网下丢失更多数据)
-  
-  // --- SourceMap 支持 ---
-  enableSourceMap: true, // 开启自动将堆栈的虚拟路径转为统一格式，配合上传 sourcemap 时的 --url-prefix "app:///"
-  
-  // --- 性能与采样率 ---
-  sampleRate: 1.0, // 异常上报采样率 (0.0 - 1.0)
-  tracesSampleRate: 1.0, // 性能追踪采样率；开启后 API 请求会作为 http.client span 上报
-
-  // --- 分布式追踪 ---
-  enableTracePropagation: true, // 自动在请求头中注入 sentry-trace/baggage（默认 true）
-  tracePropagationTargets: ['api.example.com'], // 仅对指定域名注入追踪头（为空则全部注入；span 仍按 tracing 采样记录）
-
-  // --- Session 与网络监控 ---
-  enableAutoSessionTracking: true, // 自动管理 Session 生命周期（默认 true）
-  enableNetworkStatusMonitoring: true, // 实时监控网络状态变化（默认 true）
+  release: 'my-project@1.0.0', // 与上传 Source Map 时的 release 一致
+  environment: 'production',
+  sampleRate: 1.0, // 异常采样率
+  tracesSampleRate: 1.0, // 性能采样率；开启后 API 请求作为 http.client span 上报
 });
 
-// 初始化完成后，再调用 App
-App({
-  onLaunch() {
-    // ...
-  }
-});
+App({ onLaunch() {} });
 ```
 
-默认集成已经包含自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 和网络状态监控。只有在需要完全接管集成列表时才传入 `integrations`，否则会覆盖默认集成。
+默认集成已含**异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**，通常无需手动传 `integrations`（传入会覆盖默认）。完整配置项（离线缓存、追踪头注入、面包屑开关等）见[文档站 · 快速接入](https://sentry-miniapp.pages.dev/guide/getting-started)。
+
+**验证是否打通**——主动捕获一个事件，到 Sentry「Issues」列表查看：
+
+```javascript
+Sentry.captureException(new Error('sentry test'));
+```
+
+> ⚠️ `addBreadcrumb` 不会单独上报，只随下一次事件一起发送——只调它而不捕获事件，后台会一直没有数据。
 
 ---
 
-## 📚 常用进阶用法
-
-初始化完成后，SDK 会自动在后台工作。您也可以使用以下 API 进行手动埋点或主动上报。
-
-### 手动异常与消息上报
+## 📚 常用 API
 
 ```javascript
-// 手动捕获并上报一个 Error 对象
-try {
-  throw new Error('支付接口解析失败');
-} catch (error) {
-  Sentry.captureException(error);
-}
-
-// 记录一条关键信息
+// 手动捕获异常 / 消息
+Sentry.captureException(new Error('支付接口解析失败'));
 Sentry.captureMessage('用户主动取消了授权', 'info');
+
+// 用户与标签
+Sentry.setUser({ id: 'user_12345', username: 'John Doe' });
+Sentry.setTag('page_module', 'checkout');
+
+// 业务面包屑
+Sentry.addBreadcrumb({ message: '点击了[确认支付]', category: 'action', level: 'info' });
+
+// 自定义测速
+await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
 ```
 
-### 丰富上下文信息 (Context & Breadcrumbs)
-
-```javascript
-// 设置当前操作的用户信息
-Sentry.setUser({
-  id: 'user_12345',
-  username: 'John Doe'
-});
-
-// 设置用于过滤和统计的全局标签
-Sentry.setTag('page_module', 'checkout_counter');
-
-// 手动添加一条业务追踪面包屑
-Sentry.addBreadcrumb({
-  message: '用户点击了[确认支付]按钮',
-  category: 'action',
-  level: 'info',
-  data: { cartId: 'c_888' }
-});
-```
-
-### 自定义性能测速 (Performance)
-
-```javascript
-await Sentry.startSpan(
-  {
-    name: 'fetch-user-data',
-    op: 'http.client',
-  },
-  async () => {
-    await fetchUserData();
-  },
-);
-```
-
-### 动态采样 (tracesSampler)
-
-除了全局 `sampleRate`，你还可以通过 `tracesSampler` 回调实现按页面、按场景的精细化采样控制：
-
-```javascript
-Sentry.init({
-  dsn: '...',
-  tracesSampler: ({ name, inheritOrSampleWith }) => {
-    // 核心页面 100% 采样
-    if (name.includes('pages/index') || name.includes('pages/pay')) {
-      return 1;
-    }
-    // 低优先级页面降低采样率
-    if (name.includes('pages/about') || name.includes('pages/settings')) {
-      return 0.1;
-    }
-    // 继承上游采样决策，或使用默认 50% 采样率
-    return inheritOrSampleWith(0.5);
-  },
-});
-```
-
-> **注意：** 设置 `tracesSampler` 后，`tracesSampleRate` 将被忽略。`tracesSampler` 的优先级更高。
+需要按页面 / 场景精细采样时用 `tracesSampler` 回调（设置后 `tracesSampleRate` 被忽略），写法见[文档站 · 快速接入](https://sentry-miniapp.pages.dev/guide/getting-started)。
 
 ---
 
-## 🗺️ Source Map 支持与配置
+## 🗺️ Source Map
 
-SDK 内置了多端堆栈路径归一化能力（`enableSourceMap: true`，默认开启），自动将各平台虚拟路径转换为统一的 `app:///` 前缀，配合 sentry-cli 即可实现 Source Map 解析。
-
-**快速上传示例：**
+SDK 默认开启多端堆栈路径归一化（`enableSourceMap: true`），自动将各平台虚拟路径转为统一 `app:///` 前缀，配合 sentry-cli 上传即可解析：
 
 ```bash
 sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
-  --url-prefix "app:///" \
-  --ext js --ext map
+  --url-prefix "app:///" --ext js --ext map
 ```
 
-> 详细的端到端配置指南（包括各构建工具配置、CI/CD 集成、验证与排查），请参阅 **[Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md)**。
-
----
-
-## 💬 用户反馈 (User Feedback)
-
-在 Web 环境中，Sentry 提供了一个现成的 `showReportDialog()` 弹窗。但在小程序环境中没有 DOM 无法直接渲染该组件，因此 `showReportDialog()` 已被**废弃**。
-
-请您**自行实现一个原生小程序表单（或弹窗）**来收集用户的反馈信息，然后调用 `Sentry.captureFeedback()` 提交到 Sentry 后台：
-
-```javascript
-// 当发生错误，或者用户主动点击“反馈”按钮时，展示您自己画的表单：
-const userMessage = '页面卡住了，点什么都没反应';
-const userName = '张三';
-const userEmail = 'zhangsan@example.com';
-
-// 将收集到的反馈发送给 Sentry
-Sentry.captureFeedback({
-  message: userMessage,
-  name: userName,
-  email: userEmail,
-  // 选填：如果您想把这个反馈和某个具体的错误事件关联起来：
-  // associatedEventId: 'abc123xyz...'
-});
-```
-
----
-
-## 📦 主包体积优化 (0KB 主包占用方案)
-
-小程序的“主包体积”非常宝贵（通常限制在 2MB 以内）。`sentry-miniapp` 由于集成了完整的 `@sentry/core` 核心引擎和多端适配，原始体积约在 100KB 左右。
-
-如果您非常在意主包体积，**强烈建议使用平台提供的「分包异步化」或「动态加载」特性**，将 SDK 的体积完全转移到分包中。
-
-### 方案 A：微信 / 支付宝小程序（推荐）
-
-微信和支付宝等平台原生支持[分包异步化](https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/async.html)。
-
-**具体操作步骤：**
-
-1. 将 `sentry-miniapp` 的 npm 包或者构建后的文件放入您的某个分包目录中（例如 `subpackageA`）。
-2. 在您的 `app.js` 顶部，使用 `require.async` 异步懒加载 SDK 并进行初始化：
-
-```javascript
-// app.js
-App({
-  onLaunch() {
-    // 异步加载分包中的 sentry
-    require.async('./subpackageA/sentry-miniapp.js').then((Sentry) => {
-      Sentry.init({
-        dsn: 'https://xxxxxxxx@sentry.io/12345',
-        // ...其他配置
-      });
-      console.log('Sentry 异步加载并初始化成功');
-    }).catch(err => {
-      console.error('Sentry 加载失败', err);
-    });
-  }
-});
-```
-
-*通过这种方式，Sentry 的 100KB 体积将**全部算入 `subpackageA` 的分包体积**，主包占用为 0！*
-
-### 方案 B：其他小程序平台（字节、百度等）
-
-对于暂不支持 `require.async` 的平台，您可以采用**分包预下载 + API 动态加载**的方式：
-
-1. 同样将 SDK 放入分包（如 `subpackageA`）。
-2. 在 `app.js` 中使用平台原生的分包加载 API 先下载分包，下载成功后再通过同步 `require` 引入 SDK：
-
-```javascript
-// 以字节小程序为例
-App({
-  onLaunch() {
-    const loadTask = tt.loadSubpackage({
-      name: 'subpackageA',
-      success: () => {
-        // 分包加载成功后，就可以安全地 require 了
-        const Sentry = require('./subpackageA/sentry-miniapp.js');
-        Sentry.init({ dsn: '...' });
-      }
-    });
-  }
-});
-```
-
-*注：如果您使用的是 Taro / uni-app 等跨端框架，可以直接使用 `import('sentry-miniapp')` 动态导入语法，框架会在编译时自动抹平各端差异。*
+> 端到端配置（各构建工具、CI/CD、跨端框架两层 map 串联、验证排查）见 **[Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md)**。
 
 ---
 
 ## 🎮 小游戏支持
 
-`sentry-miniapp` 同样适用于**小游戏**（微信小游戏 / 抖音小游戏等）。小游戏没有 `App()`/`Page()`/页面路由，但具备 `wx.onError`、`wx.request`、`wx.getDeviceInfo`、`wx.getPerformance` 等平台能力，因此 SDK 的大部分能力开箱即用，并额外提供小游戏专属的冷启动与帧率监控。
+`sentry-miniapp` 同样适用于微信 / 抖音等**小游戏**：自动识别环境，异常 / 网络 / 设备监控开箱即用，并额外提供**冷启动首帧耗时**与**帧率 / 卡顿监控**。初始化与小程序完全一致，开启 `tracesSampleRate` 后性能数据会作为独立 transaction 进 Performance 页。
 
-**初始化与小程序完全一致**，SDK 会自动检测小游戏环境并启用对应能力：
+> 能力矩阵与性能上报细节见[文档站 · 支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms)。
 
-```js
-import * as Sentry from 'sentry-miniapp';
+## 📦 主包体积优化
 
-Sentry.init({
-  dsn: 'YOUR_DSN',
-  // 小游戏环境下，以下两项默认即为开启，可显式关闭：
-  // enableMinigameLifecycle: true,  // 冷启动首帧耗时 + 启动场景 + onShow/onHide 面包屑
-  // enableMinigameFrameRate: true,  // 帧率(FPS)/卡顿(jank)监控
+SDK 原始体积约 100KB。很在意主包体积时，可用平台「分包异步化」/「动态加载」把 SDK 完全移到分包，做到**主包 0KB 占用**。
 
-  // 帧率监控细调（FPS 告警阈值、卡顿阈值、上报间隔等）：
-  // minigameFrameRateOptions: { fpsWarningThreshold: 45 },
-});
-```
-
-### 能力矩阵
-
-| 能力 | 小游戏 | 说明 |
-|------|:------:|------|
-| 异常 / 未处理 Promise 捕获 | ✅ | `wx.onError` / `wx.onUnhandledRejection` |
-| API 请求监控（请求数 / 耗时 / 状态码） | ✅ | 包裹 `wx.request`；开启 tracing 后生成 `http.client` span |
-| 网络状态监控 | ✅ | `wx.onNetworkStatusChange` |
-| 设备信息 / 上下文面包屑 | ✅ | `wx.getDeviceInfo` 等 |
-| 资源加载耗时 | ✅ | `wx.getPerformance()` |
-| **冷启动首帧耗时 + 启动场景** | ✅ 新增 | `MinigameIntegration`（首个 `requestAnimationFrame` 近似首帧） |
-| **帧率 / 卡顿监控** | ✅ 新增 | `MinigameFrameRateIntegration`（RAF 采样 FPS，长帧记 jank，周期上报 `minigame.framerate` 上下文） |
-| 页面生命周期 / 点击面包屑 | ➖ | 小游戏无页面，自动跳过；行为追踪请用 `onShow/onHide` 面包屑或手动 `addBreadcrumb` |
-
-> 上述两个集成仅在小游戏环境默认启用。其中**帧率监控依赖全局 `requestAnimationFrame`**：小游戏有（绑定真实渲染帧），而小程序为双线程架构、逻辑层没有全局 `requestAnimationFrame`，因此在小程序中即使开启也会安全 no-op（无法测量页面渲染帧率）。
-
-#### 性能数据独立上报（进 Performance 页）
-
-冷启动与帧率数据**不只挂在 error 事件上**——开启 tracing 后会作为独立 transaction 上报，可在 Sentry Performance 页做跨会话的趋势 / 分布 / P95 聚合：
-
-- **冷启动** → `minigame.coldstart` transaction（含 `cold_start` measurement）。
-- **帧率 / 卡顿** → 会话维度累积，在**退后台（onHide）/ 会话结束**时发一个 `minigame.framerate.summary` transaction（含 `fps_avg` / `fps_p95` / `fps_min` / `jank_count` measurements）——不每窗口发事件，配额友好。
-
-```js
-Sentry.init({
-  dsn: 'YOUR_DSN',
-  tracesSampleRate: 1.0, // 启用性能采样（与 error sampleRate 解耦）
-});
-```
-
-> 需设置 `tracesSampleRate`（或 `tracesSampler`）才会上报性能 transaction；其采样**独立于** error 的 `sampleRate`。未启用 tracing 时退化为原有行为：性能数据仅作为 `minigame` / `minigame.framerate` 上下文 + 面包屑挂在 error 事件上。
+> 微信 / 支付宝 / 字节 / Taro / uni-app 的具体做法见[文档站 · 主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size)。
 
 ---
 
-## ❓ 常见问题 (FAQ)
+## 💬 用户反馈
 
-### 1. 初始化后无法自动上报异常，必须在 `onError` 中手动调 API 吗？
+小程序无 DOM，`showReportDialog()` 已废弃。请自行实现原生表单收集反馈，再调 `Sentry.captureFeedback()` 提交：
 
-**完全不需要**。
-`sentry-miniapp` 在初始化时会自动劫持并注册平台底层的全局错误监听（如 `wx.onError`）。只要确保 `Sentry.init` 在 `App()` 调用**之前**执行，它就能自动捕获所有未处理的 JS 异常。
-如果发现没上报，请检查：
-
-1. Sentry 域名是否加入了小程序后台合法域名。
-2. `sampleRate` (采样率) 是否被意外设置得太低。
-3. 微信开发者工具某些环境下的报错不会触发底层 `onError`，建议在**真机预览**下测试。
-
-### 2. 这个 SDK 支持 Session Replay (屏幕操作回放) 吗？
-
-目前 **不支持** `Sentry.replayIntegration()`。
-Sentry 官方的 Replay 功能强依赖于浏览器标准 DOM 环境（通过 rrweb 录制）。小程序采用双线程架构且没有开放标准 DOM 接口，无法直接复用。建议通过完善**Breadcrumbs（面包屑路径）**结合**自定义日志**来还原用户操作现场。
-
-### 3. uni-app / Taro 项目的 H5 端如何监控？
-
-`sentry-miniapp` **仅适配各小程序平台**，不内置浏览器原生信号（`window.onerror`、`fetch` / `XHR` 拦截、`PerformanceObserver` 等）。H5 端请直接使用 Sentry 官方的 [`@sentry/browser`](https://docs.sentry.io/platforms/javascript/)，能力完整、长期由官方维护。
-
-> SDK 在 H5 环境下被错误初始化时，会输出引导提示，提醒切换到 `@sentry/browser`。
-
-推荐通过 **uni-app 条件编译**按端引入：
-
-```ts
-// utils/sentry.ts
-let Sentry: any;
-
-// #ifdef H5
-Sentry = require('@sentry/browser');
-Sentry.init({
-  dsn: 'YOUR_DSN',
-  environment: 'production',
-  tracesSampleRate: 0.2,
-});
-// #endif
-
-// #ifdef MP-WEIXIN || MP-ALIPAY || MP-BAIDU || MP-TOUTIAO || MP-QQ || MP-KUAISHOU || MP-DINGTALK
-Sentry = require('sentry-miniapp');
-Sentry.init({
-  dsn: 'YOUR_DSN',
-  environment: 'production',
-  tracesSampleRate: 0.2,
-});
-// #endif
-
-export default Sentry;
+```javascript
+Sentry.captureFeedback({ message: '页面卡住了', name: '张三', email: 'zhangsan@example.com' });
 ```
 
-两端上报同一个 Sentry DSN，可以在同一个 Project 里聚合查看错误。Taro 用户可以用类似的 `process.env.TARO_ENV === 'h5'` 判断分端引入。
+---
 
-### 4. 网络请求会随错误事件一起上报吗？
+## ❓ 常见问题（速览）
 
-**会，且默认开启。** SDK 默认启用 `NetworkBreadcrumbs`，自动劫持 `wx.request` / `my.httpRequest`，把每个网络请求记成 `category: xhr` 的面包屑，随**下一个被捕获的错误事件**一起上报（与 `@sentry/browser` 默认行为一致）。在 Sentry 错误详情的 **Breadcrumbs** 区即可看到出错前的请求链路。
+- **必须在 `onError` 里手动上报吗？** 不用，`init` 会自动挂全局错误监听。
+- **网络请求会随错误上报吗？** 会，默认开启，记成 `category: xhr` 面包屑随错误一起发。
+- **uni-app（Vue）组件内错误上报率很低？** Vue 吞掉了组件错误，需接 `app.config.errorHandler`；Taro（React）用错误边界。
+- **支持 Session Replay 吗？** 不支持（小程序无 DOM），用面包屑还原现场。
+- **H5 端怎么办？** 用官方 `@sentry/browser`，按端条件编译引入。
 
-- **默认带的字段**：`url` / `method` / `status_code` / `duration`；失败请求标 `error` 级、慢请求（>3s）标 `warning` 级。
-- **默认不带请求 / 响应体**。需要 body 时开启 `traceNetworkBody: true`（内置常见敏感字段脱敏，可用 `denyBodyUrls` 排除指定 URL）：
-
-  ```js
-  Sentry.init({ dsn: '...', traceNetworkBody: true });
-  ```
-
-- **uni-app / Taro 无需额外配置**：`uni.request` / `Taro.request` 最终都会走到被包裹的全局 `wx.request`，照常记录。
-
-如果错误里没有网络面包屑，多半是这两点之一：
-
-1. **错误触发前没发过请求**（比如一进页面就手动 `captureException`，自然没有请求面包屑）。验证方式：先发一个请求，在回调里再触发错误——
-
-   ```js
-   wx.request({
-     url: 'https://httpbin.org/get',
-     success() {
-       Sentry.captureException(new Error('net test'));
-     },
-   });
-   ```
-
-   到事件 Breadcrumbs 里应能看到 `category: xhr` 那条。
-
-2. **`Sentry.init` 晚于请求执行**：面包屑包裹在 `init` 时装上，`init` 之前发出的请求抓不到。务必让 `Sentry.init` 在 `App()` / 任何业务请求**之前**执行。
-
-### 5. uni-app（Vue）组件内的错误没上报 / 上报率很低？
-
-如果你用 **uni-app**（底层是 Vue），可能遇到「`sampleRate` 设成 1，却只偶尔上报一条」的情况。原因：**Vue 会用自己的错误处理接住组件内（render / 生命周期 / watch / 模板 `@click` 调用的方法）抛出的错误，默认只打印 console，不会再冒泡到 `wx.onError`**，于是 SDK 捕获不到。能上来的只剩「逃逸出 Vue」的那部分（`setTimeout` 回调、未处理 promise、硬崩溃），所以看起来只偶尔上报。
-
-把 Vue 的 `errorHandler` 接到 Sentry，组件内错误就会上报：
-
-**uni-app Vue3（`main.js` / `main.ts`，现在默认）：**
-
-```js
-import Sentry from '@/utils/sentry'; // 你封装的 sentry-miniapp 初始化
-import { createSSRApp } from 'vue';
-import App from './App.vue';
-
-export function createApp() {
-  const app = createSSRApp(App);
-  app.config.errorHandler = (err, instance, info) => {
-    Sentry.captureException(err, { extra: { lifecycleHook: info } });
-    console.error(err);
-  };
-  return { app };
-}
-```
-
-**Vue2（uni-app 旧版）：**
-
-```js
-Vue.config.errorHandler = (err, vm, info) => {
-  Sentry.captureException(err);
-  console.error(err);
-};
-```
-
-> **Taro 不是 Vue。** Taro 默认用 **React**（也支持 Vue）。用 **Vue** 时同理接 `errorHandler`；用 **React** 时，React 不会像 Vue 那样静默吞掉组件错误（未捕获的渲染错误会向上抛），但你可以加一个**错误边界（Error Boundary）**把渲染错误更完整地转给 Sentry：
->
-> ```jsx
-> class SentryBoundary extends React.Component {
->   componentDidCatch(error, info) {
->     Sentry.captureException(error, { extra: info });
->   }
->   render() {
->     return this.props.children;
->   }
-> }
-> // 用它包住根组件：<SentryBoundary><App /></SentryBoundary>
-> ```
-
-接上之后还顺带提升送达率——`errorHandler` / 错误边界接住后应用不崩，上报请求能正常发完（硬崩溃会把还在飞的上报请求一起带走）。
+> 每条的完整解答见 **[文档站 · 常见问题](https://sentry-miniapp.pages.dev/guide/faq)**。
 
 ---
 
@@ -505,17 +180,23 @@ Vue.config.errorHandler = (err, vm, info) => {
 
 | 文档 | 说明 |
 |------|------|
-| [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md) | 端到端 Source Map 配置，覆盖各构建工具、CI/CD 集成、验证与排查 |
-| [多端兼容性报告](./docs/MultiPlatformCompatibilityReport.md) | 各小程序平台 API 兼容性矩阵与差异说明 |
-| [示例项目](./examples/wxapp/) | 微信小程序完整接入示例 |
-| [开发指南](./DEVELOPMENT.md) | 本地开发环境搭建与调试 |
-| [贡献指南](./CONTRIBUTING.md) | 如何参与项目贡献 |
+| [文档站](https://sentry-miniapp.pages.dev/) | 快速接入 / 能力矩阵 / FAQ / Source Map / 示例（推荐，带搜索） |
+| [Taro 接入指南](https://sentry-miniapp.pages.dev/guide/taro) · [uni-app 接入指南](https://sentry-miniapp.pages.dev/guide/uniapp) | 跨端框架接入与组件错误处理 |
+| [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md) | 端到端配置、各构建工具、CI/CD、验证排查 |
+| [多端兼容性报告](./docs/MultiPlatformCompatibilityReport.md) | 各小程序平台 API 差异说明 |
+| [示例项目](./examples/) | wxapp（原生）/ taro（React）/ uniapp（Vue）三套可运行示例 |
+| [开发指南](./DEVELOPMENT.md) · [贡献指南](./CONTRIBUTING.md) | 本地开发、调试与贡献 |
 
 ---
 
 ## 💬 联系与交流
 
-遇到问题？想探讨小程序监控方案？欢迎加入我们的交流群。
-由于微信群二维码有 7 天时效性限制，请添加作者微信（**备注 sentry-miniapp**），由作者邀请您入群：
+遇到问题？想探讨小程序监控方案？由于微信群二维码有 7 天时效，请添加作者微信（**备注 sentry-miniapp**），由作者邀请入群：
 
 <img src="docs/qrcode/zhiyao.jpeg" alt="作者微信二维码" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+
+---
+
+## License
+
+[MIT](./LICENSE)

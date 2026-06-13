@@ -45,6 +45,7 @@ export default defineConfig({
           items: [
             { text: '常见问题 (FAQ)', link: '/guide/faq' },
             { text: 'Source Map 配置', link: '/guide/sourcemap' },
+            { text: '主包体积优化', link: '/guide/bundle-size' },
             { text: '示例工程', link: '/guide/examples' },
           ],
         },
