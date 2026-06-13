@@ -56,11 +56,12 @@ Sentry.captureException(new Error('sentry test'));
 
 - **合法域名**：自托管 Sentry / 真机预览时，需把 Sentry 上报域名加入小程序后台「request 合法域名」白名单（开发者工具可临时勾选「不校验合法域名」绕过）。
 - **真机 vs 开发者工具**：微信开发者工具某些环境下的报错不会触发底层 `wx.onError`，建议在真机预览下测试。
-- **uni-app / Taro 框架**：组件内的错误可能被框架接住、不冒泡到 `wx.onError`，需接框架的错误处理。详见 [常见问题](/guide/faq#组件内错误)。
+- **uni-app / Taro 框架**：组件内的错误可能被框架接住、不冒泡到 `wx.onError`，需接框架的错误处理。详见 [Taro 接入指南](/guide/taro)、[uni-app 接入指南](/guide/uniapp) 或 [常见问题](/guide/faq#组件内错误)。
 
 ## 下一步
 
 - [支持平台与能力矩阵](/guide/platforms)
+- [Taro 接入指南](/guide/taro) · [uni-app 接入指南](/guide/uniapp)
 - [常见问题 (FAQ)](/guide/faq)
 - [Source Map 配置](/guide/sourcemap)
 - [示例工程](/guide/examples)

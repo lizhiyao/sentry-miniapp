@@ -34,6 +34,13 @@ export default defineConfig({
           ],
         },
         {
+          text: '框架接入',
+          items: [
+            { text: 'Taro（React）', link: '/guide/taro' },
+            { text: 'uni-app（Vue）', link: '/guide/uniapp' },
+          ],
+        },
+        {
           text: '进阶',
           items: [
             { text: '常见问题 (FAQ)', link: '/guide/faq' },
