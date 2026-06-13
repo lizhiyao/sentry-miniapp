@@ -95,7 +95,7 @@ Sentry.init({
 App({ onLaunch() {} });
 ```
 
-Default integrations already include **exception capture, performance monitoring, Source Map path normalization, network breadcrumbs, session and network status monitoring** — you usually don't pass `integrations` (doing so replaces the defaults). Full options (offline cache, trace propagation, breadcrumb toggles) are on the [docs site · Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started).
+Default integrations already include **exception capture, performance monitoring, Source Map path normalization, network breadcrumbs, session and network status monitoring** — you usually don't pass `integrations` (doing so replaces the defaults). Full options (offline cache, trace propagation, breadcrumb toggles) are on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
 
 **Verify it works** — capture an event and check the Sentry "Issues" list:
 
@@ -125,7 +125,7 @@ Sentry.addBreadcrumb({ message: 'Tapped [Confirm Payment]', category: 'action', 
 await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
 ```
 
-For per-page / per-scenario sampling use the `tracesSampler` callback (it overrides `tracesSampleRate`); see the [docs site · Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started).
+For per-page / per-scenario sampling use the `tracesSampler` callback (it overrides `tracesSampleRate`); see the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
 
 ---
 

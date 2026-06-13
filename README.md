@@ -93,7 +93,7 @@ Sentry.init({
 App({ onLaunch() {} });
 ```
 
-默认集成已含**异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**，通常无需手动传 `integrations`（传入会覆盖默认）。完整配置项（离线缓存、追踪头注入、面包屑开关等）见[文档站 · 快速接入](https://sentry-miniapp.pages.dev/guide/getting-started)。
+默认集成已含**异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**，通常无需手动传 `integrations`（传入会覆盖默认）。完整配置项（离线缓存、追踪头注入、面包屑开关等）见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
 
 **验证是否打通**——主动捕获一个事件，到 Sentry「Issues」列表查看：
 
@@ -123,7 +123,7 @@ Sentry.addBreadcrumb({ message: '点击了[确认支付]', category: 'action', l
 await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
 ```
 
-需要按页面 / 场景精细采样时用 `tracesSampler` 回调（设置后 `tracesSampleRate` 被忽略），写法见[文档站 · 快速接入](https://sentry-miniapp.pages.dev/guide/getting-started)。
+需要按页面 / 场景精细采样时用 `tracesSampler` 回调（设置后 `tracesSampleRate` 被忽略），写法见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
 
 ---
 
