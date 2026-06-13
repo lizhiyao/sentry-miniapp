@@ -1,6 +1,21 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.11.3](https://github.com/lizhiyao/sentry-miniapp/compare/v1.11.2...v1.11.3) (2026-06-13)
+
+> ⚠️ 本次为**文档 / 维护更新**：SDK 业务源码（`src/`）与 1.11.2 一致，**无功能变更**。npm 包此次仅刷新随包发布的 `README`（瘦身为「名片 + 入口」，能力矩阵 / FAQ / 配置项等完整内容迁至文档站）。其余为**文档站**改动（新增 配置项参考 / 选型与限制 / 工作原理 / Taro · uni-app 接入页，导航重组为 接入 / 配置指南 / 参考），不随 npm 包发布。
+
+
+### 🎫 Chores | 其他更新
+
+* **deps-dev:** bump vite from 6.4.2 to 6.4.3 ([#183](https://github.com/lizhiyao/sentry-miniapp/issues/183)) ([3fa42be](https://github.com/lizhiyao/sentry-miniapp/commit/3fa42bef4b525d89439412db6372d2de51907db2))
+
+
+### 📝 Documentation | 文档
+
+* **website:** 新增 Taro / uni-app 框架接入指南 ([#186](https://github.com/lizhiyao/sentry-miniapp/issues/186)) ([4907470](https://github.com/lizhiyao/sentry-miniapp/commit/490747091cb7f5c85c9569ef9c848e4cd797db10))
+* 打磨 README 与 docs，落实三处文档单一来源 ([#187](https://github.com/lizhiyao/sentry-miniapp/issues/187)) ([ef5f76e](https://github.com/lizhiyao/sentry-miniapp/commit/ef5f76e158c0603f51957d1bc45f9e5364a9dffb))
+
 ## [1.11.2](https://github.com/lizhiyao/sentry-miniapp/compare/v1.11.1...v1.11.2) (2026-06-11)
 
 > ⚠️ 本次为**文档 / 维护更新**：SDK 源码（`src/`）与 1.11.1 完全一致、`dist` 运行时产物无变化。npm 包此次仅刷新随包发布的 `README`（新增网络面包屑、uni-app / Taro 组件错误等 FAQ 与文档站链接）。下列条目均为**文档站 / 示例工程 / 构建工具**改动，不影响 SDK 运行时行为。
