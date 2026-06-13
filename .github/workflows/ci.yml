@@ -40,4 +40,4 @@ jobs:
       run: yarn run build
 
     - name: Run Tests
-      run: yarn run test:all
+      run: yarn run test

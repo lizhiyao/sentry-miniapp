@@ -28,7 +28,6 @@ yarn install
 | `yarn build:miniapp` | 仅构建小程序版本 |
 | `yarn build:types` | 构建类型定义文件（d.ts） |
 | `yarn test` | 运行单元测试（Jest） |
-| `yarn test:all` | 等同 `yarn test`（CI / 发布沿用此名） |
 | `yarn lint` | 运行 ESLint 检查 |
 
 ---
@@ -75,14 +74,14 @@ sentry-miniapp/
 
 ## 🧪 测试和质量保证
 
-项目包含完善的测试覆盖率（近 300 个测试用例）：
+项目包含完善的测试覆盖率（近 500 个测试用例）：
 
 - **单元测试 (`yarn test`，Jest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
 
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 
 ```bash
-yarn lint && yarn test:all
+yarn lint && yarn test
 ```
 
 ---
@@ -91,7 +90,7 @@ yarn lint && yarn test:all
 
 项目已配置 GitHub Actions 自动化 CI/CD，使用 `commit-and-tag-version` 管理版本。常规发版流程如下：
 
-1. **本地校验**：运行 `yarn lint` 和 `yarn test:all` 确保代码健康。
+1. **本地校验**：运行 `yarn lint` 和 `yarn test` 确保代码健康。
 2. **自动发版**：运行 `yarn release`，该命令会自动完成以下操作：
    - 根据 Conventional Commits 更新版本号
    - 生成 CHANGELOG.md

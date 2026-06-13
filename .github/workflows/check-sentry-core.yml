@@ -64,7 +64,7 @@ jobs:
 
           1. 查看 changelog 确认是否有 breaking changes
           2. 更新 \`package.json\` 中的版本号
-          3. 运行 \`yarn install && yarn test:all\` 验证兼容性
+          3. 运行 \`yarn install && yarn test\` 验证兼容性
           4. 如有 API 变更，同步更新 SDK 代码
 
           > 此 Issue 由 GitHub Action 自动创建。

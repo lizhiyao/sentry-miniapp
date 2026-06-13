@@ -46,8 +46,7 @@ cp -r .claude/skills/sentry-miniapp-sdk ~/.codex/agents/skills/sentry-miniapp-sd
 
 - `yarn install` - 安装依赖
 - `yarn run lint` - 代码检查
-- `yarn run test` - 运行单元测试
-- `yarn run test:all` - 运行测试（现等同 `yarn run test`，CI / 发布沿用此名）
+- `yarn run test` - 运行单元测试（jest）
 - `yarn run build` - 构建项目
 
 ## 参考
