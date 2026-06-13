@@ -45,6 +45,8 @@ export default defineConfig({
         {
           text: '参考',
           items: [
+            { text: '它适合我吗？（选型与限制）', link: '/guide/when-to-use' },
+            { text: '工作原理', link: '/guide/how-it-works' },
             { text: '支持平台与能力', link: '/guide/platforms' },
             { text: '常见问题 (FAQ)', link: '/guide/faq' },
           ],
