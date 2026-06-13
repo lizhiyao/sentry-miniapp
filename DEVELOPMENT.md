@@ -27,9 +27,8 @@ yarn install
 | `yarn build` | 构建标准版本（产出 ESM/CJS/UMD 格式，并自动同步到 examples） |
 | `yarn build:miniapp` | 仅构建小程序版本 |
 | `yarn build:types` | 构建类型定义文件（d.ts） |
-| `yarn test` | 运行单元测试 |
-| `yarn test:all` | 运行全部测试（单元 + 集成） |
-| `yarn test:integration`| 运行端到端集成测试 |
+| `yarn test` | 运行单元测试（Jest） |
+| `yarn test:all` | 等同 `yarn test`（CI / 发布沿用此名） |
 | `yarn lint` | 运行 ESLint 检查 |
 
 ---
@@ -65,7 +64,6 @@ sentry-miniapp/
 │   ├── integrations/             # 各类集成模块（如 Performance, Router 等）
 │   └── transports/               # 数据传输层（XHR, 离线缓存）
 ├── test/                         # 单元测试（Jest）
-├── integration-tests/            # 集成测试脚本（Node.js 端到端验证）
 ├── examples/wxapp/               # 用于调试的微信小程序示例
 │   ├── lib/                      # [自动生成] SDK 构建产物目录
 │   ├── app.js                    # 小程序入口，SDK 初始化处
@@ -79,8 +77,7 @@ sentry-miniapp/
 
 项目包含完善的测试覆盖率（近 300 个测试用例）：
 
-- **单元测试 (`yarn test`)**：覆盖了所有的核心类、工具函数和集成插件（如跨端兼容性、面包屑拦截等）。
-- **集成测试 (`yarn test:integration`)**：通过 Node.js 脚本模拟真实的 Sentry 数据上报，验证异常捕获、限流（Rate Limit）、离线重试等端到端流程。
+- **单元测试 (`yarn test`，Jest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
 
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 

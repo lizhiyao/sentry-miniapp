@@ -18,8 +18,7 @@
     "docs:preview": "vitepress preview website",
     "lint": "eslint src --ext .ts",
     "test": "jest",
-    "test:integration": "npm run build && cp dist/sentry-miniapp.umd.js examples/wxapp/lib/sentry-miniapp.js && node integration-tests/test-duplicate-async-error.js && node integration-tests/test-multiple-exceptions.js && node integration-tests/test-size-limit-fix.js",
-    "test:all": "npm run test && npm run test:integration",
+    "test:all": "npm run test",
     "prepublishOnly": "npm run build",
     "prepare": "husky",
     "release": "commit-and-tag-version"
