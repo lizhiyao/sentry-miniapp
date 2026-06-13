@@ -39,7 +39,7 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 | `traceNetworkBody` | `boolean` | `false` | 网络面包屑中记录请求 / 响应体（内置敏感字段脱敏） |
 | `maxBreadcrumbs` | `number` | `100` | 面包屑最大条数 |
 
-> 网络面包屑（`url`/`method`/状态码/耗时）**默认开启**，无需配置。若要按 URL 排除请求体记录，用 NetworkBreadcrumbs 集成的 `denyBodyUrls`（集成级选项，非顶层 `init` 选项）。
+> 网络面包屑（`url`/`method`/状态码/耗时）**默认开启**，无需配置。若开启 `traceNetworkBody` 后需要按 URL 排除 body，可在 `beforeBreadcrumb` 里按 `breadcrumb.data.url` 删除 `request_body` / `response_body`，或返回 `null` 丢弃该条面包屑。
 
 ## Source Map
 
@@ -93,7 +93,7 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `integrations` | `Integration[]` | 默认集成 | **传入会覆盖默认集成**。通常无需设置；如需在默认之上追加，用 `[...Sentry.getDefaultIntegrations(), new Sentry.Integrations.XXX()]` |
-| `defaultIntegrations` | `Integration[]` | 内置 | 自定义默认集成列表（高级用法） |
+| `integrations` | `Integration[]` | 默认核心集成 | **传入会替换核心默认集成**（如 `GlobalHandlers` / `TryCatch` / `PerformanceIntegration`）。通常无需设置；如需在默认之上追加，用 `[...Sentry.getDefaultIntegrations(), new Sentry.Integrations.XXX()]` |
+| `defaultIntegrations` | `Integration[]` | 内置 | 底层兼容字段；`sentry-miniapp` 会在 `init` 时显式组装集成，业务自定义请优先使用 `integrations` |
 
-> 默认集成已含：自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控。
+> 默认初始化路径已含：自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控。其中 Source Map / 网络 / Session / 页面面包屑 / 网络状态等集成会根据顶层开关在 `init` 时追加。

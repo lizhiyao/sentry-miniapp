@@ -30,7 +30,8 @@ Sentry.init({
   enableNavigationBreadcrumbs: true,
 
   // 网络请求面包屑默认开启（自动包裹 wx.request / uni.request，随错误事件一起上报）。
-  // 这里再开 traceNetworkBody，连请求 / 响应体也记录（内置敏感字段脱敏；可用 denyBodyUrls 排除指定 URL）。
+  // 这里再开 traceNetworkBody，连请求 / 响应体也记录（内置敏感字段脱敏）。
+  // 若要按 URL 排除 body，可在 beforeBreadcrumb 里二次清理。
   traceNetworkBody: true,
 
   // 采样率：示例里全量采集，生产建议按量调低

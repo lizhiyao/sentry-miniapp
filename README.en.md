@@ -150,9 +150,9 @@ sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
 
 ## 📦 Bundle Size Optimization
 
-The SDK is ~100KB. If main-package size matters, use platform "subpackage async" / "dynamic loading" to move the SDK entirely into a subpackage for **zero main-package overhead**.
+The SDK is ~100KB. If main-package size matters, use platform "subpackage async" / "dynamic loading" to move the SDK into a subpackage and reduce main-package overhead; platforms with cross-subpackage async loading can reach zero main-package overhead.
 
-> WeChat / Alipay / ByteDance / Taro / uni-app instructions: [docs site · Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size).
+> WeChat subpackage async loading and cross-platform verification guidance: [docs site · Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size).
 
 ---
 

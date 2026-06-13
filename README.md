@@ -148,9 +148,9 @@ sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
 
 ## 📦 主包体积优化
 
-SDK 原始体积约 100KB。很在意主包体积时，可用平台「分包异步化」/「动态加载」把 SDK 完全移到分包，做到**主包 0KB 占用**。
+SDK 原始体积约 100KB。很在意主包体积时，可用平台「分包异步化」/「动态加载」把 SDK 移到分包，显著降低主包占用；微信等支持跨分包异步加载的场景有机会做到主包 0KB 占用。
 
-> 微信 / 支付宝 / 字节 / Taro / uni-app 的具体做法见[文档站 · 主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size)。
+> 微信分包异步化做法与其他平台 / 框架的核查建议见[文档站 · 主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size)。
 
 ---
 

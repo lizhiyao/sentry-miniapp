@@ -7,7 +7,7 @@
 官方 Web SDK 依赖浏览器环境，而小程序**没有这些**：
 
 - 没有 `window` / `document` / DOM；
-- 没有 `fetch` / `XMLHttpRequest`——网络只能走平台的 `wx.request`（各平台命名还不同）；
+- 没有 `fetch` / `XMLHttpRequest`——网络只能走各平台自己的请求 API（如 `wx.request` / `my.httpRequest`）；
 - 是**双线程架构**（渲染层 + 逻辑层），错误监听、全局对象都和浏览器不一样。
 
 所以 `@sentry/browser` 的传输层、全局错误钩子、DOM 录制在小程序里都用不了。`sentry-miniapp` 复用 Sentry 的**核心**（`@sentry/core`：事件模型、采样、scope、集成机制），只重写「与运行环境耦合」的那一层。
@@ -30,7 +30,7 @@ sentry-miniapp（init + 默认集成）
 @sentry/core（事件构建、采样、scope、transport 接口）
       │
       ▼
-自定义 transport（走 wx.request 把 envelope 发到 Sentry）
+自定义 transport（走平台 request/httpRequest 把 envelope 发到 Sentry）
 ```
 
 ## 关键机制
@@ -47,7 +47,7 @@ sentry-miniapp（init + 默认集成）
 
 ### 网络面包屑与追踪
 
-默认包裹全局 `request`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也走它，无需额外配置）。开启 `tracesSampleRate` 后，请求耗时还会作为 `http.client` span，并注入 `sentry-trace` / `baggage` 头串联后端。
+默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API，无需额外配置）。开启 `tracesSampleRate` 后，请求耗时还会作为 `http.client` span，并注入 `sentry-trace` / `baggage` 头串联后端。
 
 ### Source Map 路径归一化
 
@@ -66,7 +66,7 @@ SDK 捕获 → RewriteFrames 归一化堆栈为 app:///
       ↓
 @sentry/core 构建事件、按 sampleRate 采样、过 beforeSend
       ↓
-自定义 transport 经 wx.request 发 envelope（失败则进离线缓存）
+自定义 transport 经平台 request/httpRequest 发 envelope（失败则进离线缓存）
       ↓
 Sentry 收到 → 用 app:/// 前缀匹配 Source Map → 展示源码位置
 ```
