@@ -50,10 +50,11 @@ export default Sentry;
 在 `src/app.tsx` 顶部引入封装（引入即执行 `init`），确保先于业务请求、能捕获启动阶段异常：
 
 ```tsx
+import type { PropsWithChildren } from 'react';
 import Sentry from './utils/sentry'; // 引入即执行 Sentry.init
 import SentryBoundary from './components/SentryBoundary';
 
-function App({ children }) {
+function App({ children }: PropsWithChildren) {
   return <SentryBoundary>{children}</SentryBoundary>;
 }
 
@@ -65,7 +66,7 @@ export default App;
 React 不像 Vue 那样静默吞掉组件错误，但**渲染期错误若不接住会整页白屏**。用错误边界把渲染错误更完整地上报（带 `componentStack`）并兜底 UI。新建 `src/components/SentryBoundary.tsx`：
 
 ```tsx
-import { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { View, Text } from '@tarojs/components';
 import Sentry from '../utils/sentry';
 
@@ -103,6 +104,10 @@ export default class SentryBoundary extends Component<{ children: ReactNode }, {
 ## 5. 分端接入（同时要 H5）
 
 若 Taro 工程还编译 H5，用 `process.env.TARO_ENV` 分端引入——小程序用 `sentry-miniapp`，H5 用功能完整、官方维护的 `@sentry/browser`：
+
+```bash
+npm install sentry-miniapp @sentry/browser --save
+```
 
 ```ts
 let Sentry;

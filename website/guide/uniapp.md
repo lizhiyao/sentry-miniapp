@@ -81,13 +81,22 @@ Vue.config.errorHandler = (err, vm, info) => {
 
 uni-app 用**条件编译**按端引入——小程序用 `sentry-miniapp`，H5 用官方 `@sentry/browser`：
 
+```bash
+npm install sentry-miniapp @sentry/browser --save
+```
+
 ```js
+let Sentry;
+
 // #ifdef H5
-import * as Sentry from '@sentry/browser';
+Sentry = require('@sentry/browser');
 // #endif
+
 // #ifdef MP-WEIXIN || MP-ALIPAY || MP-BAIDU || MP-TOUTIAO || MP-QQ || MP-KUAISHOU || MP-DINGTALK
-import * as Sentry from 'sentry-miniapp';
+Sentry = require('sentry-miniapp');
 // #endif
+
+export default Sentry;
 ```
 
 ## 5. 其它
