@@ -7,9 +7,9 @@ Taro 默认使用 **React**（也可通过 `framework` 配置切换到 Vue3 / Vu
 很多人第一反应是装官方的 `@sentry/browser` 或 `@sentry/react`，但**在小程序端跑不起来**：
 
 - 小程序没有浏览器的 `window` / `fetch` / `XMLHttpRequest`，官方 Web SDK 的传输层和全局错误钩子都依赖这些；
-- 小程序是双线程架构、网络只能走 `wx.request`，需要专门的 transport 与平台适配。
+- 小程序是双线程架构、网络只能走平台请求 API（如微信 `wx.request`、支付宝 `my.httpRequest`），需要专门的 transport 与平台适配。
 
-`sentry-miniapp` 正是补齐这一层：自定义 transport（走 `wx.request`）、小程序全局异常捕获、Source Map 路径归一化、网络面包屑等。**Taro 小程序端用 `sentry-miniapp`，H5 端才用 `@sentry/browser`**（见下文「分端接入」）。
+`sentry-miniapp` 正是补齐这一层：自定义 transport（走各端 request/httpRequest）、小程序全局异常捕获、Source Map 路径归一化、网络面包屑等。**Taro 小程序端用 `sentry-miniapp`，H5 端才用 `@sentry/browser`**（见下文「分端接入」）。
 
 ## 1. 安装
 
@@ -33,7 +33,7 @@ Sentry.init({
   sampleRate: 1.0, // error 采样率
   tracesSampleRate: 1.0, // 性能采样率；开启后 API 请求会作为 http.client span 上报
 
-  // 网络面包屑默认开启（自动包裹 wx.request；Taro.request 最终也走它，无需额外配置）。
+  // 网络面包屑默认开启（自动包裹平台请求 API；Taro.request 最终也走它，无需额外配置）。
   // 开 traceNetworkBody 连请求 / 响应体也记录（内置脱敏）。
   traceNetworkBody: false,
 });
@@ -43,7 +43,7 @@ Sentry.setTag('app.framework', 'taro-react');
 export default Sentry;
 ```
 
-默认集成已含：自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控。**通常无需手动传 `integrations`**——只有完全接管集成列表时才传（会覆盖默认）。
+默认初始化路径已含：自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控。**通常无需手动传 `integrations`**——只有要替换核心默认集成时才传；Source Map / 网络 / Session 等能力仍由各自顶层开关控制。
 
 ## 3. 尽早初始化
 
@@ -120,7 +120,7 @@ if (process.env.TARO_ENV === 'h5') {
 
 ## 6. 其它
 
-- **网络**：`Taro.request` 最终走被包裹的全局 `wx.request`，请求会自动记成 `xhr` 面包屑、随错误事件上报，无需额外配置。
+- **网络**：`Taro.request` 最终走对应小程序端被包裹的全局请求 API，请求会自动记成 `xhr` 面包屑、随错误事件上报，无需额外配置。
 - **Source Map**：Taro 经过编译，错误栈是编译后代码，需上传 Source Map 才能还原。配置见 [Source Map 配置](/guide/sourcemap)。
 
 ## 下一步

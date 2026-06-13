@@ -20,32 +20,35 @@ export default defineConfig({
     nav: [
       { text: '指南', link: '/guide/getting-started', activeMatch: '/guide/' },
       { text: '常见问题', link: '/guide/faq' },
-      { text: '示例', link: '/guide/examples' },
       { text: 'npm', link: 'https://www.npmjs.com/package/sentry-miniapp' },
     ],
 
     sidebar: {
       '/guide/': [
         {
-          text: '开始',
+          text: '接入',
           items: [
-            { text: '快速接入', link: '/guide/getting-started' },
-            { text: '支持平台与能力', link: '/guide/platforms' },
-          ],
-        },
-        {
-          text: '框架接入',
-          items: [
+            { text: '快速接入（原生小程序）', link: '/guide/getting-started' },
             { text: 'Taro（React）', link: '/guide/taro' },
             { text: 'uni-app（Vue）', link: '/guide/uniapp' },
+            { text: '示例工程', link: '/guide/examples' },
           ],
         },
         {
-          text: '进阶',
+          text: '配置指南',
           items: [
-            { text: '常见问题 (FAQ)', link: '/guide/faq' },
+            { text: '配置项参考', link: '/guide/configuration' },
             { text: 'Source Map 配置', link: '/guide/sourcemap' },
-            { text: '示例工程', link: '/guide/examples' },
+            { text: '主包体积优化', link: '/guide/bundle-size' },
+          ],
+        },
+        {
+          text: '参考',
+          items: [
+            { text: '它适合我吗？（选型与限制）', link: '/guide/when-to-use' },
+            { text: '工作原理', link: '/guide/how-it-works' },
+            { text: '支持平台与能力', link: '/guide/platforms' },
+            { text: '常见问题 (FAQ)', link: '/guide/faq' },
           ],
         },
       ],

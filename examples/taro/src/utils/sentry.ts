@@ -28,7 +28,8 @@ Sentry.init({
   tracesSampleRate: 1.0,
 
   // 网络请求面包屑默认开启（自动包裹 wx.request；Taro.request 最终也走它）。
-  // 这里再开 traceNetworkBody，连请求 / 响应体也记录（内置敏感字段脱敏；可用 denyBodyUrls 排除指定 URL）。
+  // 这里再开 traceNetworkBody，连请求 / 响应体也记录（内置敏感字段脱敏）。
+  // 若要按 URL 排除 body，可在 beforeBreadcrumb 里二次清理。
   traceNetworkBody: true,
 
   // 事件体积保护：限制面包屑数量、裁剪过大的上下文，避免请求体过大被拒
@@ -50,7 +51,7 @@ Sentry.init({
 });
 
 // 默认集成已包含：自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、
-// Session 与网络状态监控。无需手动传 integrations；只有完全接管集成列表时才传（会覆盖默认）。
+// Session 与网络状态监控。无需手动传 integrations；只有要替换核心默认集成时才传。
 
 // 全局用户与标签（演示用，生产请按真实登录态设置）
 Sentry.setUser({ id: 'taro-demo-user', username: 'taro_demo' });

@@ -11,8 +11,8 @@
 **会，且默认开启。** SDK 默认启用 `NetworkBreadcrumbs`，自动劫持 `wx.request` / `my.httpRequest`，把每个网络请求记成 `category: xhr` 的面包屑，随**下一个被捕获的错误事件**一起上报（与 `@sentry/browser` 默认行为一致）。
 
 - **默认字段**：`url` / `method` / `status_code` / `duration`；失败请求标 `error` 级、慢请求（>3s）标 `warning` 级。
-- **默认不带请求 / 响应体**，需要 body 时开启 `traceNetworkBody: true`（内置敏感字段脱敏，可用 `denyBodyUrls` 排除指定 URL）。
-- **uni-app / Taro 无需额外配置**：`uni.request` / `Taro.request` 最终都会走到被包裹的全局 `wx.request`。
+- **默认不带请求 / 响应体**，需要 body 时开启 `traceNetworkBody: true`（内置敏感字段脱敏；按 URL 排除可在 `beforeBreadcrumb` 里二次处理）。
+- **uni-app / Taro 无需额外配置**：`uni.request` / `Taro.request` 最终会走到对应小程序端被包裹的全局请求 API（如微信 `wx.request`、支付宝 `my.httpRequest`）。
 
 如果错误里没有网络面包屑，多半是：① 错误触发前没发过请求；② `Sentry.init` 晚于请求执行（务必在请求之前 init）。
 
@@ -60,3 +60,5 @@ class SentryBoundary extends React.Component {
 ## uni-app / Taro 的 H5 端如何监控？
 
 `sentry-miniapp` **仅适配小程序平台**，不内置浏览器原生信号（`window.onerror`、`fetch`/XHR 拦截等）。H5 端请用官方 [`@sentry/browser`](https://docs.sentry.io/platforms/javascript/)，按端条件编译引入；两端上报同一个 DSN 即可在同一 Project 聚合查看。
+
+条件编译的具体写法见 [Taro 接入指南](/guide/taro) 与 [uni-app 接入指南](/guide/uniapp) 的「分端接入」一节。

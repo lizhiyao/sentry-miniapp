@@ -2,6 +2,8 @@
 
 `sentry-miniapp` 是基于 [`@sentry/core`](https://github.com/getsentry/sentry-javascript) 的跨端小程序 Sentry SDK，覆盖微信、支付宝、字节跳动、钉钉、QQ、百度、快手，并兼容 Taro / uni-app。
 
+> 本页即**原生小程序**（微信 / 支付宝 / 字节等原生工程）的接入方式。用 Taro / uni-app 框架的另见 [Taro 接入指南](/guide/taro) 与 [uni-app 接入指南](/guide/uniapp)。
+
 ## 1. 安装
 
 ```bash
@@ -37,7 +39,9 @@ Sentry.init({
 });
 ```
 
-默认集成已包含：**自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**。通常无需手动传 `integrations`——只有完全接管集成列表时才传，否则会覆盖默认集成。
+默认初始化路径已包含：**自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**。通常无需手动传 `integrations`——只有要替换核心默认集成时才传；Source Map / 网络 / Session 等能力仍由各自顶层开关控制。
+
+> 上面只是最小配置。离线缓存、采样、追踪头注入、面包屑开关、小游戏等**完整配置项**见 [配置项参考](/guide/configuration)。
 
 ## 3. 验证是否打通
 
@@ -60,6 +64,7 @@ Sentry.captureException(new Error('sentry test'));
 
 ## 下一步
 
+- [配置项参考](/guide/configuration) — 全部 `init` 选项
 - [支持平台与能力矩阵](/guide/platforms)
 - [Taro 接入指南](/guide/taro) · [uni-app 接入指南](/guide/uniapp)
 - [常见问题 (FAQ)](/guide/faq)

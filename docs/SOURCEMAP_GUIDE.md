@@ -18,6 +18,10 @@
 
 ---
 
+> 🚀 **只想最快跑通?** 大多数项目只需三步:[第一步 SDK 配置 `release`](#第一步sdk-配置) → [第三步 生成 map](#第三步生成-source-map) → [第四步 上传](#第四步上传-source-map),再用[第六步](#第六步验证-source-map-是否生效)验证。
+>
+> [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)是**进阶**:仅当你用 Taro / uni-app 且**真机**错误栈文件名是合并后的 `app:///appservice.app.js`(分页 map 解不出)时才需要——多数人不需要,遇到了再看。
+
 ## 概述
 
 在小程序中，错误堆栈的路径通常是各平台的虚拟路径（如微信的 `appservice/pages/index.js`、支付宝的 `https://appx/pages/index.js`），这导致上传到 Sentry 的 Source Map 无法被正确匹配和解析。
@@ -33,7 +37,7 @@
 
 因此，你在上传 Source Map 时只需统一使用 `--url-prefix "app:///"` 即可，无需关心各平台差异。
 
-> ⚠️ **真机可能是另一种形态。** 上面的分页路径（如 `app:///pages/index.js`）是开发者工具 / 部分运行时的样子；**真机上微信常把逻辑层所有 JS 合并成单个 `app:///appservice.app.js`**，错误栈行列号落在这个合并大文件里，分页 Source Map 解不出。用 Taro / uni-app 等框架时几乎必然如此。**上传前请先在真机触发一个错误、看清堆栈里的文件名，再决定传哪种 map**——详见 [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)。
+> ⚠️ **真机可能是另一种形态。** 真机上微信常把逻辑层 JS 合并成单个 `app:///appservice.app.js`（用 Taro / uni-app 时几乎必然），分页 Source Map 解不出。**上传前先在真机触发一个错误、看清堆栈文件名，再决定传哪种 map**——详见 [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)。
 
 **端到端流程：**
 

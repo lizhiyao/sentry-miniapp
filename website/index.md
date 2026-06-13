@@ -10,11 +10,11 @@ hero:
     alt: sentry-miniapp
   actions:
     - theme: brand
-      text: 快速接入
+      text: 5 分钟接入
       link: /guide/getting-started
     - theme: alt
-      text: 支持平台与能力
-      link: /guide/platforms
+      text: 它适合我吗？
+      link: /guide/when-to-use
     - theme: alt
       text: GitHub
       link: https://github.com/lizhiyao/sentry-miniapp
@@ -39,6 +39,15 @@ features:
     title: 小游戏支持
     details: 微信 / 抖音小游戏冷启动首帧耗时、帧率 / 卡顿（FPS / jank）监控，性能独立上报进 Performance 页。
 ---
+
+> ✅ 已收录 [Sentry 官方文档](https://docs.sentry.io/platforms/#sdks-supported-by-our-community) 的 community SDK 列表 · 7 大平台 + Taro / uni-app · 100% 测试覆盖 · 持续活跃维护
+
+## 按你的场景接入
+
+- **原生小程序**（微信 / 支付宝 / 字节…）→ [快速接入](/guide/getting-started)
+- **Taro（React）** → [Taro 接入指南](/guide/taro)
+- **uni-app（Vue）** → [uni-app 接入指南](/guide/uniapp)
+- 还在评估？→ [它适合我吗？（选型与限制）](/guide/when-to-use)
 
 ## 安装
 
