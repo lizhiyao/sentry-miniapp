@@ -60,3 +60,5 @@ class SentryBoundary extends React.Component {
 ## uni-app / Taro 的 H5 端如何监控？
 
 `sentry-miniapp` **仅适配小程序平台**，不内置浏览器原生信号（`window.onerror`、`fetch`/XHR 拦截等）。H5 端请用官方 [`@sentry/browser`](https://docs.sentry.io/platforms/javascript/)，按端条件编译引入；两端上报同一个 DSN 即可在同一 Project 聚合查看。
+
+条件编译的具体写法见 [Taro 接入指南](/guide/taro) 与 [uni-app 接入指南](/guide/uniapp) 的「分端接入」一节。
