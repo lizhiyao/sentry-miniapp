@@ -39,7 +39,7 @@ git checkout -b fix/my-fix
 3. Ensure all checks pass:
 
 ```bash
-yarn lint && yarn test:all
+yarn lint && yarn test
 ```
 
 4. Commit using [Conventional Commits](https://www.conventionalcommits.org/) format:
