@@ -68,7 +68,7 @@
     "vitepress": "^1.6.4"
   },
   "dependencies": {
-    "@sentry/core": "10.56.0"
+    "@sentry/core": "10.57.0"
   },
   "lint-staged": {
     "src/**/*.{ts,js}": [
