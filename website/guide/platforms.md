@@ -52,4 +52,25 @@ Sentry.init({
 
 > 需设置 `tracesSampleRate`（或 `tracesSampler`）才会上报性能 transaction，其采样**独立于** error 的 `sampleRate`。未启用 tracing 时退化为原有行为：性能数据仅作为 `minigame` / `minigame.framerate` 上下文 + 面包屑挂在 error 事件上。
 
+### 卡顿分级（可选）
+
+默认所有卡顿合并为一个 `jank_count`。若想区分严重程度，传 `jankLevels` 把卡顿按 `minor` / `major` / `severe` 三档分级（毫秒阈值，各档全可选）：
+
+```js
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  tracesSampleRate: 1.0,
+  minigameFrameRateOptions: {
+    jankLevels: { minor: 17, major: 33, severe: 100 }, // 约对应丢 1 帧 / 丢半帧 / 明显卡死
+  },
+});
+```
+
+启用后：
+
+- 每帧卡顿按命中的**最高档**归类，`minigame.jank` 面包屑带 `jank_level`（`minor` / `major` / `severe`）。
+- 会话汇总 transaction **额外**增发 `jank_minor_count` / `jank_major_count` / `jank_severe_count`（仅启用的档），可在 Performance 页分级聚合；`jank_count` 仍为总数，老看板不受影响。
+- 入档阈值取**最低启用档**，因此只想要两档时可只传 `{ major, severe }`，低于 `major` 的帧不计卡顿。
+- 与 `longFrameThresholdMs` 同时提供时 **`jankLevels` 优先**，老参数忽略；不传 `jankLevels` 则沿用单档，行为与历史完全一致。
+
 帧率监控依赖全局 `requestAnimationFrame`：小游戏有（绑定真实渲染帧），小程序为双线程架构、逻辑层没有，因此小程序中即使开启也会安全 no-op。

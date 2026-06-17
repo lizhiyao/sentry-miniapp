@@ -8,6 +8,19 @@ import type {
   Breadcrumb,
 } from '@sentry/core';
 
+/**
+ * 分级卡顿阈值（毫秒）。各档全 optional，可只启用其中一两档（如只给 major + severe）。
+ * 单帧间隔超过最低启用档即记为一次卡顿，并按命中的**最高档**归类。
+ */
+export interface MinigameJankLevels {
+  /** 小卡阈值（ms）：单帧间隔超过它且未达 major，记为 minor。 */
+  minor?: number;
+  /** 大卡阈值（ms）。 */
+  major?: number;
+  /** 严重卡阈值（ms）。 */
+  severe?: number;
+}
+
 /** 小游戏帧率/卡顿监控（MinigameFrameRateIntegration）的细调选项。 */
 export interface MinigameFrameRateOptions {
   /** FPS 低于该值时，周期上报标记为 warning。默认 30。 */
@@ -18,6 +31,14 @@ export interface MinigameFrameRateOptions {
   reportInterval?: number;
   /** 每个上报窗口内最多产出多少条 jank 面包屑（防刷屏）；超出仅计数不再打面包屑。默认 3。 */
   maxJankBreadcrumbsPerWindow?: number;
+  /**
+   * 分级卡顿阈值（ms）。提供后切换为分级统计：每帧按命中的最高档计入，
+   * `minigame.jank` 面包屑带 `jank_level`，summary 对启用的档增发
+   * `jank_minor_count` / `jank_major_count` / `jank_severe_count`。
+   * 不提供则沿用 `longFrameThresholdMs` 单档，行为与历史完全一致；
+   * 同时提供 `longFrameThresholdMs` 与 `jankLevels` 时，`jankLevels` 优先（老参数忽略）。
+   */
+  jankLevels?: MinigameJankLevels;
 }
 
 /**
