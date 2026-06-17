@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
+import { resetPlatformCache } from '../src/crossPlatform';
 import { SeverityLevel } from '@sentry/core';
 
 describe('MiniappClient', () => {
@@ -8,6 +9,8 @@ describe('MiniappClient', () => {
   let options: MiniappOptions;
 
   beforeEach(() => {
+    // getSystemInfo 现已记忆化（一次会话静态）；用例间会改 global.wx，故每例先清平台缓存重读。
+    resetPlatformCache();
     options = {
       dsn: 'https://test@sentry.io/123456',
       debug: false,

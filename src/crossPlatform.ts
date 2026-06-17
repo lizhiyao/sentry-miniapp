@@ -207,10 +207,10 @@ const getAppName = (): AppName => {
 };
 
 /**
- * 获取系统信息
- * 优先使用新的 API，保持向后兼容性
+ * 计算系统信息（优先新 API，回退旧 API）。一次会话内系统信息是静态的，
+ * 故由 getSystemInfo() 记忆化包裹，避免被多处 context（client/httpcontext 等）反复重算。
  */
-const getSystemInfo = (): SystemInfo | null => {
+const computeSystemInfo = (): SystemInfo | null => {
   try {
     const currentSdk = getSDK();
     const result: any = {};
@@ -275,6 +275,17 @@ const getSystemInfo = (): SystemInfo | null => {
   }
 };
 
+// 系统信息记忆化：一次会话内静态，避免每个事件重算。resetPlatformCache() 清除。
+let _systemInfoComputed = false;
+let _systemInfo: SystemInfo | null = null;
+const getSystemInfo = (): SystemInfo | null => {
+  if (!_systemInfoComputed) {
+    _systemInfo = computeSystemInfo();
+    _systemInfoComputed = true;
+  }
+  return _systemInfo;
+};
+
 /**
  * 检查是否在小程序环境中
  */
@@ -328,6 +339,8 @@ export const resetPlatformCache = (): void => {
   _sdk = null;
   _appName = null;
   _isMinigame = null;
+  _systemInfoComputed = false;
+  _systemInfo = null;
 };
 
 /**

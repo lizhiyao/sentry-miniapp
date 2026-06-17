@@ -9,7 +9,7 @@ import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
 
 import { MiniappClient } from './client';
-import { appName, getSystemInfo, isMiniappEnvironment, isMinigame } from './crossPlatform';
+import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
 import {
   GlobalHandlers,
   TryCatch,
@@ -151,29 +151,12 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     opts.integrations.push(new MinigameFrameRateIntegration(opts.minigameFrameRateOptions));
   }
 
-  // Set platform context
+  // 平台标记。device / os / app context 由 MiniappClient._prepareEvent 在每个事件上统一写入
+  // （唯一权威），此处不再重复设置，避免字段不一致与覆盖歧义（见架构 review P2-b）。
   setContext('miniapp', {
     platform: appName(),
     environment: 'miniapp',
   });
-
-  // Add system information
-  const systemInfo = opts.enableSystemInfo === false ? null : getSystemInfo();
-  if (systemInfo) {
-    setContext('device', {
-      brand: systemInfo.brand,
-      model: systemInfo.model,
-      language: systemInfo.language,
-      system: systemInfo.system,
-      platform: systemInfo.platform,
-      screen_resolution: `${systemInfo.screenWidth}x${systemInfo.screenHeight}`,
-    });
-
-    setContext('app', {
-      sdk_version: systemInfo.SDKVersion,
-      version: systemInfo.version,
-    });
-  }
 
   // @sentry/core 未公开导出 ClientClass 类型，且 MiniappClient 用 Client<any>（见 client.ts），
   // 故此处保留 as any。opts 在运行时即合法 ClientOptions（含 stackParser/transport/integrations）。

@@ -1,4 +1,4 @@
-import { addBreadcrumb, setContext } from '@sentry/core';
+import { addBreadcrumb, setContext, getClient } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 
@@ -11,6 +11,7 @@ export class NetworkStatusIntegration implements Integration {
   public name: string = NetworkStatusIntegration.id;
 
   private _statusChangeHandler: ((res: any) => void) | null = null;
+  private _lastConnected: boolean | null = null;
 
   public setupOnce(): void {
     const miniappSdk = sdk();
@@ -22,9 +23,10 @@ export class NetworkStatusIntegration implements Integration {
         miniappSdk.getNetworkType({
           success: (res: any) => {
             const networkType = res.networkType || 'unknown';
+            this._lastConnected = networkType !== 'none';
             setContext('network', {
               type: networkType,
-              isConnected: networkType !== 'none',
+              isConnected: this._lastConnected,
             });
           },
         });
@@ -54,6 +56,17 @@ export class NetworkStatusIntegration implements Integration {
             isConnected,
           },
         });
+
+        // 网络从断到连：主动 flush，尽快补发离线期间积压的事件。best-effort——
+        // 不保证排空离线 store（其重放仍由 transport 的退避 / 启动重试负责）。
+        if (isConnected && this._lastConnected === false) {
+          try {
+            void getClient()?.flush();
+          } catch (_e) {
+            // ignore
+          }
+        }
+        this._lastConnected = isConnected;
       };
 
       miniappSdk.onNetworkStatusChange(this._statusChangeHandler);

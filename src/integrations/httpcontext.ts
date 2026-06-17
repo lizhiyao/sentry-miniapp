@@ -28,24 +28,17 @@ export class HttpContext implements Integration {
   public processEvent(event: Event): Event {
     const scope = getCurrentScope();
 
-    // Add miniapp specific context
-    const context = {
-      runtime: {
-        name: 'miniapp',
-        version: this._getMiniappVersion(),
-      },
-      app: {
-        name: this._getAppName(),
-        version: this._getAppVersion(),
-      },
-      device: this._getDeviceInfo(),
-      network: this._getNetworkInfo(),
-    };
-
-    scope.setContext('runtime', context.runtime);
-    scope.setContext('app', context.app);
-    scope.setContext('device', context.device);
-    scope.setContext('network', context.network);
+    // runtime 与 appId 来源的 app 是本集成独有的贡献。
+    // device 由 MiniappClient._prepareEvent 统一写（唯一权威，避免多处重复）；
+    // network 由 NetworkStatusIntegration 写（带连接状态，且不走异步回调时序）。
+    scope.setContext('runtime', {
+      name: 'miniapp',
+      version: this._getMiniappVersion(),
+    });
+    scope.setContext('app', {
+      name: this._getAppName(),
+      version: this._getAppVersion(),
+    });
 
     return event;
   }
@@ -86,49 +79,6 @@ export class HttpContext implements Integration {
       // Ignore errors
     }
     return 'unknown';
-  }
-
-  /**
-   * Get device information
-   */
-  private _getDeviceInfo(): Record<string, any> {
-    const sys = getSystemInfo();
-    if (!sys) return {};
-
-    return {
-      brand: sys.brand,
-      model: sys.model,
-      system: sys.system,
-      platform: sys.platform,
-      screenWidth: sys.screenWidth,
-      screenHeight: sys.screenHeight,
-      windowWidth: sys.windowWidth,
-      windowHeight: sys.windowHeight,
-      pixelRatio: sys.pixelRatio,
-      language: sys.language,
-    };
-  }
-
-  /**
-   * Get network information
-   */
-  private _getNetworkInfo(): Record<string, any> {
-    try {
-      if ((sdk() as any).getNetworkType) {
-        (sdk() as any).getNetworkType({
-          success: (res: { networkType: string }) => {
-            const scope = getCurrentScope();
-            scope.setTag('network.type', res.networkType);
-            scope.setContext('network', {
-              type: res.networkType,
-            });
-          },
-        });
-      }
-    } catch (_e) {
-      // Ignore errors
-    }
-    return {};
   }
 }
 

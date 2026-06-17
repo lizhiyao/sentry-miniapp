@@ -281,6 +281,20 @@ describe('CrossPlatform', () => {
       const result = getSystemInfo();
       expect(result).toBeNull();
     });
+
+    it('记忆化：多次调用只计算一次，resetPlatformCache 后重新计算', async () => {
+      const sync = jest.fn().mockReturnValue({ brand: 'X', SDKVersion: '1' });
+      (global as any).wx = { getSystemInfoSync: sync };
+
+      const { getSystemInfo, resetPlatformCache } = await import('../src/crossPlatform');
+      getSystemInfo();
+      getSystemInfo();
+      expect(sync).toHaveBeenCalledTimes(1); // 第二次走缓存
+
+      resetPlatformCache();
+      getSystemInfo();
+      expect(sync).toHaveBeenCalledTimes(2); // 清缓存后重算
+    });
   });
 
   describe('isMiniappEnvironment', () => {

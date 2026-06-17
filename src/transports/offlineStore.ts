@@ -25,8 +25,9 @@ export interface MiniappOfflineStoreOptions extends OfflineTransportOptions {
  * 支持事件过期淘汰和优先级保留。
  */
 export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): OfflineStore {
-  const maxCacheSize = options.offlineCacheLimit || DEFAULT_OFFLINE_CACHE_SIZE;
-  const maxAge = options.offlineCacheMaxAge || DEFAULT_MAX_AGE;
+  // 用 ?? 而非 ||：尊重显式的 0（|| 会把 0 当成未设置而回退默认值）。
+  const maxCacheSize = options.offlineCacheLimit ?? DEFAULT_OFFLINE_CACHE_SIZE;
+  const maxAge = options.offlineCacheMaxAge ?? DEFAULT_MAX_AGE;
 
   return {
     push: async (env: Envelope): Promise<void> => {

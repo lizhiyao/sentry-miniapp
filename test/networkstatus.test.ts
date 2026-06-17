@@ -2,10 +2,13 @@ import { describe, expect, it, jest, beforeEach } from '@jest/globals';
 
 const mockAddBreadcrumb = jest.fn();
 const mockSetContext = jest.fn();
+const mockFlush = jest.fn(() => Promise.resolve(true));
+const mockGetClient = jest.fn(() => ({ flush: mockFlush }));
 
 jest.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
   setContext: mockSetContext,
+  getClient: mockGetClient,
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
@@ -97,5 +100,22 @@ describe('NetworkStatusIntegration', () => {
     const integration = new NetworkStatusIntegration();
     // Should not throw
     expect(() => integration.setupOnce()).not.toThrow();
+  });
+
+  it('网络从断到连时触发 client.flush 补发离线积压', () => {
+    const integration = new NetworkStatusIntegration();
+    integration.setupOnce(); // 初始 wifi → _lastConnected = true
+
+    // 断网：不触发 flush
+    networkChangeCallback!({ networkType: 'none', isConnected: false });
+    expect(mockFlush).not.toHaveBeenCalled();
+
+    // 恢复联网：从断到连 → 触发一次 flush
+    networkChangeCallback!({ networkType: 'wifi', isConnected: true });
+    expect(mockFlush).toHaveBeenCalledTimes(1);
+
+    // 持续联网（连到连）不应重复 flush
+    networkChangeCallback!({ networkType: '4g', isConnected: true });
+    expect(mockFlush).toHaveBeenCalledTimes(1);
   });
 });
