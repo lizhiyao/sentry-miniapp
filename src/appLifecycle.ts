@@ -84,6 +84,13 @@ function unpatchAppIfIdle(): void {
  * 退订到无订阅者时还原 `App()`。
  */
 export function subscribeAppLifecycle(handlers: AppLifecycleHandlers): () => void {
+  // 无全局 App()（如小游戏，或尚未注入）：订阅毫无意义——既不会有广播，又会把 handler
+  // 永久滞留在模块级 subscribers 里（闭包持有集成实例 → 泄漏）。直接返回 no-op 退订。
+  // 注：一旦已包装，globalThis.App 即我们的 wrapper（仍是 function），后续订阅照常生效。
+  if (typeof (globalThis as any).App !== 'function') {
+    return () => {};
+  }
+
   subscribers.add(handlers);
   patchApp();
   let active = true;

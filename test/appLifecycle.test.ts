@@ -75,10 +75,24 @@ describe('appLifecycle（单一 App 包装）', () => {
     expect((globalThis as any).App).toBe(someoneElse); // 不被还原回 realApp
   });
 
-  it('App 不存在时安全降级（不抛、不包装）', () => {
+  it('App 不存在时安全降级：不抛、不注册（避免订阅者泄漏）', () => {
     delete (globalThis as any).App;
-    expect(() => subscribeAppLifecycle({ onShow: jest.fn() })).not.toThrow();
+
+    const orphan = jest.fn();
+    const unsub = subscribeAppLifecycle({ onShow: orphan });
+    expect(typeof unsub).toBe('function');
     expect((globalThis as any).App).toBeUndefined();
+
+    // App 之后才出现：新订阅者正常工作，但此前「无 App」时的订阅不应被注册 / 广播。
+    (globalThis as any).App = realApp;
+    const live = jest.fn();
+    subscribeAppLifecycle({ onShow: live });
+    (globalThis as any).App({ onShow: jest.fn() });
+    captured.onShow();
+
+    expect(live).toHaveBeenCalled();
+    expect(orphan).not.toHaveBeenCalled(); // 未注册 → 不会被广播
+    expect(() => unsub()).not.toThrow();
   });
 
   it('单个订阅者异常不影响其他订阅者与业务回调', () => {
