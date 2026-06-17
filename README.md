@@ -93,6 +93,8 @@ Sentry.init({
 App({ onLaunch() {} });
 ```
 
+不要把 `Sentry.init` 放进 `App.onLaunch` 里：那时 `App()` 已经完成注册，SDK 无法再提前包装本次 `onLaunch`，因此 App 生命周期面包屑、Session 首次启动以及依赖 `onLaunch` 起点的冷启动耗时可能拿不到。若只关心后续异常、网络面包屑和手动上报，放在 `onLaunch` 内仍可工作，但启动阶段能力会降级。
+
 默认集成已含**异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**，通常无需手动传 `integrations`（传入会覆盖默认）。完整配置项（离线缓存、追踪头注入、面包屑开关等）见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
 
 **验证是否打通**——主动捕获一个事件，到 Sentry「Issues」列表查看：

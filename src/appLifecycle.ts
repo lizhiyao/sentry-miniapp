@@ -48,7 +48,8 @@ function patchApp(): void {
   const g = globalThis as any;
   if (patched || typeof g.App !== 'function') return;
 
-  originalApp = g.App;
+  const currentOriginalApp = g.App as (...args: any[]) => any;
+  originalApp = currentOriginalApp;
   const wrapper = function (this: any, appOptions: Record<string, any> = {}): any {
     if (appOptions && typeof appOptions === 'object') {
       for (const method of LIFECYCLE_METHODS) {
@@ -61,7 +62,7 @@ function patchApp(): void {
         };
       }
     }
-    return (originalApp as (...a: any[]) => any).call(this, appOptions);
+    return currentOriginalApp.call(this, appOptions);
   };
   (wrapper as any).__sentryAppWrapper = true;
   g.App = wrapper;
@@ -84,6 +85,13 @@ function unpatchAppIfIdle(): void {
  * 退订到无订阅者时还原 `App()`。
  */
 export function subscribeAppLifecycle(handlers: AppLifecycleHandlers): () => void {
+  // 无全局 App()（如小游戏，或尚未注入）：订阅毫无意义——既不会有广播，又会把 handler
+  // 永久滞留在模块级 subscribers 里（闭包持有集成实例 → 泄漏）。直接返回 no-op 退订。
+  // 注：一旦已包装，globalThis.App 即我们的 wrapper（仍是 function），后续订阅照常生效。
+  if (typeof (globalThis as any).App !== 'function') {
+    return () => {};
+  }
+
   subscribers.add(handlers);
   patchApp();
   let active = true;

@@ -3,7 +3,7 @@ import {
   initAndBind,
   setContext,
   withScope,
-  inboundFiltersIntegration,
+  eventFiltersIntegration,
 } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
@@ -125,7 +125,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
 
   // 入站过滤：让 allowUrls / denyUrls / ignoreErrors 真正生效（此前是声明了却无人消费的死选项）。
   // 仅在用户未自行传入同名集成时追加；按 exactOptionalPropertyTypes 只填已定义的键。
-  if (!hasIntegration('InboundFilters')) {
+  if (!hasIntegration('EventFilters') && !hasIntegration('InboundFilters')) {
     const filterOptions: {
       allowUrls?: Array<string | RegExp>;
       denyUrls?: Array<string | RegExp>;
@@ -134,7 +134,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     if (opts.allowUrls) filterOptions.allowUrls = opts.allowUrls;
     if (opts.denyUrls) filterOptions.denyUrls = opts.denyUrls;
     if (opts.ignoreErrors) filterOptions.ignoreErrors = opts.ignoreErrors;
-    opts.integrations.push(inboundFiltersIntegration(filterOptions));
+    opts.integrations.push(eventFiltersIntegration(filterOptions));
   }
 
   if (

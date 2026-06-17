@@ -92,7 +92,7 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 | `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |
 
-> `allowUrls` / `denyUrls` / `ignoreErrors` 由内置的 `InboundFilters` 集成实现，`init` 时自动装配（除非你在 `integrations` 里已自带同名集成）。
+> `allowUrls` / `denyUrls` / `ignoreErrors` 由内置的 `EventFilters` 集成实现，`init` 时自动装配（若你在 `integrations` 里已自带 `EventFilters` / `InboundFilters`，则不重复追加）。
 
 ## 集成
 

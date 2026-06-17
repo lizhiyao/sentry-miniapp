@@ -39,6 +39,10 @@ Sentry.init({
 });
 ```
 
+::: warning 初始化时序
+不要把 `Sentry.init` 放进 `App.onLaunch` 里：此时 `App()` 已注册完成，SDK 无法再提前包装本次 `onLaunch`。这会导致 App 生命周期面包屑、首次 Session 启动，以及依赖 `onLaunch` 起点的冷启动耗时缺失。若只关心后续异常、网络面包屑和手动上报，放在 `onLaunch` 内仍可工作，但启动阶段能力会降级。
+:::
+
 默认初始化路径已包含：**自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**。通常无需手动传 `integrations`——只有要替换核心默认集成时才传；Source Map / 网络 / Session 等能力仍由各自顶层开关控制。
 
 > 上面只是最小配置。离线缓存、采样、追踪头注入、面包屑开关、小游戏等**完整配置项**见 [配置项参考](/guide/configuration)。
