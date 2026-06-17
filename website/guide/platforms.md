@@ -68,7 +68,7 @@ Sentry.init({
 
 启用后：
 
-- 每帧卡顿按命中的**最高档**归类，`minigame.jank` 面包屑带 `jank_level`（`minor` / `major` / `severe`）。
+- 每帧卡顿按命中的**最高档**归类，`minigame.jank` 面包屑 `data` 带 `jankLevel`（`minor` / `major` / `severe`）。
 - 会话汇总 transaction **额外**增发 `jank_minor_count` / `jank_major_count` / `jank_severe_count`（仅启用的档），可在 Performance 页分级聚合；`jank_count` 仍为总数，老看板不受影响。
 - 入档阈值取**最低启用档**，因此只想要两档时可只传 `{ major, severe }`，低于 `major` 的帧不计卡顿。
 - 启用档的阈值须按 `minor` < `major` < `severe` **严格递增**；若误传非单调阈值（如 `{ minor: 100, severe: 17 }`，会把重卡标成 `minor`），SDK 会 `warn` 并忽略分级、回退单档。
