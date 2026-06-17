@@ -1,79 +1,35 @@
 import { startSession, endSession, captureSession, getCurrentScope } from '@sentry/core';
 import type { Integration } from '@sentry/core';
+import { subscribeAppLifecycle } from '../appLifecycle';
 
 /**
  * Session Integration
  * 自动管理小程序 Session 生命周期，为 Sentry Release Health 提供数据。
  *
- * - App.onLaunch/onShow → 开始新 Session
+ * - App.onLaunch / onShow → 开始新 Session
  * - App.onHide → 结束 Session
- * - 错误发生时自动标记 Session 为 crashed
+ * - 错误发生时（App.onError）自动标记 Session 为 crashed
+ *
+ * 通过共享的 appLifecycle 订阅全局 App 生命周期（不再自行猴补 App，见架构 review P2-c）。
  */
 export class SessionIntegration implements Integration {
   public static id: string = 'Session';
   public name: string = SessionIntegration.id;
 
-  private _originalApp: Function | null = null;
   private _isSessionActive: boolean = false;
+  private _unsubscribe: (() => void) | null = null;
 
   public setupOnce(): void {
-    this._wrapApp();
-  }
-
-  /**
-   * 拦截 App() 构造函数，注入 Session 管理逻辑
-   */
-  private _wrapApp(): void {
-    const globalObj = getGlobalObject();
-    if (!globalObj || typeof globalObj.App !== 'function') {
-      return;
-    }
-
-    this._originalApp = globalObj.App;
-    const startSession = this._startSession.bind(this);
-    const endSession = this._endSession.bind(this);
-    const markCrashed = this._markSessionCrashed.bind(this);
-    const isActive = () => this._isSessionActive;
-    const origApp = this._originalApp;
-
-    globalObj.App = function (appOptions: Record<string, any> = {}) {
-      const originalOnLaunch = appOptions['onLaunch'];
-      const originalOnShow = appOptions['onShow'];
-      const originalOnHide = appOptions['onHide'];
-      const originalOnError = appOptions['onError'];
-
-      appOptions['onLaunch'] = function (this: any, ...args: any[]) {
-        startSession();
-        if (typeof originalOnLaunch === 'function') {
-          return originalOnLaunch.apply(this, args);
+    this._unsubscribe = subscribeAppLifecycle({
+      onLaunch: () => this._startSession(),
+      onShow: () => {
+        if (!this._isSessionActive) {
+          this._startSession();
         }
-      };
-
-      appOptions['onShow'] = function (this: any, ...args: any[]) {
-        if (!isActive()) {
-          startSession();
-        }
-        if (typeof originalOnShow === 'function') {
-          return originalOnShow.apply(this, args);
-        }
-      };
-
-      appOptions['onHide'] = function (this: any, ...args: any[]) {
-        endSession();
-        if (typeof originalOnHide === 'function') {
-          return originalOnHide.apply(this, args);
-        }
-      };
-
-      appOptions['onError'] = function (this: any, ...args: any[]) {
-        markCrashed();
-        if (typeof originalOnError === 'function') {
-          return originalOnError.apply(this, args);
-        }
-      };
-
-      return origApp!.call(this, appOptions);
-    };
+      },
+      onHide: () => this._endSession(),
+      onError: () => this._markSessionCrashed(),
+    });
   }
 
   private _startSession(): void {
@@ -109,30 +65,10 @@ export class SessionIntegration implements Integration {
   }
 
   public cleanup(): void {
-    const globalObj = getGlobalObject();
-    if (globalObj && this._originalApp) {
-      globalObj.App = this._originalApp;
+    if (this._unsubscribe) {
+      this._unsubscribe();
+      this._unsubscribe = null;
     }
-    this._originalApp = null;
     this._isSessionActive = false;
   }
 }
-
-function getGlobalObject(): any {
-  if (typeof wx !== 'undefined') return wx;
-  if (typeof my !== 'undefined') return my;
-  if (typeof tt !== 'undefined') return tt;
-  if (typeof dd !== 'undefined') return dd;
-  if (typeof qq !== 'undefined') return qq;
-  if (typeof swan !== 'undefined') return swan;
-  if (typeof globalThis !== 'undefined') return globalThis;
-  return undefined;
-}
-
-// 平台全局声明
-declare const wx: any;
-declare const my: any;
-declare const tt: any;
-declare const dd: any;
-declare const qq: any;
-declare const swan: any;

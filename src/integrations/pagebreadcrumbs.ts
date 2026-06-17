@@ -1,11 +1,11 @@
 import { addBreadcrumb, setContext } from '@sentry/core';
 import type { Integration } from '@sentry/core';
+import { subscribeAppLifecycle } from '../appLifecycle';
 
 /**
  * 页面生命周期和用户交互事件的面包屑方法名
  */
 const PAGE_LIFECYCLE_METHODS = ['onLoad', 'onShow', 'onHide', 'onUnload', 'onReady'];
-const APP_LIFECYCLE_METHODS = ['onLaunch', 'onShow', 'onHide'];
 
 /**
  * 判断方法名是否为用户交互事件处理函数
@@ -51,7 +51,7 @@ export class PageBreadcrumbs implements Integration {
 
   private _options: Required<PageBreadcrumbsOptions>;
   private _originalPage: ((...args: any[]) => any) | null = null;
-  private _originalApp: ((...args: any[]) => any) | null = null;
+  private _unsubscribeApp: (() => void) | null = null;
   private _launchTime: number = 0;
   private _firstPageReady: boolean = false;
 
@@ -65,7 +65,7 @@ export class PageBreadcrumbs implements Integration {
 
   public setupOnce(): void {
     this._wrapPage();
-    this._wrapApp();
+    this._subscribeApp();
   }
 
   /**
@@ -178,50 +178,33 @@ export class PageBreadcrumbs implements Integration {
   }
 
   /**
-   * 包装全局 App() 构造函数
+   * 订阅全局 App 生命周期（经共享 appLifecycle，不再自行猴补 App）。
+   * 记录 onLaunch 时间用于冷启动耗时计算，并对各生命周期打 app.lifecycle 面包屑。
    */
-  private _wrapApp(): void {
-    const global = globalThis as any;
-    if (typeof global.App !== 'function') return;
+  private _subscribeApp(): void {
+    if (!this._options.enableLifecycle) return;
 
-    this._originalApp = global.App;
-    const originalApp = global.App;
-    const optionsRef = this._options;
-    const setLaunchTime = (t: number) => {
-      this._launchTime = t;
-    };
+    this._unsubscribeApp = subscribeAppLifecycle({
+      onLaunch: () => {
+        this._launchTime = Date.now();
+        this._appBreadcrumb('onLaunch');
+      },
+      onShow: () => this._appBreadcrumb('onShow'),
+      onHide: () => this._appBreadcrumb('onHide'),
+    });
+  }
 
-    global.App = function (appOptions: any) {
-      if (appOptions && typeof appOptions === 'object' && optionsRef.enableLifecycle) {
-        for (const method of APP_LIFECYCLE_METHODS) {
-          if (typeof appOptions[method] === 'function') {
-            const original = appOptions[method];
-            appOptions[method] = function (this: any, ...args: any[]) {
-              // 记录 App.onLaunch 时间，用于计算冷启动耗时
-              if (method === 'onLaunch') {
-                setLaunchTime(Date.now());
-              }
-
-              addBreadcrumb({
-                category: 'app.lifecycle',
-                message: `App.${method}`,
-                level: 'info',
-                data: {
-                  action: method,
-                },
-              });
-              return original.apply(this, args);
-            };
-          }
-        }
-      }
-
-      return originalApp(appOptions);
-    };
+  private _appBreadcrumb(method: string): void {
+    addBreadcrumb({
+      category: 'app.lifecycle',
+      message: `App.${method}`,
+      level: 'info',
+      data: { action: method },
+    });
   }
 
   /**
-   * 清理资源，恢复原始 Page/App 构造函数
+   * 清理资源：恢复原始 Page() 构造函数，并退订 App 生命周期。
    */
   public cleanup(): void {
     const global = globalThis as any;
@@ -229,9 +212,9 @@ export class PageBreadcrumbs implements Integration {
       global.Page = this._originalPage;
       this._originalPage = null;
     }
-    if (this._originalApp) {
-      global.App = this._originalApp;
-      this._originalApp = null;
+    if (this._unsubscribeApp) {
+      this._unsubscribeApp();
+      this._unsubscribeApp = null;
     }
   }
 }
