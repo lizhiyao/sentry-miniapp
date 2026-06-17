@@ -272,14 +272,14 @@ describe('MinigameFrameRateIntegration', () => {
       (mockSetMeasurement.mock.calls as any[]).map((c) => [c[0], c[1]]),
     );
   }
-  /** 取所有 minigame.jank 面包屑的 jank_level（保持触发顺序）。 */
+  /** 取所有 minigame.jank 面包屑的 jankLevel（保持触发顺序）。 */
   function jankLevels(): Array<string | undefined> {
     return mockAddBreadcrumb.mock.calls
       .filter((c: any) => c[0] && c[0].category === 'minigame.jank')
-      .map((c: any) => c[0].data?.jank_level);
+      .map((c: any) => c[0].data?.jankLevel);
   }
 
-  it('jankLevels 按命中最高档归类：面包屑带 jank_level，summary 增发三档计数', () => {
+  it('jankLevels 按命中最高档归类：面包屑带 jankLevel，summary 增发三档计数', () => {
     const integration = new MinigameFrameRateIntegration({
       reportInterval: 10000,
       jankLevels: { minor: 17, major: 33, severe: 100 },
@@ -361,7 +361,7 @@ describe('MinigameFrameRateIntegration', () => {
     const crumb = mockAddBreadcrumb.mock.calls.find(
       (c: any) => c[0] && c[0].category === 'minigame.jank',
     );
-    expect((crumb?.[0] as any)?.data).not.toHaveProperty('jank_level');
+    expect((crumb?.[0] as any)?.data).not.toHaveProperty('jankLevel');
 
     hideCb!();
     const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
@@ -388,7 +388,7 @@ describe('MinigameFrameRateIntegration', () => {
     const crumb = mockAddBreadcrumb.mock.calls.find(
       (c: any) => c[0] && c[0].category === 'minigame.jank',
     );
-    expect((crumb?.[0] as any)?.data).not.toHaveProperty('jank_level');
+    expect((crumb?.[0] as any)?.data).not.toHaveProperty('jankLevel');
 
     hideCb!();
     const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
@@ -441,7 +441,7 @@ describe('MinigameFrameRateIntegration', () => {
     frame(20);
     frame(120); // delta 100 → 默认阈值 50 → jank（无 level）
 
-    expect(jankLevels()).toEqual([undefined]); // 面包屑不带 jank_level
+    expect(jankLevels()).toEqual([undefined]); // 面包屑不带 jankLevel
 
     hideCb!();
     const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);

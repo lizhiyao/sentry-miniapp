@@ -23,7 +23,7 @@ const JANK_TIER_NAMES: JankTierName[] = ['minor', 'major', 'severe'];
  * 收集有效分级档（有限正数）并校验「阈值随严重度严格递增」（minor < major < severe）。
  *
  * JANK_TIER_NAMES 本身即严重度升序，按此顺序收集；校验必须在排序前做——否则按数值
- * 排序会抹掉非单调的证据。若阈值未随严重度递增（含相等），说明 jank_level 名实不符
+ * 排序会抹掉非单调的证据。若阈值未随严重度递增（含相等），说明 jankLevel 名实不符
  * （如 { minor: 100, severe: 17 } 会把重卡标成 minor），此时 warn 并回退单档
  * longFrameThresholdMs。返回空数组表示未启用分级。
  */
@@ -81,7 +81,7 @@ function percentile95(samples: number[], fallback: number): number {
  * tracesSampleRate 控制——不每窗口发事件，配额友好。
  *
  * 可选 `jankLevels` 把卡顿按 minor/major/severe 三档分级：每帧按命中的最高档归类，
- * 面包屑带 `jank_level`，summary 对启用的档增发 `jank_{minor,major,severe}_count`
+ * 面包屑带 `jankLevel`，summary 对启用的档增发 `jank_{minor,major,severe}_count`
  * （`jank_count` 仍为总数）。不配置时沿用单档 longFrameThresholdMs，行为不变。
  *
  * 仅适用于小游戏：小游戏有绑定真实渲染帧的全局 requestAnimationFrame；小程序为
@@ -210,7 +210,7 @@ export class MinigameFrameRateIntegration implements Integration {
           message: `检测到卡顿帧: ${Math.round(frameDelta)}ms`,
           level: 'warning',
           data: jankLevel
-            ? { frameDurationMs: Math.round(frameDelta), jank_level: jankLevel }
+            ? { frameDurationMs: Math.round(frameDelta), jankLevel }
             : { frameDurationMs: Math.round(frameDelta) },
         });
       }
@@ -375,8 +375,11 @@ export class MinigameFrameRateIntegration implements Integration {
 
   public cleanup(): void {
     this._running = false;
-    // 会话结束兜底：再发一次汇总
-    this._flushSummary();
+    // 会话结束兜底：再发一次汇总；发出了就把传输 flush 掉（与 onHide 路径一致，
+    // 避免集成关闭/客户端拆除时这条汇总 transaction 还滞留在传输队列里没发出）。
+    if (this._flushSummary()) {
+      this._flushPendingEvents();
+    }
     const miniappSdk = sdk();
     if (miniappSdk) {
       try {
