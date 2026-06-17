@@ -71,6 +71,7 @@ Sentry.init({
 - 每帧卡顿按命中的**最高档**归类，`minigame.jank` 面包屑带 `jank_level`（`minor` / `major` / `severe`）。
 - 会话汇总 transaction **额外**增发 `jank_minor_count` / `jank_major_count` / `jank_severe_count`（仅启用的档），可在 Performance 页分级聚合；`jank_count` 仍为总数，老看板不受影响。
 - 入档阈值取**最低启用档**，因此只想要两档时可只传 `{ major, severe }`，低于 `major` 的帧不计卡顿。
+- 启用档的阈值须按 `minor` < `major` < `severe` **严格递增**；若误传非单调阈值（如 `{ minor: 100, severe: 17 }`，会把重卡标成 `minor`），SDK 会 `warn` 并忽略分级、回退单档。
 - 与 `longFrameThresholdMs` 同时提供时 **`jankLevels` 优先**，老参数忽略；不传 `jankLevels` 则沿用单档，行为与历史完全一致。
 
 > 阈值应为**亚秒级**（建议 < 5000ms）。卡顿（jank）是丢帧，量级在几十～几百毫秒；单帧间隔超过 5000ms 会被当作后台暂停 / 调试器停顿（采样断点）丢弃，不计入卡顿——这种秒级停顿属于卡死（ANR），不是 jank。
