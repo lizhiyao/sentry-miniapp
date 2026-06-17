@@ -295,6 +295,21 @@ describe('CrossPlatform', () => {
       getSystemInfo();
       expect(sync).toHaveBeenCalledTimes(2); // 清缓存后重算
     });
+
+    it('null 结果不缓存：下次调用重试（瞬时失败可自愈）', async () => {
+      let call = 0;
+      const sync = jest.fn().mockImplementation(() => {
+        call += 1;
+        if (call === 1) throw new Error('transient'); // 首次失败 → computeSystemInfo 返回 null
+        return { brand: 'Y', SDKVersion: '2' };
+      });
+      (global as any).wx = { getSystemInfoSync: sync };
+
+      const { getSystemInfo } = await import('../src/crossPlatform');
+      expect(getSystemInfo()).toBeNull(); // 首次失败，不缓存
+      expect(getSystemInfo()).toEqual({ brand: 'Y', SDKVersion: '2' }); // 重试成功
+      expect(sync).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('isMiniappEnvironment', () => {
