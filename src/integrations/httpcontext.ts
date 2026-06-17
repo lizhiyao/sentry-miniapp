@@ -1,4 +1,3 @@
-import { getCurrentScope } from '@sentry/core';
 import type { Event, Integration, IntegrationFn } from '@sentry/core';
 
 import { sdk, getSystemInfo } from '../crossPlatform';
@@ -26,19 +25,26 @@ export class HttpContext implements Integration {
    * @inheritDoc
    */
   public processEvent(event: Event): Event {
-    const scope = getCurrentScope();
-
     // runtime 与 appId 来源的 app 是本集成独有的贡献。
     // device 由 MiniappClient._prepareEvent 统一写（唯一权威，避免多处重复）；
     // network 由 NetworkStatusIntegration 写（带连接状态，且不走异步回调时序）。
-    scope.setContext('runtime', {
-      name: 'miniapp',
-      version: this._getMiniappVersion(),
-    });
-    scope.setContext('app', {
-      name: this._getAppName(),
-      version: this._getAppVersion(),
-    });
+    const miniappVersion = this._getMiniappVersion();
+    const appName = this._getAppName();
+    const appVersion = this._getAppVersion();
+
+    event.contexts = {
+      ...event.contexts,
+      runtime: {
+        ...(event.contexts?.['runtime'] || {}),
+        name: 'miniapp',
+        version: miniappVersion,
+      },
+      app: {
+        ...(event.contexts?.['app'] || {}),
+        name: appName,
+        version: appVersion,
+      },
+    };
 
     return event;
   }

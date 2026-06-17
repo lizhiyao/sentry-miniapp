@@ -75,6 +75,17 @@ describe('appLifecycle（单一 App 包装）', () => {
     expect((globalThis as any).App).toBe(someoneElse); // 不被还原回 realApp
   });
 
+  it('外部保存的 wrapper 在退订还原后仍能安全调用', () => {
+    const un = subscribeAppLifecycle({});
+    const wrapper = (globalThis as any).App;
+
+    un();
+    expect((globalThis as any).App).toBe(realApp);
+
+    expect(() => wrapper({ onShow: jest.fn() })).not.toThrow();
+    expect(realApp).toHaveBeenCalled();
+  });
+
   it('App 不存在时安全降级：不抛、不注册（避免订阅者泄漏）', () => {
     delete (globalThis as any).App;
 

@@ -48,7 +48,8 @@ function patchApp(): void {
   const g = globalThis as any;
   if (patched || typeof g.App !== 'function') return;
 
-  originalApp = g.App;
+  const currentOriginalApp = g.App as (...args: any[]) => any;
+  originalApp = currentOriginalApp;
   const wrapper = function (this: any, appOptions: Record<string, any> = {}): any {
     if (appOptions && typeof appOptions === 'object') {
       for (const method of LIFECYCLE_METHODS) {
@@ -61,7 +62,7 @@ function patchApp(): void {
         };
       }
     }
-    return (originalApp as (...a: any[]) => any).call(this, appOptions);
+    return currentOriginalApp.call(this, appOptions);
   };
   (wrapper as any).__sentryAppWrapper = true;
   g.App = wrapper;

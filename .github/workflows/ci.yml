@@ -43,7 +43,7 @@ jobs:
       run: yarn run build
 
     - name: Check examples are in sync with dist
-      run: git diff --exit-code examples/wxapp/lib/sentry-miniapp.js
+      run: git diff --exit-code examples/wxapp/lib/sentry-miniapp.js examples/wxapp/lib/sentry-miniapp.js.map
 
     - name: Run Tests
       run: yarn run test

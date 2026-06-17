@@ -9,6 +9,7 @@ import {
 } from '../src/sdk';
 // flush / close / lastEventId 是 SDK 从 @sentry/core 透传的公开 API（sdk.ts 不再自定义重复实现）
 import { lastEventId, flush, close } from '@sentry/core';
+import { eventFiltersIntegration, inboundFiltersIntegration } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
@@ -175,6 +176,30 @@ describe('SDK', () => {
         traceNetworkBody: true,
       });
       expect(client).toBeInstanceOf(MiniappClient);
+    });
+
+    it('用户已传入 EventFilters / InboundFilters 时不重复追加过滤集成', () => {
+      const eventFilters = eventFiltersIntegration({ ignoreErrors: ['custom'] });
+      const clientWithEventFilters = init({
+        dsn: 'https://test@sentry.io/123',
+        integrations: [eventFilters],
+      });
+      expect(
+        clientWithEventFilters?.getOptions().integrations.filter((integration: any) =>
+          ['EventFilters', 'InboundFilters'].includes(integration.name),
+        ),
+      ).toEqual([eventFilters]);
+
+      const inboundFilters = inboundFiltersIntegration({ ignoreErrors: ['legacy'] });
+      const clientWithInboundFilters = init({
+        dsn: 'https://test@sentry.io/123',
+        integrations: [inboundFilters],
+      });
+      expect(
+        clientWithInboundFilters?.getOptions().integrations.filter((integration: any) =>
+          ['EventFilters', 'InboundFilters'].includes(integration.name),
+        ),
+      ).toEqual([inboundFilters]);
     });
   });
 
