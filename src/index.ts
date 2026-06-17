@@ -61,7 +61,12 @@ export {
 // Export SDK specific exports
 export { SDK_NAME, SDK_VERSION } from './version';
 export { init, showReportDialog, wrap, captureFeedback } from './sdk';
-export type { MiniappOptions, SendFeedbackParams, MinigameFrameRateOptions } from './types';
+export type {
+  MiniappOptions,
+  SendFeedbackParams,
+  MinigameFrameRateOptions,
+  MinigameJankLevels,
+} from './types';
 export { MiniappClient } from './client';
 export * as Integrations from './integrations/index';
 export * as Transports from './transports/index';

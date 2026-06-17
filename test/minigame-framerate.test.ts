@@ -263,4 +263,126 @@ describe('MinigameFrameRateIntegration', () => {
     const integration = new MinigameFrameRateIntegration();
     expect(() => integration.setupOnce()).not.toThrow();
   });
+
+  // ---- 分级卡顿（jankLevels）----
+
+  /** 把 setMeasurement 调用收敛成 { 名称: 值 } 便于断言。 */
+  function measurements(): Record<string, number> {
+    return Object.fromEntries(
+      (mockSetMeasurement.mock.calls as any[]).map((c) => [c[0], c[1]]),
+    );
+  }
+  /** 取所有 minigame.jank 面包屑的 jank_level（保持触发顺序）。 */
+  function jankLevels(): Array<string | undefined> {
+    return mockAddBreadcrumb.mock.calls
+      .filter((c: any) => c[0] && c[0].category === 'minigame.jank')
+      .map((c: any) => c[0].data?.jank_level);
+  }
+
+  it('jankLevels 按命中最高档归类：面包屑带 jank_level，summary 增发三档计数', () => {
+    const integration = new MinigameFrameRateIntegration({
+      reportInterval: 10000,
+      jankLevels: { minor: 17, major: 33, severe: 100 },
+    });
+    integration.setupOnce(); // lastFrame=0
+
+    frame(10); // delta 10 → 正常（≤17）
+    frame(35); // delta 25 → minor（17<25≤33）
+    frame(85); // delta 50 → major（33<50≤100）
+    frame(285); // delta 200 → severe（>100）
+
+    expect(jankLevels()).toEqual(['minor', 'major', 'severe']);
+
+    hideCb!(); // 退后台 → 发会话汇总
+    const m = measurements();
+    expect(m['jank_count']).toBe(3); // 总数不变
+    expect(m['jank_minor_count']).toBe(1);
+    expect(m['jank_major_count']).toBe(1);
+    expect(m['jank_severe_count']).toBe(1);
+    // span attribute 也带分档
+    expect(mockSpanSetAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({ 'jank.minor': 1 }),
+    );
+  });
+
+  it('jankLevels 可只启用部分档：入档阈值取最低启用档，未启用档不发 measurement', () => {
+    const integration = new MinigameFrameRateIntegration({
+      reportInterval: 10000,
+      jankLevels: { major: 33, severe: 100 }, // 不启用 minor，入档阈值=33
+    });
+    integration.setupOnce();
+
+    frame(10); // delta 10 → 正常
+    frame(40); // delta 30 → ≤33，不计 jank（minor 未启用）
+    frame(90); // delta 50 → major
+    frame(290); // delta 200 → severe
+
+    expect(jankLevels()).toEqual(['major', 'severe']);
+
+    hideCb!();
+    const m = measurements();
+    expect(m['jank_count']).toBe(2);
+    expect(m['jank_major_count']).toBe(1);
+    expect(m['jank_severe_count']).toBe(1);
+    // 未启用的 minor 不应出现
+    expect(mockSetMeasurement.mock.calls.map((c: any) => c[0])).not.toContain('jank_minor_count');
+  });
+
+  it('jankLevels 优先于 longFrameThresholdMs（老参数被忽略）', () => {
+    const integration = new MinigameFrameRateIntegration({
+      reportInterval: 10000,
+      longFrameThresholdMs: 999, // 若生效则 30ms 帧不会被记为 jank
+      jankLevels: { minor: 20 }, // 入档阈值应取 20
+    });
+    integration.setupOnce();
+
+    frame(10); // delta 10 → 正常
+    frame(40); // delta 30 → >20 → minor（证明 longFrameThresholdMs=999 被忽略）
+
+    expect(jankLevels()).toEqual(['minor']);
+    hideCb!();
+    const m = measurements();
+    expect(m['jank_count']).toBe(1);
+    expect(m['jank_minor_count']).toBe(1);
+  });
+
+  it('jankLevels 为空对象时安全回退到单档 longFrameThresholdMs（无分级输出）', () => {
+    const integration = new MinigameFrameRateIntegration({
+      reportInterval: 10000,
+      longFrameThresholdMs: 50,
+      jankLevels: {}, // 无有效档 → 回退单档
+    });
+    integration.setupOnce();
+
+    frame(10); // delta 10 → 正常
+    frame(40); // delta 30 → ≤50 正常
+    frame(140); // delta 100 → >50 → jank（无 level）
+
+    const crumb = mockAddBreadcrumb.mock.calls.find(
+      (c: any) => c[0] && c[0].category === 'minigame.jank',
+    );
+    expect((crumb?.[0] as any)?.data).not.toHaveProperty('jank_level');
+
+    hideCb!();
+    const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
+    expect(names).toContain('jank_count');
+    expect(names).not.toContain('jank_minor_count');
+    expect(names).not.toContain('jank_major_count');
+    expect(names).not.toContain('jank_severe_count');
+  });
+
+  it('不传 jankLevels 时 summary 只有 jank_count，无任何分档 measurement（不回归）', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 10000 });
+    integration.setupOnce();
+
+    frame(20);
+    frame(120); // delta 100 → 默认阈值 50 → jank（无 level）
+
+    expect(jankLevels()).toEqual([undefined]); // 面包屑不带 jank_level
+
+    hideCb!();
+    const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
+    expect(names).toContain('jank_count');
+    expect(names.some((n: string) => /^jank_(minor|major|severe)_count$/.test(n))).toBe(false);
+  });
 });

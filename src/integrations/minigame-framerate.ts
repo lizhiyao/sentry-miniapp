@@ -1,7 +1,7 @@
 import { addBreadcrumb, flush, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
-import type { MinigameFrameRateOptions } from '../types';
+import type { MinigameFrameRateOptions, MinigameJankLevels } from '../types';
 
 type FrameRateWindowStats = {
   fps: number;
@@ -10,6 +10,36 @@ type FrameRateWindowStats = {
   jankCount: number;
   frames: number;
 };
+
+/** 分级卡顿档名（严重程度升序：minor < major < severe）。 */
+type JankTierName = 'minor' | 'major' | 'severe';
+interface JankTier {
+  name: JankTierName;
+  threshold: number;
+}
+const JANK_TIER_NAMES: JankTierName[] = ['minor', 'major', 'severe'];
+
+/** 收集有效分级档（有限正数），按阈值升序。返回空数组表示未启用分级。 */
+function normalizeJankTiers(levels?: MinigameJankLevels): JankTier[] {
+  if (!levels) return [];
+  const tiers: JankTier[] = [];
+  for (const name of JANK_TIER_NAMES) {
+    const threshold = levels[name];
+    if (typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0) {
+      tiers.push({ name, threshold });
+    }
+  }
+  return tiers.sort((a, b) => a.threshold - b.threshold);
+}
+
+/** 把一帧耗时归入命中的最高档（tiers 升序）；无命中返回 null。 */
+function classifyJank(tiers: JankTier[], frameDelta: number): JankTierName | null {
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    const tier = tiers[i];
+    if (tier && frameDelta > tier.threshold) return tier.name;
+  }
+  return null;
+}
 
 /** 取已排序样本的 P95（样本为空时回退到 fallback）。 */
 function percentile95(samples: number[], fallback: number): number {
@@ -31,6 +61,10 @@ function percentile95(samples: number[], fallback: number): number {
  * jank_count measurements），独立于 error 事件、进 Sentry Performance 页，由
  * tracesSampleRate 控制——不每窗口发事件，配额友好。
  *
+ * 可选 `jankLevels` 把卡顿按 minor/major/severe 三档分级：每帧按命中的最高档归类，
+ * 面包屑带 `jank_level`，summary 对启用的档增发 `jank_{minor,major,severe}_count`
+ * （`jank_count` 仍为总数）。不配置时沿用单档 longFrameThresholdMs，行为不变。
+ *
  * 仅适用于小游戏：小游戏有绑定真实渲染帧的全局 requestAnimationFrame；小程序为
  * 双线程架构、逻辑层无全局 requestAnimationFrame，缺失时安全降级（不工作）。
  */
@@ -38,13 +72,18 @@ export class MinigameFrameRateIntegration implements Integration {
   public static id: string = 'MinigameFrameRate';
   public name: string = MinigameFrameRateIntegration.id;
 
-  private _options: Required<MinigameFrameRateOptions>;
+  private _options: Required<Omit<MinigameFrameRateOptions, 'jankLevels'>>;
+  // 分级卡顿模型（构造时规范化）：_tiers 升序，空表示未启用分级。
+  private _tiered: boolean;
+  private _tiers: JankTier[];
+  private _jankEntryThreshold: number;
   private _running: boolean = false;
   private _windowElapsed: number = 0;
   private _lastFrameTs: number = 0;
   private _frameCount: number = 0;
   private _jankCount: number = 0;
   private _jankBreadcrumbs: number = 0;
+  private _jankByTier: Record<JankTierName, number> = { minor: 0, major: 0, severe: 0 };
   private _maxFrameDelta: number = 0;
 
   // 会话级累积（用于退后台 onHide 时发一个汇总 transaction）
@@ -56,6 +95,7 @@ export class MinigameFrameRateIntegration implements Integration {
   private _sessionElapsed: number = 0;
   private _sessionFrames: number = 0;
   private _sessionJank: number = 0;
+  private _sessionJankByTier: Record<JankTierName, number> = { minor: 0, major: 0, severe: 0 };
   private _sessionWorstFrame: number = 0;
   private _fpsSamples: number[] = [];
   private _showHandler: ((res: any) => void) | null = null;
@@ -68,6 +108,15 @@ export class MinigameFrameRateIntegration implements Integration {
       reportInterval: options.reportInterval ?? 10000,
       maxJankBreadcrumbsPerWindow: options.maxJankBreadcrumbsPerWindow ?? 3,
     };
+
+    // 分级卡顿：收集有效档（有限正数）。至少一档有效则启用分级，入档阈值取最低档；
+    // 否则沿用单档 longFrameThresholdMs（jankLevels 优先于 longFrameThresholdMs）。
+    this._tiers = normalizeJankTiers(options.jankLevels);
+    const lowestTier = this._tiers[0];
+    this._tiered = lowestTier !== undefined;
+    this._jankEntryThreshold = lowestTier
+      ? lowestTier.threshold
+      : this._options.longFrameThresholdMs;
   }
 
   public setupOnce(): void {
@@ -129,8 +178,11 @@ export class MinigameFrameRateIntegration implements Integration {
       this._maxFrameDelta = frameDelta;
     }
 
-    if (frameDelta > this._options.longFrameThresholdMs) {
+    if (frameDelta > this._jankEntryThreshold) {
       this._jankCount += 1;
+      // 分级模式：按命中的最高档归类，并累计该档窗口计数（入档阈值=最低档，必可归类）。
+      const jankLevel = this._tiered ? classifyJank(this._tiers, frameDelta) : null;
+      if (jankLevel) this._jankByTier[jankLevel] += 1;
       // 面包屑按窗口限频，避免持续掉帧刷屏；超出阈值仅计数（jankCount 仍如实统计）。
       if (this._jankBreadcrumbs < this._options.maxJankBreadcrumbsPerWindow) {
         this._jankBreadcrumbs += 1;
@@ -138,7 +190,9 @@ export class MinigameFrameRateIntegration implements Integration {
           category: 'minigame.jank',
           message: `检测到卡顿帧: ${Math.round(frameDelta)}ms`,
           level: 'warning',
-          data: { frameDurationMs: Math.round(frameDelta) },
+          data: jankLevel
+            ? { frameDurationMs: Math.round(frameDelta), jank_level: jankLevel }
+            : { frameDurationMs: Math.round(frameDelta) },
         });
       }
     }
@@ -198,6 +252,9 @@ export class MinigameFrameRateIntegration implements Integration {
     this._sessionElapsed += elapsed;
     this._sessionFrames += this._frameCount;
     this._sessionJank += this._jankCount;
+    this._sessionJankByTier.minor += this._jankByTier.minor;
+    this._sessionJankByTier.major += this._jankByTier.major;
+    this._sessionJankByTier.severe += this._jankByTier.severe;
     if (this._maxFrameDelta > this._sessionWorstFrame) {
       this._sessionWorstFrame = this._maxFrameDelta;
     }
@@ -213,6 +270,7 @@ export class MinigameFrameRateIntegration implements Integration {
     this._jankCount = 0;
     this._jankBreadcrumbs = 0;
     this._maxFrameDelta = 0;
+    this._jankByTier = { minor: 0, major: 0, severe: 0 };
   }
 
   /** 重置会话累积（回前台开启新会话）。 */
@@ -221,6 +279,7 @@ export class MinigameFrameRateIntegration implements Integration {
     this._sessionElapsed = 0;
     this._sessionFrames = 0;
     this._sessionJank = 0;
+    this._sessionJankByTier = { minor: 0, major: 0, severe: 0 };
     this._sessionWorstFrame = 0;
     this._fpsSamples = [];
   }
@@ -273,6 +332,14 @@ export class MinigameFrameRateIntegration implements Integration {
     setMeasurement('fps_p95', p95Fps, 'none', span);
     setMeasurement('fps_min', minFps, 'none', span);
     setMeasurement('jank_count', jankCount, 'none', span);
+    // 分级模式：对启用的档增发计数（jank_count 仍为总数；未启用的档不发）。
+    if (this._tiered) {
+      for (const tier of this._tiers) {
+        const tierCount = this._sessionJankByTier[tier.name];
+        span.setAttributes({ [`jank.${tier.name}`]: tierCount });
+        setMeasurement(`jank_${tier.name}_count`, tierCount, 'none', span);
+      }
+    }
     span.end((this._sessionEpochStart + Math.max(0, elapsed)) / 1000);
 
     this._resetSession();
