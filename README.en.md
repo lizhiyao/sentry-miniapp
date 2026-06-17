@@ -95,6 +95,8 @@ Sentry.init({
 App({ onLaunch() {} });
 ```
 
+Do not put `Sentry.init` inside `App.onLaunch`: by then `App()` has already been registered, so the SDK cannot wrap that first `onLaunch` call. App lifecycle breadcrumbs, the first session start, and cold-start timing which depends on the `onLaunch` start point may be missing. If you only need later errors, network breadcrumbs, and manual capture, initializing in `onLaunch` still works, but startup instrumentation is degraded.
+
 Default integrations already include **exception capture, performance monitoring, Source Map path normalization, network breadcrumbs, session and network status monitoring** — you usually don't pass `integrations` (doing so replaces the defaults). Full options (offline cache, trace propagation, breadcrumb toggles) are on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
 
 **Verify it works** — capture an event and check the Sentry "Issues" list:
