@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach } from '@jest/globals';
+import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
 
 // Mock @sentry/core
 const mockStartSession = jest.fn();
@@ -14,41 +14,47 @@ jest.mock('@sentry/core', () => ({
 }));
 
 import { SessionIntegration } from '../src/integrations/session';
+import { _resetAppLifecycle } from '../src/appLifecycle';
 
 describe('SessionIntegration', () => {
   let originalApp: any;
   let capturedAppOptions: any;
+  let savedApp: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    _resetAppLifecycle(); // 清共享 App 包装状态，避免用例间残留
     capturedAppOptions = null;
 
-    // SessionIntegration uses getGlobalObject which checks wx first
+    // 新模型经共享 appLifecycle 猴补全局 App（不再是 wx.App）
+    savedApp = (globalThis as any).App;
     originalApp = jest.fn((options: any) => {
       capturedAppOptions = options;
     });
-    (global as any).wx = (global as any).wx || {};
-    (global as any).wx.App = originalApp;
+    (globalThis as any).App = originalApp;
 
     mockGetCurrentScope.mockReturnValue({
       getSession: jest.fn().mockReturnValue({ status: 'ok' }),
     });
   });
 
-  it('should wrap App constructor on wx global', () => {
+  afterEach(() => {
+    (globalThis as any).App = savedApp;
+    _resetAppLifecycle();
+  });
+
+  it('should wrap global App() on setup', () => {
     const integration = new SessionIntegration();
     integration.setupOnce();
 
-    expect((global as any).wx.App).not.toBe(originalApp);
+    expect((globalThis as any).App).not.toBe(originalApp);
   });
 
   it('should start session on onLaunch', () => {
     const integration = new SessionIntegration();
     integration.setupOnce();
 
-    const appConfig = { onLaunch: jest.fn() };
-    (global as any).wx.App(appConfig);
-
+    (globalThis as any).App({ onLaunch: jest.fn() });
     capturedAppOptions.onLaunch();
 
     expect(mockStartSession).toHaveBeenCalledWith({ ignoreDuration: true });
@@ -59,9 +65,7 @@ describe('SessionIntegration', () => {
     const integration = new SessionIntegration();
     integration.setupOnce();
 
-    const appConfig = { onShow: jest.fn() };
-    (global as any).wx.App(appConfig);
-
+    (globalThis as any).App({ onShow: jest.fn() });
     capturedAppOptions.onShow();
 
     expect(mockStartSession).toHaveBeenCalled();
@@ -71,15 +75,12 @@ describe('SessionIntegration', () => {
     const integration = new SessionIntegration();
     integration.setupOnce();
 
-    const appConfig = { onLaunch: jest.fn(), onShow: jest.fn() };
-    (global as any).wx.App(appConfig);
+    (globalThis as any).App({ onLaunch: jest.fn(), onShow: jest.fn() });
 
-    // onLaunch starts session
     capturedAppOptions.onLaunch();
     mockStartSession.mockClear();
     mockCaptureSession.mockClear();
 
-    // onShow should not start another
     capturedAppOptions.onShow();
     expect(mockStartSession).not.toHaveBeenCalled();
   });
@@ -88,8 +89,7 @@ describe('SessionIntegration', () => {
     const integration = new SessionIntegration();
     integration.setupOnce();
 
-    const appConfig = { onLaunch: jest.fn(), onHide: jest.fn() };
-    (global as any).wx.App(appConfig);
+    (globalThis as any).App({ onLaunch: jest.fn(), onHide: jest.fn() });
 
     capturedAppOptions.onLaunch();
     capturedAppOptions.onHide();
@@ -106,9 +106,7 @@ describe('SessionIntegration', () => {
     const integration = new SessionIntegration();
     integration.setupOnce();
 
-    const appConfig = { onError: jest.fn() };
-    (global as any).wx.App(appConfig);
-
+    (globalThis as any).App({ onError: jest.fn() });
     capturedAppOptions.onError('some error');
 
     expect(mockSession.status).toBe('crashed');
@@ -122,7 +120,7 @@ describe('SessionIntegration', () => {
     const originalOnShow = jest.fn();
     const originalOnHide = jest.fn();
 
-    (global as any).wx.App({
+    (globalThis as any).App({
       onLaunch: originalOnLaunch,
       onShow: originalOnShow,
       onHide: originalOnHide,
@@ -141,8 +139,7 @@ describe('SessionIntegration', () => {
     const integration = new SessionIntegration();
     integration.setupOnce();
 
-    const appConfig = { onLaunch: jest.fn(), onHide: jest.fn(), onShow: jest.fn() };
-    (global as any).wx.App(appConfig);
+    (globalThis as any).App({ onLaunch: jest.fn(), onHide: jest.fn(), onShow: jest.fn() });
 
     capturedAppOptions.onLaunch();
     mockStartSession.mockClear();
@@ -157,9 +154,9 @@ describe('SessionIntegration', () => {
     const integration = new SessionIntegration();
     integration.setupOnce();
 
-    expect((global as any).wx.App).not.toBe(originalApp);
+    expect((globalThis as any).App).not.toBe(originalApp);
 
     integration.cleanup();
-    expect((global as any).wx.App).toBe(originalApp);
+    expect((globalThis as any).App).toBe(originalApp);
   });
 });

@@ -1,9 +1,15 @@
-import { getCurrentScope, initAndBind, setContext, withScope } from '@sentry/core';
+import {
+  getCurrentScope,
+  initAndBind,
+  setContext,
+  withScope,
+  inboundFiltersIntegration,
+} from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
 
 import { MiniappClient } from './client';
-import { appName, getSystemInfo, isMiniappEnvironment, isMinigame } from './crossPlatform';
+import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
 import {
   GlobalHandlers,
   TryCatch,
@@ -117,6 +123,20 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   const hasIntegration = (id: string): boolean =>
     opts.integrations.some((integration) => integration && integration.name === id);
 
+  // 入站过滤：让 allowUrls / denyUrls / ignoreErrors 真正生效（此前是声明了却无人消费的死选项）。
+  // 仅在用户未自行传入同名集成时追加；按 exactOptionalPropertyTypes 只填已定义的键。
+  if (!hasIntegration('InboundFilters')) {
+    const filterOptions: {
+      allowUrls?: Array<string | RegExp>;
+      denyUrls?: Array<string | RegExp>;
+      ignoreErrors?: Array<string | RegExp>;
+    } = {};
+    if (opts.allowUrls) filterOptions.allowUrls = opts.allowUrls;
+    if (opts.denyUrls) filterOptions.denyUrls = opts.denyUrls;
+    if (opts.ignoreErrors) filterOptions.ignoreErrors = opts.ignoreErrors;
+    opts.integrations.push(inboundFiltersIntegration(filterOptions));
+  }
+
   if (
     !hasIntegration(MinigameIntegration.id) &&
     (opts.enableMinigameLifecycle === true || (minigame && opts.enableMinigameLifecycle !== false))
@@ -131,30 +151,15 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     opts.integrations.push(new MinigameFrameRateIntegration(opts.minigameFrameRateOptions));
   }
 
-  // Set platform context
+  // 平台标记。device / os / app context 由 MiniappClient._prepareEvent 在每个事件上统一写入
+  // （唯一权威），此处不再重复设置，避免字段不一致与覆盖歧义（见架构 review P2-b）。
   setContext('miniapp', {
     platform: appName(),
     environment: 'miniapp',
   });
 
-  // Add system information
-  const systemInfo = opts.enableSystemInfo === false ? null : getSystemInfo();
-  if (systemInfo) {
-    setContext('device', {
-      brand: systemInfo.brand,
-      model: systemInfo.model,
-      language: systemInfo.language,
-      system: systemInfo.system,
-      platform: systemInfo.platform,
-      screen_resolution: `${systemInfo.screenWidth}x${systemInfo.screenHeight}`,
-    });
-
-    setContext('app', {
-      sdk_version: systemInfo.SDKVersion,
-      version: systemInfo.version,
-    });
-  }
-
+  // @sentry/core 未公开导出 ClientClass 类型，且 MiniappClient 用 Client<any>（见 client.ts），
+  // 故此处保留 as any。opts 在运行时即合法 ClientOptions（含 stackParser/transport/integrations）。
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initAndBind(MiniappClient as any, opts as any);
   return getCurrentScope().getClient() as MiniappClient;
@@ -173,35 +178,6 @@ export function showReportDialog(_options: ReportDialogOptions = {}): void {
     '[sentry-miniapp] showReportDialog is deprecated and does nothing. ' +
       'Please build your own UI and use `Sentry.captureFeedback()` instead.',
   );
-}
-
-/**
- * Get the last event ID
- */
-export function lastEventId(): string | undefined {
-  return getCurrentScope().lastEventId();
-}
-
-/**
- * Flush pending events
- */
-export function flush(timeout?: number): PromiseLike<boolean> {
-  const client = getCurrentScope().getClient();
-  if (client) {
-    return client.flush(timeout);
-  }
-  return Promise.resolve(false);
-}
-
-/**
- * Close the SDK
- */
-export function close(timeout?: number): PromiseLike<boolean> {
-  const client = getCurrentScope().getClient();
-  if (client) {
-    return client.close(timeout);
-  }
-  return Promise.resolve(false);
 }
 
 /**

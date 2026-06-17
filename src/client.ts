@@ -170,26 +170,34 @@ export class MiniappClient extends Client<any> {
       const currentScope = scope || getCurrentScope();
       const isolationScope = getIsolationScope();
       return super._prepareEvent(event, hint || {}, currentScope, isolationScope);
-    } catch (_error) {
+    } catch (error) {
       // Fallback if scopes are not properly initialized
+      if (this.getOptions().debug) {
+        console.warn('[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:', error);
+      }
       return Promise.resolve(event);
     }
   }
 
   /**
-   * 关闭客户端，清理所有集成资源
+   * 关闭客户端，清理所有集成资源。
+   *
+   * 用公开的 `getOptions().integrations`（装配后的集成实例数组）遍历，而非基类内部的
+   * `_integrations` 字段——后者是 protected、非公开契约，@sentry/core 升级若改名/改结构会
+   * 静默失效。`cleanup()` 是本 SDK 集成的自定义方法（非 core Integration 接口的一部分），故做窄类型断言。
    */
   public override close(timeout?: number): PromiseLike<boolean> {
-    // 调用所有集成的 cleanup 方法
-    const integrations = (this as any)._integrations;
-    if (integrations && typeof integrations === 'object') {
-      for (const key of Object.keys(integrations)) {
-        const integration = integrations[key];
-        if (integration && typeof integration.cleanup === 'function') {
+    const integrations = this.getOptions().integrations;
+    if (Array.isArray(integrations)) {
+      for (const integration of integrations) {
+        const cleanup = (integration as unknown as { cleanup?: () => void }).cleanup;
+        if (typeof cleanup === 'function') {
           try {
-            integration.cleanup();
-          } catch (_e) {
-            // 忽略清理过程中的错误
+            cleanup.call(integration);
+          } catch (e) {
+            if (this.getOptions().debug) {
+              console.warn(`[sentry-miniapp] 集成 ${integration.name} cleanup 失败:`, e);
+            }
           }
         }
       }

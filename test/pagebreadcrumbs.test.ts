@@ -1,4 +1,5 @@
 import { PageBreadcrumbs } from '../src/integrations/pagebreadcrumbs';
+import { _resetAppLifecycle } from '../src/appLifecycle';
 
 jest.mock('@sentry/core', () => ({
   addBreadcrumb: jest.fn(),
@@ -12,6 +13,7 @@ describe('PageBreadcrumbs Integration', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    _resetAppLifecycle(); // 清共享 App 包装状态，避免用例间残留
     originalPage = (globalThis as any).Page;
     originalApp = (globalThis as any).App;
   });
@@ -19,6 +21,7 @@ describe('PageBreadcrumbs Integration', () => {
   afterEach(() => {
     (globalThis as any).Page = originalPage;
     (globalThis as any).App = originalApp;
+    _resetAppLifecycle();
   });
 
   describe('Page lifecycle breadcrumbs', () => {

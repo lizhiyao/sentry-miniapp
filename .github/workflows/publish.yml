@@ -8,6 +8,11 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# 同一 ref 的发布串行，避免重复推 tag 并发触发两次发布
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -33,6 +38,9 @@ jobs:
 
     - name: Run Lint
       run: yarn run lint
+
+    - name: Type Check
+      run: yarn run typecheck
 
     - name: Run Tests
       run: yarn run test

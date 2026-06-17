@@ -2,14 +2,13 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import {
   init,
   showReportDialog,
-  lastEventId,
-  flush,
-  close,
   wrap,
   captureFeedback,
   getDefaultIntegrations,
   defaultIntegrations,
 } from '../src/sdk';
+// flush / close / lastEventId 是 SDK 从 @sentry/core 透传的公开 API（sdk.ts 不再自定义重复实现）
+import { lastEventId, flush, close } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
