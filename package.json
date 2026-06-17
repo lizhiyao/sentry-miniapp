@@ -71,6 +71,10 @@
   "dependencies": {
     "@sentry/core": "10.57.0"
   },
+  "resolutions": {
+    "js-yaml": "4.2.0",
+    "vite@npm:^5.4.14": "npm:6.4.3"
+  },
   "lint-staged": {
     "src/**/*.{ts,js}": [
       "eslint --fix",
