@@ -2,7 +2,12 @@ import { addBreadcrumb, getCurrentScope } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 
-/** Router integration for miniapp navigation */
+/**
+ * Router integration for miniapp navigation.
+ *
+ * @deprecated 默认不启用，导航面包屑已由 `PageBreadcrumbs`（基于 Page 生命周期）覆盖。
+ * 保留导出仅为向后兼容，将在 2.0 移除。请勿在新代码中使用。
+ */
 export class Router implements Integration {
   /**
    * @inheritDoc

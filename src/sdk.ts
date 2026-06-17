@@ -1,4 +1,10 @@
-import { getCurrentScope, initAndBind, setContext, withScope } from '@sentry/core';
+import {
+  getCurrentScope,
+  initAndBind,
+  setContext,
+  withScope,
+  inboundFiltersIntegration,
+} from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
 
@@ -117,6 +123,20 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   const hasIntegration = (id: string): boolean =>
     opts.integrations.some((integration) => integration && integration.name === id);
 
+  // 入站过滤：让 allowUrls / denyUrls / ignoreErrors 真正生效（此前是声明了却无人消费的死选项）。
+  // 仅在用户未自行传入同名集成时追加；按 exactOptionalPropertyTypes 只填已定义的键。
+  if (!hasIntegration('InboundFilters')) {
+    const filterOptions: {
+      allowUrls?: Array<string | RegExp>;
+      denyUrls?: Array<string | RegExp>;
+      ignoreErrors?: Array<string | RegExp>;
+    } = {};
+    if (opts.allowUrls) filterOptions.allowUrls = opts.allowUrls;
+    if (opts.denyUrls) filterOptions.denyUrls = opts.denyUrls;
+    if (opts.ignoreErrors) filterOptions.ignoreErrors = opts.ignoreErrors;
+    opts.integrations.push(inboundFiltersIntegration(filterOptions));
+  }
+
   if (
     !hasIntegration(MinigameIntegration.id) &&
     (opts.enableMinigameLifecycle === true || (minigame && opts.enableMinigameLifecycle !== false))
@@ -175,35 +195,6 @@ export function showReportDialog(_options: ReportDialogOptions = {}): void {
     '[sentry-miniapp] showReportDialog is deprecated and does nothing. ' +
       'Please build your own UI and use `Sentry.captureFeedback()` instead.',
   );
-}
-
-/**
- * Get the last event ID
- */
-export function lastEventId(): string | undefined {
-  return getCurrentScope().lastEventId();
-}
-
-/**
- * Flush pending events
- */
-export function flush(timeout?: number): PromiseLike<boolean> {
-  const client = getCurrentScope().getClient();
-  if (client) {
-    return client.flush(timeout);
-  }
-  return Promise.resolve(false);
-}
-
-/**
- * Close the SDK
- */
-export function close(timeout?: number): PromiseLike<boolean> {
-  const client = getCurrentScope().getClient();
-  if (client) {
-    return client.close(timeout);
-  }
-  return Promise.resolve(false);
 }
 
 /**

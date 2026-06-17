@@ -3,7 +3,12 @@ import type { Integration, IntegrationFn } from '@sentry/core';
 
 import { getSystemInfo, sdk } from '../crossPlatform';
 
-/** System information integration */
+/**
+ * System information integration.
+ *
+ * @deprecated 默认不启用，且其 system/device/network context 已被 `HttpContext` 与
+ * `MiniappClient._prepareEvent` 覆盖。保留导出仅为向后兼容，将在 2.0 移除。请勿在新代码中使用。
+ */
 export class System implements Integration {
   /**
    * @inheritDoc

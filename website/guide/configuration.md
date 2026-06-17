@@ -85,11 +85,14 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `allowUrls` | `Array<string｜RegExp>` | 空 | 仅上报匹配这些 URL 的错误 |
-| `denyUrls` | `Array<string｜RegExp>` | 空 | 不上报匹配这些 URL 的错误 |
+| `allowUrls` | `Array<string｜RegExp>` | 空 | 仅上报栈帧匹配这些 URL 的错误 |
+| `denyUrls` | `Array<string｜RegExp>` | 空 | 不上报栈帧匹配这些 URL 的错误 |
+| `ignoreErrors` | `Array<string｜RegExp>` | 空 | 消息/类型匹配的错误直接丢弃 |
 | `beforeSend` | `function` | — | 事件发送前的钩子，可修改或返回 `null` 丢弃 |
 | `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |
+
+> `allowUrls` / `denyUrls` / `ignoreErrors` 由内置的 `InboundFilters` 集成实现，`init` 时自动装配（除非你在 `integrations` 里已自带同名集成）。
 
 ## 集成
 

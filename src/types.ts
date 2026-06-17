@@ -112,8 +112,11 @@ export interface MiniappOptions {
   /** Before breadcrumb hook */
   beforeBreadcrumb?: (breadcrumb: Breadcrumb, hint?: Record<string, unknown>) => Breadcrumb | null;
 
-  /** Miniapp platform label stored on events. Runtime platform detection is automatic. */
-  platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'baidu' | 'swan' | 'dingtalk' | 'kuaishou';
+  /**
+   * Miniapp platform label stored on events. Runtime platform detection is automatic.
+   * 取值与运行时 `AppName` 对齐（百度小程序的全局对象是 `swan`，故用 `swan` 表示，无独立 `baidu`）。
+   */
+  platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou';
 
   /** Whether to enable system info collection */
   enableSystemInfo?: boolean;
@@ -172,6 +175,9 @@ export interface MiniappOptions {
 
   /** Array of strings or regexes that match error URLs which should not be sent to Sentry */
   denyUrls?: Array<string | RegExp>;
+
+  /** Array of strings or regexes; matching error messages/types are dropped before sending */
+  ignoreErrors?: Array<string | RegExp>;
 
   /** Integrations */
   integrations?: Integration[];

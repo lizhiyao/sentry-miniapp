@@ -1,7 +1,7 @@
 import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
 import * as crossPlatform from '../src/crossPlatform';
 import { init } from '../src/index';
-import { getClient } from '@sentry/core';
+import { getClient, captureException, flush } from '@sentry/core';
 
 /**
  * 与 minigame-framerate.test.ts 不同：此文件**不 mock** `@sentry/core`，而是用真实
@@ -140,5 +140,40 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     expect(client).toBeDefined();
     await client!.close(0);
     expect(cleanupSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignoreErrors 经 InboundFilters 生效：匹配错误被丢弃、其余保留', async () => {
+    const captured: any[] = [];
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      ignoreErrors: ['DropThisError'],
+      transport: () => ({
+        send: (envelope: any) => {
+          captured.push(envelope);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    captureException(new Error('DropThisError boom'));
+    captureException(new Error('KeepThisError ok'));
+    await flush(2000);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const values: string[] = [];
+    for (const env of captured) {
+      const items = env[1];
+      if (!Array.isArray(items)) continue;
+      for (const it of items) {
+        const header = it[0];
+        if (header && (header.type === 'event' || header.type === 'error')) {
+          const v = it[1]?.exception?.values?.[0]?.value;
+          if (typeof v === 'string') values.push(v);
+        }
+      }
+    }
+    expect(values.some((v) => v.includes('KeepThisError'))).toBe(true);
+    expect(values.some((v) => v.includes('DropThisError'))).toBe(false);
   });
 });

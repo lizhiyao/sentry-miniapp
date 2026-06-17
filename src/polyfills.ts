@@ -144,51 +144,25 @@ class URLSearchParamsPolyfill {
 }
 
 /**
- * Get the global object for the current environment
- * 获取当前环境的全局对象
+ * Get the JS global scope for the current environment.
+ * 获取当前环境的 JS 全局作用域。
+ *
+ * URLSearchParams 是全局构造器，不属于某个平台 SDK 对象（wx/my/…），因此这里只解析
+ * 全局作用域，不再枚举平台全局——平台检测的唯一来源是 crossPlatform 的 PLATFORMS 表。
  */
 function getGlobalObject(): any {
-  // 尝试获取全局对象
-  const globalScope = Function('return this')();
-
-  // 微信小程序环境
-  if (globalScope && typeof globalScope.wx !== 'undefined' && globalScope.wx) {
-    return globalScope.wx;
-  }
-  // 支付宝小程序环境
-  if (globalScope && typeof globalScope.my !== 'undefined' && globalScope.my) {
-    return globalScope.my;
-  }
-  // 百度小程序环境
-  if (globalScope && typeof globalScope.swan !== 'undefined' && globalScope.swan) {
-    return globalScope.swan;
-  }
-  // 字节跳动小程序环境
-  if (globalScope && typeof globalScope.tt !== 'undefined' && globalScope.tt) {
-    return globalScope.tt;
-  }
-  // QQ小程序环境
-  if (globalScope && typeof globalScope.qq !== 'undefined' && globalScope.qq) {
-    return globalScope.qq;
-  }
-  // 通用全局对象检测
   if (typeof globalThis !== 'undefined') {
     return globalThis;
   }
-  // 浏览器环境
-  if (typeof window !== 'undefined') {
-    return window;
+  try {
+    return Function('return this')();
+  } catch (_e) {
+    // 某些严格 CSP 环境下 Function 构造器不可用，继续按下方兜底
   }
-  // Node.js 环境
-  if (typeof global !== 'undefined') {
-    return global;
-  }
-  // Web Worker 环境
-  if (typeof self !== 'undefined') {
-    return self;
-  }
-  // 返回全局作用域
-  return globalScope;
+  if (typeof window !== 'undefined') return window;
+  if (typeof global !== 'undefined') return global;
+  if (typeof self !== 'undefined') return self;
+  return undefined;
 }
 
 /**
