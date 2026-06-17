@@ -371,6 +371,26 @@ describe('MinigameFrameRateIntegration', () => {
     expect(names).not.toContain('jank_severe_count');
   });
 
+  it('jankLevels 跨多窗口分档累积进会话汇总', () => {
+    const integration = new MinigameFrameRateIntegration({
+      reportInterval: 100, // 小窗口，迫使 _report 多次触发，验证跨窗口累积
+      jankLevels: { minor: 17, major: 33, severe: 100 },
+    });
+    integration.setupOnce();
+
+    frame(20); // delta 20 → minor（窗口1）
+    frame(140); // delta 120 → severe（窗口1）；windowElapsed 140≥100 → _report 滚入会话
+    frame(160); // delta 20 → minor（窗口2）
+    frame(280); // delta 120 → severe（窗口2）；→ _report 再次滚入会话
+
+    hideCb!(); // 末窗口为空，仅汇总已滚入会话的两窗口
+    const m = measurements();
+    expect(m['jank_count']).toBe(4); // 两窗口合计：2 minor + 2 severe
+    expect(m['jank_minor_count']).toBe(2);
+    expect(m['jank_severe_count']).toBe(2);
+    expect(m['jank_major_count']).toBe(0); // 启用但本会话无命中 → 发 0
+  });
+
   it('不传 jankLevels 时 summary 只有 jank_count，无任何分档 measurement（不回归）', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 10000 });
     integration.setupOnce();
