@@ -61,7 +61,7 @@ Sentry.init({
   dsn: 'YOUR_DSN',
   tracesSampleRate: 1.0,
   minigameFrameRateOptions: {
-    jankLevels: { minor: 17, major: 33, severe: 100 }, // 约对应丢 1 帧 / 丢半帧 / 明显卡死
+    jankLevels: { minor: 17, major: 33, severe: 100 }, // 约对应 60fps 丢 1 帧 / 30fps 丢 1 帧 / 明显卡死
   },
 });
 ```
@@ -72,5 +72,7 @@ Sentry.init({
 - 会话汇总 transaction **额外**增发 `jank_minor_count` / `jank_major_count` / `jank_severe_count`（仅启用的档），可在 Performance 页分级聚合；`jank_count` 仍为总数，老看板不受影响。
 - 入档阈值取**最低启用档**，因此只想要两档时可只传 `{ major, severe }`，低于 `major` 的帧不计卡顿。
 - 与 `longFrameThresholdMs` 同时提供时 **`jankLevels` 优先**，老参数忽略；不传 `jankLevels` 则沿用单档，行为与历史完全一致。
+
+> 阈值应为**亚秒级**（建议 < 5000ms）。卡顿（jank）是丢帧，量级在几十～几百毫秒；单帧间隔超过 5000ms 会被当作后台暂停 / 调试器停顿（采样断点）丢弃，不计入卡顿——这种秒级停顿属于卡死（ANR），不是 jank。
 
 帧率监控依赖全局 `requestAnimationFrame`：小游戏有（绑定真实渲染帧），小程序为双线程架构、逻辑层没有，因此小程序中即使开启也会安全 no-op。

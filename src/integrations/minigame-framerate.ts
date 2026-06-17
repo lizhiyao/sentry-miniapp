@@ -334,11 +334,13 @@ export class MinigameFrameRateIntegration implements Integration {
     setMeasurement('jank_count', jankCount, 'none', span);
     // 分级模式：对启用的档增发计数（jank_count 仍为总数；未启用的档不发）。
     if (this._tiered) {
+      const tierAttrs: Record<string, number> = {};
       for (const tier of this._tiers) {
         const tierCount = this._sessionJankByTier[tier.name];
-        span.setAttributes({ [`jank.${tier.name}`]: tierCount });
+        tierAttrs[`jank.${tier.name}`] = tierCount;
         setMeasurement(`jank_${tier.name}_count`, tierCount, 'none', span);
       }
+      span.setAttributes(tierAttrs);
     }
     span.end((this._sessionEpochStart + Math.max(0, elapsed)) / 1000);
 
