@@ -155,6 +155,8 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     });
   }
 
+  // @sentry/core 未公开导出 ClientClass 类型，且 MiniappClient 用 Client<any>（见 client.ts），
+  // 故此处保留 as any。opts 在运行时即合法 ClientOptions（含 stackParser/transport/integrations）。
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initAndBind(MiniappClient as any, opts as any);
   return getCurrentScope().getClient() as MiniappClient;

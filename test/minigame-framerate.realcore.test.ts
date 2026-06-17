@@ -120,4 +120,25 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     expect(m.jank_severe_count?.value).toBe(1);
     expect(m.fps_avg).toBeDefined();
   });
+
+  it('client.close() 经公开 getOptions().integrations 调到集成 cleanup', async () => {
+    const cleanupSpy = jest.fn();
+    const probe = {
+      name: 'CleanupProbe',
+      setupOnce() {},
+      cleanup: cleanupSpy,
+    };
+    const client = init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      integrations: [probe],
+      transport: () => ({
+        send: () => Promise.resolve({ statusCode: 200 }),
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    expect(client).toBeDefined();
+    await client!.close(0);
+    expect(cleanupSpy).toHaveBeenCalledTimes(1);
+  });
 });

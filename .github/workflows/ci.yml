@@ -36,8 +36,14 @@ jobs:
     - name: Run Lint
       run: yarn run lint
 
+    - name: Type Check
+      run: yarn run typecheck
+
     - name: Build Project
       run: yarn run build
+
+    - name: Check examples are in sync with dist
+      run: git diff --exit-code examples/wxapp/lib/sentry-miniapp.js
 
     - name: Run Tests
       run: yarn run test
