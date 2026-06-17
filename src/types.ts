@@ -14,6 +14,9 @@ import type {
  *
  * 阈值应为亚秒级（建议 < 5000ms）：单帧间隔超过 5000ms 会被当作后台暂停 / 采样断点
  * 丢弃，不计入卡顿，故 ≥ 5000ms 的档实际不会触发（秒级停顿属于卡死，不是 jank）。
+ *
+ * 启用档的阈值须按 minor < major < severe **严格递增**；否则 jank_level 名实不符
+ * （如 { minor: 100, severe: 17 }），会 warn 并忽略分级、回退单档 longFrameThresholdMs。
  */
 export interface MinigameJankLevels {
   /** 小卡阈值（ms）：单帧间隔超过它且未达 major，记为 minor。 */

@@ -371,6 +371,49 @@ describe('MinigameFrameRateIntegration', () => {
     expect(names).not.toContain('jank_severe_count');
   });
 
+  it('jankLevels 非单调（名实不符）时 warn 并回退单档', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const integration = new MinigameFrameRateIntegration({
+      reportInterval: 10000,
+      longFrameThresholdMs: 50,
+      jankLevels: { minor: 100, severe: 17 }, // 非单调：minor 阈值 > severe，名实反了
+    });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('jankLevels'));
+
+    integration.setupOnce();
+    frame(10); // delta 10 → 正常
+    frame(40); // delta 30 → ≤50（已回退单档阈值），不计 jank
+    frame(140); // delta 100 → >50 → jank（单档行为，无 level）
+
+    const crumb = mockAddBreadcrumb.mock.calls.find(
+      (c: any) => c[0] && c[0].category === 'minigame.jank',
+    );
+    expect((crumb?.[0] as any)?.data).not.toHaveProperty('jank_level');
+
+    hideCb!();
+    const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
+    expect(names).toContain('jank_count');
+    expect(names.some((n: string) => /^jank_(minor|major|severe)_count$/.test(n))).toBe(false);
+  });
+
+  it('jankLevels 阈值相等（非严格递增）时 warn 并回退单档', () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const integration = new MinigameFrameRateIntegration({
+      reportInterval: 10000,
+      jankLevels: { minor: 33, major: 33 }, // 相等 → 非严格递增
+    });
+    expect(warnSpy).toHaveBeenCalled();
+
+    integration.setupOnce();
+    frame(20); // delta 20 → 默认单档阈值 50 以下，不计 jank
+    frame(120); // delta 100 → >50 → jank（无 level）
+
+    hideCb!();
+    const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
+    expect(names).not.toContain('jank_minor_count');
+    expect(names).not.toContain('jank_major_count');
+  });
+
   it('jankLevels 跨多窗口分档累积进会话汇总', () => {
     const integration = new MinigameFrameRateIntegration({
       reportInterval: 100, // 小窗口，迫使 _report 多次触发，验证跨窗口累积

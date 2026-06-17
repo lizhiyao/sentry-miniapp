@@ -19,7 +19,14 @@ interface JankTier {
 }
 const JANK_TIER_NAMES: JankTierName[] = ['minor', 'major', 'severe'];
 
-/** 收集有效分级档（有限正数），按阈值升序。返回空数组表示未启用分级。 */
+/**
+ * 收集有效分级档（有限正数）并校验「阈值随严重度严格递增」（minor < major < severe）。
+ *
+ * JANK_TIER_NAMES 本身即严重度升序，按此顺序收集；校验必须在排序前做——否则按数值
+ * 排序会抹掉非单调的证据。若阈值未随严重度递增（含相等），说明 jank_level 名实不符
+ * （如 { minor: 100, severe: 17 } 会把重卡标成 minor），此时 warn 并回退单档
+ * longFrameThresholdMs。返回空数组表示未启用分级。
+ */
 function normalizeJankTiers(levels?: MinigameJankLevels): JankTier[] {
   if (!levels) return [];
   const tiers: JankTier[] = [];
@@ -29,7 +36,19 @@ function normalizeJankTiers(levels?: MinigameJankLevels): JankTier[] {
       tiers.push({ name, threshold });
     }
   }
-  return tiers.sort((a, b) => a.threshold - b.threshold);
+  if (tiers.length === 0) return [];
+  for (let i = 1; i < tiers.length; i++) {
+    const prev = tiers[i - 1];
+    const cur = tiers[i];
+    if (prev && cur && cur.threshold <= prev.threshold) {
+      console.warn(
+        '[sentry-miniapp] jankLevels 阈值须按 minor < major < severe 严格递增，' +
+          '当前配置不满足，已忽略分级并回退到单档 longFrameThresholdMs。',
+      );
+      return [];
+    }
+  }
+  return tiers;
 }
 
 /** 把一帧耗时归入命中的最高档（tiers 升序）；无命中返回 null。 */
