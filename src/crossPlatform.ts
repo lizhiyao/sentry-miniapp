@@ -275,13 +275,13 @@ const computeSystemInfo = (): SystemInfo | null => {
   }
 };
 
-// 系统信息记忆化：一次会话内静态，避免每个事件重算。resetPlatformCache() 清除。
-let _systemInfoComputed = false;
+// 系统信息记忆化：成功结果在一次会话内静态，故缓存避免每事件重算。
+// 但结果为 null（平台 API 未就绪 / 偶发异常）时**不缓存**，下次调用重试——否则一次瞬时
+// 失败会把整个会话的 device/os/app context 永久毒化为 unknown（生产无 resetPlatformCache）。
 let _systemInfo: SystemInfo | null = null;
 const getSystemInfo = (): SystemInfo | null => {
-  if (!_systemInfoComputed) {
+  if (_systemInfo === null) {
     _systemInfo = computeSystemInfo();
-    _systemInfoComputed = true;
   }
   return _systemInfo;
 };
@@ -339,7 +339,6 @@ export const resetPlatformCache = (): void => {
   _sdk = null;
   _appName = null;
   _isMinigame = null;
-  _systemInfoComputed = false;
   _systemInfo = null;
 };
 

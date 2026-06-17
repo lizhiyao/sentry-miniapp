@@ -142,7 +142,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     expect(cleanupSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('ignoreErrors 经 InboundFilters 生效：匹配错误被丢弃、其余保留', async () => {
+  it('ignoreErrors 经 EventFilters 生效：匹配错误被丢弃、其余保留', async () => {
     const captured: any[] = [];
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
