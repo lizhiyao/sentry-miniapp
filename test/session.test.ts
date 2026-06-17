@@ -4,13 +4,11 @@ import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals
 const mockStartSession = jest.fn();
 const mockEndSession = jest.fn();
 const mockCaptureSession = jest.fn();
-const mockGetCurrentScope = jest.fn();
 
 jest.mock('@sentry/core', () => ({
   startSession: mockStartSession,
   endSession: mockEndSession,
   captureSession: mockCaptureSession,
-  getCurrentScope: mockGetCurrentScope,
 }));
 
 import { SessionIntegration } from '../src/integrations/session';
@@ -32,10 +30,6 @@ describe('SessionIntegration', () => {
       capturedAppOptions = options;
     });
     (globalThis as any).App = originalApp;
-
-    mockGetCurrentScope.mockReturnValue({
-      getSession: jest.fn().mockReturnValue({ status: 'ok' }),
-    });
   });
 
   afterEach(() => {
@@ -97,20 +91,8 @@ describe('SessionIntegration', () => {
     expect(mockEndSession).toHaveBeenCalled();
   });
 
-  it('should mark session as crashed on onError', () => {
-    const mockSession = { status: 'ok' };
-    mockGetCurrentScope.mockReturnValue({
-      getSession: jest.fn().mockReturnValue(mockSession),
-    });
-
-    const integration = new SessionIntegration();
-    integration.setupOnce();
-
-    (globalThis as any).App({ onError: jest.fn() });
-    capturedAppOptions.onError('some error');
-
-    expect(mockSession.status).toBe('crashed');
-  });
+  // 注：crashed 标记已不在本集成处理（删除了恒为 no-op 的 onError 钩子），改由
+  // @sentry/core 在未处理错误时自动标记。真·端到端验证见 session.realcore.test.ts。
 
   it('should call original lifecycle methods', () => {
     const integration = new SessionIntegration();

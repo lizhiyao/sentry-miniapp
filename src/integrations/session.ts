@@ -1,4 +1,4 @@
-import { startSession, endSession, captureSession, getCurrentScope } from '@sentry/core';
+import { startSession, endSession, captureSession } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { subscribeAppLifecycle } from '../appLifecycle';
 
@@ -8,7 +8,11 @@ import { subscribeAppLifecycle } from '../appLifecycle';
  *
  * - App.onLaunch / onShow → 开始新 Session
  * - App.onHide → 结束 Session
- * - 错误发生时（App.onError）自动标记 Session 为 crashed
+ *
+ * crashed 标记不在本集成处理：@sentry/core 捕获未处理错误（mechanism.handled=false）时，
+ * 会自动把当前 Session 标记为 crashed 并补发（client._updateSessionFromEvent）。早期此处曾用
+ * App.onError 钩子手动标记，但它读 currentScope、而 Session 挂在 isolationScope 上——恒为
+ * no-op，已删除，避免与 core 的自动标记重复或误导后人。
  *
  * 通过共享的 appLifecycle 订阅全局 App 生命周期（不再自行猴补 App，见架构 review P2-c）。
  */
@@ -28,7 +32,6 @@ export class SessionIntegration implements Integration {
         }
       },
       onHide: () => this._endSession(),
-      onError: () => this._markSessionCrashed(),
     });
   }
 
@@ -47,18 +50,6 @@ export class SessionIntegration implements Integration {
       endSession();
       captureSession();
       this._isSessionActive = false;
-    } catch (_e) {
-      // ignore
-    }
-  }
-
-  private _markSessionCrashed(): void {
-    try {
-      const scope = getCurrentScope();
-      const session = scope.getSession();
-      if (session) {
-        session.status = 'crashed';
-      }
     } catch (_e) {
       // ignore
     }
