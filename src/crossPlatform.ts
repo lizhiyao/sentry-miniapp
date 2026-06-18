@@ -261,8 +261,11 @@ const computeSystemInfo = (): SystemInfo | null => {
       Object.assign(result, sysSetting);
     }
 
-    // 如果成功获取了主要信息，则返回结果
-    if (hasNewApi) {
+    // 新 API 须至少返回一个核心设备身份字段（brand/model/system）才采纳。部分非微信端
+    //「方法存在却返回空壳 {}」，此时三者皆空 → 回退旧 getSystemInfoSync 取真实数据，
+    // 避免产出全 unknown 的设备信息。
+    const newApiUsable = hasNewApi && !!(result.brand || result.model || result.system);
+    if (newApiUsable) {
       return result as SystemInfo;
     }
 
@@ -274,6 +277,11 @@ const computeSystemInfo = (): SystemInfo | null => {
         syncInfo.SDKVersion = syncInfo.version;
       }
       return syncInfo as SystemInfo;
+    }
+
+    // 新 API 仅拿到部分信息、又无旧 API 兜底：部分结果仍好过 null。
+    if (hasNewApi) {
+      return result as SystemInfo;
     }
 
     return null;
@@ -292,6 +300,43 @@ const getSystemInfo = (): SystemInfo | null => {
     _systemInfo = computeSystemInfo();
   }
   return _systemInfo;
+};
+
+/** 小程序账号信息（appId / 版本），一次会话内静态。 */
+export interface MiniProgramAccountInfo {
+  appId: string;
+  version: string;
+}
+
+const computeAccountInfo = (): MiniProgramAccountInfo => {
+  try {
+    const currentSdk = getSDK();
+    if (currentSdk.getAccountInfoSync) {
+      const info: any = currentSdk.getAccountInfoSync();
+      return {
+        appId: info?.miniProgram?.appId || 'unknown',
+        version: info?.miniProgram?.version || 'unknown',
+      };
+    }
+  } catch (_e) {
+    // 忽略：账号信息缺失不应阻断事件上报
+  }
+  return { appId: 'unknown', version: 'unknown' };
+};
+
+// 账号信息记忆化：appId / 版本一次会话内静态，缓存避免 HttpContext 每事件重复
+// getAccountInfoSync（此前每事件取两次：appName + appVersion 各调一次）。
+// 与 getSystemInfo 同策略：全 unknown（API 未就绪/偶发异常）时不缓存，下次重试避免毒化整会话。
+let _accountInfo: MiniProgramAccountInfo | null = null;
+const getAccountInfo = (): MiniProgramAccountInfo => {
+  if (_accountInfo === null) {
+    const computed = computeAccountInfo();
+    if (computed.appId !== 'unknown' || computed.version !== 'unknown') {
+      _accountInfo = computed;
+    }
+    return computed;
+  }
+  return _accountInfo;
 };
 
 /**
@@ -348,6 +393,7 @@ export const resetPlatformCache = (): void => {
   _appName = null;
   _isMinigame = null;
   _systemInfo = null;
+  _accountInfo = null;
 };
 
 /**
@@ -492,4 +538,4 @@ export const now = (): number => Date.now();
  */
 export const epochNow = (): number => Date.now();
 
-export { getSDK, getSystemInfo, isMiniappEnvironment };
+export { getSDK, getSystemInfo, getAccountInfo, isMiniappEnvironment };

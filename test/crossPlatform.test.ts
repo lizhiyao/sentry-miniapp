@@ -310,6 +310,65 @@ describe('CrossPlatform', () => {
       expect(getSystemInfo()).toEqual({ brand: 'Y', SDKVersion: '2' }); // 重试成功
       expect(sync).toHaveBeenCalledTimes(2);
     });
+
+    it('新分体 API 返回空壳（无 brand/model/system）时回退 getSystemInfoSync', async () => {
+      const sync = jest.fn().mockReturnValue({
+        brand: 'Xiaomi',
+        model: 'MI 9',
+        system: 'Android 10',
+        platform: 'android',
+        SDKVersion: '3.0',
+      });
+      (global as any).wx = {
+        // 部分非微信端：方法存在却返回空壳 {}
+        getDeviceInfo: jest.fn().mockReturnValue({}),
+        getWindowInfo: jest.fn().mockReturnValue({}),
+        getAppBaseInfo: jest.fn().mockReturnValue({}),
+        getSystemInfoSync: sync,
+      };
+
+      const { getSystemInfo } = await import('../src/crossPlatform');
+      const result = getSystemInfo();
+      // 修复前：新 API 存在即采纳空壳 → system/brand 全 undefined；修复后回退 sync 取真实数据
+      expect(result?.system).toBe('Android 10');
+      expect(result?.brand).toBe('Xiaomi');
+      expect(sync).toHaveBeenCalled();
+    });
+  });
+
+  describe('getAccountInfo', () => {
+    it('记忆化：多次调用只取一次 getAccountInfoSync，resetPlatformCache 后重新取', async () => {
+      const getAccountInfoSync = jest.fn().mockReturnValue({
+        miniProgram: { appId: 'wxabc', version: '1.2.3' },
+      });
+      (global as any).wx = { getAccountInfoSync };
+
+      const { getAccountInfo, resetPlatformCache } = await import('../src/crossPlatform');
+      expect(getAccountInfo()).toEqual({ appId: 'wxabc', version: '1.2.3' });
+      getAccountInfo();
+      getAccountInfo();
+      // 修复前 HttpContext 每事件取两次（appName + appVersion）；现统一记忆化 → 仅一次
+      expect(getAccountInfoSync).toHaveBeenCalledTimes(1);
+
+      resetPlatformCache();
+      getAccountInfo();
+      expect(getAccountInfoSync).toHaveBeenCalledTimes(2);
+    });
+
+    it('全 unknown 不缓存：下次调用重试（API 未就绪可自愈）', async () => {
+      let call = 0;
+      const getAccountInfoSync = jest.fn().mockImplementation(() => {
+        call += 1;
+        if (call === 1) throw new Error('not ready');
+        return { miniProgram: { appId: 'wxnew', version: '9' } };
+      });
+      (global as any).wx = { getAccountInfoSync };
+
+      const { getAccountInfo } = await import('../src/crossPlatform');
+      expect(getAccountInfo()).toEqual({ appId: 'unknown', version: 'unknown' }); // 首次失败不缓存
+      expect(getAccountInfo()).toEqual({ appId: 'wxnew', version: '9' }); // 重试成功
+      expect(getAccountInfoSync).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('isMiniappEnvironment', () => {

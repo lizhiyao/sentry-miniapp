@@ -210,6 +210,21 @@ describe('SDK', () => {
       expect(integrations).not.toBe(defaultIntegrations);
       expect(integrations.length).toBe(defaultIntegrations.length);
     });
+
+    it('每次返回全新实例，不跨调用共享单例（多 init / 多 client 不互踩补丁状态）', () => {
+      const a = getDefaultIntegrations();
+      const b = getDefaultIntegrations();
+      expect(a).not.toBe(b);
+      // 关键：元素也必须是全新实例。修复前 return [...defaultIntegrations] 会复用同一批单例，
+      // 跨多次 init / 多 client 时 setupOnce/cleanup 留在实例上的补丁状态互相踩踏。
+      a.forEach((intA, i) => {
+        expect(intA).not.toBe(b[i]);
+      });
+      const ga = a.find((i) => i.name === 'GlobalHandlers');
+      const gb = b.find((i) => i.name === 'GlobalHandlers');
+      expect(ga).toBeDefined();
+      expect(ga).not.toBe(gb);
+    });
   });
 
   describe('showReportDialog', () => {
