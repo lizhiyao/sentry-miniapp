@@ -36,19 +36,13 @@ describe('Integrations', () => {
     it('should handle wx.onError callback', () => {
       (global as any).wx.onError = jest.fn();
 
-      integration.setupOnce();
-
-      // Simplified test - just check that setupOnce runs without error
-      expect(true).toBe(true);
+      expect(() => integration.setupOnce()).not.toThrow();
     });
 
     it('should handle wx.onUnhandledRejection callback', () => {
       (global as any).wx.onUnhandledRejection = jest.fn();
 
-      integration.setupOnce();
-
-      // Simplified test - just check that setupOnce runs without error
-      expect(true).toBe(true);
+      expect(() => integration.setupOnce()).not.toThrow();
     });
   });
 
@@ -64,10 +58,7 @@ describe('Integrations', () => {
     });
 
     it('should wrap functions with error handling', () => {
-      integration.setupOnce();
-
-      // Simplified test - just check that setupOnce runs without error
-      expect(true).toBe(true);
+      expect(() => integration.setupOnce()).not.toThrow();
     });
   });
 
@@ -84,10 +75,7 @@ describe('Integrations', () => {
 
     it('should add system context to events', () => {
       let eventProcessor: Function | undefined;
-      integration.setupOnce();
-
-      // Simplified test - just check that setupOnce runs without error
-      expect(true).toBe(true);
+      expect(() => integration.setupOnce()).not.toThrow();
 
       // Test event processing
       if (eventProcessor) {
@@ -133,10 +121,7 @@ describe('Integrations', () => {
     });
 
     it('should setup HTTP request tracking', () => {
-      integration.setupOnce();
-
-      // Simplified test - just check that setupOnce runs without error
-      expect(true).toBe(true);
+      expect(() => integration.setupOnce()).not.toThrow();
     });
   });
 
@@ -153,10 +138,7 @@ describe('Integrations', () => {
 
     it('should process linked errors', () => {
       let eventProcessor: Function | undefined;
-      integration.setupOnce();
-
-      // Simplified test - just check that setupOnce runs without error
-      expect(true).toBe(true);
+      expect(() => integration.setupOnce()).not.toThrow();
 
       // Test with error that has cause
       if (eventProcessor) {

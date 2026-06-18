@@ -58,6 +58,9 @@ describe('Transport', () => {
         }, 0);
       });
       (global as any).wx = { request: mockRequest };
+      // 必须清缓存，否则 sdk() 命中上一个用例/ setup.ts 的旧 wx（其 request 走 success），
+      // 这个「失败」用例就根本没在测失败——历史上它接受任意结果正是被此遮蔽。
+      resetPlatformCache();
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
@@ -70,48 +73,42 @@ describe('Transport', () => {
         [[{ type: 'event' }, { message: 'test failure', event_id: 'test-id-2' }]],
       ];
 
-      // Test that the function handles failures
-      try {
-        await transport.send(envelope as any);
-        // If no error is thrown, that's also acceptable
-        expect(true).toBe(true);
-      } catch (error) {
-        // If an error is thrown, that's expected
-        expect(error).toBeDefined();
-      }
+      // 真实行为：wx.request 触发 fail → makeRequest reject → send() 抛出（而非静默吞成成功）
+      await expect(transport.send(envelope as any)).rejects.toBeDefined();
     });
 
-    it('should handle rate limiting headers', async () => {
+    it('429 + X-Sentry-Rate-Limits 后，后续同类 envelope 被丢弃（不再发起底层请求）', async () => {
+      // setup.ts 已冻结 Date.now（恒定值），限流窗口在两次发送间不会过期。
       const mockRequest = jest.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 429,
           data: 'Rate limited',
-          header: {
-            'X-Sentry-Rate-Limits': '60::organization:key',
-          },
+          header: { 'x-sentry-rate-limits': '60::organization' },
         });
       });
       (global as any).wx = { request: mockRequest };
-
-      // Reset the SDK cache to pick up the new mock
       resetPlatformCache();
 
+      const dropped: Array<{ reason: string; category: string }> = [];
       const transport = createMiniappTransport({
-        url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: () => {},
+        url: 'https://sentry.io/api/123/envelope/',
+        recordDroppedEvent: (reason: any, category: any) => dropped.push({ reason, category }),
       });
 
-      // Create a proper envelope format
-      const envelope: Envelope = [
-        { event_id: 'test-id-3', sent_at: '2022-01-01T00:00:00.000Z' },
-        [[{ type: 'event' }, { message: 'rate limit test', event_id: 'test-id-3' }]],
+      const makeEnvelope = (id: string): Envelope => [
+        { event_id: id, sent_at: '2022-01-01T00:00:00.000Z' },
+        [[{ type: 'event' }, { message: 'rl', event_id: id }]],
       ];
 
-      const response = await transport.send(envelope as any);
+      // 第一次：发起请求，拿到 429 + 限流头 → core 记录限流
+      const r1 = await transport.send(makeEnvelope('a') as any);
+      expect(r1.statusCode).toBe(429);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
 
-      expect(response.statusCode).toBe(429);
-      // Headers handling may vary, so just check basic response
-      expect(true).toBe(true);
+      // 第二次：同类（error）仍在限流窗口内 → core 直接丢弃，不再发起底层请求
+      await transport.send(makeEnvelope('b') as any);
+      expect(mockRequest).toHaveBeenCalledTimes(1); // 关键：没有第二次真实请求
+      expect(dropped.some((d) => d.category === 'error')).toBe(true);
     });
 
     it('should handle non-200 status codes', async () => {

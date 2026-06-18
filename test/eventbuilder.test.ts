@@ -279,8 +279,6 @@ describe('EventBuilder', () => {
 
       expect(exception.type).toBe('Error');
       expect(exception.value).toBe('Test error');
-      // Stack trace parsing may vary, so just check basic properties
-      expect(true).toBe(true);
     });
   });
 

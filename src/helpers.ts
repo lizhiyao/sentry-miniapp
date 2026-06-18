@@ -1,4 +1,4 @@
-import { captureException, getCurrentScope } from '@sentry/core';
+import { captureException, withScope } from '@sentry/core';
 import type { WrappedFunction } from '@sentry/core';
 
 /**
@@ -46,25 +46,24 @@ export function wrap(
     try {
       return fn.apply(this, args);
     } catch (ex) {
-      const scope = getCurrentScope();
+      // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
+      // 绝不能用 getCurrentScope().addEventProcessor——那会把处理器永久挂在当前 scope 上，给之后
+      // 每个 unrelated 事件都盖上本次的 mechanism/arguments（尤其把未处理错误误标成 handled:true，
+      // 进而虚高 crash-free 率）。
+      withScope((scope) => {
+        scope.addEventProcessor((event) => ({
+          ...event,
+          extra: {
+            ...event.extra,
+            arguments: args,
+          },
+        }));
 
-      scope.addEventProcessor((event) => {
-        const processedEvent = { ...event };
-
-        if (options.mechanism) {
-          processedEvent.exception = processedEvent.exception || {};
-          (processedEvent.exception as any).mechanism = options.mechanism;
-        }
-
-        processedEvent.extra = {
-          ...processedEvent.extra,
-          arguments: args,
-        };
-
-        return processedEvent;
+        // mechanism 交给 core 的 EventHint 处理：prepareEvent 会在 LinkedErrors 等 client
+        // processors 前把 mechanism 标到原始异常上；否则带 Error.cause 时，scope processor
+        // 阶段 values[0] 已经可能是 prepend 进来的 cause，落点会错。
+        captureException(ex, options.mechanism ? { mechanism: options.mechanism } : undefined);
       });
-
-      captureException(ex);
       throw ex;
     }
   };

@@ -1,369 +1,145 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { init, captureException, captureMessage, addBreadcrumb } from '../src/index';
-import { getCurrentScope } from '@sentry/core';
+import { getClient, getCurrentScope, flush, installedIntegrations } from '@sentry/core';
+import { MiniappClient } from '../src/client';
+import { resetPlatformCache } from '../src/crossPlatform';
+import { _resetAppLifecycle } from '../src/appLifecycle';
 
-describe('Integration Tests', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    // Reset any global state
-    (global as any).wx = {
-      request: jest.fn(),
-      getSystemInfo: jest.fn(),
-      getNetworkType: jest.fn(),
-      onError: jest.fn(),
-      onUnhandledRejection: jest.fn(),
-      onMemoryWarning: jest.fn(),
-    };
-  });
+/**
+ * 端到端集成测试（真 @sentry/core + 捕获型 transport）。
+ *
+ * 重写自一批「init() 后只 expect(true).toBe(true) / expect(fn).toBeDefined()」的伪覆盖用例：
+ * 它们搭好了真实场景（init、captureException、beforeSend 过滤）却不断言任何真实产物，且多数
+ * 因没清平台缓存而让内部 mock 断言根本不执行。这里改用捕获 transport 取到实际上报的 envelope，
+ * 断言其内容。保留原本就真实的两个用例（tracesSampler 透传、sampleRate=0 采样丢弃）。
+ */
+describe('Integration（真 @sentry/core 端到端）', () => {
+  let captured: any[];
 
-  afterEach(() => {
-    // Clean up after each test
-  });
-
-  describe('SDK Initialization and Basic Functionality', () => {
-    it('should initialize SDK and capture exceptions end-to-end', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({
-          statusCode: 200,
-          data: 'OK',
-          header: {},
-        });
-      });
-      (global as any).wx.request = mockRequest;
-
-      // Initialize SDK
-      init({
-        dsn: 'https://test@sentry.io/123',
-        debug: true,
-        environment: 'test',
-      });
-
-      // Capture an exception
-      const testError = new Error('Integration test error');
-      captureException(testError);
-
-      // Verify the client was created and configured
-      const scope = getCurrentScope();
-      expect(scope).toBeDefined();
-    });
-
-    it('should handle complete error reporting workflow', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        // Simulate successful request
-        setTimeout(() => {
-          (options as any).success({
-            statusCode: 200,
-            data: 'OK',
-            header: {},
-          });
-        }, 10);
-      });
-      (global as any).wx.request = mockRequest;
-
-      // Initialize with all integrations
-      init({
-        dsn: 'https://test@sentry.io/123',
-        debug: false,
-        environment: 'production',
-        release: '1.0.0',
-        integrations: [],
-        beforeSend: (event: any) => {
-          // Add custom processing
-          event.tags = { ...event.tags, processed: 'true' };
-          return event;
+  function initWithCapture(extra: Record<string, any> = {}): MiniappClient | undefined {
+    return init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      transport: () => ({
+        send: (env: any) => {
+          captured.push(env);
+          return Promise.resolve({ statusCode: 200 });
         },
-      });
+        flush: () => Promise.resolve(true),
+      }),
+      ...extra,
+    } as any);
+  }
 
-      // Add breadcrumbs
-      addBreadcrumb({
-        category: 'navigation',
-        message: 'User navigated to page',
-        level: 'info',
-      });
-
-      // Configure scope
-      // Capture exception with sensitive data
-      const scope = getCurrentScope();
-      scope.setExtra('password', 'secret123');
-      scope.setExtra('secret', 'api-key-123');
-      scope.setTag('environment', 'test');
-
-      captureException(new Error('Test error with sensitive data'));
-
-      // Check that beforeSend was called and filtered the data
-      // Verify exception was captured
-      expect(captureException).toBeDefined();
-    });
-
-    it('should handle end-to-end integration', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
-
-      init({
-        dsn: 'https://test@sentry.io/123',
-      });
-
-      // Configure scope
-      const scope = getCurrentScope();
-      scope.setUser({ id: '123', email: 'test@example.com' });
-      scope.setTag('feature', 'integration-test');
-      scope.setContext('test', { scenario: 'end-to-end' });
-
-      // Capture exception with full context
-      const error = new Error('End-to-end test error');
-      error.stack = 'Error: End-to-end test error\n    at test.js:1:1';
-
-      captureException(error);
-
-      // Wait for async operations
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      // Verify request was made
-      // Performance monitoring should be configured
-      expect(true).toBe(true);
-    });
-  });
-
-  describe('SDK Configuration', () => {
-    it('should handle SDK initialization with invalid DSN', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-      // Initialize with invalid DSN
-      init({
-        dsn: 'invalid-dsn',
-        debug: true,
-      });
-
-      // Should not throw, but should log error
-      expect(consoleSpy).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('Miniapp-specific Integration', () => {
-    it('should integrate with miniapp lifecycle events', () => {
-      init({
-        dsn: 'https://test@sentry.io/123',
-        integrations: [],
-      });
-
-      // Should initialize lifecycle integration
-      expect(true).toBe(true);
-    });
-
-    it('should capture miniapp system information', () => {
-      init({
-        dsn: 'https://test@sentry.io/123',
-      });
-
-      // Should initialize system info capture
-      expect(true).toBe(true);
-    });
-
-    it('should handle network status changes', () => {
-      init({
-        dsn: 'https://test@sentry.io/123',
-      });
-
-      // Should initialize network status handling
-      expect(true).toBe(true);
-    });
-
-    it('should handle memory warnings', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
-
-      init({
-        dsn: 'https://test@sentry.io/123',
-      });
-
-      // Should initialize memory warning handling
-      expect(true).toBe(true);
-    });
-  });
-
-  describe('Error Handling Integration', () => {
-    it('should initialize error handling', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
-
-      init({
-        dsn: 'https://test@sentry.io/123',
-      });
-
-      // Should initialize without errors
-      expect(true).toBe(true);
-    });
-
-    it('should handle exceptions', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
-
-      init({
-        dsn: 'https://test@sentry.io/123',
-      });
-
-      // Capture an exception
-      const error = new Error('Test error');
-      captureException(error);
-
-      // Should handle exceptions
-      expect(true).toBe(true);
-    });
-
-    it('should handle messages', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
-
-      init({
-        dsn: 'https://test@sentry.io/123',
-      });
-
-      // Capture a message
-      captureMessage('Test message', 'info');
-
-      // Should handle messages
-      expect(true).toBe(true);
-    });
-  });
-
-  describe('Performance Integration', () => {
-    it('should track performance metrics', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
-
-      init({
-        dsn: 'https://test@sentry.io/123',
-        tracesSampleRate: 1.0,
-      });
-
-      // Add performance breadcrumb
-      addBreadcrumb({
-        category: 'performance',
-        message: 'Page load completed',
-        level: 'info',
-        data: {
-          duration: 1500,
-          type: 'navigation',
-        },
-      });
-
-      // Capture a message to trigger sending
-      captureMessage('Performance test', 'info');
-
-      // Performance tracking should be configured
-      expect(true).toBe(true);
-    });
-
-    it('should handle slow operations', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
-
-      init({
-        dsn: 'https://test@sentry.io/123',
-      });
-
-      // Simulate slow operation
-      const startTime = Date.now();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const duration = Date.now() - startTime;
-
-      if (duration > 50) {
-        captureMessage(`Slow operation detected: ${duration}ms`, 'warning');
+  function capturedEvents(): any[] {
+    const events: any[] = [];
+    for (const env of captured) {
+      const items = env[1];
+      if (!Array.isArray(items)) continue;
+      for (const item of items) {
+        const header = item[0];
+        if (header && header.type === 'event') events.push(item[1]);
       }
+    }
+    return events;
+  }
 
-      // Slow operations should be handled
-      expect(true).toBe(true);
-    });
+  beforeEach(() => {
+    captured = [];
+    resetPlatformCache();
+    _resetAppLifecycle();
+    installedIntegrations.length = 0;
   });
 
-  describe('Data Privacy and Filtering', () => {
-    it('should filter sensitive data', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        // Verify that sensitive data is not present in the request
-        const requestData = JSON.parse((options as any).data);
-        expect(JSON.stringify(requestData)).not.toContain('password');
-        expect(JSON.stringify(requestData)).not.toContain('secret');
+  afterEach(async () => {
+    const c = getClient();
+    if (c) await c.close(0);
+    installedIntegrations.length = 0;
+    _resetAppLifecycle();
+    resetPlatformCache();
+  });
 
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
+  it('init 绑定 MiniappClient 并设为当前 client', () => {
+    const client = initWithCapture();
+    expect(client).toBeInstanceOf(MiniappClient);
+    expect(getClient()).toBe(client);
+  });
 
-      init({
-        dsn: 'https://test@sentry.io/123',
-        beforeSend: (event: any) => {
-          // Filter sensitive data
-          if (event.extra) {
-            delete event.extra.password;
-            delete event.extra.secret;
-          }
-          return event;
-        },
-      });
+  it('captureException 端到端：上报的 envelope 真带该异常', async () => {
+    initWithCapture();
+    captureException(new Error('e2e boom'));
+    await flush(2000);
 
-      // Capture exception with sensitive data
-      const scope = getCurrentScope();
-      scope.setExtra('password', 'secret123');
-      scope.setExtra('secret', 'api-key-123');
-      scope.setExtra('userId', '12345');
+    const ev = capturedEvents().find((e) =>
+      e.exception?.values?.some((v: any) => v.value?.includes('e2e boom')),
+    );
+    expect(ev).toBeDefined();
+    expect(ev.platform).toBeTruthy();
+  });
 
-      captureException(new Error('Test error with sensitive data'));
+  it('captureMessage 端到端：上报的 envelope 真带该消息与级别', async () => {
+    initWithCapture();
+    captureMessage('hello e2e', 'warning');
+    await flush(2000);
 
-      // Data filtering should be configured
-      expect(scope).toBeDefined();
+    const ev = capturedEvents().find((e) => e.message === 'hello e2e');
+    expect(ev).toBeDefined();
+    expect(ev.level).toBe('warning');
+  });
+
+  it('breadcrumb 真挂到随后上报的事件上', async () => {
+    initWithCapture();
+    addBreadcrumb({ category: 'navigation', message: 'go page', level: 'info' });
+    captureException(new Error('with crumb'));
+    await flush(2000);
+
+    const ev = capturedEvents().find((e) =>
+      e.exception?.values?.some((v: any) => v.value?.includes('with crumb')),
+    );
+    expect(ev?.breadcrumbs?.some((b: any) => b.message === 'go page')).toBe(true);
+  });
+
+  it('beforeSend 真能过滤敏感字段，其它字段保留', async () => {
+    initWithCapture({
+      beforeSend: (event: any) => {
+        if (event.extra) delete event.extra.password;
+        return event;
+      },
     });
+    const scope = getCurrentScope();
+    scope.setExtra('password', 'secret123');
+    scope.setExtra('userId', '12345');
+    captureException(new Error('sensitive'));
+    await flush(2000);
 
-    it('should accept tracesSampler option and pass it to client', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
+    const ev = capturedEvents().find((e) =>
+      e.exception?.values?.some((v: any) => v.value?.includes('sensitive')),
+    );
+    expect(ev).toBeDefined();
+    expect(ev.extra?.password).toBeUndefined(); // 被 beforeSend 删除
+    expect(ev.extra?.userId).toBe('12345'); // 其它字段保留
 
-      const tracesSampler = jest.fn<() => number>().mockReturnValue(0.5);
+    scope.setExtra('password', null);
+    scope.setExtra('userId', null);
+  });
 
-      const client = init({
-        dsn: 'https://test@sentry.io/123',
-        tracesSampler,
-        integrations: [],
-      });
+  it('sampleRate=0：错误事件被采样丢弃，transport 收不到', async () => {
+    initWithCapture({ sampleRate: 0 });
+    captureException(new Error('sampled out'));
+    await flush(2000);
+    expect(capturedEvents().length).toBe(0);
+  });
 
-      // tracesSampler should be passed through to client options
-      expect(client).toBeDefined();
-      const options = client!.getOptions();
-      expect(options.tracesSampler).toBe(tracesSampler);
-    });
+  it('tracesSampler 透传到 client 选项', () => {
+    const tracesSampler = jest.fn<() => number>().mockReturnValue(0.5);
+    const client = initWithCapture({ tracesSampler, integrations: [] });
+    expect(client?.getOptions().tracesSampler).toBe(tracesSampler);
+  });
 
-    it('should respect sampling rates', () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
-        (options as any).success({ statusCode: 200, data: 'OK', header: {} });
-      });
-      (global as any).wx.request = mockRequest;
-
-      // Initialize with 0% sampling (should not send events)
-      init({
-        dsn: 'https://test@sentry.io/123',
-        sampleRate: 0,
-      });
-
-      captureException(new Error('Sampled out error'));
-
-      // Should not make any requests due to sampling
-      expect(mockRequest).not.toHaveBeenCalled();
-    });
+  it('非法 DSN：不抛错但记录错误日志', () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => init({ dsn: 'invalid-dsn', debug: true } as any)).not.toThrow();
+    expect(consoleSpy).toHaveBeenCalled();
+    consoleSpy.mockRestore();
   });
 });
