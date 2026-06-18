@@ -1,4 +1,4 @@
-import { captureException, getCurrentScope } from '@sentry/core';
+import { captureException, withScope } from '@sentry/core';
 import type { WrappedFunction } from '@sentry/core';
 
 /**
@@ -46,34 +46,38 @@ export function wrap(
     try {
       return fn.apply(this, args);
     } catch (ex) {
-      const scope = getCurrentScope();
+      // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
+      // 绝不能用 getCurrentScope().addEventProcessor——那会把处理器永久挂在当前 scope 上，给之后
+      // 每个 unrelated 事件都盖上本次的 mechanism/arguments（尤其把未处理错误误标成 handled:true，
+      // 进而虚高 crash-free 率）。
+      withScope((scope) => {
+        scope.addEventProcessor((event) => {
+          const processedEvent = { ...event };
 
-      scope.addEventProcessor((event) => {
-        const processedEvent = { ...event };
-
-        if (options.mechanism) {
-          processedEvent.exception = processedEvent.exception || {};
-          // mechanism 必须挂在 exception.values[].mechanism——Sentry 后端读这里判定 handled/类型。
-          // 历史实现误挂在容器级 exception.mechanism，后端读不到，等于没标记（trycatch 的 handled 白打）。
-          const values = (processedEvent.exception as { values?: Array<{ mechanism?: unknown }> })
-            .values;
-          if (Array.isArray(values) && values.length > 0 && values[0]) {
-            values[0].mechanism = options.mechanism;
-          } else {
-            // 理论上 eventFromException 之后 values 必有；兜底保留容器级，至少不丢信息。
-            (processedEvent.exception as { mechanism?: unknown }).mechanism = options.mechanism;
+          if (options.mechanism) {
+            processedEvent.exception = processedEvent.exception || {};
+            // mechanism 必须挂在 exception.values[].mechanism——Sentry 后端读这里判定 handled/类型。
+            // 容器级 exception.mechanism 后端读不到，等于没标记。
+            const values = (processedEvent.exception as { values?: Array<{ mechanism?: unknown }> })
+              .values;
+            if (Array.isArray(values) && values.length > 0 && values[0]) {
+              values[0].mechanism = options.mechanism;
+            } else {
+              // 理论上 eventFromException 之后 values 必有；兜底保留容器级，至少不丢信息。
+              (processedEvent.exception as { mechanism?: unknown }).mechanism = options.mechanism;
+            }
           }
-        }
 
-        processedEvent.extra = {
-          ...processedEvent.extra,
-          arguments: args,
-        };
+          processedEvent.extra = {
+            ...processedEvent.extra,
+            arguments: args,
+          };
 
-        return processedEvent;
+          return processedEvent;
+        });
+
+        captureException(ex);
       });
-
-      captureException(ex);
       throw ex;
     }
   };

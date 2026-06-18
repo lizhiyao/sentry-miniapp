@@ -1,5 +1,5 @@
 import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
-import { getClient, flush, installedIntegrations } from '@sentry/core';
+import { getClient, flush, captureException, installedIntegrations } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init } from '../src/index';
@@ -89,5 +89,47 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(val.mechanism?.handled).toBe(true);
     expect((errEvent.exception as any).mechanism).toBeUndefined(); // 不再误挂容器级
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
+  });
+
+  it('包装处理器不泄漏：后续 unrelated 错误不被误标 instrument', async () => {
+    // 防回归：wrap() 必须用 withScope 把 mechanism 处理器限定在本次 capture，
+    // 若退回 getCurrentScope().addEventProcessor，处理器会常驻并污染之后每个事件——
+    // 把未处理错误误标成 handled:true，进而虚高 crash-free 率。
+    const captured: any[] = [];
+    g.setTimeout = (cb: (...a: any[]) => any) => {
+      cb();
+      return 0 as any;
+    };
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      enableOfflineCache: false,
+      transport: () => ({
+        send: (env: any) => {
+          captured.push(env);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    // 先触发一次被包装回调抛错（注册了 instrument mechanism 处理器）
+    expect(() => {
+      g.setTimeout(() => {
+        throw new Error('wrapped boom');
+      });
+    }).toThrow('wrapped boom');
+
+    // 之后一个完全 unrelated 的直接 capture
+    captureException(new Error('unrelated later error'));
+    await flush(2000);
+
+    const ev = collectEvents(captured).find((e) =>
+      e.exception?.values?.some((v: any) => v.value?.includes('unrelated later error')),
+    );
+    expect(ev).toBeDefined();
+    // 不被上一次 wrap 的 mechanism / arguments 污染
+    expect(ev.exception.values[0].mechanism).toBeUndefined();
+    expect(ev.extra?.arguments).toBeUndefined();
   });
 });
