@@ -74,6 +74,9 @@ export class PageBreadcrumbs implements Integration {
   private _wrapPage(): void {
     const global = globalThis as any;
     if (typeof global.Page !== 'function') return;
+    // 幂等守卫：已是本集成的包装则跳过，避免二次 setupOnce 套娃
+    //（会让 _originalPage 指向上一层包装，cleanup 还原成包装而非真身）。
+    if (global.Page.__sentryPageWrapper) return;
 
     this._originalPage = global.Page;
     const originalPage = global.Page;
@@ -84,7 +87,7 @@ export class PageBreadcrumbs implements Integration {
     };
     const getLaunchTime = () => this._launchTime;
 
-    global.Page = function (pageOptions: any) {
+    const wrappedPage = function (pageOptions: any) {
       if (pageOptions && typeof pageOptions === 'object') {
         // 包装生命周期方法
         if (options.enableLifecycle) {
@@ -175,6 +178,8 @@ export class PageBreadcrumbs implements Integration {
 
       return originalPage(pageOptions);
     };
+    (wrappedPage as any).__sentryPageWrapper = true;
+    global.Page = wrappedPage;
   }
 
   /**
@@ -209,7 +214,10 @@ export class PageBreadcrumbs implements Integration {
   public cleanup(): void {
     const global = globalThis as any;
     if (this._originalPage) {
-      global.Page = this._originalPage;
+      // 安全还原：仅当当前 Page 仍是本集成的包装时才还原，避免把他人后续包装的 Page 一并清掉。
+      if (global.Page && global.Page.__sentryPageWrapper) {
+        global.Page = this._originalPage;
+      }
       this._originalPage = null;
     }
     if (this._unsubscribeApp) {

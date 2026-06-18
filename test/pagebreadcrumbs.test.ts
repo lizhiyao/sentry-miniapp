@@ -300,4 +300,52 @@ describe('PageBreadcrumbs Integration', () => {
       expect(() => (globalThis as any).Page(undefined)).not.toThrow();
     });
   });
+
+  describe('Page 包装幂等与安全还原', () => {
+    it('二次 setupOnce 不重复包装 Page（幂等守卫）', () => {
+      const base = jest.fn((o: any) => o);
+      (globalThis as any).Page = base;
+
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      const wrapped = (globalThis as any).Page;
+      expect(wrapped).not.toBe(base);
+      expect((wrapped as any).__sentryPageWrapper).toBe(true);
+
+      // 再次 setupOnce 不应在包装之上再套一层（否则 _originalPage 会指向上一层包装）
+      integration.setupOnce();
+      expect((globalThis as any).Page).toBe(wrapped);
+
+      integration.cleanup();
+    });
+
+    it('cleanup 不清掉他人在我们之后包装的 Page', () => {
+      const base = jest.fn((o: any) => o);
+      (globalThis as any).Page = base;
+
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      const ourWrapper = (globalThis as any).Page;
+
+      // 第三方在我们之后再包一层
+      const thirdParty = jest.fn((o: any) => ourWrapper(o));
+      (globalThis as any).Page = thirdParty;
+
+      integration.cleanup();
+      // 当前 Page 已非本集成的包装 → 不还原，保留第三方包装（修复前会被无条件清成原始 Page）
+      expect((globalThis as any).Page).toBe(thirdParty);
+    });
+
+    it('cleanup 在我们仍是顶层包装时正常还原原始 Page', () => {
+      const base = jest.fn((o: any) => o);
+      (globalThis as any).Page = base;
+
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      expect((globalThis as any).Page).not.toBe(base);
+
+      integration.cleanup();
+      expect((globalThis as any).Page).toBe(base);
+    });
+  });
 });

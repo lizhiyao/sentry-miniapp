@@ -29,33 +29,38 @@ import {
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
 /**
- * Default integrations for the miniapp SDK
- */
-export const defaultIntegrations: Integration[] = [
-  // Core integrations
-  new HttpContext(),
-  new Dedupe(),
-  new GlobalHandlers(),
-  new TryCatch(),
-  new LinkedErrors(),
-  // Performance monitoring
-  performanceIntegration({
-    enableNavigation: true,
-    enableRender: true,
-    enableResource: true,
-    enableUserTiming: true,
-    sampleRate: 1.0,
-    reportInterval: 30000,
-  }),
-];
-
-/**
- * Get default integrations for the miniapp SDK
- * @returns Array of default integrations
+ * 构造一组**全新**的默认集成实例。
+ *
+ * 必须每次 init 现造新实例：集成的 setupOnce/cleanup 会把补丁状态留在实例上，跨多次 init 或
+ * 多 client 复用同一批单例会让状态互踩（close 后再 init、或并存两个 client 时尤甚）。这与
+ * client.close() 清 core 的 setupOnce 门禁（按 name）互补——name 门禁放行后，全新实例才能干净
+ * 地重新 setupOnce。
  */
 export function getDefaultIntegrations(): Integration[] {
-  return [...defaultIntegrations];
+  return [
+    // Core integrations
+    new HttpContext(),
+    new Dedupe(),
+    new GlobalHandlers(),
+    new TryCatch(),
+    new LinkedErrors(),
+    // Performance monitoring
+    performanceIntegration({
+      enableNavigation: true,
+      enableRender: true,
+      enableResource: true,
+      enableUserTiming: true,
+      sampleRate: 1.0,
+      reportInterval: 30000,
+    }),
+  ];
 }
+
+/**
+ * @deprecated 直接复用本数组的实例，会在多次 init / 多 client 间共享 setupOnce 状态、互相踩补丁。
+ * 请改用 {@link getDefaultIntegrations}（每次返回全新实例）。导出仅为向后兼容保留。
+ */
+export const defaultIntegrations: Integration[] = getDefaultIntegrations();
 
 /**
  * Initialize the Sentry Miniapp SDK
@@ -67,7 +72,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     return undefined;
   }
 
-  const integrations = [...(options.integrations || defaultIntegrations)];
+  const integrations = [...(options.integrations || getDefaultIntegrations())];
 
   const opts = {
     ...options,
