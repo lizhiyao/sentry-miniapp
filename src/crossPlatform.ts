@@ -173,8 +173,15 @@ const getSDK = (): SDK => {
     currentSdk.request = currentSdk.httpRequest;
   }
 
-  // 支付宝和钉钉的 Storage API 参数是对象形式，这里做一层抹平包装
-  if (detected.name === 'alipay' || detected.name === 'dingtalk') {
+  // 支付宝和钉钉的 Storage API 参数是对象形式，这里做一层抹平包装。
+  // 必须幂等：getSDK() 会被 sdk()（缓存）与 computeSystemInfo()（每次重算时）分别调用，
+  // 二者作用在同一个全局 SDK 对象上。若重复包装，内层会收到嵌套的 { key: { key } }，
+  // 读写全部失效——直接表现为离线缓存读不出、断网事件永不补发。用标记守卫只包一次。
+  const adaptable = currentSdk as SDK & { __sentryStorageAdapted?: boolean };
+  if (
+    (detected.name === 'alipay' || detected.name === 'dingtalk') &&
+    !adaptable.__sentryStorageAdapted
+  ) {
     if (currentSdk.getStorageSync) {
       const originalGet = currentSdk.getStorageSync;
       currentSdk.getStorageSync = (key: string) => {
@@ -194,6 +201,7 @@ const getSDK = (): SDK => {
         originalRemove.call(currentSdk, { key });
       };
     }
+    adaptable.__sentryStorageAdapted = true;
   }
 
   return currentSdk;
