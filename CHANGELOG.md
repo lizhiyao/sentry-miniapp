@@ -1,6 +1,22 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.12.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.12.0...v1.12.1) (2026-06-18)
+
+
+### 🐛 Bug Fixes | 修复
+
+* **client:** close() 清 core setupOnce 门禁，修二次 init 集成哑火 ([#213](https://github.com/lizhiyao/sentry-miniapp/issues/213)) ([63b3e5b](https://github.com/lizhiyao/sentry-miniapp/commit/63b3e5baf724e0320cb48eccb581229b36510e1e))
+* **client:** context 在 super 后按缺失填充，不再覆盖用户设置 ([#212](https://github.com/lizhiyao/sentry-miniapp/issues/212)) ([c7edf38](https://github.com/lizhiyao/sentry-miniapp/commit/c7edf38bc68ce4db84c6005f9f6fefc998a6247e))
+* **cross-platform:** 支付宝/钉钉 storage 包装幂等，修离线缓存读失效 ([#211](https://github.com/lizhiyao/sentry-miniapp/issues/211)) ([f36995c](https://github.com/lizhiyao/sentry-miniapp/commit/f36995c71e08c9c5fb1618f667f0d18d9896161e))
+* wrap() mechanism 挂标准位置 + realcore 补真覆盖、加固测试夹具 ([#216](https://github.com/lizhiyao/sentry-miniapp/issues/216)) ([0387355](https://github.com/lizhiyao/sentry-miniapp/commit/0387355a4c82db981693618ee32e0d1c0720beb3))
+* 源码健壮性加固（实例隔离/Page 守卫/系统信息校验/账号记忆化/离线自愈） ([#214](https://github.com/lizhiyao/sentry-miniapp/issues/214)) ([94be6a1](https://github.com/lizhiyao/sentry-miniapp/commit/94be6a1a6ae416c6803d8c7776bdde574da35250))
+
+
+### 📝 Documentation | 文档
+
+* 说明 http.client span 名的基数权衡，指引用 beforeSendTransaction ([#215](https://github.com/lizhiyao/sentry-miniapp/issues/215)) ([fa4d80b](https://github.com/lizhiyao/sentry-miniapp/commit/fa4d80b7bd86f17a3599ce684463989f9c9e9ddb))
+
 ## [1.12.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.11.3...v1.12.0) (2026-06-18)
 
 
