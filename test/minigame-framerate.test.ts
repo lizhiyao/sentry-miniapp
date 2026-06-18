@@ -254,7 +254,7 @@ describe('MinigameFrameRateIntegration', () => {
     const rafCalls = (g.requestAnimationFrame as jest.Mock).mock.calls.length;
     // 调用已捕获的 loop：因 _running=false，应立即返回且不再注册新帧
     clock = 10;
-    rafCallback && rafCallback();
+    if (rafCallback) rafCallback();
     expect((g.requestAnimationFrame as jest.Mock).mock.calls.length).toBe(rafCalls);
   });
 

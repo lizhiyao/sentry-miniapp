@@ -16,7 +16,7 @@
     "docs:dev": "vitepress dev website",
     "docs:build": "vitepress build website",
     "docs:preview": "vitepress preview website",
-    "lint": "eslint src --ext .ts",
+    "lint": "eslint src test --ext .ts",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "prepublishOnly": "npm run build",

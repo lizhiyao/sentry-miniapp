@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { getCurrentScope } from '@sentry/core';
 import { System } from '../src/integrations/system';
+import { getSystemInfo } from '../src/crossPlatform';
 
 // Mock @sentry/core
 jest.mock('@sentry/core', () => ({
@@ -208,7 +209,6 @@ describe('System', () => {
 
   describe('error handling', () => {
     it('should handle getSystemInfo returning null', () => {
-      const { getSystemInfo } = require('../src/crossPlatform');
       (getSystemInfo as jest.Mock).mockReturnValueOnce(null);
 
       const integration = new System();
@@ -216,7 +216,6 @@ describe('System', () => {
     });
 
     it('should handle system without OS separator', () => {
-      const { getSystemInfo } = require('../src/crossPlatform');
       (getSystemInfo as jest.Mock).mockReturnValueOnce({
         ...mockSystemInfo,
         system: 'Android',
