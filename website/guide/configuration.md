@@ -28,6 +28,8 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 },
 ```
 
+> **关于 `http.client` span 名的基数**：API 请求的 span 名形如 `GET https://api.example.com/users/123`。SDK 已自动去掉 query/fragment 与 URL 内的账号密码，但**保留路径**——无法推断 REST 路由模板，强行参数化会误伤合法路径。若路径 id（`/users/123`、`/orders/abc`）导致 tracing 维度过高，可用 `beforeSendTransaction` 统一改写事务与 span 名（把数字 / UUID 段替换为 `:id`）。
+
 ## 面包屑
 
 | 选项 | 类型 | 默认 | 说明 |
