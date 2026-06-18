@@ -110,73 +110,67 @@ export class MiniappClient extends Client<any> {
       version: SDK_VERSION,
     };
 
-    // Add miniapp context
+    // miniapp 标记是 SDK 自有的身份信息，始终写（无用户覆盖语义）。
     if (!event.contexts) {
       event.contexts = {};
     }
-
-    // Add miniapp platform info
     event.contexts['miniapp'] = {
       platform: appName(),
       sdk_version: SDK_VERSION,
     };
 
-    if (this.getOptions().enableSystemInfo !== false) {
-      // Add system info if available
-      const systemInfo = getSystemInfo();
-      if (systemInfo) {
-        event.contexts.device = {
-          brand: systemInfo.brand || 'unknown',
-          model: systemInfo.model || 'unknown',
-          screen_resolution: `${systemInfo.screenWidth || 0}x${systemInfo.screenHeight || 0}`,
-          language: systemInfo.language || 'unknown',
-          version: systemInfo.version || 'unknown',
-          system: systemInfo.system || 'unknown',
-          platform: systemInfo.platform || 'unknown',
-        };
-
-        event.contexts.os = {
-          name: systemInfo.system || 'unknown',
-          version: systemInfo.version || 'unknown',
-        };
-
-        event.contexts.app = {
-          app_version: systemInfo.SDKVersion || 'unknown',
-        };
-      } else {
-        // Provide fallback values when system info is not available
-        event.contexts.device = {
-          brand: 'unknown',
-          model: 'unknown',
-          screen_resolution: '0x0',
-          language: 'unknown',
-          version: 'unknown',
-          system: 'unknown',
-          platform: 'unknown',
-        };
-
-        event.contexts.os = {
-          name: 'unknown',
-          version: 'unknown',
-        };
-
-        event.contexts.app = {
-          app_version: 'unknown',
-        };
-      }
-    }
-
     try {
       const currentScope = scope || getCurrentScope();
       const isolationScope = getIsolationScope();
-      return super._prepareEvent(event, hint || {}, currentScope, isolationScope);
+      return Promise.resolve(
+        super._prepareEvent(event, hint || {}, currentScope, isolationScope),
+      ).then((prepared) => this._fillDefaultContexts(prepared));
     } catch (error) {
       // Fallback if scopes are not properly initialized
       if (this.getOptions().debug) {
         console.warn('[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:', error);
       }
-      return Promise.resolve(event);
+      return Promise.resolve(this._fillDefaultContexts(event));
     }
+  }
+
+  /**
+   * 用 SDK 采集的 device/os/app 填充事件上下文——**仅填充缺失的键**，不覆盖用户经
+   * setContext / per-event hint / 其它集成（如 HttpContext 写的 app.name）已提供的值。
+   *
+   * 必须在 super._prepareEvent **之后**调用：core 以「event 优先」合并 scope contexts
+   * （scopeData.js：`event.contexts = {...scope, ...event}`），若在 super 之前写，SDK 的
+   * 自动值会盖掉用户的 setContext('device'/'os'/'app')。放到 super 之后按缺失填充即可两头兼顾。
+   */
+  private _fillDefaultContexts(event: Event | null): Event | null {
+    if (!event || this.getOptions().enableSystemInfo === false) {
+      return event;
+    }
+    const info = getSystemInfo();
+    if (!event.contexts) {
+      event.contexts = {};
+    }
+    const contexts = event.contexts;
+    contexts.device = {
+      brand: info?.brand || 'unknown',
+      model: info?.model || 'unknown',
+      screen_resolution: `${info?.screenWidth || 0}x${info?.screenHeight || 0}`,
+      language: info?.language || 'unknown',
+      version: info?.version || 'unknown',
+      system: info?.system || 'unknown',
+      platform: info?.platform || 'unknown',
+      ...contexts.device,
+    };
+    contexts.os = {
+      name: info?.system || 'unknown',
+      version: info?.version || 'unknown',
+      ...contexts.os,
+    };
+    contexts.app = {
+      app_version: info?.SDKVersion || 'unknown',
+      ...contexts.app,
+    };
+    return event;
   }
 
   /**

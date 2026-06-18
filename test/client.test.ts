@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
-import { SeverityLevel } from '@sentry/core';
+import { SeverityLevel, getCurrentScope } from '@sentry/core';
 
 describe('MiniappClient', () => {
   let client: MiniappClient;
@@ -258,6 +258,53 @@ describe('MiniappClient', () => {
 
       expect(preparedEvent?.contexts?.['custom']).toEqual({ data: 'value' });
       expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
+    });
+
+    // F3：SDK 的 device/os/app 应为「缺省填充」，不得覆盖用户显式设置。
+    it('fill-only：不覆盖 per-event 显式设置的 os（F3）', async () => {
+      (global as any).wx = {
+        getSystemInfoSync: () => ({
+          brand: 'Apple',
+          system: 'iOS 15',
+          version: '8',
+          SDKVersion: '2',
+        }),
+      };
+      // integrations: [] 让 super._prepareEvent 真正跑通（裸 new 无 integrations 会在
+      // core 的 options.integrations.map 处抛错走兜底，测不到真实 scope 合并路径）。
+      const c = new MiniappClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
+      const event = await c['_prepareEvent'](
+        { message: 'test', contexts: { os: { name: 'CustomOS', version: '99' } } },
+        {},
+      );
+
+      // 用户 per-event 的 os 原样保留，未被 SDK 的 'iOS 15' 覆盖
+      expect(event?.contexts?.os).toEqual({ name: 'CustomOS', version: '99' });
+      // 未设置的 device 仍由 SDK 填充
+      expect(event?.contexts?.device?.brand).toBe('Apple');
+    });
+
+    it('fill-only：不覆盖 scope setContext 的 os（F3）', async () => {
+      (global as any).wx = {
+        getSystemInfoSync: () => ({
+          brand: 'Apple',
+          system: 'iOS 15',
+          version: '8',
+          SDKVersion: '2',
+        }),
+      };
+      const c = new MiniappClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
+
+      const scope = getCurrentScope();
+      scope.setContext('os', { name: 'ScopeOS', version: '1' });
+      try {
+        const event = await c['_prepareEvent']({ message: 'test' }, {});
+        // scope 上用户设的 os 经 core 合并后应胜出，不被 SDK 自动值覆盖
+        expect(event?.contexts?.os).toEqual({ name: 'ScopeOS', version: '1' });
+        expect(event?.contexts?.device?.brand).toBe('Apple');
+      } finally {
+        scope.setContext('os', null); // 清理全局 current scope，避免污染其它用例
+      }
     });
   });
 
