@@ -527,5 +527,31 @@ describe('CrossPlatform', () => {
       s.setStorageSync!('dd_key', 'dd_value');
       expect(originalSet).toHaveBeenCalledWith({ key: 'dd_key', data: 'dd_value' });
     });
+
+    it('包装幂等：sdk() 与 getSystemInfo() 都触发 getSDK，storage 不被二次包装', async () => {
+      // 用内存 store 模拟支付宝对象参数式存储，验证 round-trip
+      const store: Record<string, any> = {};
+      (global as any).my = {
+        request: jest.fn(),
+        getSystemInfoSync: jest.fn(() => ({ brand: 'X', version: '1' })),
+        getStorageSync: jest.fn((opts: any) =>
+          opts.key in store ? { data: store[opts.key] } : null,
+        ),
+        setStorageSync: jest.fn((opts: any) => {
+          store[opts.key] = opts.data;
+        }),
+      };
+
+      const { sdk, getSystemInfo } = await import('../src/crossPlatform');
+
+      // 两条路径都会调用 getSDK()：sdk() 缓存一次；getSystemInfo()→computeSystemInfo 再调一次。
+      // 修复前第二次会在同一个 my 上二次包装 storage，内层收到嵌套 { key: { key } } 致读写错位。
+      const s = sdk();
+      getSystemInfo();
+
+      s.setStorageSync!('sentry_offline_store', '[1,2,3]');
+      expect(store['sentry_offline_store']).toBe('[1,2,3]'); // 写未嵌套
+      expect(s.getStorageSync!('sentry_offline_store')).toBe('[1,2,3]'); // 读拿得出
+    });
   });
 });
