@@ -1,12 +1,10 @@
 ---
 name: sentry-miniapp-sdk
 description: Full Sentry SDK setup for Mini Programs — error monitoring, tracing, offline cache, source maps. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou and cross-platform frameworks (Taro / uni-app).
-license: Apache-2.0
+license: MIT
 category: sdk-setup
 disable-model-invocation: false
 ---
-
-> [All Skills](../../SKILL_TREE.md) > Mini Programs
 
 # Sentry Mini Program SDK Setup
 
@@ -168,7 +166,8 @@ If you need to force a specific platform:
 ```javascript
 Sentry.init({
   dsn: '...',
-  platform: 'wechat', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'baidu' | 'dingtalk'
+  platform: 'wechat', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou'
+  // Note: Baidu's global object is `swan`, so use 'swan' (there is no 'baidu' value).
 });
 ```
 
@@ -184,6 +183,23 @@ Sentry.setUser({
 // Add custom tags
 Sentry.setTag('page', 'payment');
 Sentry.setContext('order', { orderId: '2024001', amount: 99.9 });
+```
+
+### Minigame (小游戏)
+
+WeChat / ByteDance **minigames** have no `App()` / `Page()` / routing, so the page-based integrations (PageBreadcrumbs, Session) cannot work there. The SDK detects minigames via `crossPlatform.isMinigame()` and switches to dedicated integrations — **enabled by default only in a minigame runtime**, and a safe no-op in a regular mini program:
+
+- **`MinigameIntegration`** (`enableMinigameLifecycle`) — reads the launch scene (`scene` / `path` / `query`) from `getLaunchOptionsSync()`, measures **cold-start time** (SDK init → first frame), and logs `onShow` / `onHide` foreground/background breadcrumbs.
+- **`FrameRateIntegration`** (`enableMinigameFrameRate`) — samples the global `requestAnimationFrame` to estimate **FPS and jank**. Mini programs use a two-thread model with no logic-layer `requestAnimationFrame`, so this safely no-ops there.
+
+No extra wiring is needed — `Sentry.init()` auto-enables these in a minigame. To force them on or off:
+
+```javascript
+Sentry.init({
+  dsn: '...',
+  enableMinigameLifecycle: true,
+  enableMinigameFrameRate: true,
+});
 ```
 
 ### For Each Agreed Feature
@@ -214,11 +230,22 @@ Walk through features one at a time. Load the corresponding reference file:
 | `enableSourceMap` | `boolean` | `true` | Auto-normalize stack trace paths for source map resolution |
 | `enableOfflineCache` | `boolean` | `true` | Cache events when offline, retry when back online |
 | `offlineCacheLimit` | `number` | `30` | Max events to store in offline cache |
+| `offlineCacheMaxAge` | `number` | `86400000` | Drop cached events older than this (ms); default 24h |
 | `enableTracePropagation` | `boolean` | `true` | Inject sentry-trace/baggage headers in outgoing requests |
 | `tracePropagationTargets` | `Array` | `[]` | URL patterns for trace header injection (empty = all) |
 | `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | Capture console.log/warn/error as breadcrumbs |
+| `traceNetworkBody` | `boolean` | `false` | Capture request/response body in network breadcrumbs |
+| `enableNavigationBreadcrumbs` | `boolean` | `true` | Page lifecycle (navigation) breadcrumbs |
+| `enableUserInteractionBreadcrumbs` | `boolean` | `true` | Tap / user-interaction breadcrumbs |
+| `enableNetworkStatusMonitoring` | `boolean` | `true` | Real-time network monitoring; triggers offline flush on reconnect |
+| `allowUrls` | `Array<string\|RegExp>` | — | Only send errors whose URL matches (others dropped) |
+| `denyUrls` | `Array<string\|RegExp>` | — | Drop errors whose URL matches |
+| `ignoreErrors` | `Array<string\|RegExp>` | — | Drop errors whose message/type matches |
+| `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | Minigame cold-start + scene + show/hide breadcrumbs |
+| `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
 | `beforeSend` | `function` | — | Event processor for filtering/modifying events |
+| `beforeBreadcrumb` | `function` | — | Hook to filter/modify breadcrumbs before they are attached |
 
 ### Platform Compatibility
 
@@ -230,6 +257,8 @@ Walk through features one at a time. Load the corresponding reference file:
 | Distributed Tracing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Session Tracking | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Source Map | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+> ✅ = supported through the SDK's cross-platform abstraction, not a per-host on-device certification. WeChat / Alipay / ByteDance are the most battle-tested; validate less common hosts (Kuaishou, DingTalk) in your own environment before relying on them in production.
 
 ---
 
@@ -267,11 +296,11 @@ ls -d ../*/package.json ../*/requirements.txt ../*/go.mod ../*/Gemfile 2>/dev/nu
 
 | Backend Detected | Suggest |
 |-----------------|---------|
-| Node.js (`package.json` with server framework) | `sentry-node-sdk` skill |
-| Python (`requirements.txt`) | `sentry-python-sdk` skill |
-| Go (`go.mod`) | `sentry-go-sdk` skill |
-| Ruby (`Gemfile`) | `sentry-ruby-sdk` skill |
-| Java (`pom.xml` / `build.gradle`) | Sentry Java SDK docs |
+| Node.js (`package.json` with server framework) | [Sentry Node SDK](https://docs.sentry.io/platforms/javascript/guides/node/) |
+| Python (`requirements.txt`) | [Sentry Python SDK](https://docs.sentry.io/platforms/python/) |
+| Go (`go.mod`) | [Sentry Go SDK](https://docs.sentry.io/platforms/go/) |
+| Ruby (`Gemfile`) | [Sentry Ruby SDK](https://docs.sentry.io/platforms/ruby/) |
+| Java (`pom.xml` / `build.gradle`) | [Sentry Java SDK](https://docs.sentry.io/platforms/java/) |
 
 > **Tip:** Enable distributed tracing on both mini program and backend to get end-to-end request traces across services.
 
@@ -283,6 +312,7 @@ ls -d ../*/package.json ../*/requirements.txt ../*/go.mod ../*/Gemfile 2>/dev/nu
 |-------|----------|
 | Events not appearing in Sentry | Check DSN is correct; verify Sentry domain is in mini program's trusted domain list |
 | `sampleRate` filtering all events | Ensure `sampleRate` is not set to `0`; default is `1.0` |
+| Tracing spans not appearing | Set `tracesSampleRate` > 0 (or use `tracesSampler`) — tracing is off until set; there is no default |
 | Minified stack traces | Set up Source Map upload — see `${SKILL_ROOT}/references/sourcemap.md` |
 | Duplicate error reports | Do NOT manually call `Sentry.captureException` in `onError` — SDK captures automatically |
 | Events lost on weak networks | Enable offline cache: `enableOfflineCache: true` (default) |
