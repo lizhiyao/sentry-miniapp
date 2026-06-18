@@ -4,6 +4,7 @@ import {
   getIsolationScope,
   getCurrentScope,
   makeOfflineTransport,
+  installedIntegrations,
 } from '@sentry/core';
 import type { BaseTransportOptions, Event, EventHint } from '@sentry/core';
 
@@ -192,6 +193,16 @@ export class MiniappClient extends Client<any> {
             if (this.getOptions().debug) {
               console.warn(`[sentry-miniapp] 集成 ${integration.name} cleanup 失败:`, e);
             }
+          }
+        }
+
+        // 从 core 的进程级 setupOnce 门禁里移除本集成名，让后续 init() 能重新 setupOnce。
+        // core 用 installedIntegrations（按 name 记、从不清除）守卫 setupOnce：cleanup 还原了
+        // 补丁、门禁却仍记着该名，二次 init 会跳过 setup → 全局错误处理/面包屑等静默哑火（F2）。
+        if (Array.isArray(installedIntegrations)) {
+          const idx = installedIntegrations.indexOf(integration.name);
+          if (idx !== -1) {
+            installedIntegrations.splice(idx, 1);
           }
         }
       }
