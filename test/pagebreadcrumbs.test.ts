@@ -311,6 +311,9 @@ describe('PageBreadcrumbs Integration', () => {
       const wrapped = (globalThis as any).Page;
       expect(wrapped).not.toBe(base);
       expect((wrapped as any).__sentryPageWrapper).toBe(true);
+      expect(Object.prototype.propertyIsEnumerable.call(wrapped, '__sentryPageWrapper')).toBe(
+        false,
+      );
 
       // 再次 setupOnce 不应在包装之上再套一层（否则 _originalPage 会指向上一层包装）
       integration.setupOnce();
@@ -333,6 +336,24 @@ describe('PageBreadcrumbs Integration', () => {
 
       integration.cleanup();
       // 当前 Page 已非本集成的包装 → 不还原，保留第三方包装（修复前会被无条件清成原始 Page）
+      expect((globalThis as any).Page).toBe(thirdParty);
+    });
+
+    it('cleanup 不被第三方复制的 __sentryPageWrapper 标记误导', () => {
+      const base = jest.fn((o: any) => o);
+      (globalThis as any).Page = base;
+
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      const ourWrapper = (globalThis as any).Page;
+
+      const thirdParty = jest.fn((o: any) => ourWrapper(o));
+      // 模拟第三方包装器复制了当前 Page 上的属性；cleanup 必须按 wrapper 身份判断，
+      // 不能只看布尔标记，否则会把第三方包装误清掉。
+      (thirdParty as any).__sentryPageWrapper = (ourWrapper as any).__sentryPageWrapper;
+      (globalThis as any).Page = thirdParty;
+
+      integration.cleanup();
       expect((globalThis as any).Page).toBe(thirdParty);
     });
 

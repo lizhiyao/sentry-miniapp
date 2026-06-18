@@ -51,6 +51,7 @@ export class PageBreadcrumbs implements Integration {
 
   private _options: Required<PageBreadcrumbsOptions>;
   private _originalPage: ((...args: any[]) => any) | null = null;
+  private _wrappedPage: ((...args: any[]) => any) | null = null;
   private _unsubscribeApp: (() => void) | null = null;
   private _launchTime: number = 0;
   private _firstPageReady: boolean = false;
@@ -178,7 +179,11 @@ export class PageBreadcrumbs implements Integration {
 
       return originalPage(pageOptions);
     };
-    (wrappedPage as any).__sentryPageWrapper = true;
+    Object.defineProperty(wrappedPage, '__sentryPageWrapper', {
+      value: true,
+      configurable: true,
+    });
+    this._wrappedPage = wrappedPage;
     global.Page = wrappedPage;
   }
 
@@ -214,11 +219,12 @@ export class PageBreadcrumbs implements Integration {
   public cleanup(): void {
     const global = globalThis as any;
     if (this._originalPage) {
-      // 安全还原：仅当当前 Page 仍是本集成的包装时才还原，避免把他人后续包装的 Page 一并清掉。
-      if (global.Page && global.Page.__sentryPageWrapper) {
+      // 安全还原：仅当当前 Page 仍是本实例创建的包装时才还原，避免把他人后续包装的 Page 一并清掉。
+      if (global.Page === this._wrappedPage) {
         global.Page = this._originalPage;
       }
       this._originalPage = null;
+      this._wrappedPage = null;
     }
     if (this._unsubscribeApp) {
       this._unsubscribeApp();
