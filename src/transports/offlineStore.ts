@@ -1,8 +1,4 @@
-import type { Envelope } from '@sentry/core';
-import type {
-  OfflineStore,
-  OfflineTransportOptions,
-} from '@sentry/core/build/types/transports/offline';
+import type { Envelope, OfflineStore, OfflineTransportOptions } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 
 const DEFAULT_OFFLINE_CACHE_SIZE = 30;
