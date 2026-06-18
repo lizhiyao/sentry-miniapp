@@ -20,7 +20,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     clock = t;
     const cb = rafCallback;
     rafCallback = null;
-    cb && cb();
+    if (cb) cb();
   }
 
   beforeEach(() => {

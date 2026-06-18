@@ -268,7 +268,7 @@ describe('Error Handling', () => {
       const executeWithFallback = () => {
         try {
           return primaryOperation();
-        } catch (error) {
+        } catch {
           captureMessage('Primary operation failed, using fallback', 'warning');
           return fallbackOperation();
         }
@@ -297,7 +297,7 @@ describe('Error Handling', () => {
       const executeWithDegradation = () => {
         try {
           return advancedFeature();
-        } catch (error) {
+        } catch {
           captureMessage('Advanced feature failed, degrading to basic', 'info');
           return basicFeature();
         }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { createMiniappTransport } from '../src/transports/xhr';
 import { Envelope } from '@sentry/core';
-import { _sdk } from '../src/crossPlatform';
+import { resetPlatformCache } from '../src/crossPlatform';
 
 describe('Transport', () => {
   beforeEach(() => {
@@ -94,7 +94,7 @@ describe('Transport', () => {
       (global as any).wx = { request: mockRequest };
 
       // Reset the SDK cache to pick up the new mock
-      (_sdk as any) = null;
+      resetPlatformCache();
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
@@ -123,7 +123,7 @@ describe('Transport', () => {
       (global as any).wx = { request: mockRequest };
 
       // Reset the SDK cache to pick up the new mock
-      (_sdk as any) = null;
+      resetPlatformCache();
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
@@ -238,7 +238,7 @@ describe('Transport', () => {
     beforeEach(() => {
       jest.clearAllMocks();
       // Clear the memoized SDK cache so each test picks up the new global
-      (_sdk as any) = null;
+      resetPlatformCache();
       delete (global as any).wx;
       delete (global as any).my;
       delete (global as any).dd;

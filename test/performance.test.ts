@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
 import { PerformanceIntegration } from '../src/integrations/performance';
-import { getPerformanceManager, getSystemInfo } from '../src/crossPlatform';
+import { getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type {
   PerformanceEntry,
   PerformanceManager,
@@ -675,7 +675,6 @@ describe('PerformanceIntegration', () => {
     });
 
     it('should collect memory when enableMemory is true and API available', () => {
-      const { sdk } = require('../src/crossPlatform');
       const mockMemory = { jsHeapSizeUsed: 1024000, jsHeapSizeLimit: 10240000 };
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(() => ({ memory: mockMemory })),
@@ -705,7 +704,6 @@ describe('PerformanceIntegration', () => {
     });
 
     it('should handle missing memory API gracefully', () => {
-      const { sdk } = require('../src/crossPlatform');
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(() => ({})), // No memory property
         reportPerformance: jest.fn(),
@@ -1004,7 +1002,6 @@ describe('PerformanceIntegration', () => {
 
   describe('reportToNativeAPI', () => {
     it('should report to native API when reportPerformance is available', () => {
-      const { sdk } = require('../src/crossPlatform');
       const mockReportPerformance = jest.fn();
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(),

@@ -1,7 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import { SDK_VERSION, SDK_NAME } from '../src/version';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const pkg = require('../package.json');
+import pkg from '../package.json';
 
 describe('Version', () => {
   describe('SDK_VERSION', () => {
