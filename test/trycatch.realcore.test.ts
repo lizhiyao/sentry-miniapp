@@ -82,12 +82,12 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(errEvent).toBeDefined();
 
     // wrap() 通过 scope event processor 给事件打上 instrument mechanism，并塞入 extra.arguments。
-    // 注：当前实现把 mechanism 放在 exception.mechanism（容器级），而非标准的 values[i].mechanism；
-    // 这里两处都接受，避免把这个非标准落点写死进断言（将来若纠正落点本用例仍应通过）。
-    const exc = errEvent.exception;
-    const mechanism = exc.mechanism || exc.values?.[0]?.mechanism;
-    expect(mechanism?.type).toBe('instrument');
-    expect(mechanism?.handled).toBe(true);
+    // mechanism 必须落在标准位置 exception.values[].mechanism（Sentry 后端读这里），
+    // 而非容器级 exception.mechanism——后者后端读不到，等于没标记。
+    const val = errEvent.exception.values.find((v: any) => v.value?.includes('timer boom'));
+    expect(val.mechanism?.type).toBe('instrument');
+    expect(val.mechanism?.handled).toBe(true);
+    expect((errEvent.exception as any).mechanism).toBeUndefined(); // 不再误挂容器级
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
 });
