@@ -1,6 +1,40 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.12.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.11.3...v1.12.0) (2026-06-18)
+
+
+### ✨ Features | 新功能
+
+* **integrations:** 小游戏卡顿采集支持 minor/major/severe 三档分级 ([#194](https://github.com/lizhiyao/sentry-miniapp/issues/194)) ([d45204b](https://github.com/lizhiyao/sentry-miniapp/commit/d45204b76b27cdcfe0f12683aecafca85edc9b66)), closes [#193](https://github.com/lizhiyao/sentry-miniapp/issues/193)
+
+
+### 🐛 Bug Fixes | 修复
+
+* **integrations:** 校验 jankLevels 阈值严重度单调递增 ([#196](https://github.com/lizhiyao/sentry-miniapp/issues/196)) ([c0e9e27](https://github.com/lizhiyao/sentry-miniapp/commit/c0e9e27ddd67e95542e40b5b311b49fde529eab7)), closes [#194](https://github.com/lizhiyao/sentry-miniapp/issues/194)
+* **integrations:** 移除 Session 死 onError 钩子，crashed 交由 core 自动标记 ([#206](https://github.com/lizhiyao/sentry-miniapp/issues/206)) ([11b01ae](https://github.com/lizhiyao/sentry-miniapp/commit/11b01ae91101b6f22fb9b2e9d7220018e338500f)), closes [#198](https://github.com/lizhiyao/sentry-miniapp/issues/198)
+* **sdk:** 修复架构复审发现的问题 ([b4e3a35](https://github.com/lizhiyao/sentry-miniapp/commit/b4e3a35e2300cc839d6362b66baa95ccfd764284)), closes [#198](https://github.com/lizhiyao/sentry-miniapp/issues/198)
+* **website:** 文档站版权年份 2020 → 2019 ([#190](https://github.com/lizhiyao/sentry-miniapp/issues/190)) ([14ffdd6](https://github.com/lizhiyao/sentry-miniapp/commit/14ffdd6ed6bc99188118e6172bd9cbf38beaca74))
+
+
+### 🎫 Chores | 其他更新
+
+* **deps-dev:** bump js-yaml from 3.14.2 to 4.2.0 ([9947e3c](https://github.com/lizhiyao/sentry-miniapp/commit/9947e3c1704bfc6b8ae405e1c4721c64032dc999))
+* **deps-dev:** bump vite from 6.4.2 to 6.4.3 in /examples/uniapp ([#199](https://github.com/lizhiyao/sentry-miniapp/issues/199)) ([7f02e5b](https://github.com/lizhiyao/sentry-miniapp/commit/7f02e5b5232c04725594b24f00a36c97e989e5e4))
+* **deps:** bump @babel/core from 7.29.0 to 7.29.7 ([a29517e](https://github.com/lizhiyao/sentry-miniapp/commit/a29517ebd43588ca12d2bca41072ea8cd4a54bb2))
+* **deps:** 升级 @sentry/core 10.56.0 → 10.57.0 ([#192](https://github.com/lizhiyao/sentry-miniapp/issues/192)) ([672ed18](https://github.com/lizhiyao/sentry-miniapp/commit/672ed180a4b0e8e557f3504431df23e1ce2210a0)), closes [#191](https://github.com/lizhiyao/sentry-miniapp/issues/191)
+* **deps:** 覆盖传递依赖安全告警 ([b74e824](https://github.com/lizhiyao/sentry-miniapp/commit/b74e8249650b4c7d1e7a6d40326c032893e45ee5))
+* **integrations:** 小游戏分级卡顿 review 收尾（命名/flush/真 core 测试） ([#197](https://github.com/lizhiyao/sentry-miniapp/issues/197)) ([97a6d36](https://github.com/lizhiyao/sentry-miniapp/commit/97a6d36426981aae24c87a7bc12ba9ee01b4f4cf)), closes [#194](https://github.com/lizhiyao/sentry-miniapp/issues/194)
+* **integrations:** 小游戏分级卡顿补强（文档/测试/小重构） ([#195](https://github.com/lizhiyao/sentry-miniapp/issues/195)) ([20311e3](https://github.com/lizhiyao/sentry-miniapp/commit/20311e34a17334a84cc6c94f86b8c8fbfcbb8f0b)), closes [#194](https://github.com/lizhiyao/sentry-miniapp/issues/194) [#194](https://github.com/lizhiyao/sentry-miniapp/issues/194)
+* **lint:** eslint 覆盖扩到 test/，清理 require 导入与未用变量 ([#209](https://github.com/lizhiyao/sentry-miniapp/issues/209)) ([01630e5](https://github.com/lizhiyao/sentry-miniapp/commit/01630e5fb6e4e7e88e72546e83ceac1c5b9ab235))
+* **tsconfig:** moduleResolution node → bundler，对齐 Vite 解析 ([#208](https://github.com/lizhiyao/sentry-miniapp/issues/208)) ([61364f5](https://github.com/lizhiyao/sentry-miniapp/commit/61364f5de94c31027b20fd45a525f3f653c06234))
+* 删除非断言的 integration-tests，test:all 收敛为 jest ([#189](https://github.com/lizhiyao/sentry-miniapp/issues/189)) ([e517b65](https://github.com/lizhiyao/sentry-miniapp/commit/e517b654ce54c0260e8be7166d30f57223721dad))
+
+
+### ♻️ Code Refactoring | 代码重构
+
+* 架构 review 修复（P1/P2/P3 + CI 卫生） ([#198](https://github.com/lizhiyao/sentry-miniapp/issues/198)) ([73201f3](https://github.com/lizhiyao/sentry-miniapp/commit/73201f3bc5a3af40ecf0945e160bb238ea07ea0e))
+
 ## [1.11.3](https://github.com/lizhiyao/sentry-miniapp/compare/v1.11.2...v1.11.3) (2026-06-13)
 
 > ⚠️ 本次为**文档 / 维护更新**：SDK 业务源码（`src/`）与 1.11.2 一致，**无功能变更**。npm 包此次仅刷新随包发布的 `README`（瘦身为「名片 + 入口」，能力矩阵 / FAQ / 配置项等完整内容迁至文档站）。其余为**文档站**改动（新增 配置项参考 / 选型与限制 / 工作原理 / Taro · uni-app 接入页，导航重组为 接入 / 配置指南 / 参考），不随 npm 包发布。
