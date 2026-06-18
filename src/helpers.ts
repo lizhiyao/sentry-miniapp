@@ -51,32 +51,18 @@ export function wrap(
       // 每个 unrelated 事件都盖上本次的 mechanism/arguments（尤其把未处理错误误标成 handled:true，
       // 进而虚高 crash-free 率）。
       withScope((scope) => {
-        scope.addEventProcessor((event) => {
-          const processedEvent = { ...event };
-
-          if (options.mechanism) {
-            processedEvent.exception = processedEvent.exception || {};
-            // mechanism 必须挂在 exception.values[].mechanism——Sentry 后端读这里判定 handled/类型。
-            // 容器级 exception.mechanism 后端读不到，等于没标记。
-            const values = (processedEvent.exception as { values?: Array<{ mechanism?: unknown }> })
-              .values;
-            if (Array.isArray(values) && values.length > 0 && values[0]) {
-              values[0].mechanism = options.mechanism;
-            } else {
-              // 理论上 eventFromException 之后 values 必有；兜底保留容器级，至少不丢信息。
-              (processedEvent.exception as { mechanism?: unknown }).mechanism = options.mechanism;
-            }
-          }
-
-          processedEvent.extra = {
-            ...processedEvent.extra,
+        scope.addEventProcessor((event) => ({
+          ...event,
+          extra: {
+            ...event.extra,
             arguments: args,
-          };
+          },
+        }));
 
-          return processedEvent;
-        });
-
-        captureException(ex);
+        // mechanism 交给 core 的 EventHint 处理：prepareEvent 会在 LinkedErrors 等 client
+        // processors 前把 mechanism 标到原始异常上；否则带 Error.cause 时，scope processor
+        // 阶段 values[0] 已经可能是 prepend 进来的 cause，落点会错。
+        captureException(ex, options.mechanism ? { mechanism: options.mechanism } : undefined);
       });
       throw ex;
     }

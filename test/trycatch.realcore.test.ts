@@ -91,6 +91,55 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
 
+  it('Error.cause 链存在时，instrument mechanism 标在原始抛错而非 cause', async () => {
+    // LinkedErrors 是 client event processor，会先把 cause 链 prepend 到 exception.values。
+    // wrap() 的 mechanism 必须经 captureException hint 交给 core 在这之前处理；若在 scope
+    // processor 阶段手写 values[0]，这里会误标到 root cause 上。
+    g.setTimeout = (cb: (...a: any[]) => any) => {
+      cb();
+      return 0 as any;
+    };
+
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      enableOfflineCache: false,
+      transport: () => ({
+        send: (env: any) => {
+          captured.push(env);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    expect(() => {
+      g.setTimeout(() => {
+        const root = new Error('root cause');
+        const outer = new Error('outer timer boom') as Error & { cause?: Error };
+        outer.cause = root;
+        throw outer;
+      });
+    }).toThrow('outer timer boom');
+
+    await flush(2000);
+
+    const events = collectEvents(captured);
+    const errEvent = events.find((e) =>
+      e.exception?.values?.some((v: any) => v.value?.includes('outer timer boom')),
+    );
+    expect(errEvent).toBeDefined();
+
+    const values = errEvent.exception.values;
+    const root = values.find((v: any) => v.value?.includes('root cause'));
+    const outer = values.find((v: any) => v.value?.includes('outer timer boom'));
+    expect(root).toBeDefined();
+    expect(outer).toBeDefined();
+    expect(outer.mechanism?.type).toBe('instrument');
+    expect(outer.mechanism?.handled).toBe(true);
+    expect(root.mechanism?.type).not.toBe('instrument');
+  });
+
   it('包装处理器不泄漏：后续 unrelated 错误不被误标 instrument', async () => {
     // 防回归：wrap() 必须用 withScope 把 mechanism 处理器限定在本次 capture，
     // 若退回 getCurrentScope().addEventProcessor，处理器会常驻并污染之后每个事件——
