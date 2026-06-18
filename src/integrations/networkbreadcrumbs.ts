@@ -367,6 +367,14 @@ function startRequestSpan(method: string, url: string): Span | null {
   }
 }
 
+/**
+ * 生成 `http.client` span 名用的 URL 清洗：去掉 query/fragment 与 URL 内的 userinfo（账号密码），
+ * 既防敏感信息泄漏，也削掉一部分基数。
+ *
+ * **路径刻意保留原样**——SDK 无法推断 REST 路由模板（如 `/users/123` → `/users/:id`），强行参数化
+ * 会误伤合法路径。若 REST 路径 id 造成 tracing 维度过高，请用 Sentry 的 `beforeSendTransaction`
+ * 统一改写事务 / span 名（对网络与性能 resource span 均生效），见文档「配置 · 采样」。
+ */
 function sanitizeSpanNameUrl(url: string): string {
   if (url.startsWith('data:')) {
     return stripDataUrlContent(url);
