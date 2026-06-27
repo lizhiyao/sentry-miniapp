@@ -231,6 +231,11 @@ Walk through features one at a time. Load the corresponding reference file:
 | `enableOfflineCache` | `boolean` | `true` | Cache events when offline, retry when back online |
 | `offlineCacheLimit` | `number` | `30` | Max events to store in offline cache |
 | `offlineCacheMaxAge` | `number` | `86400000` | Drop cached events older than this (ms); default 24h |
+| `requireConsent` | `boolean` | `false` | Gate outbound Sentry network sends until `Sentry.setConsent(true)` |
+| `consentCacheLimit` | `number` | `100` | Max events buffered before consent; preserves oldest cold-start data |
+| `consentCacheMaxBytes` | `number` | `921600` | Max consent-buffer bytes; default ~900KB due miniapp single-key storage limits |
+| `consentCacheMaxAge` | `number` | `86400000` | Drop consent-buffered events older than this (ms); default 24h |
+| `onConsentCacheDrop` | `function` | — | Called with `{ reason, dropped }` when consent buffer drops events |
 | `enableTracePropagation` | `boolean` | `true` | Inject sentry-trace/baggage headers in outgoing requests |
 | `tracePropagationTargets` | `Array` | `[]` | URL patterns for trace header injection (empty = all) |
 | `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |
@@ -246,6 +251,26 @@ Walk through features one at a time. Load the corresponding reference file:
 | `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
 | `beforeSend` | `function` | — | Event processor for filtering/modifying events |
 | `beforeBreadcrumb` | `function` | — | Hook to filter/modify breadcrumbs before they are attached |
+
+### Privacy Consent Gate
+
+For domestic mini program / mini game privacy flows, initialize with `requireConsent: true`. Before the user agrees, the SDK still collects errors, breadcrumbs, and performance data, but sends no Sentry network requests; events are buffered in miniapp storage and flushed after consent.
+
+```javascript
+Sentry.init({
+  dsn: '...',
+  requireConsent: true,
+  consentCacheLimit: 100,
+});
+
+// After the user agrees to the privacy policy
+Sentry.setConsent(true);
+
+// If consent is revoked, block outbound sends again
+Sentry.setConsent(false);
+```
+
+`requireConsent` implies local buffering even when `enableOfflineCache` is `false`; custom `transport` functions are wrapped by the consent gate too. The current store uses one storage key, so keep `consentCacheMaxBytes` near the default ~900KB unless the SDK adds sharded storage in a future version.
 
 ### Platform Compatibility
 

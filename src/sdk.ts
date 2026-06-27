@@ -1,4 +1,5 @@
 import {
+  getClient,
   getCurrentScope,
   initAndBind,
   setContext,
@@ -7,6 +8,7 @@ import {
 } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
+import { setConsentGranted, isConsentGranted } from './consent';
 
 import { MiniappClient } from './client';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
@@ -199,6 +201,28 @@ export function wrap<T extends (...args: any[]) => any>(fn: T): T {
       }
     });
   } as T;
+}
+
+/**
+ * 设置用户对隐私协议的同意状态（配合 `init({ requireConsent: true })` 使用）。
+ *
+ * - `setConsent(true)`：补发「同意前」缓冲的事件，并恢复正常上报。
+ * - `setConsent(false)`：重新闸断网络上报，后续事件继续进入本地缓冲。
+ *
+ * 未开启 `requireConsent` 时调用本函数无门禁副作用（门禁本就放行）。
+ */
+export function setConsent(granted: boolean): void {
+  setConsentGranted(granted);
+  if (granted) {
+    // 不传 timeout → 触发 core offline transport 立即排空缓冲队列（见 makeOfflineTransport.flush，
+    // 内部 retryDelay 复位 + flushIn(MIN_DELAY)）。fire-and-forget：排空走定时器，无需 await。
+    getClient()?.getTransport()?.flush?.();
+  }
+}
+
+/** 读取当前同意状态（未开启 requireConsent 时恒为 true）。 */
+export function getConsent(): boolean {
+  return isConsentGranted();
 }
 
 /**

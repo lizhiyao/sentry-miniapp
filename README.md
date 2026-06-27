@@ -123,9 +123,14 @@ Sentry.addBreadcrumb({ message: '点击了[确认支付]', category: 'action', l
 
 // 自定义测速
 await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
+
+// 隐私合规：init({ requireConsent: true }) 后，用户同意隐私协议再补发缓冲
+Sentry.setConsent(true);
 ```
 
 需要按页面 / 场景精细采样时用 `tracesSampler` 回调（设置后 `tracesSampleRate` 被忽略），写法见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
+
+国内小程序 / 小游戏合规场景可在初始化时设置 `requireConsent: true`：同意前 SDK 照常采集但不发网络，事件先入本地缓冲；用户同意后调用 `Sentry.setConsent(true)` 补发，撤回同意时调用 `Sentry.setConsent(false)` 重新闸断。
 
 ---
 

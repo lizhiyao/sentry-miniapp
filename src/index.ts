@@ -60,7 +60,7 @@ export {
 
 // Export SDK specific exports
 export { SDK_NAME, SDK_VERSION } from './version';
-export { init, showReportDialog, wrap, captureFeedback } from './sdk';
+export { init, showReportDialog, wrap, captureFeedback, setConsent, getConsent } from './sdk';
 export type {
   MiniappOptions,
   SendFeedbackParams,
