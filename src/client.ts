@@ -9,6 +9,7 @@ import {
 import type { BaseTransportOptions, Event, EventHint } from '@sentry/core';
 
 import { appName, getSystemInfo } from './crossPlatform';
+import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
@@ -27,31 +28,65 @@ export class MiniappClient extends Client<any> {
    * @param options Configuration options for this SDK.
    */
   public constructor(options: MiniappOptions = {}) {
+    // 配置隐私合规「同意门禁」。必须在 super() 之前——transport 工厂在 super() 执行期间被 core
+    // 调用建立，其 shouldSend / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
+    // 不触碰 this，故在 super 前调用合法。requireConsent=false 时它把门禁置为「恒放行」，行为不变。
+    configureConsent({
+      required: options.requireConsent === true,
+      cacheLimit: options.consentCacheLimit,
+      cacheMaxBytes: options.consentCacheMaxBytes,
+      cacheMaxAge: options.consentCacheMaxAge,
+      onDrop: options.onConsentCacheDrop,
+    });
+
     super({
       ...options,
-      transport:
-        options.transport ||
-        ((transportOptions: BaseTransportOptions) => {
-          const baseTransport = createMiniappTransport({
-            ...transportOptions,
-            headers: {},
-          });
-
-          if (options.enableOfflineCache !== false) {
-            return makeOfflineTransport(() => baseTransport)({
+      transport: (transportOptions: BaseTransportOptions) => {
+        const baseTransport = options.transport
+          ? options.transport(transportOptions)
+          : createMiniappTransport({
               ...transportOptions,
-              createStore: (storeOptions: any) =>
-                createMiniappOfflineStore({
-                  ...storeOptions,
-                  offlineCacheLimit: options.offlineCacheLimit,
-                  offlineCacheMaxAge: options.offlineCacheMaxAge,
-                }),
-              flushAtStartup: true, // 启动时自动重试发送
-            } as any);
-          }
+              headers: {},
+            });
 
-          return baseTransport;
-        }),
+        // 同意门禁：用 core offline transport 的 shouldSend 闸断网络（同意前 envelope 不发、
+        // 转入本地缓冲），setConsent(true) 后由 transport.flush() 补发。即便用户关了
+        // enableOfflineCache，requireConsent 仍需缓冲，故强制走 offline 路径；若用户传了自定义
+        // transport，也要包住它，避免合规开关被高级用法绕过。
+        if (options.requireConsent === true) {
+          return makeOfflineTransport(() => baseTransport)({
+            ...transportOptions,
+            createStore: (storeOptions: any) =>
+              createMiniappOfflineStore({
+                ...storeOptions,
+                // 同意前缓存用独立上限 + 冷启动优先（保留最旧）淘汰，区别于弱网那套默认值。
+                offlineCacheLimit: options.consentCacheLimit ?? 100,
+                offlineCacheMaxAge: options.consentCacheMaxAge,
+                maxBytes: options.consentCacheMaxBytes,
+                evictionMode: 'preserve-oldest',
+                onDrop: notifyConsentDrop,
+              }),
+            // 返回 false → core 不发网络、转 shouldStore 入缓存。同意后恒为 true。
+            shouldSend: () => isConsentGranted(),
+            flushAtStartup: true,
+          } as any);
+        }
+
+        if (!options.transport && options.enableOfflineCache !== false) {
+          return makeOfflineTransport(() => baseTransport)({
+            ...transportOptions,
+            createStore: (storeOptions: any) =>
+              createMiniappOfflineStore({
+                ...storeOptions,
+                offlineCacheLimit: options.offlineCacheLimit,
+                offlineCacheMaxAge: options.offlineCacheMaxAge,
+              }),
+            flushAtStartup: true, // 启动时自动重试发送
+          } as any);
+        }
+
+        return baseTransport;
+      },
     });
   }
 

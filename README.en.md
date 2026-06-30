@@ -125,9 +125,14 @@ Sentry.addBreadcrumb({ message: 'Tapped [Confirm Payment]', category: 'action', 
 
 // Custom span
 await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
+
+// Privacy consent: after init({ requireConsent: true }), flush buffered events once granted
+Sentry.setConsent(true);
 ```
 
 For per-page / per-scenario sampling use the `tracesSampler` callback (it overrides `tracesSampleRate`); see the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
+
+For privacy-compliance flows, initialize with `requireConsent: true`: before consent the SDK keeps collecting but sends no network requests, storing events locally. Call `Sentry.setConsent(true)` after the user agrees, or `Sentry.setConsent(false)` if consent is revoked.
 
 ---
 

@@ -6,6 +6,8 @@ import {
   captureFeedback,
   getDefaultIntegrations,
   defaultIntegrations,
+  setConsent,
+  getConsent,
 } from '../src/sdk';
 // flush / close / lastEventId 是 SDK 从 @sentry/core 透传的公开 API（sdk.ts 不再自定义重复实现）
 import { lastEventId, flush, close } from '@sentry/core';
@@ -224,6 +226,65 @@ describe('SDK', () => {
       const gb = b.find((i) => i.name === 'GlobalHandlers');
       expect(ga).toBeDefined();
       expect(ga).not.toBe(gb);
+    });
+  });
+
+  describe('consent API', () => {
+    it('starts blocked with requireConsent and flushes queued events when granted', () => {
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        requireConsent: true,
+        enableOfflineCache: false,
+      });
+      const transport = client?.getTransport();
+      expect(transport).toBeDefined();
+      const flushSpy = jest
+        .spyOn(transport!, 'flush')
+        .mockImplementation(() => Promise.resolve(true));
+
+      expect(getConsent()).toBe(false);
+
+      setConsent(true);
+      expect(getConsent()).toBe(true);
+      expect(flushSpy).toHaveBeenCalledWith();
+
+      setConsent(false);
+      expect(getConsent()).toBe(false);
+      expect(flushSpy).toHaveBeenCalledTimes(1);
+
+      flushSpy.mockRestore();
+    });
+
+    it('keeps reporting granted when requireConsent is disabled', () => {
+      init({ dsn: 'https://test@sentry.io/123' });
+
+      setConsent(false);
+
+      expect(getConsent()).toBe(true);
+    });
+
+    it('wraps custom transport with the consent gate', async () => {
+      const send = jest.fn((_: any) => Promise.resolve({ statusCode: 200 }));
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        requireConsent: true,
+        transport: () => ({
+          send,
+          flush: () => Promise.resolve(true),
+        }),
+      });
+      const transport = client?.getTransport();
+      const beforeConsent: any = [{ event_id: 'before' }, [[{ type: 'event' }, {}]]];
+      const afterConsent: any = [{ event_id: 'after' }, [[{ type: 'event' }, {}]]];
+
+      await transport?.send(beforeConsent);
+      expect(send).not.toHaveBeenCalled();
+
+      setConsent(true);
+      await transport?.send(afterConsent);
+
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0]?.[0]?.[0]?.event_id).toBe('after');
     });
   });
 

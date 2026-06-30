@@ -57,6 +57,37 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 | `offlineCacheLimit` | `number` | `30` | 离线缓存最大事件数 |
 | `offlineCacheMaxAge` | `number` | `86400000` | 缓存过期时间（ms），默认 24 小时，超时丢弃 |
 
+## 隐私合规（同意后上报）
+
+| 选项 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `requireConsent` | `boolean` | `false` | 开启后，用户同意隐私协议前 SDK 照常采集，但不发送任何网络请求 |
+| `consentCacheLimit` | `number` | `100` | 同意前缓冲最大事件数；满了保留最早的冷启动数据、丢弃最新事件 |
+| `consentCacheMaxBytes` | `number` | `921600` | 同意前缓冲最大字节数；受小程序单 key Storage 约 1MB 限制，默认约 900KB |
+| `consentCacheMaxAge` | `number` | `86400000` | 同意前缓冲过期时间（ms），默认 24 小时 |
+| `onConsentCacheDrop` | `function` | — | 同意缓冲因 `count` / `bytes` / `age` 丢弃事件时回调 `{ reason, dropped }` |
+
+```js
+import * as Sentry from 'sentry-miniapp';
+
+Sentry.init({
+  dsn: 'https://<key>@sentry.io/<project>',
+  requireConsent: true,
+  consentCacheLimit: 100,
+  onConsentCacheDrop: ({ reason, dropped }) => {
+    console.warn('Sentry consent cache dropped events', reason, dropped);
+  },
+});
+
+// 用户点击同意隐私协议后，补发同意前缓冲并恢复正常上报
+Sentry.setConsent(true);
+
+// 用户撤回同意后，后续事件继续只入本地缓冲、不发网络
+Sentry.setConsent(false);
+```
+
+`requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；如果传入自定义 `transport`，SDK 也会先用 consent 门禁包住它。当前版本使用单 key 存储，同意缓冲与弱网重试复用 `sentry_offline_store`，因此 `consentCacheMaxBytes` 实际建议不超过默认约 900KB；如需突破单 key 上限，需要未来改为分片存储。
+
 ## 分布式追踪
 
 | 选项 | 类型 | 默认 | 说明 |

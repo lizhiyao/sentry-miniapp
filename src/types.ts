@@ -145,6 +145,35 @@ export interface MiniappOptions {
   /** 离线缓存过期时间（ms），超过此时间的缓存事件将被丢弃（默认 86400000 即 24 小时） */
   offlineCacheMaxAge?: number;
 
+  /**
+   * 是否启用隐私合规「同意门禁」（默认 false，保持现有行为）。
+   * true 时：SDK 照常采集（监听 / 异常 / 面包屑 / performance），但在用户同意隐私协议前
+   * **不发送任何网络请求**，事件先入本地缓冲；调用 `Sentry.setConsent(true)` 后补发并恢复上报。
+   * 注意：开启即隐含使用本地缓冲（即便 enableOfflineCache 为 false 也会启用同意缓冲）。
+   */
+  requireConsent?: boolean;
+
+  /**
+   * 同意前缓存的最大事件数（默认 100）。区别于弱网重试的 offlineCacheLimit（默认 30）：
+   * 同意等待期事件量级远大于断网几秒，故默认放宽。
+   */
+  consentCacheLimit?: number;
+
+  /**
+   * 同意前缓存的最大字节数（默认约 900KB）。受平台单 key Storage 上限约束
+   * （微信等约 1MB），故实际封顶 ~900KB，超出按淘汰策略丢弃。
+   */
+  consentCacheMaxBytes?: number;
+
+  /** 同意前缓存的过期时间（ms，默认 86400000 即 24 小时），超时事件丢弃。 */
+  consentCacheMaxAge?: number;
+
+  /**
+   * 同意前缓存因超限 / 过期丢弃事件时的回调，便于接入方评估上限配置是否合理。
+   * reason 为 'count'（条数）| 'bytes'（体积）| 'age'（过期）；dropped 为本次丢弃条数。
+   */
+  onConsentCacheDrop?: (info: { reason: 'count' | 'bytes' | 'age'; dropped: number }) => void;
+
   /** 是否启用分布式追踪头注入（默认 true）。只控制 sentry-trace/baggage 传播，不关闭本地 API 请求 span。 */
   enableTracePropagation?: boolean;
 
