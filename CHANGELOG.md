@@ -1,6 +1,25 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.13.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.12.1...v1.13.0) (2026-06-30)
+
+
+### ✨ Features | 新功能
+
+* 新增 requireConsent 合规开关与 setConsent API ([2c64ba1](https://github.com/lizhiyao/sentry-miniapp/commit/2c64ba124471d75880ffa72f7a2ca85848ca3c03)), closes [#222](https://github.com/lizhiyao/sentry-miniapp/issues/222)
+
+
+### 🎫 Chores | 其他更新
+
+* **deps:** bump undici from 6.26.0 to 6.27.0 ([#221](https://github.com/lizhiyao/sentry-miniapp/issues/221)) ([8c6ed10](https://github.com/lizhiyao/sentry-miniapp/commit/8c6ed10bdcee819dd0d4e038a45803218468ab88))
+* **deps:** 升级 @sentry/core 至 10.59.0 ([#220](https://github.com/lizhiyao/sentry-miniapp/issues/220)) ([9bd1563](https://github.com/lizhiyao/sentry-miniapp/commit/9bd15632de4adb6019a253b023c630cba955b747)), closes [#219](https://github.com/lizhiyao/sentry-miniapp/issues/219)
+* 升级 @sentry/core 到 10.62.0 ([b609f93](https://github.com/lizhiyao/sentry-miniapp/commit/b609f93f80e9a856f640377a412df8f39daf3854)), closes [#224](https://github.com/lizhiyao/sentry-miniapp/issues/224)
+
+
+### 📝 Documentation | 文档
+
+* 校验并修复 sentry-miniapp-sdk skill 与源码的偏差 ([#218](https://github.com/lizhiyao/sentry-miniapp/issues/218)) ([6edead6](https://github.com/lizhiyao/sentry-miniapp/commit/6edead6768e7d9b1296edb039aad69570c8942e6))
+
 ## [1.12.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.12.0...v1.12.1) (2026-06-18)
 
 
