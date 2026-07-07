@@ -1,6 +1,13 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.13.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.13.0...v1.13.1) (2026-07-07)
+
+
+### 🎫 Chores | 其他更新
+
+* 升级 @sentry/core 到 10.63.0 ([255fddc](https://github.com/lizhiyao/sentry-miniapp/commit/255fddc479db92fcc7951e226eb8771aabae1052)), closes [#227](https://github.com/lizhiyao/sentry-miniapp/issues/227)
+
 ## [1.13.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.12.1...v1.13.0) (2026-06-30)
 
 
