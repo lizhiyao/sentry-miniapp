@@ -3,6 +3,8 @@ import { createMiniappTransport } from '../src/transports/xhr';
 import { Envelope } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 
+const SENTRY_ENVELOPE_CONTENT_TYPE = 'application/x-sentry-envelope';
+
 describe('Transport', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -18,6 +20,7 @@ describe('Transport', () => {
         });
       });
       (global as any).wx = { request: mockRequest };
+      resetPlatformCache();
 
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/store/',
@@ -37,10 +40,10 @@ describe('Transport', () => {
         method: 'POST',
         data: expect.any(String),
         header: {
-          'Content-Type': 'application/json',
+          'Content-Type': SENTRY_ENVELOPE_CONTENT_TYPE,
         },
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': SENTRY_ENVELOPE_CONTENT_TYPE,
         },
         timeout: 10000,
         success: expect.any(Function),
@@ -49,6 +52,44 @@ describe('Transport', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.headers).toBeDefined();
+    });
+
+    it('should send envelope as newline-delimited text with Sentry envelope content type', async () => {
+      const mockRequest = jest.fn().mockImplementation((options) => {
+        (options as any).success({
+          statusCode: 200,
+          data: 'OK',
+          header: {},
+        });
+      });
+      (global as any).wx = { request: mockRequest };
+      resetPlatformCache();
+
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/envelope/',
+        recordDroppedEvent: () => {},
+      });
+
+      const envelope: Envelope = [
+        { event_id: 'test-envelope-type', sent_at: '2022-01-01T00:00:00.000Z' },
+        [
+          [
+            { type: 'event' },
+            { message: 'Windows WeChat should not JSON stringify this envelope', event_id: 'test-envelope-type' },
+          ],
+        ],
+      ];
+
+      await transport.send(envelope as any);
+
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      const callArgs = (mockRequest.mock.calls as any)[0][0] as any;
+
+      expect(callArgs.data).toEqual(expect.any(String));
+      expect(callArgs.data).toContain('\n');
+      expect(callArgs.data).not.toMatch(/^"/);
+      expect(callArgs.header['Content-Type']).toBe(SENTRY_ENVELOPE_CONTENT_TYPE);
+      expect(callArgs.headers['Content-Type']).toBe(SENTRY_ENVELOPE_CONTENT_TYPE);
     });
 
     it('should handle request failure', async () => {
