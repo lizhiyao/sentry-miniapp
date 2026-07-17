@@ -3,6 +3,8 @@ import { createTransport } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
 
+const SENTRY_ENVELOPE_CONTENT_TYPE = 'application/x-sentry-envelope';
+
 export interface MiniappTransportOptions extends BaseTransportOptions {
   /** Custom headers for the request */
   headers?: Record<string, string>;
@@ -28,12 +30,12 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
         method: 'POST' as const,
         data: request.body,
         header: {
-          'Content-Type': 'application/json',
+          'Content-Type': SENTRY_ENVELOPE_CONTENT_TYPE,
           ...request.headers,
         },
         // Alipay uses `headers` instead of `header`
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': SENTRY_ENVELOPE_CONTENT_TYPE,
           ...request.headers,
         },
         timeout: 10000,
