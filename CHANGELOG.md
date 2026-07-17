@@ -1,6 +1,18 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.13.2](https://github.com/lizhiyao/sentry-miniapp/compare/v1.13.1...v1.13.2) (2026-07-17)
+
+
+### 🐛 Bug Fixes | 修复
+
+* **transports:** 修正 envelope Content-Type ([#233](https://github.com/lizhiyao/sentry-miniapp/issues/233)) ([e58eea3](https://github.com/lizhiyao/sentry-miniapp/commit/e58eea3e4c57e18d1c78a458cf486698f0d7d5b9))
+
+
+### 🎫 Chores | 其他更新
+
+* 升级 @sentry/core 到 10.66.0 ([#232](https://github.com/lizhiyao/sentry-miniapp/issues/232)) ([2ca9432](https://github.com/lizhiyao/sentry-miniapp/commit/2ca943258929dc5b45099ccec7f2ce8803346061))
+
 ## [1.13.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.13.0...v1.13.1) (2026-07-07)
 
 
