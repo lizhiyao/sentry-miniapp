@@ -123,16 +123,29 @@ Sentry.setConsent(false);
 | `denyUrls` | `Array<string｜RegExp>` | 空 | 不上报栈帧匹配这些 URL 的错误 |
 | `ignoreErrors` | `Array<string｜RegExp>` | 空 | 消息/类型匹配的错误直接丢弃 |
 | `beforeSend` | `function` | — | 事件发送前的钩子，可修改或返回 `null` 丢弃 |
+| `beforeSendTransaction` | `function` | — | Transaction 事件发送前的钩子，可修改或返回 `null` 丢弃 |
 | `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |
+| `transportOptions` | `object` | — | 传给内置 transport 的选项；可用 `headers` 自定义 envelope 请求头 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |
 
 > `allowUrls` / `denyUrls` / `ignoreErrors` 由内置的 `EventFilters` 集成实现，`init` 时自动装配（若你在 `integrations` 里已自带 `EventFilters` / `InboundFilters`，则不重复追加）。
+
+```js
+Sentry.init({
+  dsn: 'https://<key>@sentry.io/<project>',
+  transportOptions: {
+    headers: {
+      'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+    },
+  },
+});
+```
 
 ## 集成
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `integrations` | `Integration[]` | 默认核心集成 | **传入会替换核心默认集成**（如 `GlobalHandlers` / `TryCatch` / `PerformanceIntegration`）。通常无需设置；如需在默认之上追加，用 `[...Sentry.getDefaultIntegrations(), new Sentry.Integrations.XXX()]` |
-| `defaultIntegrations` | `Integration[]` | 内置 | 底层兼容字段；`sentry-miniapp` 会在 `init` 时显式组装集成，业务自定义请优先使用 `integrations` |
+| `defaultIntegrations` | `false｜Integration[]` | 内置核心集成 | 底层兼容字段；设为 `false` 可跳过核心默认集成，自定义数组会替换核心默认集成基底 |
 
 > 默认初始化路径已含：自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控。其中 Source Map / 网络 / Session / 页面面包屑 / 网络状态等集成会根据顶层开关在 `init` 时追加。

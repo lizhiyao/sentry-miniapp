@@ -64,6 +64,18 @@ export function getDefaultIntegrations(): Integration[] {
  */
 export const defaultIntegrations: Integration[] = getDefaultIntegrations();
 
+function getConfiguredDefaultIntegrations(
+  configuredDefaultIntegrations: MiniappOptions['defaultIntegrations'],
+): Integration[] {
+  if (configuredDefaultIntegrations === false) {
+    return [];
+  }
+  if (Array.isArray(configuredDefaultIntegrations)) {
+    return [...configuredDefaultIntegrations];
+  }
+  return getDefaultIntegrations();
+}
+
 /**
  * Initialize the Sentry Miniapp SDK
  * @param options Configuration options for the SDK
@@ -74,10 +86,13 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     return undefined;
   }
 
-  const integrations = [...(options.integrations || getDefaultIntegrations())];
+  const integrations = [
+    ...(options.integrations || getConfiguredDefaultIntegrations(options.defaultIntegrations)),
+  ];
 
   const opts = {
     ...options,
+    defaultIntegrations: [],
     integrations,
     stackParser: miniappStackParser,
     transport: options.transport,

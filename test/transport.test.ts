@@ -230,6 +230,7 @@ describe('Transport', () => {
           url: 'https://sentry.io/api/123/store/',
           recordDroppedEvent: jest.fn(),
           headers: {
+            'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
             'X-Custom-Header': 'value',
           },
         });
@@ -246,12 +247,14 @@ describe('Transport', () => {
 
         expect(callArgs.url).toBe('https://sentry.io/api/123/store/');
         expect(callArgs.method).toBe('POST');
-        if (callArgs.header && callArgs.header['X-Custom-Header']) {
-          expect(callArgs.header['X-Custom-Header']).toBe('value');
-        }
-        if (callArgs.headers && callArgs.headers['X-Custom-Header']) {
-          expect(callArgs.headers['X-Custom-Header']).toBe('value');
-        }
+        expect(callArgs.header).toMatchObject({
+          'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+          'X-Custom-Header': 'value',
+        });
+        expect(callArgs.headers).toMatchObject({
+          'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+          'X-Custom-Header': 'value',
+        });
 
         expect(response.statusCode).toBe(200);
       });

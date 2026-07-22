@@ -1,12 +1,13 @@
 import type {
   ClientOptions,
-  BaseTransportOptions,
   Event,
   EventHint,
+  TransactionEvent,
   Integration,
   Transport,
   Breadcrumb,
 } from '@sentry/core';
+import type { MiniappTransportOptions } from './transports';
 
 /**
  * 分级卡顿阈值（毫秒）。各档全 optional，可只启用其中一两档（如只给 major + severe）。
@@ -104,10 +105,19 @@ export interface MiniappOptions {
   }) => number | boolean;
 
   /** Transport function */
-  transport?: (transportOptions: BaseTransportOptions) => Transport;
+  transport?: (transportOptions: MiniappTransportOptions) => Transport;
+
+  /** Transport options forwarded to the miniapp transport factory */
+  transportOptions?: Partial<MiniappTransportOptions>;
 
   /** Before send hook */
   beforeSend?: (event: Event, hint?: EventHint) => Event | null | PromiseLike<Event | null>;
+
+  /** Before send hook for transaction events */
+  beforeSendTransaction?: (
+    event: TransactionEvent,
+    hint: EventHint,
+  ) => TransactionEvent | null | PromiseLike<TransactionEvent | null>;
 
   /** Before breadcrumb hook */
   beforeBreadcrumb?: (breadcrumb: Breadcrumb, hint?: Record<string, unknown>) => Breadcrumb | null;
@@ -214,14 +224,14 @@ export interface MiniappOptions {
   /** Integrations */
   integrations?: Integration[];
 
-  /** Default integrations */
-  defaultIntegrations?: Integration[];
+  /** Default core integrations. Set to false to skip core defaults. */
+  defaultIntegrations?: false | Integration[];
 }
 
 /**
  * Client options for the Miniapp SDK.
  */
-export interface MiniappClientOptions extends ClientOptions<BaseTransportOptions> {
+export interface MiniappClientOptions extends ClientOptions<MiniappTransportOptions> {
   options?: MiniappOptions;
 }
 
