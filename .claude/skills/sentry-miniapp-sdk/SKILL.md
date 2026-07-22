@@ -248,6 +248,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `allowUrls` | `Array<string\|RegExp>` | — | Only send errors whose URL matches (others dropped) |
 | `denyUrls` | `Array<string\|RegExp>` | — | Drop errors whose URL matches |
 | `ignoreErrors` | `Array<string\|RegExp>` | — | Drop errors whose message/type matches |
+| `transportOptions` | `object` | — | Options forwarded to built-in transport; `headers` customizes envelope request headers |
 | `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | Minigame cold-start + scene + show/hide breadcrumbs |
 | `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
 | `beforeSend` | `function` | — | Event processor for filtering/modifying events |

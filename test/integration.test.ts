@@ -87,6 +87,45 @@ describe('Integration（真 @sentry/core 端到端）', () => {
     expect(ev.level).toBe('warning');
   });
 
+  it('transportOptions.headers 端到端：透传到默认小程序 transport 请求头', async () => {
+    const mockRequest = jest.fn().mockImplementation((options) => {
+      (options as any).success({
+        statusCode: 200,
+        data: 'OK',
+        header: {},
+      });
+    });
+    (global as any).wx.request = mockRequest;
+    resetPlatformCache();
+
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      enableOfflineCache: false,
+      integrations: [],
+      transportOptions: {
+        headers: {
+          'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+          'X-Gateway-Token': 'miniapp-token',
+        },
+      },
+    });
+
+    captureMessage('transport headers e2e');
+    await flush(2000);
+
+    expect(mockRequest).toHaveBeenCalled();
+    const callArgs = mockRequest.mock.calls[0]![0] as any;
+    expect(callArgs.header).toMatchObject({
+      'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+      'X-Gateway-Token': 'miniapp-token',
+    });
+    expect(callArgs.headers).toMatchObject({
+      'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+      'X-Gateway-Token': 'miniapp-token',
+    });
+  });
+
   it('breadcrumb 真挂到随后上报的事件上', async () => {
     initWithCapture();
     addBreadcrumb({ category: 'navigation', message: 'go page', level: 'info' });

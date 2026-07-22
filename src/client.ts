@@ -12,6 +12,7 @@ import { appName, getSystemInfo } from './crossPlatform';
 import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
+import type { MiniappTransportOptions } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
 
 /**
@@ -42,11 +43,12 @@ export class MiniappClient extends Client<any> {
     super({
       ...options,
       transport: (transportOptions: BaseTransportOptions) => {
+        const miniappTransportOptions = transportOptions as MiniappTransportOptions;
         const baseTransport = options.transport
-          ? options.transport(transportOptions)
+          ? options.transport(miniappTransportOptions)
           : createMiniappTransport({
-              ...transportOptions,
-              headers: {},
+              ...miniappTransportOptions,
+              headers: miniappTransportOptions.headers ?? {},
             });
 
         // 同意门禁：用 core offline transport 的 shouldSend 闸断网络（同意前 envelope 不发、
