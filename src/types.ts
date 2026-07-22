@@ -1,8 +1,8 @@
 import type {
   ClientOptions,
-  BaseTransportOptions,
   Event,
   EventHint,
+  TransactionEvent,
   Integration,
   Transport,
   Breadcrumb,
@@ -113,6 +113,12 @@ export interface MiniappOptions {
   /** Before send hook */
   beforeSend?: (event: Event, hint?: EventHint) => Event | null | PromiseLike<Event | null>;
 
+  /** Before send hook for transaction events */
+  beforeSendTransaction?: (
+    event: TransactionEvent,
+    hint: EventHint,
+  ) => TransactionEvent | null | PromiseLike<TransactionEvent | null>;
+
   /** Before breadcrumb hook */
   beforeBreadcrumb?: (breadcrumb: Breadcrumb, hint?: Record<string, unknown>) => Breadcrumb | null;
 
@@ -218,14 +224,14 @@ export interface MiniappOptions {
   /** Integrations */
   integrations?: Integration[];
 
-  /** Default integrations */
-  defaultIntegrations?: Integration[];
+  /** Default core integrations. Set to false to skip core defaults. */
+  defaultIntegrations?: false | Integration[];
 }
 
 /**
  * Client options for the Miniapp SDK.
  */
-export interface MiniappClientOptions extends ClientOptions<BaseTransportOptions> {
+export interface MiniappClientOptions extends ClientOptions<MiniappTransportOptions> {
   options?: MiniappOptions;
 }
 

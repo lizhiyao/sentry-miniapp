@@ -86,6 +86,37 @@ describe('SDK', () => {
       expect(defaultIntegrations).toHaveLength(defaultIntegrationCount);
     });
 
+    it('defaultIntegrations=false 时跳过核心默认集成', () => {
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        defaultIntegrations: false,
+      });
+
+      const names = client?.getOptions().integrations.map((integration: any) => integration.name);
+      expect(names).not.toContain('GlobalHandlers');
+      expect(names).not.toContain('TryCatch');
+      expect(names).not.toContain('LinkedErrors');
+      expect(names).not.toContain('Dedupe');
+      expect(names).toContain('NetworkBreadcrumbs');
+    });
+
+    it('defaultIntegrations 数组会替换核心默认集成基底', () => {
+      const customDefault = {
+        name: 'CustomDefaultIntegration',
+        setupOnce: jest.fn(),
+      };
+
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        defaultIntegrations: [customDefault],
+      });
+
+      const names = client?.getOptions().integrations.map((integration: any) => integration.name);
+      expect(names).toContain('CustomDefaultIntegration');
+      expect(names).not.toContain('GlobalHandlers');
+      expect(names).toContain('NetworkBreadcrumbs');
+    });
+
     it('should use provided custom integrations', () => {
       const client = init({
         dsn: 'https://test@sentry.io/123',

@@ -249,9 +249,11 @@ Walk through features one at a time. Load the corresponding reference file:
 | `denyUrls` | `Array<string\|RegExp>` | — | Drop errors whose URL matches |
 | `ignoreErrors` | `Array<string\|RegExp>` | — | Drop errors whose message/type matches |
 | `transportOptions` | `object` | — | Options forwarded to built-in transport; `headers` customizes envelope request headers |
+| `defaultIntegrations` | `false\|Integration[]` | built-in core integrations | Set `false` to skip core defaults; custom array replaces the core-default base |
 | `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | Minigame cold-start + scene + show/hide breadcrumbs |
 | `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
 | `beforeSend` | `function` | — | Event processor for filtering/modifying events |
+| `beforeSendTransaction` | `function` | — | Hook to filter/modify transaction events before sending |
 | `beforeBreadcrumb` | `function` | — | Hook to filter/modify breadcrumbs before they are attached |
 
 ### Privacy Consent Gate
