@@ -32,6 +32,8 @@
 微信:     appservice/pages/index.js    →  app:///pages/index.js
 支付宝:   https://appx/pages/index.js  →  app:///pages/index.js
 字节跳动: tt://pages/index.js          →  app:///pages/index.js
+抖音小游戏: assets/main/index.js        →  app:///assets/main/index.js
+Cocos:    chunks:///_virtual/foo.js    →  app:///chunks/_virtual/foo.js
 百度:     swan://pages/index.js        →  app:///pages/index.js
 ```
 
@@ -464,9 +466,11 @@ Page({
 
 **路径归一化：** SDK 自动剥离 `https://appx/` 等 HTTP 协议前缀。
 
-### 字节跳动小程序
+### 字节跳动小程序 / 抖音小游戏
 
-**路径归一化：** SDK 自动剥离 `tt://` 协议前缀。
+**路径归一化：** SDK 自动剥离 `tt://` 协议前缀；没有协议的 `assets/...`、`main/index.js` 会直接补成 `app:///assets/...`、`app:///main/index.js`。
+
+抖音小游戏接入 Cocos Creator 时，错误栈可能出现 `chunks:///_virtual/foo.js` 或 `chunks:///assets/foo.js`。SDK 会保留 `chunks/` 命名空间，分别归一化为 `app:///chunks/_virtual/foo.js`、`app:///chunks/assets/foo.js`，避免和普通 `assets/...` 产物混在一起。上传 Source Map 时也要确保 artifact 路径包含同样的 `chunks/...` 相对路径。
 
 ### 百度小程序
 

@@ -47,6 +47,24 @@ describe('miniappStackParser', () => {
       expect(frames[1]!.function).toBe('Object.onLoad');
     });
 
+    it('should parse bytedance protocol and cocos chunk frames', () => {
+      const stack = [
+        'Error: bytedance cocos error',
+        '    at update (chunks:///_virtual/runtime.js:12:34)',
+        '    at tick (chunks:///assets/scripts/player.js:56:78)',
+        '    at main (tt://main/index.js:90:12)',
+        '    at assets/main/index.js:101:2',
+      ].join('\n');
+
+      const frames = miniappStackParser(stack, 0);
+      expect(frames.length).toBe(4);
+      expect(frames[3]!.filename).toBe('chunks:///_virtual/runtime.js');
+      expect(frames[3]!.function).toBe('update');
+      expect(frames[2]!.filename).toBe('chunks:///assets/scripts/player.js');
+      expect(frames[1]!.filename).toBe('tt://main/index.js');
+      expect(frames[0]!.filename).toBe('assets/main/index.js');
+    });
+
     it('should mark SDK frames as not in_app', () => {
       const stack = [
         'Error: test',
