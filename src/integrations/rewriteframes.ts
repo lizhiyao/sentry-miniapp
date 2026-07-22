@@ -57,20 +57,22 @@ export class RewriteFrames implements Integration {
   private _normalizeFilename(filename: string): string {
     let normalized = filename;
 
-    // Remove common platform prefixes
-    // WeChat: appservice/, app-service/, WAService.js
-    // Alipay: https://appx/...
-    // ByteDance: tt://...
-    normalized = normalized
-      .replace(/^(appservice|app-service|WAService)\//i, '')
-      .replace(/^https?:\/\/[^/]+\//i, '') // Remove alipay http(s) protocol and domain
-      .replace(/^[a-z]+:\/\//i, '') // Remove other protocols like tt://, swan://
-      .replace(/^\//, ''); // Remove leading slash if any
-
     // Prevent double prefixing if it's already an absolute path
     if (normalized.startsWith(this._prefix)) {
       return normalized;
     }
+
+    // Remove common platform prefixes
+    // WeChat: appservice/, app-service/, WAService.js
+    // Alipay: https://appx/...
+    // ByteDance: tt://...
+    // ByteDance/Cocos virtual chunks: chunks:///_virtual/xxx.js -> chunks/_virtual/xxx.js
+    normalized = normalized
+      .replace(/^(appservice|app-service|WAService)\//i, '')
+      .replace(/^https?:\/\/[^/]+\//i, '') // Remove alipay http(s) protocol and domain
+      .replace(/^chunks:\/\/\/?/i, 'chunks/')
+      .replace(/^[a-z]+:\/\//i, '') // Remove other protocols like tt://, swan://
+      .replace(/^\//, ''); // Remove leading slash if any
 
     return `${this._prefix}${normalized}`;
   }

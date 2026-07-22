@@ -58,6 +58,33 @@ describe('RewriteFrames Integration', () => {
     expect(frames[2].filename).toBe('app:///app.js');
   });
 
+  it('should preserve bytedance minigame cocos chunks namespace', () => {
+    const event: Event = {
+      exception: {
+        values: [
+          {
+            stacktrace: {
+              frames: [
+                { filename: 'chunks:///_virtual/runtime.js' },
+                { filename: 'chunks:///assets/scripts/player.js' },
+                { filename: 'assets/main/index.js' },
+                { filename: 'main/index.js' },
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const processed = rewriteFrames.processEvent(event);
+    const frames = (processed.exception!.values as any)[0].stacktrace.frames;
+
+    expect(frames[0].filename).toBe('app:///chunks/_virtual/runtime.js');
+    expect(frames[1].filename).toBe('app:///chunks/assets/scripts/player.js');
+    expect(frames[2].filename).toBe('app:///assets/main/index.js');
+    expect(frames[3].filename).toBe('app:///main/index.js');
+  });
+
   it('should prevent double prefixing', () => {
     const event: Event = {
       exception: {

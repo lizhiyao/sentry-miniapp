@@ -9,7 +9,7 @@ import type { StackFrame } from '@sentry/core';
  *   at functionName (app-service.js:123:45)
  *   at Object.handleTap (pages/index/index.js:42:13)
  */
-const V8_STACK_LINE_REGEX = /^\s*at\s+(?:(.+?)\s+\()?([^\s():]+):(\d+):(\d+)\)?$/;
+const V8_STACK_LINE_REGEX = /^\s*at\s+(?:(.+?)\s+\((.+):(\d+):(\d+)\)|(.+):(\d+):(\d+))\s*$/;
 
 /**
  * 匹配 Safari/JavaScriptCore 风格的堆栈帧（iOS WebView 环境）
@@ -17,7 +17,7 @@ const V8_STACK_LINE_REGEX = /^\s*at\s+(?:(.+?)\s+\()?([^\s():]+):(\d+):(\d+)\)?$
  *   functionName@filename:line:col
  *   @filename:line:col
  */
-const SAFARI_STACK_LINE_REGEX = /^\s*(?:([^@]*)@)?([^\s@:]+(?:\.[a-z]+)+):(\d+)(?::(\d+))?\s*$/;
+const SAFARI_STACK_LINE_REGEX = /^\s*([^@]*)@(?:(.+):(\d+):(\d+)|(.+):(\d+))\s*$/;
 
 /**
  * 匹配简化格式的堆栈帧（部分平台的简化输出）
@@ -25,13 +25,24 @@ const SAFARI_STACK_LINE_REGEX = /^\s*(?:([^@]*)@)?([^\s@:]+(?:\.[a-z]+)+):(\d+)(
  *   filename:line:col
  *   pages/index/index.js:42:13
  */
-const SIMPLE_STACK_LINE_REGEX =
-  /^\s*((?:pages|utils|components|subpackages|app-service|appservice)\/[^\s:]+):(\d+):(\d+)\s*$/;
+const SIMPLE_STACK_LINE_REGEX = /^\s*(.+):(\d+):(\d+)\s*$/;
 
 function parseIntSafe(value: string | undefined): number {
   if (!value) return 0;
   const parsed = parseInt(value, 10);
   return isNaN(parsed) ? 0 : parsed;
+}
+
+function isLikelySourceFilename(filename: string | undefined): boolean {
+  if (!filename) {
+    return false;
+  }
+  return (
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(filename) ||
+    filename.startsWith('/') ||
+    filename.includes('/') ||
+    /\.(?:cjs|js|jsx|mjs|ts|tsx|vue|json|wxml|axml|swan|ttml)$/i.test(filename)
+  );
 }
 
 /**
@@ -43,12 +54,24 @@ function v8StackLineParser(line: string): StackFrame | undefined {
     return undefined;
   }
 
-  const [, functionName, filename, linenoStr, colnoStr] = match;
+  const [
+    ,
+    functionName,
+    wrappedFilename,
+    wrappedLinenoStr,
+    wrappedColnoStr,
+    bareFilename,
+    bareLinenoStr,
+    bareColnoStr,
+  ] = match;
+  const filename = wrappedFilename || bareFilename;
   const frame: StackFrame = {
     filename: filename || '<anonymous>',
-    function: functionName || UNKNOWN_FUNCTION,
+    function: wrappedFilename ? functionName || UNKNOWN_FUNCTION : UNKNOWN_FUNCTION,
     in_app: isInApp(filename),
   };
+  const linenoStr = wrappedLinenoStr || bareLinenoStr;
+  const colnoStr = wrappedColnoStr || bareColnoStr;
   const lineno = parseIntSafe(linenoStr);
   const colno = parseIntSafe(colnoStr);
   if (lineno) frame.lineno = lineno;
@@ -65,7 +88,21 @@ function safariStackLineParser(line: string): StackFrame | undefined {
     return undefined;
   }
 
-  const [, functionName, filename, linenoStr, colnoStr] = match;
+  const [
+    ,
+    functionName,
+    filenameWithColumn,
+    linenoWithColumnStr,
+    colnoStr,
+    filenameWithoutColumn,
+    linenoWithoutColumnStr,
+  ] = match;
+  const filename = filenameWithColumn || filenameWithoutColumn;
+  if (!isLikelySourceFilename(filename)) {
+    return undefined;
+  }
+
+  const linenoStr = linenoWithColumnStr || linenoWithoutColumnStr;
   const frame: StackFrame = {
     filename: filename || '<anonymous>',
     function: functionName || UNKNOWN_FUNCTION,
@@ -82,12 +119,21 @@ function safariStackLineParser(line: string): StackFrame | undefined {
  * 简化格式堆栈解析器
  */
 function simpleStackLineParser(line: string): StackFrame | undefined {
+  const trimmedLine = line.trim();
+  if (trimmedLine.startsWith('at ') || trimmedLine.includes('@')) {
+    return undefined;
+  }
+
   const match = SIMPLE_STACK_LINE_REGEX.exec(line);
   if (!match) {
     return undefined;
   }
 
   const [, filename, linenoStr, colnoStr] = match;
+  if (!isLikelySourceFilename(filename)) {
+    return undefined;
+  }
+
   const frame: StackFrame = {
     filename: filename || '<anonymous>',
     function: UNKNOWN_FUNCTION,

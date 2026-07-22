@@ -51,7 +51,7 @@ sentry-miniapp（init + 默认集成）
 
 ### Source Map 路径归一化
 
-小程序错误栈里的文件路径是各平台虚拟路径（如微信 `appservice/pages/index.js`）。`RewriteFrames` 集成在上报前把它们统一重写为 `app:///` 前缀，这样你只需用 `--url-prefix "app:///"` 上传一次 Source Map 就能匹配。**真机上微信可能把逻辑层合并成单个 `appservice.app.js`**，这是另一种情况——见 [Source Map 配置](/guide/sourcemap)。
+小程序错误栈里的文件路径是各平台虚拟路径（如微信 `appservice/pages/index.js`、抖音小游戏 `tt://main/index.js`、Cocos `chunks:///_virtual/runtime.js`）。`RewriteFrames` 集成在上报前把它们统一重写为 `app:///` 前缀，这样你只需用 `--url-prefix "app:///"` 上传一次 Source Map 就能匹配。**真机上微信可能把逻辑层合并成单个 `appservice.app.js`**，这是另一种情况——见 [Source Map 配置](/guide/sourcemap)。
 
 ### 弱网离线缓存
 
