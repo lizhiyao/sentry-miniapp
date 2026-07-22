@@ -94,6 +94,9 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   if (opts.tracePropagationTargets !== undefined) {
     networkOptions['tracePropagationTargets'] = opts.tracePropagationTargets;
   }
+  if (opts.propagateTraceparent !== undefined) {
+    networkOptions['propagateTraceparent'] = opts.propagateTraceparent;
+  }
   opts.integrations.push(new NetworkBreadcrumbs(networkOptions));
 
   // 自动 Session 管理（默认启用）

@@ -92,8 +92,9 @@ Sentry.setConsent(false);
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `enableTracePropagation` | `boolean` | `true` | 是否注入 `sentry-trace` / `baggage` 头。只控制传播，不关闭本地 API 请求 span |
+| `enableTracePropagation` | `boolean` | `true` | 是否注入分布式追踪头（`sentry-trace` / `baggage`，以及可选 `traceparent`）。只控制传播，不关闭本地 API 请求 span |
 | `tracePropagationTargets` | `Array<string｜RegExp>` | 空（全部注入） | 仅匹配的请求才注入追踪头；为空则对所有非 Sentry 请求注入 |
+| `propagateTraceparent` | `boolean` | `false` | 额外注入 W3C `traceparent` 头，用于和 OpenTelemetry / W3C Trace Context 兼容的后端链路串联 |
 
 ## Session 与网络
 

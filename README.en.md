@@ -49,7 +49,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full details.
 - **🗺️ Built-in SourceMap Path Normalization**: Unifies virtual stack paths across platforms; works with sentry-cli for seamless resolution.
 - **📡 Offline Caching for Weak Networks**: Caches events to local storage on failure, silently retries when connectivity returns.
 - **⚡ Deep Performance Monitoring**: Navigation timing (FCP/LCP), render performance, resource loading, and custom marks.
-- **🔗 Distributed Tracing**: Injects `sentry-trace` / `baggage` headers and reports API timing as `http.client` spans, connecting mini program and backend call chains.
+- **🔗 Distributed Tracing**: Injects `sentry-trace` / `baggage` headers, can optionally add W3C `traceparent`, and reports API timing as `http.client` spans, connecting mini program and backend call chains.
 - **📊 Session Health** & **📶 Network Status Monitoring**: Session lifecycle management + real-time network change tracking (WiFi/4G/offline).
 - **🛡️ Smart Deduplication & Filtering**: Built-in dedup and sample rate controls to prevent log storms.
 

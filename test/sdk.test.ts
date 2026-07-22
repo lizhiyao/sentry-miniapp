@@ -180,6 +180,21 @@ describe('SDK', () => {
       expect(client).toBeInstanceOf(MiniappClient);
     });
 
+    it('should pass propagateTraceparent to NetworkBreadcrumbs', () => {
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        integrations: [],
+        propagateTraceparent: true,
+      });
+
+      const networkBreadcrumbs = client
+        ?.getOptions()
+        .integrations?.find((integration: any) => integration.name === 'NetworkBreadcrumbs') as any;
+
+      expect(networkBreadcrumbs).toBeDefined();
+      expect(networkBreadcrumbs._propagateTraceparent).toBe(true);
+    });
+
     it('用户已传入 EventFilters / InboundFilters 时不重复追加过滤集成', () => {
       const eventFilters = eventFiltersIntegration({ ignoreErrors: ['custom'] });
       const clientWithEventFilters = init({
