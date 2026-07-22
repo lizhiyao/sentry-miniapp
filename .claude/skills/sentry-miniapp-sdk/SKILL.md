@@ -84,7 +84,7 @@ Present this recommendation based on detection results:
 
 **Optional:**
 
-- ⚡ **Distributed Tracing** — when mini program calls backend APIs. Injects `sentry-trace`/`baggage` headers to link frontend and backend spans
+- ⚡ **Distributed Tracing** — when mini program calls backend APIs. Injects `sentry-trace`/`baggage` headers, and can optionally add W3C `traceparent`, to link frontend and backend spans
 - ⚡ **User Feedback** — when you want to collect user-reported issues via `Sentry.captureFeedback()`
 
 | Feature | Recommend when... |
@@ -236,8 +236,9 @@ Walk through features one at a time. Load the corresponding reference file:
 | `consentCacheMaxBytes` | `number` | `921600` | Max consent-buffer bytes; default ~900KB due miniapp single-key storage limits |
 | `consentCacheMaxAge` | `number` | `86400000` | Drop consent-buffered events older than this (ms); default 24h |
 | `onConsentCacheDrop` | `function` | — | Called with `{ reason, dropped }` when consent buffer drops events |
-| `enableTracePropagation` | `boolean` | `true` | Inject sentry-trace/baggage headers in outgoing requests |
+| `enableTracePropagation` | `boolean` | `true` | Inject distributed tracing headers (`sentry-trace`/`baggage`, plus optional `traceparent`) in outgoing requests |
 | `tracePropagationTargets` | `Array` | `[]` | URL patterns for trace header injection (empty = all) |
+| `propagateTraceparent` | `boolean` | `false` | Also inject W3C `traceparent` for OpenTelemetry / W3C Trace Context compatible backends |
 | `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | Capture console.log/warn/error as breadcrumbs |
 | `traceNetworkBody` | `boolean` | `false` | Capture request/response body in network breadcrumbs |

@@ -174,11 +174,14 @@ export interface MiniappOptions {
    */
   onConsentCacheDrop?: (info: { reason: 'count' | 'bytes' | 'age'; dropped: number }) => void;
 
-  /** 是否启用分布式追踪头注入（默认 true）。只控制 sentry-trace/baggage 传播，不关闭本地 API 请求 span。 */
+  /** 是否启用分布式追踪头注入（默认 true）。只控制 sentry-trace/baggage，以及 propagateTraceparent 开启后的 traceparent 传播，不关闭本地 API 请求 span。 */
   enableTracePropagation?: boolean;
 
-  /** 追踪目标 URL 白名单，仅匹配的请求才注入 sentry-trace/baggage 头。为空则对所有非 Sentry 请求注入；API 请求 span 仍按 tracing 采样记录 */
+  /** 追踪目标 URL 白名单，仅匹配的请求才注入 sentry-trace/baggage，以及可选 traceparent 头。为空则对所有非 Sentry 请求注入；API 请求 span 仍按 tracing 采样记录 */
   tracePropagationTargets?: Array<string | RegExp>;
+
+  /** 是否额外注入 W3C `traceparent` 头（默认 false）。用于和 OpenTelemetry / W3C Trace Context 兼容的后端链路串联。 */
+  propagateTraceparent?: boolean;
 
   /** 是否启用自动 Session 管理（默认 true），为 Sentry Release Health 提供会话数据 */
   enableAutoSessionTracking?: boolean;

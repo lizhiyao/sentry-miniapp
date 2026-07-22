@@ -47,7 +47,7 @@ sentry-miniapp（init + 默认集成）
 
 ### 网络面包屑与追踪
 
-默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API，无需额外配置）。开启 `tracesSampleRate` 后，请求耗时还会作为 `http.client` span，并注入 `sentry-trace` / `baggage` 头串联后端。
+默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API，无需额外配置）。开启 `tracesSampleRate` 后，请求耗时还会作为 `http.client` span，并注入 `sentry-trace` / `baggage` 头串联后端；需要接入 OpenTelemetry / W3C Trace Context 时，可再开启 `propagateTraceparent` 追加 `traceparent` 头。
 
 ### Source Map 路径归一化
 

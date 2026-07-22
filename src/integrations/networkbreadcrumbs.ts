@@ -15,7 +15,7 @@ import { sdk } from '../crossPlatform';
  * Network Breadcrumbs Integration.
  * Monkey patches miniapp network API (e.g. wx.request, my.httpRequest)
  * to record network breadcrumbs, including request and response body if configured.
- * Supports distributed tracing via sentry-trace/baggage header injection.
+ * Supports distributed tracing via sentry-trace/baggage and optional traceparent header injection.
  */
 export class NetworkBreadcrumbs implements Integration {
   /**
@@ -33,6 +33,7 @@ export class NetworkBreadcrumbs implements Integration {
   private readonly _denyUrls: RegExp[];
   private readonly _enableTracePropagation: boolean;
   private readonly _tracePropagationTargets: Array<string | RegExp>;
+  private readonly _propagateTraceparent: boolean;
   private _originalRequest: Function | null = null;
   private _originalHttpRequest: Function | null = null;
 
@@ -47,6 +48,8 @@ export class NetworkBreadcrumbs implements Integration {
       enableTracePropagation?: boolean;
       /** 追踪目标 URL 白名单，匹配的请求才注入追踪头 */
       tracePropagationTargets?: Array<string | RegExp>;
+      /** 是否额外注入 W3C traceparent 头（默认 false） */
+      propagateTraceparent?: boolean;
     } = {},
   ) {
     this._traceNetworkBody = !!options.traceNetworkBody;
@@ -74,6 +77,7 @@ export class NetworkBreadcrumbs implements Integration {
     );
     this._enableTracePropagation = options.enableTracePropagation !== false;
     this._tracePropagationTargets = options.tracePropagationTargets || [];
+    this._propagateTraceparent = options.propagateTraceparent === true;
   }
 
   /**
@@ -121,6 +125,7 @@ export class NetworkBreadcrumbs implements Integration {
     const shouldDenyBodyUrl = this._shouldDenyBodyUrl.bind(this);
     const enableTracePropagation = this._enableTracePropagation;
     const shouldPropagateTrace = this._shouldPropagateTrace.bind(this);
+    const propagateTraceparent = this._propagateTraceparent;
 
     return function (this: any, options: any): any {
       if (!options || typeof options !== 'object') {
@@ -170,7 +175,7 @@ export class NetworkBreadcrumbs implements Integration {
       };
 
       if (enableTracePropagation && shouldPropagateTrace(url)) {
-        injectTraceHeaders(options, requestSpan);
+        injectTraceHeaders(options, requestSpan, propagateTraceparent);
       }
 
       const breadcrumbData: Record<string, any> = {
@@ -398,11 +403,13 @@ function stripDataUrlContent(url: string): string {
   return `data:${mimeType}`;
 }
 
-function injectTraceHeaders(options: any, span: Span | null): void {
+function injectTraceHeaders(options: any, span: Span | null, propagateTraceparent: boolean): void {
   if (!span) return;
 
   try {
-    const traceData = getTraceData({ span });
+    const traceData = getTraceData(
+      propagateTraceparent ? { span, propagateTraceparent: true } : { span },
+    );
     const sentryTrace = traceData['sentry-trace'];
     if (!sentryTrace) return;
 
@@ -416,6 +423,10 @@ function injectTraceHeaders(options: any, span: Span | null): void {
 
     if (traceData.baggage) {
       header['baggage'] = mergeBaggageHeader(header['baggage'], traceData.baggage);
+    }
+
+    if (propagateTraceparent && traceData.traceparent && !hasHeader(header, 'traceparent')) {
+      header['traceparent'] = traceData.traceparent;
     }
 
     // 支持微信用 header、支付宝用 headers
@@ -483,6 +494,11 @@ function isErrorStatusCode(statusCode: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasHeader(header: Record<string, any>, name: string): boolean {
+  const normalizedName = name.toLowerCase();
+  return Object.keys(header).some((key) => key.toLowerCase() === normalizedName);
 }
 
 function mergeBaggageHeader(existingBaggage: unknown, sentryBaggage: string): string {

@@ -11,6 +11,7 @@ const mockGetTraceData = jest.fn(() => ({
   'sentry-trace': 'trace-id-span-id-1',
   baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
 }));
+const mockTraceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
 const mockSetHttpStatus = jest.fn((span, statusCode) => {
   span.setAttribute('http.response.status_code', statusCode);
   span.setStatus({ code: statusCode >= 400 ? 2 : 1 });
@@ -277,6 +278,61 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(requestOptions.headers).toBeUndefined();
     expect(mockStartInactiveSpan).toHaveBeenCalledTimes(1);
     expect(mockSpanEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('should inject W3C traceparent when propagateTraceparent is enabled', () => {
+    mockGetTraceData.mockReturnValueOnce({
+      'sentry-trace': 'trace-id-span-id-1',
+      baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
+      traceparent: mockTraceparent,
+    } as any);
+
+    const integration = new NetworkBreadcrumbs({ propagateTraceparent: true });
+    integration.setupOnce();
+
+    const miniappSdk = crossPlatform.sdk();
+    miniappSdk.request({
+      url: 'https://api.example.com/users',
+    });
+
+    const requestOptions = requestMock.mock.calls[0]![0];
+    expect(requestOptions.header).toEqual({
+      'sentry-trace': 'trace-id-span-id-1',
+      baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
+      traceparent: mockTraceparent,
+    });
+    expect(requestOptions.headers).toBe(requestOptions.header);
+    expect(mockGetTraceData).toHaveBeenCalledWith({
+      span: mockSpan,
+      propagateTraceparent: true,
+    });
+  });
+
+  it('should preserve existing traceparent when propagateTraceparent is enabled', () => {
+    mockGetTraceData.mockReturnValueOnce({
+      'sentry-trace': 'trace-id-span-id-1',
+      baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
+      traceparent: mockTraceparent,
+    } as any);
+
+    const integration = new NetworkBreadcrumbs({ propagateTraceparent: true });
+    integration.setupOnce();
+
+    const miniappSdk = crossPlatform.sdk();
+    miniappSdk.request({
+      url: 'https://api.example.com/users',
+      header: {
+        Traceparent: '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01',
+      },
+    });
+
+    const requestOptions = requestMock.mock.calls[0]![0];
+    expect(requestOptions.header).toEqual({
+      'sentry-trace': 'trace-id-span-id-1',
+      baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
+      Traceparent: '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01',
+    });
+    expect(requestOptions.header.traceparent).toBeUndefined();
   });
 
   it('should only inject trace headers for matching tracePropagationTargets', () => {
