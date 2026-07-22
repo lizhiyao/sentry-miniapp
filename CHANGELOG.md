@@ -1,6 +1,19 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.14.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.13.2...v1.14.0) (2026-07-22)
+
+
+### ✨ Features | 新功能
+
+* **tracing:** 支持传播 W3C traceparent ([b59cfa6](https://github.com/lizhiyao/sentry-miniapp/commit/b59cfa6f62e7a3646b48b9ea9e2e9451542a51e3))
+
+
+### 🐛 Bug Fixes | 修复
+
+* **sourcemap:** 兼容抖音小游戏 Cocos 路径 ([b5b3130](https://github.com/lizhiyao/sentry-miniapp/commit/b5b313034f963a965294c2044c13ef0563828ba9)), refs [#237](https://github.com/lizhiyao/sentry-miniapp/issues/237)
+* **transports:** 修复 transportOptions.headers 不生效 ([799029d](https://github.com/lizhiyao/sentry-miniapp/commit/799029dcf7908c6f3af8ca0aa46ab35a71ad6199))
+
 ## [1.13.2](https://github.com/lizhiyao/sentry-miniapp/compare/v1.13.1...v1.13.2) (2026-07-17)
 
 
