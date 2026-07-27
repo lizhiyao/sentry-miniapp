@@ -1,6 +1,17 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.14.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.14.0...v1.14.1) (2026-07-27)
+
+
+### 🎫 Chores | 其他更新
+
+* **deps-dev:** bump js-yaml from 4.2.0 to 4.3.0 ([7fb0765](https://github.com/lizhiyao/sentry-miniapp/commit/7fb0765bda51b03c601291cb713359d2e734634b))
+* **deps:** bump brace-expansion from 1.1.12 to 1.1.16 ([3d43909](https://github.com/lizhiyao/sentry-miniapp/commit/3d439094516a382f8030e93263223981ce3b3e25))
+* **deps:** bump fast-uri from 3.1.2 to 3.1.4 ([5804b10](https://github.com/lizhiyao/sentry-miniapp/commit/5804b10c2a8056fd902ae385a7c1abc4f76c0aeb))
+* **deps:** bump tar from 7.5.16 to 7.5.20 ([0382e08](https://github.com/lizhiyao/sentry-miniapp/commit/0382e0820003e7c7563f13eaffe3aee3eaee6def))
+* **deps:** 升级 @sentry/core 到 10.68.0 ([ee75810](https://github.com/lizhiyao/sentry-miniapp/commit/ee75810f6edd469d7d1b07e5659bc0a50eb1a184)), closes [#245](https://github.com/lizhiyao/sentry-miniapp/issues/245)
+
 ## [1.14.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.13.2...v1.14.0) (2026-07-22)
 
 
