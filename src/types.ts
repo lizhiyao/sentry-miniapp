@@ -6,6 +6,7 @@ import type {
   Integration,
   Transport,
   Breadcrumb,
+  Log,
 } from '@sentry/core';
 import type { MiniappTransportOptions } from './transports';
 
@@ -121,6 +122,12 @@ export interface MiniappOptions {
 
   /** Before breadcrumb hook */
   beforeBreadcrumb?: (breadcrumb: Breadcrumb, hint?: Record<string, unknown>) => Breadcrumb | null;
+
+  /** Whether to enable Sentry Logs (`Sentry.logger.*`). Disabled by default. */
+  enableLogs?: boolean;
+
+  /** Hook to filter or mutate logs before they are sent. Return null to drop the log. */
+  beforeSendLog?: (log: Log) => Log | null;
 
   /**
    * Miniapp platform label stored on events. Runtime platform detection is automatic.
