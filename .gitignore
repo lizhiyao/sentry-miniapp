@@ -34,11 +34,18 @@ local.log
 
 # ai
 # Codex / other agent CLI local hooks and config are personal preferences.
-# Shared agent entrypoint lives in AGENTS.md; skill source lives in .claude/skills/.
+# Shared agent entrypoint lives in AGENTS.md; the tracked skill source is the
+# explicit exception under .agents/skills/.
 .claude/*
 !.claude/skills/
+.claude/skills/*
+!.claude/skills/sentry-miniapp-sdk
 .codex/
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/sentry-miniapp-sdk/
+!.agents/skills/sentry-miniapp-sdk/**
 
 # env
 .env.local

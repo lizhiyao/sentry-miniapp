@@ -27,7 +27,7 @@ Run these commands to understand the project:
 
 ```bash
 # Detect mini program platform
-ls app.json project.config.json mini.project.json 2>/dev/null
+ls app.json project.config.json mini.project.json project.tt.json project.swan.json project.qq.json 2>/dev/null
 cat app.json 2>/dev/null | head -20
 
 # Detect framework (Taro / uni-app / native)
@@ -65,6 +65,10 @@ ls yarn.lock pnpm-lock.yaml package-lock.json 2>/dev/null
 | `project.qq.json` | QQ |
 | `@tarojs/*` in package.json | Taro (cross-platform) |
 | `@dcloudio/uni-*` in package.json | uni-app (cross-platform) |
+
+DingTalk and Kuaishou do not have a stable project-file signal in this guide.
+Confirm them from platform globals, framework configuration, dependencies, or
+the user's stated target instead of guessing from a filename.
 
 ---
 
@@ -208,10 +212,10 @@ Walk through features one at a time. Load the corresponding reference file:
 
 | Feature | Reference | Load when... |
 |---------|-----------|-------------|
-| Error Monitoring | `${SKILL_ROOT}/references/error-monitoring.md` | Always |
-| Performance Tracing | `${SKILL_ROOT}/references/tracing.md` | User agreed to tracing |
-| Offline Cache | `${SKILL_ROOT}/references/offline-cache.md` | User agreed to offline cache |
-| Source Map | `${SKILL_ROOT}/references/sourcemap.md` | User agreed to source maps |
+| Error Monitoring | `references/error-monitoring.md` | Always |
+| Performance Tracing | `references/tracing.md` | User agreed to tracing |
+| Offline Cache | `references/offline-cache.md` | User agreed to offline cache |
+| Source Map | `references/sourcemap.md` | User agreed to source maps |
 
 ---
 
@@ -344,7 +348,7 @@ ls -d ../*/package.json ../*/requirements.txt ../*/go.mod ../*/Gemfile 2>/dev/nu
 | Events not appearing in Sentry | Check DSN is correct; verify Sentry domain is in mini program's trusted domain list |
 | `sampleRate` filtering all events | Ensure `sampleRate` is not set to `0`; default is `1.0` |
 | Tracing spans not appearing | Set `tracesSampleRate` > 0 (or use `tracesSampler`) — tracing is off until set; there is no default |
-| Minified stack traces | Set up Source Map upload — see `${SKILL_ROOT}/references/sourcemap.md` |
+| Minified stack traces | Set up Source Map upload — see `references/sourcemap.md` |
 | Duplicate error reports | Do NOT manually call `Sentry.captureException` in `onError` — SDK captures automatically |
 | Events lost on weak networks | Enable offline cache: `enableOfflineCache: true` (default) |
 | WeChat DevTools not triggering `onError` | Test on a real device; DevTools may not trigger all error handlers |

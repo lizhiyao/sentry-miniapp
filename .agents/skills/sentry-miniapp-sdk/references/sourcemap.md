@@ -95,21 +95,29 @@ module.exports = {
 ```bash
 VERSION="my-miniapp@1.0.0"
 
-sentry-cli releases new "$VERSION"
-sentry-cli releases files "$VERSION" upload-sourcemaps ./dist \
+npx sentry-cli releases new "$VERSION"
+npx sentry-cli releases files "$VERSION" upload-sourcemaps ./dist \
   --url-prefix "app:///" \
   --ext js --ext map
-sentry-cli releases finalize "$VERSION"
+npx sentry-cli releases finalize "$VERSION"
 ```
 
 > The `release` value here **must exactly match** the `release` option in `Sentry.init()`.
 
 ### Step 5: Clean Up
 
-Delete `.map` files from deployment artifacts — they contain source code:
+Build-tool plugins should use `filesToDeleteAfterUpload` so cleanup only runs
+after a successful upload. For a manual CLI flow, preview the exact files first:
 
 ```bash
-find ./dist -name "*.map" -delete
+find ./dist -type f -name "*.map" -print
+```
+
+After the upload and release finalization succeed, confirm that list and remove
+only those files from the deployment artifact:
+
+```bash
+find ./dist -type f -name "*.map" -delete
 ```
 
 ## CI/CD Example (GitHub Actions)
@@ -183,7 +191,7 @@ Let your build tool (Webpack/Vite) handle these. DevTools' built-in transforms b
 
 ```bash
 # List uploaded files
-sentry-cli releases files "my-miniapp@1.0.0" list
+npx sentry-cli releases files "my-miniapp@1.0.0" list
 ```
 
 Should show entries like:

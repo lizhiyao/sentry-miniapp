@@ -28,17 +28,22 @@ sentry-miniapp 是基于 `@sentry/core` 的跨端小程序 Sentry SDK，覆盖�
 
 ## sentry-miniapp 自带 skill 安装（跨 agent）
 
-仓库根 `.claude/skills/sentry-miniapp-sdk/` 是 sentry-miniapp 智能代理 skill 的**单一来源**。Claude Code 用户 clone 仓库即可自动加载，无需额外操作。其它 agent 用户按下面拷贝到工具约定的 skill 目录：
+仓库根 `.agents/skills/sentry-miniapp-sdk/` 是 sentry-miniapp 智能代理 skill 的**单一来源**，采用中性的 [Agent Skills](https://agentskills.io) 目录：
+
+- **Codex**：原生加载 `.agents/skills/sentry-miniapp-sdk/`，clone 仓库即可使用。
+- **Claude Code**：通过软链 `.claude/skills/sentry-miniapp-sdk` → `.agents/skills/sentry-miniapp-sdk` 加载，无需重复维护。
+
+需要在其它项目全局复用时，可把同一目录拷到 agent 工具约定的 skill 根目录：
 
 ```bash
 # Codex
-cp -r .claude/skills/sentry-miniapp-sdk ~/.codex/agents/skills/sentry-miniapp-sdk
+cp -r .agents/skills/sentry-miniapp-sdk ~/.agents/skills/sentry-miniapp-sdk
 
 # Cursor / Aider / Gemini CLI 等
-# 按各工具文档，把 .claude/skills/sentry-miniapp-sdk 放到对应 skill 目录即可
+# 按各工具文档，把 .agents/skills/sentry-miniapp-sdk 放到对应 skill 目录即可
 ```
 
-`.agents/` 和 `.codex/` 是本地 agent hook / config / skill 安装副本，不进仓库；不要把 `.claude/skills/sentry-miniapp-sdk/` 的复制品提交为第二份来源。
+除上述受版本控制的 skill 外，`.agents/` 和 `.codex/` 下的本地 hook、配置及安装副本仍不进仓库。不要在其它目录提交 skill 内容的第二份副本。
 
 ## 常用命令
 
@@ -54,5 +59,5 @@ cp -r .claude/skills/sentry-miniapp-sdk ~/.codex/agents/skills/sentry-miniapp-sd
 - 用户文档：`README.md` / `README.en.md`
 - 设计与使用文档：`docs/`
 - 示例工程：`examples/wxapp/`
-- sentry-miniapp skill 入场：`.claude/skills/sentry-miniapp-sdk/SKILL.md`（单一来源，见上节）
+- sentry-miniapp skill 入场：`.agents/skills/sentry-miniapp-sdk/SKILL.md`（单一来源，见上节）
 - 分支 / 贡献细节：`CONTRIBUTING.md`

@@ -109,24 +109,6 @@ Sentry.init({
 });
 ```
 
-## Dynamic Sampling
-
-Control which errors get reported based on context:
-
-```javascript
-Sentry.init({
-  dsn: '...',
-  tracesSampler: ({ name, inheritOrSampleWith }) => {
-    // 100% sampling for critical pages
-    if (name.includes('pages/pay')) return 1;
-    // Lower sampling for less critical pages
-    if (name.includes('pages/about')) return 0.1;
-    // Default
-    return inheritOrSampleWith(0.5);
-  },
-});
-```
-
 ## User Feedback
 
 Collect user-reported feedback using `captureFeedback`:

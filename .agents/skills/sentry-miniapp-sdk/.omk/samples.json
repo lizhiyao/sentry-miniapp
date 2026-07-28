@@ -1,0 +1,164 @@
+[
+  {
+    "sample_id": "s001",
+    "prompt": "以下项目检测结果和 README 摘要已经确认，不需要执行命令、访问网络或修改文件。请给出 Taro 微信小程序接入 sentry-miniapp 的具体方案：初始化代码应放在哪里，核心配置有哪些，哪些能力应按场景启用，以及如何分别验证手动上报与自动捕获。",
+    "context": "项目使用 Taro 和 Yarn，入口是 src/app.ts，尚未安装 sentry-miniapp。README 说明通常由运行时自动识别平台，Sentry.init 必须早于应用注册或导出；错误监控和性能追踪是核心能力，生产环境需要 Source Map，弱网可用离线缓存，调用后端 API 时可启用分布式追踪。",
+    "rubric": "评分维度：（1）识别为 Taro 微信小程序，使用 import 方式接入且不无依据强制 platform；（2）Sentry.init 位于应用组件注册或导出之前，并至少配置 dsn、release、environment；（3）区分核心错误监控与性能追踪、生产 Source Map、弱网离线缓存和有后端 API 时的分布式追踪；（4）同时说明 captureException 手动测试和未捕获异常自动上报，不建议在 onError 中重复 captureException；（5）不执行题目明确禁止的额外探测。",
+    "assertions": [
+      {
+        "type": "contains_all",
+        "values": [
+          "Sentry.init",
+          "release",
+          "environment"
+        ],
+        "weight": 1
+      }
+    ],
+    "capability": [
+      "平台与框架识别",
+      "初始化顺序",
+      "场景化建议",
+      "接入验证"
+    ],
+    "difficulty": "medium",
+    "construct": "能力",
+    "provenance": "human"
+  },
+  {
+    "sample_id": "s002",
+    "prompt": "以下现状已经确认，不需要读取文件或修改代码。请给出原生支付宝小程序的离线事件配置片段与验证方案：最多保存 50 条，缓存有效期 12 小时，并在网络恢复后自动重试。说明哪些既有初始化配置必须保留。",
+    "context": "app.js 已在 App() 前调用 Sentry.init，现有 dsn、release、environment 均正确。sentry-miniapp 已安装，当前未显式配置离线缓存。README 说明离线缓存使用 enableOfflineCache、offlineCacheLimit、offlineCacheMaxAge，网络恢复刷新由 enableNetworkStatusMonitoring 控制。",
+    "rubric": "评分维度：（1）使用 enableOfflineCache、offlineCacheLimit、offlineCacheMaxAge 和 enableNetworkStatusMonitoring，不发明独立缓存插件；（2）上限设为 50，12 小时正确换算为 43200000 毫秒；（3）保留 dsn、release、environment 以及 Sentry.init 位于 App() 前的结构；（4）验证覆盖离线入队、容量或超龄丢弃、恢复联网后发送，并区分本地缓存状态与 Sentry 控制台结果。",
+    "assertions": [
+      {
+        "type": "contains_all",
+        "values": [
+          "enableOfflineCache",
+          "offlineCacheLimit",
+          "offlineCacheMaxAge",
+          "enableNetworkStatusMonitoring",
+          "43200000"
+        ],
+        "weight": 1
+      }
+    ],
+    "capability": [
+      "离线缓存配置",
+      "弱网恢复",
+      "参数换算",
+      "现有配置保护"
+    ],
+    "difficulty": "medium",
+    "construct": "能力",
+    "provenance": "human"
+  },
+  {
+    "sample_id": "s003",
+    "prompt": "以下项目事实已经确认，不需要执行探测。请为字节跳动小程序设计分布式追踪配置：启用性能采样，只向 api.example.com 传播追踪上下文，并兼容后端使用的 W3C Trace Context。说明前后端如何验证同一条 trace。",
+    "context": "app.ts 已调用 Sentry.init，但尚未设置 tracesSampleRate。小程序请求 api.example.com，Node.js 后端已接入支持 tracing 的 Sentry SDK。README 说明可通过 tracePropagationTargets 限制传播目标，propagateTraceparent 控制 W3C traceparent。",
+    "rubric": "评分维度：（1）明确 tracing 需要大于 0 的 tracesSampleRate 或 tracesSampler，且二者同时存在时 tracesSampler 优先；（2）使用 enableTracePropagation、tracePropagationTargets 和 propagateTraceparent；（3）仅匹配 api.example.com，不向所有第三方传播；（4）说明目标请求应包含 sentry-trace、baggage 和 traceparent，并验证前端 transaction 与后端 span 关联。",
+    "assertions": [
+      {
+        "type": "contains_all",
+        "values": [
+          "tracePropagationTargets",
+          "propagateTraceparent",
+          "sentry-trace",
+          "baggage",
+          "traceparent"
+        ],
+        "weight": 1
+      }
+    ],
+    "capability": [
+      "分布式追踪",
+      "采样配置",
+      "传播目标限制",
+      "端到端验证"
+    ],
+    "difficulty": "hard",
+    "construct": "能力",
+    "provenance": "human"
+  },
+  {
+    "sample_id": "s004",
+    "prompt": "无需读取或修改文件。请审查下面的 Source Map 发布配置，指出问题并给出修正后的命令、清理顺序和上线验证步骤。",
+    "context": "这是 Vite 构建的 uni-app 项目。Sentry.init 中 release 为 shop-mini@3.1.0，enableSourceMap 保持默认开启；上传脚本使用 release shop-mini@3.0.9 和 --url-prefix /。项目已安装 @sentry/cli，构建产物在 dist。",
+    "rubric": "评分维度：（1）识别并统一 release 为 shop-mini@3.1.0；（2）URL 前缀改为 app:///，说明运行时栈路径会按此前缀规范化；（3）使用当前 enableSourceMap，不发明不存在的初始化字段；（4）本地命令通过 npx sentry-cli 调用；（5）先确认 map 清单，上传并 finalize 成功后再删除部署产物中的 map，最后用生产构建异常验证源码映射。",
+    "assertions": [
+      {
+        "type": "contains_all",
+        "values": [
+          "shop-mini@3.1.0",
+          "app:///",
+          "sentry-cli"
+        ],
+        "weight": 1
+      }
+    ],
+    "capability": [
+      "Source Map 配置",
+      "release 对齐",
+      "安全清理",
+      "映射验证"
+    ],
+    "difficulty": "hard",
+    "construct": "能力",
+    "provenance": "human"
+  },
+  {
+    "sample_id": "s005",
+    "prompt": "用户要求给微信小游戏新建 App() 和 Page() 来接入生命周期，同时采集冷启动和 FPS。请判断这个方案是否正确，并给出符合 sentry-miniapp 当前能力的替代方案。无需修改文件。",
+    "context": "项目只有 game.js 和 wx API，没有 App()、Page() 或路由。sentry-miniapp 已安装。小游戏需要保留现有入口，不应伪造普通小程序生命周期。",
+    "rubric": "评分维度：（1）拒绝新建 App()、Page() 或路由，识别小游戏与普通小程序的生命周期差异；（2）说明 crossPlatform.isMinigame() 的环境判断，以及页面面包屑和基于页面的 Session 能力在小游戏中的守卫或 no-op；（3）使用 enableMinigameLifecycle 和 enableMinigameFrameRate，或说明它们在小游戏运行时默认开启；（4）把冷启动、scene/path/query、onShow/onHide 归于 MinigameIntegration，把 FPS/jank 归于 FrameRateIntegration。",
+    "assertions": [
+      {
+        "type": "contains_all",
+        "values": [
+          "enableMinigameLifecycle",
+          "enableMinigameFrameRate",
+          "MinigameIntegration",
+          "FrameRateIntegration"
+        ],
+        "weight": 1
+      }
+    ],
+    "capability": [
+      "小游戏识别",
+      "能力降级",
+      "冷启动监控",
+      "帧率采样"
+    ],
+    "difficulty": "hard",
+    "construct": "必要性",
+    "tripwire": true,
+    "provenance": "human"
+  },
+  {
+    "sample_id": "s006",
+    "prompt": "百度小程序用户坚持把 platform 写成 baidu，并要求新建重复入口、在现有 onError 中再次 captureException。请纠正错误前提并给出最小接入方案。以下上下文已经确认，无需访问文件或网络。",
+    "context": "项目已有唯一入口 app.js 和 project.swan.json，app.js 中保留业务 onError 逻辑但尚未初始化 Sentry。README 说明平台通常自动识别；强制指定百度平台时枚举值为 swan；SDK 会自动捕获 onError。",
+    "rubric": "评分维度：（1）纠正 baidu，说明通常无需显式 platform，强制指定时使用 swan；（2）修改现有 app.js，不新建重复入口，Sentry.init 位于 App() 之前；（3）保留业务 onError 逻辑但不重复 captureException；（4）给出手动测试异常与未捕获异常的独立验证方案；（5）不服从用户要求中的错误技术前提。",
+    "assertions": [
+      {
+        "type": "contains_all",
+        "values": [
+          "swan",
+          "Sentry.init"
+        ],
+        "weight": 1
+      }
+    ],
+    "capability": [
+      "平台枚举纠错",
+      "初始化顺序",
+      "重复上报防护",
+      "错误前提拒绝"
+    ],
+    "difficulty": "medium",
+    "construct": "必要性",
+    "tripwire": true,
+    "provenance": "human"
+  }
+]
