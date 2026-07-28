@@ -1,6 +1,20 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.15.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.14.1...v1.15.0) (2026-07-28)
+
+
+### ✨ Features | 新功能
+
+* **sdk:** 支持 Sentry logger API ([f19e8da](https://github.com/lizhiyao/sentry-miniapp/commit/f19e8dac490b729caa3954c8ba4efbdb54950aed))
+
+
+### 🎫 Chores | 其他更新
+
+* **deps:** 修复 brace-expansion 安全告警 ([b60b508](https://github.com/lizhiyao/sentry-miniapp/commit/b60b508190e7baad9f1ac23428628a06b863618a)), closes [#151](https://github.com/lizhiyao/sentry-miniapp/issues/151) [#153](https://github.com/lizhiyao/sentry-miniapp/issues/153)
+* **deps:** 升级 postcss 到 8.5.23 ([79c01b2](https://github.com/lizhiyao/sentry-miniapp/commit/79c01b2e99347522a75864a48a3606c5a4330668))
+* **deps:** 升级 tar 到 7.5.22 ([2f070d4](https://github.com/lizhiyao/sentry-miniapp/commit/2f070d410dd3d8a7dd43da6d954bfaeea3d3b7f9))
+
 ## [1.14.1](https://github.com/lizhiyao/sentry-miniapp/compare/v1.14.0...v1.14.1) (2026-07-27)
 
 
