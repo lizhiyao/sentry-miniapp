@@ -241,6 +241,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `propagateTraceparent` | `boolean` | `false` | Also inject W3C `traceparent` for OpenTelemetry / W3C Trace Context compatible backends |
 | `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | Capture console.log/warn/error as breadcrumbs |
+| `enableLogs` | `boolean` | `false` | Enable Sentry Logs via `Sentry.logger.*` |
 | `traceNetworkBody` | `boolean` | `false` | Capture request/response body in network breadcrumbs |
 | `enableNavigationBreadcrumbs` | `boolean` | `true` | Page lifecycle (navigation) breadcrumbs |
 | `enableUserInteractionBreadcrumbs` | `boolean` | `true` | Tap / user-interaction breadcrumbs |
@@ -254,6 +255,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
 | `beforeSend` | `function` | — | Event processor for filtering/modifying events |
 | `beforeSendTransaction` | `function` | — | Hook to filter/modify transaction events before sending |
+| `beforeSendLog` | `function` | — | Hook to filter/modify logs before sending |
 | `beforeBreadcrumb` | `function` | — | Hook to filter/modify breadcrumbs before they are attached |
 
 ### Privacy Consent Gate

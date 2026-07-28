@@ -121,6 +121,9 @@ Sentry.setTag('page_module', 'checkout');
 // 业务面包屑
 Sentry.addBreadcrumb({ message: '点击了[确认支付]', category: 'action', level: 'info' });
 
+// Sentry Logs（需 init({ enableLogs: true })）
+Sentry.logger.info('用户完成支付', { orderId: 'order_123' });
+
 // 自定义测速
 await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
 

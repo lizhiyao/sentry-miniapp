@@ -43,6 +43,26 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 
 > 网络面包屑（`url`/`method`/状态码/耗时）**默认开启**，无需配置。若开启 `traceNetworkBody` 后需要按 URL 排除 body，可在 `beforeBreadcrumb` 里按 `breadcrumb.data.url` 删除 `request_body` / `response_body`，或返回 `null` 丢弃该条面包屑。
 
+## Logs
+
+| 选项 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `enableLogs` | `boolean` | `false` | 启用 `Sentry.logger.trace/debug/info/warn/error/fatal` 上报 Sentry Logs |
+| `beforeSendLog` | `function` | — | Log 发送前的钩子，可修改或返回 `null` 丢弃 |
+
+```js
+Sentry.init({
+  dsn: 'https://<key>@sentry.io/<project>',
+  enableLogs: true,
+});
+
+Sentry.logger.info('checkout completed', {
+  orderId: 'order_123',
+});
+```
+
+`Sentry.logger.*` 会作为独立 log envelope 发送到 Sentry Logs；`enableConsoleBreadcrumbs` 只会把 `console` 输出记录为随下一次事件发送的面包屑，两者用途不同。
+
 ## Source Map
 
 | 选项 | 类型 | 默认 | 说明 |

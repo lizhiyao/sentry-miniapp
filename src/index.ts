@@ -52,6 +52,7 @@ export {
   close,
   lastEventId,
   isEnabled,
+  logger,
   // Session management APIs
   startSession,
   endSession,

@@ -123,6 +123,9 @@ Sentry.setTag('page_module', 'checkout');
 // Breadcrumb
 Sentry.addBreadcrumb({ message: 'Tapped [Confirm Payment]', category: 'action', level: 'info' });
 
+// Sentry Logs (requires init({ enableLogs: true }))
+Sentry.logger.info('User completed payment', { orderId: 'order_123' });
+
 // Custom span
 await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
 

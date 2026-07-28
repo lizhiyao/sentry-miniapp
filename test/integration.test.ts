@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { init, captureException, captureMessage, addBreadcrumb } from '../src/index';
+import { init, captureException, captureMessage, addBreadcrumb, logger } from '../src/index';
 import { getClient, getCurrentScope, flush, installedIntegrations } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -44,6 +44,19 @@ describe('Integration（真 @sentry/core 端到端）', () => {
     return events;
   }
 
+  function capturedLogs(): any[] {
+    const logs: any[] = [];
+    for (const env of captured) {
+      const items = env[1];
+      if (!Array.isArray(items)) continue;
+      for (const item of items) {
+        const header = item[0];
+        if (header && header.type === 'log') logs.push(...(item[1]?.items || []));
+      }
+    }
+    return logs;
+  }
+
   beforeEach(() => {
     captured = [];
     resetPlatformCache();
@@ -85,6 +98,39 @@ describe('Integration（真 @sentry/core 端到端）', () => {
     const ev = capturedEvents().find((e) => e.message === 'hello e2e');
     expect(ev).toBeDefined();
     expect(ev.level).toBe('warning');
+  });
+
+  it('logger 端到端：enableLogs=true 时上报 log envelope', async () => {
+    initWithCapture({ enableLogs: true });
+    logger.info('user completed checkout', { orderId: 'order-123' });
+    await flush(2000);
+
+    const log = capturedLogs().find((item) => item.body === 'user completed checkout');
+    expect(log).toBeDefined();
+    expect(log.level).toBe('info');
+    expect(log.attributes.orderId).toMatchObject({
+      type: 'string',
+      value: 'order-123',
+    });
+  });
+
+  it('logger 端到端：enableLogs 未开启时不发送 log envelope', async () => {
+    initWithCapture();
+    logger.warn('ignored logger message');
+    await flush(2000);
+
+    expect(capturedLogs()).toHaveLength(0);
+  });
+
+  it('beforeSendLog 端到端：返回 null 时丢弃 log', async () => {
+    initWithCapture({
+      enableLogs: true,
+      beforeSendLog: () => null,
+    });
+    logger.error('drop this log');
+    await flush(2000);
+
+    expect(capturedLogs()).toHaveLength(0);
   });
 
   it('transportOptions.headers 端到端：透传到默认小程序 transport 请求头', async () => {
