@@ -63,6 +63,30 @@ Sentry.logger.info('checkout completed', {
 
 `Sentry.logger.*` 会作为独立 log envelope 发送到 Sentry Logs；`enableConsoleBreadcrumbs` 只会把 `console` 输出记录为随下一次事件发送的面包屑，两者用途不同。
 
+## 接入诊断
+
+`Sentry.getDiagnostics()` 会返回当前 SDK 的只读运行时摘要，适合在排查“没数据 / Source Map 不解析 / tracing 没串起来 / consent 未放行”时附到 issue：
+
+```js
+const diagnostics = Sentry.getDiagnostics();
+
+console.log(diagnostics.platform);
+console.log(diagnostics.options);
+console.log(diagnostics.integrations);
+console.log(diagnostics.warnings);
+```
+
+诊断信息不会发送事件、不会触发离线缓存 flush，也不会暴露完整 DSN；`dsn` 只会显示是否配置、是否合法以及 host。常用字段：
+
+| 字段 | 说明 |
+|------|------|
+| `platform` | 当前检测到的平台、是否小程序环境、是否小游戏 |
+| `client` | 是否已初始化、当前 client 是否为 `MiniappClient` |
+| `options` | `release`、`environment`、采样、Source Map、Logs、consent、trace header 等配置摘要 |
+| `transport` | 是否自定义 transport、是否启用离线缓存、是否处于 consent 门禁 |
+| `integrations` | 已装配的 integration 名称列表 |
+| `warnings` | SDK 识别出的潜在接入问题，如缺 `release`、tracing 未开启、consent 正在阻断上报 |
+
 ## Source Map
 
 | 选项 | 类型 | 默认 | 说明 |

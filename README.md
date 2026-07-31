@@ -113,11 +113,14 @@ await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { 
 // 用户反馈：小程序无 DOM，请自行实现原生表单后提交
 Sentry.captureFeedback({ message: '页面卡住了', name: '张三', email: 'zhangsan@example.com' });
 
+// 接入诊断：排查接入问题时，可将诊断结果附到 issue
+console.log(Sentry.getDiagnostics());
+
 // 隐私合规：init({ requireConsent: true }) 后，用户同意隐私协议再补发缓冲
 Sentry.setConsent(true);
 ```
 
-采样、Logs、隐私同意、`traceparent` 等高级配置见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
+采样、Logs、接入诊断、隐私同意、`traceparent` 等高级配置见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
 
 ---
 

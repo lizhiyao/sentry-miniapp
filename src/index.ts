@@ -61,9 +61,22 @@ export {
 
 // Export SDK specific exports
 export { SDK_NAME, SDK_VERSION } from './version';
-export { init, showReportDialog, wrap, captureFeedback, setConsent, getConsent } from './sdk';
+export {
+  init,
+  showReportDialog,
+  wrap,
+  captureFeedback,
+  setConsent,
+  getConsent,
+  getDiagnostics,
+} from './sdk';
 export type {
   MiniappOptions,
+  MiniappDiagnostics,
+  MiniappDiagnosticsDsn,
+  MiniappDiagnosticsOptions,
+  MiniappDiagnosticsTransport,
+  MiniappDiagnosticsWarning,
   SendFeedbackParams,
   MinigameFrameRateOptions,
   MinigameJankLevels,
