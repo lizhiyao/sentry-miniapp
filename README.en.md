@@ -19,7 +19,7 @@ A **mini program monitoring SDK** built on `@sentry/core`, providing **error mon
 
 > **📰 Featured Article (Chinese)**: [《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — How sentry-miniapp got listed in Sentry's official community-supported SDKs documentation. If you find this project useful, please consider giving it a ⭐ Star.
 
-See [CHANGELOG.md](./CHANGELOG.md) for version history.
+See [CHANGELOG.md](https://github.com/lizhiyao/sentry-miniapp/blob/master/CHANGELOG.md) for version history.
 
 ---
 
@@ -129,7 +129,7 @@ The README keeps only the decision-level summary. Production details live in the
 
 | Scenario | README Summary | Details |
 |----------|----------------|---------|
-| Source Map | `release` must match the upload; the SDK normalizes stacks to `app:///`; special stacks can use `stackParser` | [Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md) |
+| Source Map | `release` must match the upload; the SDK normalizes stacks to `app:///`; special stacks can use `stackParser` | [Source Map Configuration Guide](https://sentry-miniapp.pages.dev/guide/sourcemap) |
 | Taro / uni-app | Use `sentry-miniapp` in mini program builds; use official `@sentry/browser` for H5 builds | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
 | Mini games | Initialization is the same; mini-game runtimes enable dedicated lifecycle and frame-rate integrations | [Platforms & Capabilities](https://sentry-miniapp.pages.dev/guide/platforms) |
 | Bundle size | If main-package size matters, use subpackage async loading / dynamic loading | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
@@ -154,10 +154,10 @@ The README keeps only the decision-level summary. Production details live in the
 |----------|-------------|
 | [Documentation site](https://sentry-miniapp.pages.dev/) | Getting started / capability matrix / FAQ / Source Map / examples (recommended, with search) |
 | [Taro guide](https://sentry-miniapp.pages.dev/guide/taro) · [uni-app guide](https://sentry-miniapp.pages.dev/guide/uniapp) | Cross-platform framework setup & component error handling |
-| [Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md) | End-to-end setup, build tools, CI/CD, verification |
-| [Multi-Platform Compatibility Report](./docs/MultiPlatformCompatibilityReport.md) | Platform API differences |
-| [Examples](./examples/) | wxapp (native) / taro (React) / uniapp (Vue) runnable examples |
-| [Development Guide](./DEVELOPMENT.md) · [Contributing Guide](./CONTRIBUTING.md) | Local dev, debugging & contributing |
+| [Source Map Configuration Guide](https://sentry-miniapp.pages.dev/guide/sourcemap) | End-to-end setup, build tools, CI/CD, verification |
+| [Multi-Platform Compatibility Report](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/MultiPlatformCompatibilityReport.md) | Platform API differences |
+| [Examples](https://sentry-miniapp.pages.dev/guide/examples) | wxapp (native) / taro (React) / uniapp (Vue) runnable examples |
+| [Development Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) · [Contributing Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) | Local dev, debugging & contributing |
 
 ---
 
@@ -165,7 +165,7 @@ The README keeps only the decision-level summary. Production details live in the
 
 Have questions or want to discuss mini program monitoring? Due to WeChat group QR code expiration (7-day limit), please add the author on WeChat (**note: sentry-miniapp**) to be invited to the group:
 
-<img src="docs/qrcode/zhiyao.jpeg" alt="Author WeChat QR Code" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+<img src="https://raw.githubusercontent.com/lizhiyao/sentry-miniapp/master/docs/qrcode/zhiyao.jpeg" alt="Author WeChat QR Code" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 
 ---
 

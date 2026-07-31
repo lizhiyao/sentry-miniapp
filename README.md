@@ -17,7 +17,7 @@
 
 > **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
-完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)。
+完整版本历史见 [CHANGELOG.md](https://github.com/lizhiyao/sentry-miniapp/blob/master/CHANGELOG.md)。
 
 ---
 
@@ -127,7 +127,7 @@ README 只保留结论，生产接入细节统一看官网：
 
 | 场景 | README 结论 | 详细文档 |
 |------|-------------|----------|
-| Source Map | `release` 需与上传时一致；SDK 默认归一化为 `app:///`，特殊堆栈可配 `stackParser` | [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md) |
+| Source Map | `release` 需与上传时一致；SDK 默认归一化为 `app:///`，特殊堆栈可配 `stackParser` | [Source Map 完整配置指南](https://sentry-miniapp.pages.dev/guide/sourcemap) |
 | Taro / uni-app | 小程序端直接用 `sentry-miniapp`；H5 端用官方 `@sentry/browser` | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
 | 小游戏 | 初始化方式与小程序一致，小游戏环境会启用专属生命周期与帧率能力 | [支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms) |
 | 主包体积 | 关心主包体积时，用分包异步化 / 动态加载降低主包占用 | [主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size) |
@@ -152,10 +152,10 @@ README 只保留结论，生产接入细节统一看官网：
 |------|------|
 | [文档站](https://sentry-miniapp.pages.dev/) | 快速接入 / 能力矩阵 / FAQ / Source Map / 示例（推荐，带搜索） |
 | [Taro 接入指南](https://sentry-miniapp.pages.dev/guide/taro) · [uni-app 接入指南](https://sentry-miniapp.pages.dev/guide/uniapp) | 跨端框架接入与组件错误处理 |
-| [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md) | 端到端配置、各构建工具、CI/CD、验证排查 |
-| [多端兼容性报告](./docs/MultiPlatformCompatibilityReport.md) | 各小程序平台 API 差异说明 |
-| [示例项目](./examples/) | wxapp（原生）/ taro（React）/ uniapp（Vue）三套可运行示例 |
-| [开发指南](./DEVELOPMENT.md) · [贡献指南](./CONTRIBUTING.md) | 本地开发、调试与贡献 |
+| [Source Map 完整配置指南](https://sentry-miniapp.pages.dev/guide/sourcemap) | 端到端配置、各构建工具、CI/CD、验证排查 |
+| [多端兼容性报告](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/MultiPlatformCompatibilityReport.md) | 各小程序平台 API 差异说明 |
+| [示例项目](https://sentry-miniapp.pages.dev/guide/examples) | wxapp（原生）/ taro（React）/ uniapp（Vue）三套可运行示例 |
+| [开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) · [贡献指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) | 本地开发、调试与贡献 |
 
 ---
 
@@ -163,7 +163,7 @@ README 只保留结论，生产接入细节统一看官网：
 
 遇到问题？想探讨小程序监控方案？由于微信群二维码有 7 天时效，请添加作者微信（**备注 sentry-miniapp**），由作者邀请入群：
 
-<img src="docs/qrcode/zhiyao.jpeg" alt="作者微信二维码" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+<img src="https://raw.githubusercontent.com/lizhiyao/sentry-miniapp/master/docs/qrcode/zhiyao.jpeg" alt="作者微信二维码" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 
 ---
 
