@@ -16,6 +16,7 @@
     "docs:dev": "vitepress dev website",
     "docs:build": "vitepress build website",
     "docs:preview": "vitepress preview website",
+    "sourcemap:doctor": "node scripts/doctor-sourcemap.mjs",
     "lint": "eslint src test --ext .ts",
     "typecheck": "tsc --noEmit",
     "test": "jest",
@@ -32,6 +33,10 @@
   "main": "dist/sentry-miniapp.cjs.js",
   "module": "dist/sentry-miniapp.esm.js",
   "types": "dist/types/index.d.ts",
+  "bin": {
+    "sentry-miniapp-sourcemap-doctor": "./scripts/doctor-sourcemap.mjs",
+    "sentry-miniapp-sourcemap-merge": "./scripts/merge-sourcemap.mjs"
+  },
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
@@ -42,6 +47,7 @@
   },
   "files": [
     "dist",
+    "scripts/*.mjs",
     "README.md",
     "LICENSE"
   ],

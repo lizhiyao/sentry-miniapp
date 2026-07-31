@@ -7333,6 +7333,9 @@ __metadata:
     vite: "npm:^6.4.1"
     vite-plugin-dts: "npm:^4.5.4"
     vitepress: "npm:^1.6.4"
+  bin:
+    sentry-miniapp-sourcemap-doctor: ./scripts/doctor-sourcemap.mjs
+    sentry-miniapp-sourcemap-merge: ./scripts/merge-sourcemap.mjs
   languageName: unknown
   linkType: soft
 
