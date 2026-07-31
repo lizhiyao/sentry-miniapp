@@ -7,6 +7,7 @@ import type {
   Transport,
   Breadcrumb,
   Log,
+  StackParser,
 } from '@sentry/core';
 import type { MiniappTransportOptions } from './transports';
 
@@ -149,6 +150,9 @@ export interface MiniappOptions {
 
   /** Whether to enable automatic source map path rewrite */
   enableSourceMap?: boolean;
+
+  /** Custom stack parser. Defaults to the built-in miniapp stack parser. */
+  stackParser?: StackParser;
 
   /** Whether to capture and record request and response body in network breadcrumbs */
   traceNetworkBody?: boolean;

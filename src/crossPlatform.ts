@@ -97,6 +97,36 @@ export interface SystemInfo {
   };
 }
 
+function addGlobalObjectCandidate(candidates: unknown[], seen: Set<unknown>, value: unknown): void {
+  if (
+    value === null ||
+    (typeof value !== 'object' && typeof value !== 'function') ||
+    seen.has(value)
+  ) {
+    return;
+  }
+  seen.add(value);
+  candidates.push(value);
+}
+
+/**
+ * 获取当前运行时可见的 JS 全局对象候选。
+ *
+ * 小游戏等宿主里可能出现 `global !== globalThis`，且三方注入器可能写入不同全局对象；
+ * 因此需要返回全部候选而不是只返回一个“主全局”。顺序保留常见注入器的探测顺序。
+ */
+export const getGlobalObjectCandidates = (): unknown[] => {
+  const candidates: unknown[] = [];
+  const seen = new Set<unknown>();
+
+  if (typeof window !== 'undefined') addGlobalObjectCandidate(candidates, seen, window);
+  if (typeof global !== 'undefined') addGlobalObjectCandidate(candidates, seen, global);
+  if (typeof globalThis !== 'undefined') addGlobalObjectCandidate(candidates, seen, globalThis);
+  if (typeof self !== 'undefined') addGlobalObjectCandidate(candidates, seen, self);
+
+  return candidates;
+};
+
 /**
  * 判断当前运行时是否为标准浏览器环境（含 uni-app H5、Taro H5、纯 Web 等）。
  * 仅在所有小程序全局对象都未命中时作为兜底分支调用。

@@ -68,6 +68,7 @@ Sentry.logger.info('checkout completed', {
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `enableSourceMap` | `boolean` | `true` | 自动将各平台虚拟堆栈路径归一化为 `app:///` 前缀。详见 [Source Map 配置](/guide/sourcemap) |
+| `stackParser` | `StackParser` | `miniappStackParser` | 自定义堆栈解析器；私有引擎或特殊堆栈格式才需要覆盖 |
 
 ## 离线缓存（弱网可靠性）
 

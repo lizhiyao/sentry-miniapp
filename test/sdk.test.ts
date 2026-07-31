@@ -12,6 +12,7 @@ import {
 // flush / close / lastEventId 是 SDK 从 @sentry/core 透传的公开 API（sdk.ts 不再自定义重复实现）
 import { lastEventId, flush, close } from '@sentry/core';
 import { eventFiltersIntegration, inboundFiltersIntegration } from '@sentry/core';
+import type { StackParser } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
@@ -72,6 +73,17 @@ describe('SDK', () => {
       expect(client?.getOptions().environment).toBe('test');
       expect(client?.getOptions().release).toBe('1.0.0');
       expect(client?.getOptions().sampleRate).toBe(0.5);
+    });
+
+    it('should allow overriding stackParser', () => {
+      const stackParser = jest.fn(() => []) as StackParser;
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        integrations: [],
+        stackParser,
+      });
+
+      expect(client?.getOptions().stackParser).toBe(stackParser);
     });
 
     it('should handle missing DSN gracefully', () => {

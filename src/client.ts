@@ -14,6 +14,7 @@ import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
 import type { MiniappTransportOptions } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
+import { syncDebugIdsToCoreGlobal } from './debugIds';
 
 /**
  * The Sentry Miniapp SDK Client.
@@ -158,6 +159,18 @@ export class MiniappClient extends Client<any> {
     };
 
     try {
+      // @sentry/core 只读取 globalThis 上的 Debug ID maps。微信小游戏可能由 sentry-cli
+      // 注入到 global / window / self，因此在 core 准备事件前合并一次候选全局。
+      if (this.getOptions().stackParser) {
+        try {
+          syncDebugIdsToCoreGlobal();
+        } catch (error) {
+          if (this.getOptions().debug) {
+            console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
+          }
+        }
+      }
+
       const currentScope = scope || getCurrentScope();
       const isolationScope = getIsolationScope();
       return Promise.resolve(

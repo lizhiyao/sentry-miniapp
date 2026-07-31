@@ -3,6 +3,7 @@ import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { SeverityLevel, getCurrentScope } from '@sentry/core';
+import { miniappStackParser } from '../src/stacktrace';
 
 describe('MiniappClient', () => {
   let client: MiniappClient;
@@ -258,6 +259,78 @@ describe('MiniappClient', () => {
 
       expect(preparedEvent?.contexts?.['custom']).toEqual({ data: 'value' });
       expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
+    });
+
+    it('should read Debug IDs from non-globalThis miniapp globals', async () => {
+      const injectedStack = [
+        'Error: sentry debug id probe',
+        '    at crash (xmg-sdk-wx.js:3:379212)',
+      ].join('\n');
+      const debugId = '11111111-2222-4333-8444-555555555555';
+      const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+      const originalSentryDebugIds = (globalThis as any)._sentryDebugIds;
+      const fakeWindow = {
+        _sentryDebugIds: {
+          [injectedStack]: debugId,
+        },
+      };
+
+      delete (globalThis as any)._sentryDebugIds;
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: fakeWindow,
+      });
+
+      try {
+        const c = new MiniappClient({
+          dsn: 'https://test@sentry.io/123',
+          integrations: [],
+          stackParser: miniappStackParser,
+        } as any);
+        const event = await c['_prepareEvent'](
+          {
+            exception: {
+              values: [
+                {
+                  type: 'TypeError',
+                  value: 'Cannot read property x of null',
+                  stacktrace: {
+                    frames: [
+                      {
+                        filename: 'xmg-sdk-wx.js',
+                        lineno: 3,
+                        colno: 379212,
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+          {},
+        );
+
+        expect((globalThis as any)._sentryDebugIds[injectedStack]).toBe(debugId);
+        expect(event?.debug_meta?.images).toContainEqual({
+          type: 'sourcemap',
+          code_file: 'xmg-sdk-wx.js',
+          debug_id: debugId,
+        });
+        expect(
+          event?.exception?.values?.[0]?.stacktrace?.frames?.[0]?.debug_id,
+        ).toBeUndefined();
+      } finally {
+        if (originalWindow) {
+          Object.defineProperty(globalThis, 'window', originalWindow);
+        } else {
+          delete (globalThis as any).window;
+        }
+        if (originalSentryDebugIds) {
+          (globalThis as any)._sentryDebugIds = originalSentryDebugIds;
+        } else {
+          delete (globalThis as any)._sentryDebugIds;
+        }
+      }
     });
 
     // F3：SDK 的 device/os/app 应为「缺省填充」，不得覆盖用户显式设置。

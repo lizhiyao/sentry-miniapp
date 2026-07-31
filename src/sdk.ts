@@ -94,7 +94,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     ...options,
     defaultIntegrations: [],
     integrations,
-    stackParser: miniappStackParser,
+    stackParser: options.stackParser ?? miniappStackParser,
     transport: options.transport,
   };
 

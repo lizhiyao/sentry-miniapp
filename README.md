@@ -146,6 +146,8 @@ sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
   --url-prefix "app:///" --ext js --ext map
 ```
 
+私有引擎或特殊堆栈格式可通过 `stackParser` 传入自定义堆栈解析器；不传时默认使用内置 `miniappStackParser`。
+
 > 端到端配置（各构建工具、CI/CD、跨端框架两层 map 串联、验证排查）见 **[Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md)**。
 
 ---
