@@ -25,19 +25,14 @@ See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
 ## ✨ Core Features
 
-- **🚀 Modern Architecture**: Built on the latest Sentry JavaScript V10 SDK core modules.
-- **📱 True Multi-Platform Support**: Built-in API abstraction engine — one codebase supports **WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou** mini programs.
-- **🎮 Mini Game Support**: Auto-detects mini-game environments — error / network / device monitoring out of the box, plus mini-game-specific **cold-start first-frame timing** and **frame-rate / jank monitoring**.
-- **🎯 Automatic Exception Capture**: No business code intrusion. Hooks into lifecycle error listeners (`onError`, `onUnhandledRejection`, `onPageNotFound`, `onMemoryWarning`).
-- **🍞 Rich Context Breadcrumbs**: Auto-records device info, user tap/touch, network requests (XHR), and page lifecycle.
+- **🚀 Modern SDK Core**: Built on the latest Sentry JavaScript V10 SDK core modules.
+- **📱 Multi-Platform & Framework Support**: One API for WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou, plus Taro / uni-app mini program builds.
+- **🎯 Automatic Capture & Context**: Captures global errors, Promise rejections, page errors, and memory warnings; records device, interaction, network, and page lifecycle breadcrumbs.
+- **⚡ Performance, Tracing & Logs**: Tracks navigation / rendering / resource / custom spans; reports API requests as `http.client` spans; supports standalone `Sentry.logger.*` logs.
 - **🗺️ Source Map & Stack Trace Resolution**: Unifies virtual stack paths across platforms, supports Debug ID injection, and allows custom `stackParser` logic for private runtimes or special stack formats.
-- **📡 Offline Caching for Weak Networks**: Caches events to local storage on failure, silently retries when connectivity returns.
-- **⚡ Deep Performance Monitoring**: Navigation timing (FCP/LCP), render performance, resource loading, and custom marks.
-- **🔗 Distributed Tracing**: Injects `sentry-trace` / `baggage` headers, can optionally add W3C `traceparent`, and reports API timing as `http.client` spans, connecting mini program and backend call chains.
-- **🪵 Sentry Logs**: Send business logs through `Sentry.logger.*` as standalone log envelopes, separate from console breadcrumbs attached to events.
-- **🔒 Privacy Consent Gate**: `requireConsent` buffers collected events locally before user consent, then flushes them after `setConsent(true)`.
-- **📊 Session Health** & **📶 Network Status Monitoring**: Session lifecycle management + real-time network change tracking (WiFi/4G/offline).
-- **🛡️ Smart Deduplication & Filtering**: Built-in dedup and sample rate controls to prevent log storms.
+- **📡 Reliable Delivery & Consent Gate**: Caches failed sends locally and retries on reconnect; `requireConsent` buffers locally before user consent and sends nothing outbound.
+- **🎮 Mini Game Capabilities**: Auto-detects WeChat / Douyin mini games and adds cold-start first-frame timing plus FPS / jank monitoring.
+- **🛡️ Noise Reduction & Filtering**: Built-in deduplication, sample rates, and before-send hooks to prevent log storms.
 
 ---
 
@@ -81,9 +76,11 @@ Sentry.init({
 App({ onLaunch() {} });
 ```
 
-Do not put `Sentry.init` inside `App.onLaunch`: by then `App()` has already been registered, so the SDK cannot wrap that first `onLaunch` call. App lifecycle breadcrumbs, the first session start, and cold-start timing which depends on the `onLaunch` start point may be missing. If you only need later errors, network breadcrumbs, and manual capture, initializing in `onLaunch` still works, but startup instrumentation is degraded.
+Integration notes:
 
-Default integrations already include **exception capture, performance monitoring, Source Map path normalization, network breadcrumbs, session and network status monitoring** — you usually don't pass `integrations` (doing so replaces the defaults). Full options (offline cache, trace propagation, breadcrumb toggles) are on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
+- `Sentry.init` must run before `App()`; putting it in `App.onLaunch` degrades startup instrumentation.
+- Default integrations already include exception capture, performance monitoring, Source Map path normalization, network breadcrumbs, session, and network status monitoring. You usually don't need to pass `integrations`.
+- Full options are on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
 
 **Verify it works** — capture an event and check the Sentry "Issues" list:
 
@@ -115,52 +112,27 @@ Sentry.logger.info('User completed payment', { orderId: 'order_123' });
 // Custom span
 await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
 
+// User feedback: mini programs have no DOM, so submit from your own native form
+Sentry.captureFeedback({ message: 'The page is frozen', name: 'John Doe', email: 'john@example.com' });
+
 // Privacy consent: after init({ requireConsent: true }), flush buffered events once granted
 Sentry.setConsent(true);
 ```
 
-For per-page / per-scenario sampling use the `tracesSampler` callback (it overrides `tracesSampleRate`); see the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
-
-For privacy-compliance flows, initialize with `requireConsent: true`: before consent the SDK keeps collecting but sends no network requests, storing events locally. Call `Sentry.setConsent(true)` after the user agrees, or `Sentry.setConsent(false)` if consent is revoked.
+Advanced options such as sampling, Logs, privacy consent, and `traceparent` propagation live on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
 
 ---
 
-## 🗺️ Source Map
+## 🧭 Production Setup Pointers
 
-The SDK normalizes platform virtual stack paths to the `app:///` prefix by default (`enableSourceMap: true`). Upload with sentry-cli:
+The README keeps only the decision-level summary. Production details live in the docs:
 
-```bash
-sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
-  --url-prefix "app:///" --ext js --ext map
-```
-
-Private runtimes or special stack formats can pass a custom `stackParser`; by default the SDK uses the built-in `miniappStackParser`.
-
-> Full end-to-end setup (build tools, CI/CD, two-layer map merging for cross-platform frameworks, verification) is in the **[Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md)**.
-
----
-
-## 🎮 Mini Game Support
-
-`sentry-miniapp` also works in WeChat / Douyin **mini games**: auto-detects the environment, error / network / device monitoring out of the box, plus **cold-start first-frame timing** and **frame-rate / jank monitoring**. Initialization is identical to mini programs; with `tracesSampleRate` enabled, performance data is reported as independent transactions on the Performance page.
-
-> Capability matrix and performance-reporting details: [docs site · Platforms & Capabilities](https://sentry-miniapp.pages.dev/guide/platforms).
-
-## 📦 Bundle Size Optimization
-
-The SDK is ~100KB. If main-package size matters, use platform "subpackage async" / "dynamic loading" to move the SDK into a subpackage and reduce main-package overhead; platforms with cross-subpackage async loading can reach zero main-package overhead.
-
-> WeChat subpackage async loading and cross-platform verification guidance: [docs site · Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size).
-
----
-
-## 💬 User Feedback
-
-Mini programs have no DOM, so `showReportDialog()` is deprecated. Build a native form to collect feedback, then submit via `Sentry.captureFeedback()`:
-
-```javascript
-Sentry.captureFeedback({ message: 'The page is frozen', name: 'John Doe', email: 'john@example.com' });
-```
+| Scenario | README Summary | Details |
+|----------|----------------|---------|
+| Source Map | `release` must match the upload; the SDK normalizes stacks to `app:///`; special stacks can use `stackParser` | [Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md) |
+| Taro / uni-app | Use `sentry-miniapp` in mini program builds; use official `@sentry/browser` for H5 builds | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
+| Mini games | Initialization is the same; mini-game runtimes enable dedicated lifecycle and frame-rate integrations | [Platforms & Capabilities](https://sentry-miniapp.pages.dev/guide/platforms) |
+| Bundle size | If main-package size matters, use subpackage async loading / dynamic loading | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 
 ---
 

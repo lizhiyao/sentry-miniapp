@@ -23,19 +23,14 @@
 
 ## ✨ 核心特性
 
-- **🚀 现代架构**：基于 Sentry JavaScript V10 SDK 核心模块构建。
-- **📱 真正的多端支持**：内置 API 抹平引擎，一套代码兼容**微信、支付宝、字节、百度、QQ、钉钉、快手**等主流小程序平台。
-- **🎮 小游戏支持**：自动识别小游戏环境，异常 / 网络 / 设备监控开箱即用，并提供小游戏专属的**冷启动首帧耗时**与**帧率 / 卡顿监控**。
-- **🎯 全自动异常捕获**：无需侵入业务代码，自动监听并上报生命周期异常（`onError`、`onUnhandledRejection`、`onPageNotFound`、`onMemoryWarning`）。
-- **🍞 丰富的上下文面包屑**：自动记录设备信息、用户点击 / 触摸、网络请求（XHR）以及页面生命周期。
+- **🚀 现代 SDK 内核**：基于 Sentry JavaScript V10 SDK 核心模块构建。
+- **📱 多端与跨端框架**：一套 API 兼容微信、支付宝、字节、百度、QQ、钉钉、快手，并支持 Taro / uni-app 小程序端。
+- **🎯 自动异常与上下文**：自动捕获全局异常、Promise rejection、页面异常、内存告警，并记录设备、交互、网络和页面生命周期面包屑。
+- **⚡ 性能、追踪与日志**：采集导航 / 渲染 / 资源 / 自定义 span；API 请求可作为 `http.client` span 串联后端；支持 `Sentry.logger.*` 独立日志。
 - **🗺️ Source Map 与堆栈还原**：自动统一多端虚拟堆栈路径，兼容 Debug ID 注入，并可通过 `stackParser` 适配私有引擎或特殊堆栈格式。
-- **📡 弱网离线缓存**：断网或发送失败时自动缓存事件到本地 Storage，网络恢复后静默重试，确保数据不丢失。
-- **⚡ 深度性能监控**：采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及自定义性能标记。
-- **🔗 分布式追踪**：自动注入 `sentry-trace` / `baggage` 头，可选追加 W3C `traceparent`，并将 API 请求耗时上报为 `http.client` span，串联小程序与后端调用链。
-- **🪵 Sentry Logs**：通过 `Sentry.logger.*` 将业务日志作为独立 log envelope 上报，区别于随事件发送的 console 面包屑。
-- **🔒 隐私合规门禁**：`requireConsent` 支持用户同意前只采集入本地缓冲、同意后再补发，适配国内小程序隐私流程。
-- **📊 Session 健康监控** 与 **📶 网络状态监控**：会话生命周期管理 + 实时网络变化追踪（WiFi/4G/离线）。
-- **🛡️ 智能降噪**：内置错误去重与采样率控制，避免日志风暴。
+- **📡 可靠上报与合规门禁**：断网 / 发送失败自动缓存，恢复后重试；`requireConsent` 支持用户同意前只入缓冲、不发网络。
+- **🎮 小游戏能力**：自动识别微信 / 抖音小游戏，提供冷启动首帧耗时、FPS / jank 监控。
+- **🛡️ 降噪与过滤**：内置错误去重、采样率控制和发送前过滤钩子，避免日志风暴。
 
 ---
 
@@ -79,9 +74,11 @@ Sentry.init({
 App({ onLaunch() {} });
 ```
 
-不要把 `Sentry.init` 放进 `App.onLaunch` 里：那时 `App()` 已经完成注册，SDK 无法再提前包装本次 `onLaunch`，因此 App 生命周期面包屑、Session 首次启动以及依赖 `onLaunch` 起点的冷启动耗时可能拿不到。若只关心后续异常、网络面包屑和手动上报，放在 `onLaunch` 内仍可工作，但启动阶段能力会降级。
+接入时注意：
 
-默认集成已含**异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**，通常无需手动传 `integrations`（传入会覆盖默认）。完整配置项（离线缓存、追踪头注入、面包屑开关等）见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
+- `Sentry.init` 必须在 `App()` 之前执行，放进 `App.onLaunch` 会丢失部分启动阶段能力。
+- 默认集成已包含异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控，通常无需手动传 `integrations`。
+- 完整配置项见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
 
 **验证是否打通**——主动捕获一个事件，到 Sentry「Issues」列表查看：
 
@@ -113,52 +110,27 @@ Sentry.logger.info('用户完成支付', { orderId: 'order_123' });
 // 自定义测速
 await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
 
+// 用户反馈：小程序无 DOM，请自行实现原生表单后提交
+Sentry.captureFeedback({ message: '页面卡住了', name: '张三', email: 'zhangsan@example.com' });
+
 // 隐私合规：init({ requireConsent: true }) 后，用户同意隐私协议再补发缓冲
 Sentry.setConsent(true);
 ```
 
-需要按页面 / 场景精细采样时用 `tracesSampler` 回调（设置后 `tracesSampleRate` 被忽略），写法见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
-
-国内小程序 / 小游戏合规场景可在初始化时设置 `requireConsent: true`：同意前 SDK 照常采集但不发网络，事件先入本地缓冲；用户同意后调用 `Sentry.setConsent(true)` 补发，撤回同意时调用 `Sentry.setConsent(false)` 重新闸断。
+采样、Logs、隐私同意、`traceparent` 等高级配置见[文档站 · 配置项参考](https://sentry-miniapp.pages.dev/guide/configuration)。
 
 ---
 
-## 🗺️ Source Map
+## 🧭 生产配置入口
 
-SDK 默认开启多端堆栈路径归一化（`enableSourceMap: true`），自动将各平台虚拟路径转为统一 `app:///` 前缀，配合 sentry-cli 上传即可解析：
+README 只保留结论，生产接入细节统一看官网：
 
-```bash
-sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
-  --url-prefix "app:///" --ext js --ext map
-```
-
-私有引擎或特殊堆栈格式可通过 `stackParser` 传入自定义堆栈解析器；不传时默认使用内置 `miniappStackParser`。
-
-> 端到端配置（各构建工具、CI/CD、跨端框架两层 map 串联、验证排查）见 **[Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md)**。
-
----
-
-## 🎮 小游戏支持
-
-`sentry-miniapp` 同样适用于微信 / 抖音等**小游戏**：自动识别环境，异常 / 网络 / 设备监控开箱即用，并额外提供**冷启动首帧耗时**与**帧率 / 卡顿监控**。初始化与小程序完全一致，开启 `tracesSampleRate` 后性能数据会作为独立 transaction 进 Performance 页。
-
-> 能力矩阵与性能上报细节见[文档站 · 支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms)。
-
-## 📦 主包体积优化
-
-SDK 原始体积约 100KB。很在意主包体积时，可用平台「分包异步化」/「动态加载」把 SDK 移到分包，显著降低主包占用；微信等支持跨分包异步加载的场景有机会做到主包 0KB 占用。
-
-> 微信分包异步化做法与其他平台 / 框架的核查建议见[文档站 · 主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size)。
-
----
-
-## 💬 用户反馈
-
-小程序无 DOM，`showReportDialog()` 已废弃。请自行实现原生表单收集反馈，再调 `Sentry.captureFeedback()` 提交：
-
-```javascript
-Sentry.captureFeedback({ message: '页面卡住了', name: '张三', email: 'zhangsan@example.com' });
-```
+| 场景 | README 结论 | 详细文档 |
+|------|-------------|----------|
+| Source Map | `release` 需与上传时一致；SDK 默认归一化为 `app:///`，特殊堆栈可配 `stackParser` | [Source Map 完整配置指南](./docs/SOURCEMAP_GUIDE.md) |
+| Taro / uni-app | 小程序端直接用 `sentry-miniapp`；H5 端用官方 `@sentry/browser` | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
+| 小游戏 | 初始化方式与小程序一致，小游戏环境会启用专属生命周期与帧率能力 | [支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms) |
+| 主包体积 | 关心主包体积时，用分包异步化 / 动态加载降低主包占用 | [主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 
 ---
 
