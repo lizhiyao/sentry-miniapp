@@ -15,6 +15,81 @@ import { createMiniappTransport, createMiniappOfflineStore } from './transports'
 import type { MiniappTransportOptions } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
 
+type DebugIdMap = Record<string, string>;
+type DebugIdGlobal = {
+  _sentryDebugIds?: DebugIdMap;
+  _debugIds?: DebugIdMap;
+};
+
+function isDebugIdGlobal(value: unknown): value is DebugIdGlobal {
+  return value !== null && (typeof value === 'object' || typeof value === 'function');
+}
+
+function isDebugIdMap(value: unknown): value is DebugIdMap {
+  return value !== null && typeof value === 'object';
+}
+
+function addDebugIdGlobalCandidate(
+  candidates: DebugIdGlobal[],
+  seen: Set<DebugIdGlobal>,
+  value: unknown,
+): void {
+  if (!isDebugIdGlobal(value) || seen.has(value)) {
+    return;
+  }
+  seen.add(value);
+  candidates.push(value);
+}
+
+function getDebugIdGlobalCandidates(): DebugIdGlobal[] {
+  const candidates: DebugIdGlobal[] = [];
+  const seen = new Set<DebugIdGlobal>();
+
+  if (typeof window !== 'undefined') addDebugIdGlobalCandidate(candidates, seen, window);
+  if (typeof global !== 'undefined') addDebugIdGlobalCandidate(candidates, seen, global);
+  if (typeof globalThis !== 'undefined') addDebugIdGlobalCandidate(candidates, seen, globalThis);
+  if (typeof self !== 'undefined') addDebugIdGlobalCandidate(candidates, seen, self);
+
+  return candidates;
+}
+
+function syncDebugIdMapToCoreGlobal(
+  target: DebugIdGlobal,
+  candidates: DebugIdGlobal[],
+  key: '_sentryDebugIds' | '_debugIds',
+): void {
+  const merged: DebugIdMap = {};
+  let hasEntries = false;
+
+  for (const candidate of candidates) {
+    const candidateMap = candidate[key];
+    if (!isDebugIdMap(candidateMap)) {
+      continue;
+    }
+    for (const [stack, debugId] of Object.entries(candidateMap)) {
+      if (merged[stack] === undefined) {
+        merged[stack] = debugId;
+        hasEntries = true;
+      }
+    }
+  }
+
+  if (hasEntries) {
+    target[key] = merged;
+  }
+}
+
+function syncDebugIdsToCoreGlobal(): void {
+  if (typeof globalThis === 'undefined') {
+    return;
+  }
+
+  const target = globalThis as DebugIdGlobal;
+  const candidates = getDebugIdGlobalCandidates();
+  syncDebugIdMapToCoreGlobal(target, candidates, '_sentryDebugIds');
+  syncDebugIdMapToCoreGlobal(target, candidates, '_debugIds');
+}
+
 /**
  * The Sentry Miniapp SDK Client.
  *
@@ -158,6 +233,18 @@ export class MiniappClient extends Client<any> {
     };
 
     try {
+      // @sentry/core 只读取 globalThis 上的 Debug ID maps。微信小游戏可能由 sentry-cli
+      // 注入到 global / window / self，因此在 core 准备事件前合并一次候选全局。
+      if (this.getOptions().stackParser) {
+        try {
+          syncDebugIdsToCoreGlobal();
+        } catch (error) {
+          if (this.getOptions().debug) {
+            console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
+          }
+        }
+      }
+
       const currentScope = scope || getCurrentScope();
       const isolationScope = getIsolationScope();
       return Promise.resolve(
