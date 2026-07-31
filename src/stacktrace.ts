@@ -6,10 +6,11 @@ import type { StackFrame } from '@sentry/core';
  * 格式示例：
  *   at functionName (filename:line:col)
  *   at filename:line:col
+ *   at (filename:line:col)
  *   at functionName (app-service.js:123:45)
  *   at Object.handleTap (pages/index/index.js:42:13)
  */
-const V8_STACK_LINE_REGEX = /^\s*at\s+(?:(.+?)\s+\((.+):(\d+):(\d+)\)|(.+):(\d+):(\d+))\s*$/;
+const V8_STACK_LINE_REGEX = /^\s*at\s+(?:(.*?)\s*\((.+):(\d+):(\d+)\)|(.+):(\d+):(\d+))\s*$/;
 
 /**
  * 匹配 Safari/JavaScriptCore 风格的堆栈帧（iOS WebView 环境）

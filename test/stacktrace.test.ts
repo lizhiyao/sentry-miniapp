@@ -34,6 +34,24 @@ describe('miniappStackParser', () => {
       expect(frames[0]!.lineno).toBe(42);
     });
 
+    it('should parse anonymous frames wrapped in parentheses', () => {
+      const stack = [
+        'TypeError: Cannot read property x of null',
+        '    at (xmg-sdk-wx.js:3:379212)',
+        '    at Object.onShow (game.js:10:5)',
+      ].join('\n');
+
+      const frames = miniappStackParser(stack, 0);
+      expect(frames.length).toBe(2);
+
+      const crashFrame = frames.find(f => f.filename === 'xmg-sdk-wx.js');
+      expect(crashFrame).toBeDefined();
+      expect(crashFrame!.function).toBe('?');
+      expect(crashFrame!.lineno).toBe(3);
+      expect(crashFrame!.colno).toBe(379212);
+      expect(crashFrame!.in_app).toBe(true);
+    });
+
     it('should parse WeChat appservice frames', () => {
       const stack = [
         'Error: something went wrong',
