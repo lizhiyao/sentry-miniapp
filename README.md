@@ -17,7 +17,7 @@
 
 > **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
-完整版本历史见 [CHANGELOG.md](https://github.com/lizhiyao/sentry-miniapp/blob/master/CHANGELOG.md)。
+完整版本历史见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
 
 ---
 

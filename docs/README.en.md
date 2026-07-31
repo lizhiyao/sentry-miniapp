@@ -19,7 +19,7 @@ A **mini program monitoring SDK** built on `@sentry/core`, providing **error mon
 
 > **📰 Featured Article (Chinese)**: [《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — How sentry-miniapp got listed in Sentry's official community-supported SDKs documentation. If you find this project useful, please consider giving it a ⭐ Star.
 
-See [CHANGELOG.md](https://github.com/lizhiyao/sentry-miniapp/blob/master/CHANGELOG.md) for version history.
+See [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) for version history.
 
 ---
 

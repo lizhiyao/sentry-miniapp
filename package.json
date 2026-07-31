@@ -91,7 +91,9 @@
     ]
   },
   "commit-and-tag-version": {
-    "header": "# 更新日志\n\n本文档记录了 sentry-miniapp 项目的所有重要变更。",
+    "skip": {
+      "changelog": true
+    },
     "bumpFiles": [
       {
         "filename": "package.json",
@@ -100,48 +102,6 @@
       {
         "filename": "src/version.ts",
         "updater": "scripts/version-updater.js"
-      }
-    ],
-    "types": [
-      {
-        "type": "feat",
-        "section": "✨ Features | 新功能"
-      },
-      {
-        "type": "fix",
-        "section": "🐛 Bug Fixes | 修复"
-      },
-      {
-        "type": "chore",
-        "section": "🎫 Chores | 其他更新"
-      },
-      {
-        "type": "docs",
-        "section": "📝 Documentation | 文档"
-      },
-      {
-        "type": "style",
-        "section": "💄 Styles | 风格"
-      },
-      {
-        "type": "refactor",
-        "section": "♻️ Code Refactoring | 代码重构"
-      },
-      {
-        "type": "perf",
-        "section": "⚡ Performance Improvements | 性能优化"
-      },
-      {
-        "type": "test",
-        "section": "✅ Tests | 测试"
-      },
-      {
-        "type": "revert",
-        "section": "⏪ Reverts | 回退"
-      },
-      {
-        "type": "build",
-        "section": "👷‍ Build System | 构建"
       }
     ]
   },

@@ -88,18 +88,20 @@ yarn lint && yarn test
 
 ## 📦 发布流程 (Maintainers Only)
 
-项目已配置 GitHub Actions 自动化 CI/CD，使用 `commit-and-tag-version` 管理版本。常规发版流程如下：
+项目已配置 GitHub Actions 自动化 CI/CD，使用 `commit-and-tag-version` 管理版本号与 tag。`master` 是受保护分支，发版提交也需要通过 PR 合入。常规发版流程如下：
 
 1. **本地校验**：运行 `yarn lint` 和 `yarn test` 确保代码健康。
-2. **自动发版**：运行 `yarn release`，该命令会自动完成以下操作：
+2. **创建 release 分支并生成发版提交**：从最新 `master` 创建短分支后运行 `yarn release`，该命令会自动完成以下操作：
    - 根据 Conventional Commits 更新版本号
-   - 生成 CHANGELOG.md
    - 创建 Git commit 和 tag
 3. **同步 SDK 版本常量**：确保 `src/version.ts` 中的 `SDK_VERSION` 与 `package.json` 版本一致（CI 测试会自动校验）。
-4. **推送 Tag 触发发布**：
+4. **通过 PR 合入 release commit**：推送 release 分支并创建 PR。合并时使用 merge commit，保留 `vX.Y.Z` tag 指向的 release commit 进入 `master` 历史；不要 squash release PR。
+5. **推送 Tag 触发发布**：
 
    ```bash
-   git push origin master --tags
+   git push origin vX.Y.Z
    ```
 
-5. GitHub Actions 将自动接管构建并发布到 NPM。
+6. GitHub Actions 将自动接管构建、发布到 NPM，并在发布成功后通过 `softprops/action-gh-release@v3` 创建对应的 GitHub Release，`generate_release_notes` 会由 GitHub 根据 tag 之间的 PR 自动生成变更说明。
+
+仓库不再保留单独的 `CHANGELOG.md`。PR title / description 是发版说明的唯一信息源，包含 BREAKING CHANGE、迁移方式或兼容性注意事项的改动必须在 PR 描述里写清楚。
