@@ -148,6 +148,8 @@ sentry-cli releases files "my-miniapp@1.0.0" upload-sourcemaps ./dist \
   --url-prefix "app:///" --ext js --ext map
 ```
 
+Private runtimes or special stack formats can pass a custom `stackParser`; by default the SDK uses the built-in `miniappStackParser`.
+
 > Full end-to-end setup (build tools, CI/CD, two-layer map merging for cross-platform frameworks, verification) is in the **[Source Map Configuration Guide](./docs/SOURCEMAP_GUIDE.md)**.
 
 ---

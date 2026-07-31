@@ -232,6 +232,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `tracesSampleRate` | `number` | — | Trace sample rate (0.0–1.0) |
 | `tracesSampler` | `function` | — | Dynamic sampling function (overrides tracesSampleRate) |
 | `enableSourceMap` | `boolean` | `true` | Auto-normalize stack trace paths for source map resolution |
+| `stackParser` | `StackParser` | `miniappStackParser` | Custom stack parser for private runtimes or special stack formats |
 | `enableOfflineCache` | `boolean` | `true` | Cache events when offline, retry when back online |
 | `offlineCacheLimit` | `number` | `30` | Max events to store in offline cache |
 | `offlineCacheMaxAge` | `number` | `86400000` | Drop cached events older than this (ms); default 24h |
