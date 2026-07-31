@@ -1,6 +1,24 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.17.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.16.0...v1.17.0) (2026-07-31)
+
+
+### ✨ Features | 新功能
+
+* 新增 SDK 运行时诊断 API ([ae7d702](https://github.com/lizhiyao/sentry-miniapp/commit/ae7d7027acdd608709fc8ea207b3362f16020537))
+* 新增 Source Map Doctor ([6cb4aac](https://github.com/lizhiyao/sentry-miniapp/commit/6cb4aacbabbadf5a78358138e75b9d3df5a10c70))
+
+
+### 📝 Documentation | 文档
+
+* 优化 README 与官网信息架构 ([f7f923e](https://github.com/lizhiyao/sentry-miniapp/commit/f7f923e4166d6f1de8d062c6fb3c83abb5bcd316))
+* 优化官网视觉与导航体验 ([72ccab5](https://github.com/lizhiyao/sentry-miniapp/commit/72ccab5911535bc22a3191126bec5fc3b37558b5))
+* 修正 README 发布态文档入口 ([3ecbb57](https://github.com/lizhiyao/sentry-miniapp/commit/3ecbb57fe5e92b526d6db121c5efe76fcbb9d931))
+* 移出根目录英文 README ([81c2628](https://github.com/lizhiyao/sentry-miniapp/commit/81c26286e1df84d83dadad2655cf956a97ff8b15))
+* 精简 README 核心特性说明 ([b059375](https://github.com/lizhiyao/sentry-miniapp/commit/b0593758f8f0d1d70655e896ed876012df407fe3))
+* 进一步精简 README 入口内容 ([c5712e4](https://github.com/lizhiyao/sentry-miniapp/commit/c5712e41c98521e3da7114b60c91778e1f4814a1))
+
 ## [1.16.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.15.0...v1.16.0) (2026-07-31)
 
 
