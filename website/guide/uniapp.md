@@ -75,7 +75,7 @@ Vue.config.errorHandler = (err, vm, info) => {
 };
 ```
 
-> 这是 uni-app(Vue) 对应 Taro(React) 错误边界的做法。对比见 [常见问题 · 组件内错误](/guide/faq#组件内错误)。
+> 这是 uni-app(Vue) 对应 Taro(React) 错误边界的做法。对比见 [常见问题 · 组件内错误](/guide/faq#component-errors)。
 
 ## 4. 分端接入（同时要 H5）
 

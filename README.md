@@ -19,18 +19,16 @@
 
 > **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
-完整版本历史见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
-
 ---
 
-## ✨ 你可以用它解决什么
+## ✨ 它适合解决哪些问题
 
-- **异常自动捕获**：全局异常、Promise rejection、页面异常、内存告警开箱即采。
-- **排查上下文**：设备信息、页面生命周期、点击 / 触摸、网络请求会作为面包屑随错误一起上报。
-- **性能与链路追踪**：采集启动、页面渲染、资源加载和 API 请求耗时；请求可作为 `http.client` span 串联后端链路。
-- **Source Map 友好**：把不同平台的虚拟堆栈路径统一为 `app:///`，兼容 Debug ID，并支持用 `stackParser` 适配特殊运行时。
-- **弱网与合规场景**：断网或发送失败会本地缓存并重试；`requireConsent` 可在用户同意前只写缓冲、不发网络。
-- **小游戏专属能力**：微信 / 抖音小游戏可采集冷启动首帧、FPS 和 jank。
+- **异常自动捕获**：自动捕获全局异常、Promise rejection、页面异常和内存告警，把问题送进 Sentry Issues，而不是只停留在用户反馈里。
+- **排查上下文**：记录设备信息、页面生命周期、点击 / 触摸和网络请求面包屑，帮助还原用户出错前做了什么。
+- **性能与链路追踪**：采集启动、页面渲染、资源加载和 API 请求耗时；开启 tracing 后，请求可作为 `http.client` span 串联后端链路。
+- **Source Map 友好**：统一多平台虚拟堆栈路径为 `app:///`，配合 Source Map / Debug ID 还原源码位置；特殊运行时可用 `stackParser` 适配。
+- **弱网与合规场景**：上报失败会先进本地离线队列，网络恢复后自动重试；开启 `requireConsent` 后，事件只写入本地缓冲，不向 Sentry 发起请求，用户同意后再调用 `Sentry.setConsent(true)` 补发。
+- **小游戏专属能力**：微信 / 抖音小游戏可采集冷启动首帧、FPS 和 jank，便于定位卡顿和首帧慢问题。
 - **熟悉的 Sentry API**：支持 `captureException`、`setUser`、`addBreadcrumb`、`startSpan`、`captureFeedback`、`Sentry.logger.*` 等常用能力。
 
 ---
@@ -39,7 +37,7 @@
 
 **接入前确认**：
 
-- 已有 Sentry 项目（官方 SaaS 或私有化部署均可）。
+- 已有可用的 Sentry 服务（Sentry SaaS 或自托管实例均可），并在 Sentry 中创建好项目、复制该项目的 DSN。
 - 小程序后台已把 Sentry 上报域名加入 `request` 合法域名。
 
 安装：
@@ -50,13 +48,13 @@ npm install sentry-miniapp
 
 > 不使用 npm 时，也可直接将 `examples/wxapp/lib/sentry-miniapp.js` 复制到小程序项目中引入。
 
-### 🤖 使用 Codex 辅助接入
+### 🤖 AI Coding Agent 辅助接入
 
-在 [Codex](https://openai.com/codex/) 中打开你的小程序项目后，可以直接说：
+如果你使用支持读取仓库上下文的 AI Coding Agent，可以让它先读取本仓库的 `AGENTS.md` 和 `.agents/skills/sentry-miniapp-sdk/`，然后直接说：
 
 > 帮我接入 sentry-miniapp，先识别平台和框架，再完成初始化并给出验证步骤。
 
-Codex 会按 `sentry-miniapp-sdk` skill 检查原生小程序 / Taro / uni-app、入口文件位置、初始化顺序和生产配置注意事项。
+这样 Agent 会按仓库约定检查原生小程序 / Taro / uni-app、入口文件位置、初始化顺序和生产配置注意事项。
 
 在入口文件（`app.js` / `app.ts`）**最顶部、`App()` 之前**初始化：
 
@@ -82,12 +80,7 @@ Sentry.captureException(new Error('sentry test'));
 
 然后到 Sentry 的 Issues 列表查看事件。
 
-先排查这些常见问题：
-
-- `Sentry.init` 必须在 `App()` 之前执行，放进 `App.onLaunch` 会丢失部分启动阶段能力。
-- 默认集成已包含异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控，通常无需手动传 `integrations`。
-- `addBreadcrumb` 不会单独上报，只随下一次事件一起发送；只调它而不捕获事件，后台会一直没有数据。
-- `release` 要和 Source Map 上传时的 release 完全一致，否则源码堆栈无法还原。
+没看到事件时，优先确认 DSN、合法域名、初始化位置和采样配置；完整排查清单见 [文档站 · 快速接入](https://sentry-miniapp.pages.dev/guide/getting-started) 与 [FAQ](https://sentry-miniapp.pages.dev/guide/faq#no-events)。
 
 ---
 
@@ -136,17 +129,19 @@ Sentry.setConsent(true);
 | 确认各平台、小程序 / 小游戏能力差异 | [支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms) |
 | 关心主包体积 | [主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 | 看可运行示例 | [示例工程](https://sentry-miniapp.pages.dev/guide/examples) |
+| 查看版本历史与每次发布内容 | [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) |
 | 参与开发或贡献 | [开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [贡献指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
 
 ---
 
 ## ❓ 常见问题
 
-- **必须在 `onError` 里手动上报吗？** 不用，`init` 会自动挂全局错误监听。
-- **网络请求会随错误上报吗？** 会，默认开启，记成 `category: xhr` 面包屑随错误一起发。
-- **uni-app（Vue）组件内错误上报率很低？** Vue 吞掉了组件错误，需接 `app.config.errorHandler`；Taro（React）用错误边界。
-- **支持 Session Replay 吗？** 不支持（小程序无 DOM），用面包屑还原现场。
-- **H5 端怎么办？** 用官方 `@sentry/browser`，按端条件编译引入。
+- **初始化后 Sentry 里没有事件？** 先用 `captureException` 主动发一个测试事件，再检查 DSN、`request` 合法域名、`Sentry.init` 是否在 `App()` 前执行、`sampleRate` 是否过低，以及是否只调用了 `addBreadcrumb`。面包屑不会单独上报，只会随下一次事件发送。
+- **必须在 `onError` 里手动上报吗？** 不用。`Sentry.init` 会注册平台全局错误监听；前提是它在 `App()` 前执行。若初始化太晚，启动阶段生命周期、Session 和部分面包屑会降级。
+- **网络请求会随错误上报吗？** 会。默认记录 `url`、`method`、状态码、耗时等摘要，并作为面包屑随事件上报；默认不记录请求 / 响应体，需要时再开启 `traceNetworkBody` 并做好脱敏。
+- **uni-app / Taro 组件错误为什么还要额外接？** 框架可能先接住组件错误，不一定冒泡到平台全局 `onError`。Vue 用 `app.config.errorHandler` / `Vue.config.errorHandler`，Taro React 建议加 Error Boundary。
+- **隐私协议同意前会发请求吗？** 默认会按 SDK 配置正常上报；如果业务要求同意前禁止出网，请开启 `requireConsent`，并在用户同意后调用 `Sentry.setConsent(true)`。
+- **支持 Session Replay 或 H5 端吗？** 小程序没有 DOM，暂不支持官方 Session Replay；H5 端请用官方 `@sentry/browser`，小程序端继续用 `sentry-miniapp`。
 
 > 每条的完整解答见 **[文档站 · 常见问题](https://sentry-miniapp.pages.dev/guide/faq)**。
 
@@ -154,7 +149,7 @@ Sentry.setConsent(true);
 
 ## 💬 联系与交流
 
-遇到问题？想探讨小程序监控方案？由于微信群二维码有 7 天时效，请添加作者微信（**备注 sentry-miniapp**），由作者邀请入群：
+遇到问题？想探讨小程序 / 小游戏监控方案？由于微信群二维码有 7 天时效，请添加作者微信（**备注 sentry-miniapp**），由作者邀请入群：
 
 <img src="https://raw.githubusercontent.com/lizhiyao/sentry-miniapp/master/docs/qrcode/zhiyao.jpeg" alt="作者微信二维码" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
 
