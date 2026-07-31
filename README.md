@@ -130,7 +130,7 @@ README 只保留结论，生产接入细节统一看官网：
 
 | 场景 | README 结论 | 详细文档 |
 |------|-------------|----------|
-| Source Map | `release` 需与上传时一致；SDK 默认归一化为 `app:///`，特殊堆栈可配 `stackParser` | [Source Map 完整配置指南](https://sentry-miniapp.pages.dev/guide/sourcemap) |
+| Source Map | `release` 需与上传时一致；SDK 默认归一化为 `app:///`，可用 `sentry-miniapp-sourcemap-doctor` 做本地体检 | [Source Map 完整配置指南](https://sentry-miniapp.pages.dev/guide/sourcemap) |
 | Taro / uni-app | 小程序端直接用 `sentry-miniapp`；H5 端用官方 `@sentry/browser` | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
 | 小游戏 | 初始化方式与小程序一致，小游戏环境会启用专属生命周期与帧率能力 | [支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms) |
 | 主包体积 | 关心主包体积时，用分包异步化 / 动态加载降低主包占用 | [主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size) |

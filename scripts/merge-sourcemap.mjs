@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  * 两层 Source Map 离线合成脚本（best-effort）
  * ===========================================
@@ -47,8 +49,14 @@
  * `--url-prefix "app:///"` 不变）。
  */
 
-import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
+import {
+  collectBuildMaps,
+  normalizeName,
+  pickBuildMapCandidate,
+  readJsonFile,
+} from './sourcemap-utils.mjs';
 
 // ---- 极简参数解析（不引第三方）----
 function parseArgs(argv) {
@@ -61,8 +69,7 @@ function parseArgs(argv) {
     else if (a === '--strip') {
       const v = argv[++i];
       if (v !== undefined) out.strip.push(v); // 防止 --strip 作为末尾参数时 push 进 undefined
-    }
-    else if (a === '--verbose') out.verbose = true;
+    } else if (a === '--verbose') out.verbose = true;
     else if (a === '--help' || a === '-h') out.help = true;
   }
   return out;
@@ -90,7 +97,9 @@ try {
   const sm = await import('source-map');
   ({ SourceMapConsumer, SourceMapGenerator } = sm.default ?? sm);
 } catch {
-  console.error('✗ 缺少依赖 source-map，请先安装：\n    npm i -D source-map\n  （它只在用本脚本合成时需要，不是 SDK 运行时依赖）');
+  console.error(
+    '✗ 缺少依赖 source-map，请先安装：\n    npm i -D source-map\n  （它只在用本脚本合成时需要，不是 SDK 运行时依赖）',
+  );
   process.exit(1);
 }
 
@@ -99,81 +108,13 @@ const destroyConsumer = (c) => {
   if (c && typeof c.destroy === 'function') c.destroy();
 };
 
-// ---- 工具：把一个 source 名字归一成「裸文件名」用于匹配 ----
-function normalizeName(name, strip) {
-  let n = String(name).split('?')[0].split('#')[0].replace(/\\/g, '/'); // 去 query / hash，统一路径分隔符
-  for (const p of strip) {
-    const prefix = String(p).replace(/\\/g, '/');
-    if (n.startsWith(prefix)) n = n.slice(prefix.length);
-  }
-  while (n.startsWith('./') || n.startsWith('/')) {
-    n = n.startsWith('./') ? n.slice(2) : n.slice(1);
-  }
-  return n;
-}
-
-function addBuildMapCandidate(index, key, hit) {
-  if (!key) return;
-  const existing = index.get(key);
-  if (!existing) {
-    index.set(key, [hit]);
-    return;
-  }
-  if (!existing.some((item) => item.file === hit.file)) {
-    existing.push(hit);
-  }
-}
-
-function pickBuildMapCandidate(index, key) {
-  const hits = index.get(key);
-  if (!hits) return { hit: null, ambiguous: null };
-  if (hits.length === 1) return { hit: hits[0], ambiguous: null };
-  return { hit: null, ambiguous: hits };
-}
-
-// ---- 递归收集构建 map 目录下的所有 *.map，建索引 ----
-function collectBuildMaps(dir) {
-  const found = [];
-  const root = resolve(dir);
-  const walk = (d) => {
-    // withFileTypes 省去逐条 statSync；symlink 既不算 isDirectory 也不算 isFile，
-    // 自然跳过，顺带避免符号链接成环。
-    for (const entry of readdirSync(d, { withFileTypes: true })) {
-      const full = join(d, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.isFile() && entry.name.endsWith('.map')) found.push(full);
-    }
-  };
-  walk(root);
-
-  // 建多键索引：用「map 内部 file 字段」「相对 build-maps 根目录的产物路径」
-  // 和「文件名去掉 .map」三种 key 都指向它。前两者保证 pages/a/index.js 与
-  // pages/b/index.js 这类同名文件能精确匹配；basename 只作为最后兜底。
-  const index = new Map();
-  for (const file of found) {
-    let raw;
-    try {
-      raw = JSON.parse(readFileSync(file, 'utf8'));
-    } catch {
-      continue; // 不是合法 JSON map，跳过
-    }
-    const hit = { file, raw };
-    const keys = new Set();
-    if (raw.file) keys.add(normalizeName(raw.file, []));
-    keys.add(normalizeName(relative(root, file).replace(/\.map$/, ''), []));
-    keys.add(normalizeName(basename(file).replace(/\.map$/, ''), []));
-    for (const k of keys) {
-      addBuildMapCandidate(index, k, hit);
-    }
-  }
-  return { index, fileCount: found.length };
-}
-
 // ---- 主流程 ----
-const rawB = JSON.parse(readFileSync(resolve(args.wechat), 'utf8'));
+const rawB = readJsonFile(args.wechat);
 const bSources = Array.isArray(rawB.sources) ? rawB.sources : [];
 if (bSources.length === 0) {
-  console.error('✗ 外层 map 没有 sources 字段，无法合成。确认 --wechat 传的是微信线上 appservice.app.js 的 map。');
+  console.error(
+    '✗ 外层 map 没有 sources 字段，无法合成。确认 --wechat 传的是微信线上 appservice.app.js 的 map。',
+  );
   process.exit(1);
 }
 
@@ -234,7 +175,8 @@ if (ambiguous.length > 0) {
     for (const h of item.hits.slice(0, 5)) console.warn(`      - ${h.file}`);
     if (item.hits.length > 5) console.warn(`      …（候选共 ${item.hits.length} 个）`);
   }
-  if (ambiguous.length > 10) console.warn(`    …（共 ${ambiguous.length} 条，加 --verbose 看全部）`);
+  if (ambiguous.length > 10)
+    console.warn(`    …（共 ${ambiguous.length} 条，加 --verbose 看全部）`);
 }
 
 if (matched.length === 0) {
@@ -249,15 +191,22 @@ if (matched.length === 0) {
 }
 
 if (unmatched.length > 0) {
-  console.warn(`\n⚠ 有 ${unmatched.length} 个 source 没匹配上，这些位置会停在「编译产物 JS」、解不到源码：`);
+  console.warn(
+    `\n⚠ 有 ${unmatched.length} 个 source 没匹配上，这些位置会停在「编译产物 JS」、解不到源码：`,
+  );
   for (const s of unmatched.slice(0, 10)) console.warn(`    ${s}`);
-  if (unmatched.length > 10) console.warn(`    …（共 ${unmatched.length} 条，加 --verbose 看全部）`);
+  if (unmatched.length > 10)
+    console.warn(`    …（共 ${unmatched.length} 条，加 --verbose 看全部）`);
 }
 
 const outFile = resolve(args.out);
 mkdirSync(dirname(outFile), { recursive: true });
 writeFileSync(outFile, generator.toString(), 'utf8');
 console.log(`\n✓ 已写出合成 map：${outFile}`);
-console.log('  接着以 `app:///appservice.app.js` 的名字上传到 Sentry（--url-prefix "app:///" 不变）。');
+console.log(
+  '  接着以 `app:///appservice.app.js` 的名字上传到 Sentry（--url-prefix "app:///" 不变）。',
+);
 console.log('  注意：合成后精度是「两份 map 的较小值」，定位到行没问题，个别列号可能略糙。');
-console.log('  ⚠ 合成 map 内嵌源码（sourcesContent），仅用于上传 Sentry，别打进小程序包或公开发布，用完即删。');
+console.log(
+  '  ⚠ 合成 map 内嵌源码（sourcesContent），仅用于上传 Sentry，别打进小程序包或公开发布，用完即删。',
+);

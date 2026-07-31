@@ -10,6 +10,7 @@
 - [第四步：上传 Source Map](#第四步上传-source-map)
 - [第五步：CI/CD 自动化](#第五步cicd-自动化)
 - [第六步：验证 Source Map 是否生效](#第六步验证-source-map-是否生效)
+- [本地 Source Map Doctor](#本地-source-map-doctor)
 - [平台特殊说明](#平台特殊说明)
 - [Debug ID 与自定义 stackParser](#debug-id-与自定义-stackparser)
 - [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)
@@ -442,6 +443,84 @@ Page({
 4. 如果仍显示压缩代码，点击堆栈帧右侧的 **"Source Map Debug"** 按钮，Sentry 会告诉你匹配失败的原因
 
 > 📌 **先看堆栈帧的文件名**：若是 `app:///appservice.app.js`（真机合并大文件）而你只上传了分页 Source Map，再正确的 `release` / `--url-prefix` 也解不出——见 [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)。
+
+---
+
+## 本地 Source Map Doctor
+
+从 `1.17.0` 起，包内提供轻量 sourcemap 静态体检命令。它不会登录 Sentry、不会上传文件、不会修改产物，只检查本地 `.js` / `.map` 是否具备上传前的基本条件，并给出可复制到 issue 的诊断结果。
+
+业务项目可直接用 npm 包里的 bin：
+
+```bash
+npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+  --dist ./dist \
+  --release "my-miniapp@1.0.0"
+```
+
+在 sentry-miniapp 仓库内开发时，也可以用：
+
+```bash
+npm run sourcemap:doctor -- \
+  --dist ./dist \
+  --release "my-miniapp@1.0.0"
+```
+
+Doctor 会检查：
+
+- 构建目录是否存在 `.js` 和 `.map`
+- `.js` 的 `sourceMappingURL` 是否断链；如果是 `hidden-source-map` 且同名 `.map` 存在，会作为提示而不是错误
+- `.map` 是否为合法 JSON、是否包含 `sources` / `mappings`
+- `sourcesContent` 是否完整，避免上传后只能看到路径、看不到源码内容
+- artifact 名称按 `--url-prefix` 推导后是否符合 sentry-miniapp 默认的 `app:///`
+- 是否传入 `--release`，提醒它必须与 `Sentry.init({ release })` 完全一致
+
+默认会忽略 TypeScript 声明文件的 `.d.ts.map`，只检查需要上传到 Sentry 的运行时 JS Source Map。
+
+建议在 CI 上传前跑一遍：
+
+```bash
+npm run build
+npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+  --dist ./dist \
+  --release "$SENTRY_RELEASE" \
+  --strict
+```
+
+需要留档或贴 issue 时加 `--json`：
+
+```bash
+npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+  --dist ./dist \
+  --release "$SENTRY_RELEASE" \
+  --json
+```
+
+### 微信两层 Source Map 体检
+
+如果真机堆栈文件名是 `app:///appservice.app.js`，可以先让 doctor 判断外层微信 map 与框架构建 map 是否能对齐：
+
+```bash
+npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+  --wechat ./wechat/appservice.app.js.map \
+  --build-maps ./dist/dev/mp-weixin \
+  --strip webpack:// \
+  --release "$SENTRY_RELEASE"
+```
+
+这一步只诊断匹配情况：`matched / unmatched / ambiguous`。如果需要真正合成 `appservice.app.js -> 源码` 的最终 map，再运行 [`scripts/merge-sourcemap.mjs`](https://github.com/lizhiyao/sentry-miniapp/blob/master/scripts/merge-sourcemap.mjs)。
+
+`merge-sourcemap` 只在离线合成时需要 `source-map`，为了不增加 SDK 运行时依赖，npx 示例显式临时安装它：
+
+```bash
+npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
+  --wechat ./wechat/appservice.app.js.map \
+  --build-maps ./dist/dev/mp-weixin \
+  --out ./merged/appservice.app.js.map \
+  --strip webpack://
+```
+
+`doctor` 负责判断，`merge-sourcemap` 负责生成合成 map。两者复用同一套 source 名称归一化和构建 map 匹配逻辑，避免排查结果和实际合成行为不一致。
 
 ---
 

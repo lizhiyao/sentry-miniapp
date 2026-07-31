@@ -132,7 +132,7 @@ The README keeps only the decision-level summary. Production details live in the
 
 | Scenario | README Summary | Details |
 |----------|----------------|---------|
-| Source Map | `release` must match the upload; the SDK normalizes stacks to `app:///`; special stacks can use `stackParser` | [Source Map Configuration Guide](https://sentry-miniapp.pages.dev/guide/sourcemap) |
+| Source Map | `release` must match the upload; the SDK normalizes stacks to `app:///`; use `sentry-miniapp-sourcemap-doctor` for local checks | [Source Map Configuration Guide](https://sentry-miniapp.pages.dev/guide/sourcemap) |
 | Taro / uni-app | Use `sentry-miniapp` in mini program builds; use official `@sentry/browser` for H5 builds | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
 | Mini games | Initialization is the same; mini-game runtimes enable dedicated lifecycle and frame-rate integrations | [Platforms & Capabilities](https://sentry-miniapp.pages.dev/guide/platforms) |
 | Bundle size | If main-package size matters, use subpackage async loading / dynamic loading | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
