@@ -11,9 +11,9 @@
 
 简体中文 | [English](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/README.en.md)
 
-`sentry-miniapp` 是给**小程序端**使用的 Sentry SDK：在没有浏览器 `window` / `fetch` / `XMLHttpRequest` 的运行时里，用各平台的小程序 API 完成异常捕获、事件上报、性能追踪、网络面包屑、离线重试和 Source Map 路径归一化。
+一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
-它支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，也可用于 Taro / uni-app 的小程序构建。如果你的目标是 H5 页面，请使用官方 `@sentry/browser`；如果目标是小程序或小游戏，用本 SDK。
+小程序运行时没有浏览器 `window` / `fetch` / `XMLHttpRequest`，本 SDK 会使用各平台的小程序 API 完成事件上报与自动捕获。如果你的目标是 H5 页面，请使用官方 `@sentry/browser`；如果目标是小程序或小游戏，用本 SDK。
 
 > **📖 接入细节与生产配置**：[sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) —— 快速接入、框架指南、配置项、Source Map、FAQ、示例工程都在文档站。
 

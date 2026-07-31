@@ -11,9 +11,9 @@
 
 [简体中文](../README.md) | English
 
-`sentry-miniapp` is a Sentry SDK for **mini program runtimes**. These runtimes do not provide browser APIs like `window`, `fetch`, or `XMLHttpRequest`, so this SDK uses each platform's native mini program APIs to capture errors, send events, trace performance, record network breadcrumbs, retry offline events, and normalize stack paths for Source Maps.
+A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 
-It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds. For H5/web builds, use the official `@sentry/browser`; for mini programs or mini games, use this SDK.
+Mini program runtimes do not provide browser APIs like `window`, `fetch`, or `XMLHttpRequest`, so this SDK uses each platform's native mini program APIs for event delivery and automatic capture. For H5/web builds, use the official `@sentry/browser`; for mini programs or mini games, use this SDK.
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western stack — think of them as a hybrid of PWAs and native apps, hosted within a platform's sandbox.
 
