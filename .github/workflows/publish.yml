@@ -1,4 +1,4 @@
-name: CD - Publish to NPM
+name: CD - Publish
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # 发布成功后创建 / 更新 GitHub Release
       id-token: write # 这使得工作流能够通过 OIDC 从 GitHub 获取凭证
 
     steps:
@@ -49,6 +49,25 @@ jobs:
       run: yarn run build
 
     - name: Publish to NPM
-      run: npm publish --access public --provenance
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        TAG_NAME: ${{ github.ref_name }}
+      run: |
+        VERSION="${TAG_NAME#v}"
+        PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+        if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+          echo "package.json version ($PACKAGE_VERSION) does not match tag ($TAG_NAME)"
+          exit 1
+        fi
+
+        if npm view "sentry-miniapp@$VERSION" version >/dev/null 2>&1; then
+          echo "sentry-miniapp@$VERSION is already published; skipping npm publish."
+        else
+          npm publish --access public --provenance
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v3
+      with:
+        generate_release_notes: true

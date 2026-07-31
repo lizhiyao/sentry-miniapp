@@ -11,32 +11,40 @@
 
 [简体中文](../README.md) | English
 
-A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou mini programs, **WeChat / Douyin mini games**, and cross-platform frameworks (Taro / uni-app).
+A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
+
+Mini program runtimes do not provide browser APIs like `window`, `fetch`, or `XMLHttpRequest`, so this SDK uses each platform's native mini program APIs for event delivery and automatic capture. For H5/web builds, use the official `@sentry/browser`; for mini programs or mini games, use this SDK.
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western stack — think of them as a hybrid of PWAs and native apps, hosted within a platform's sandbox.
 
-> **📖 Full docs live on the documentation site**: [sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) — getting started, capability matrix, per-framework setup, FAQ, Source Map config, and examples, with nav and search (Chinese for now). This README is a quick overview and entry point.
+> **📖 Setup details and production configuration**: [sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) — getting started, framework guides, configuration, Source Maps, FAQ, and examples live on the docs site (Chinese for now).
 
 > **📰 Featured Article (Chinese)**: [《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — How sentry-miniapp got listed in Sentry's official community-supported SDKs documentation. If you find this project useful, please consider giving it a ⭐ Star.
 
-See [CHANGELOG.md](https://github.com/lizhiyao/sentry-miniapp/blob/master/CHANGELOG.md) for version history.
+See [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) for version history.
 
 ---
 
-## ✨ Core Features
+## ✨ What It Helps With
 
-- **🚀 Modern SDK Core**: Built on the latest Sentry JavaScript V10 SDK core modules.
-- **📱 Multi-Platform & Framework Support**: One API for WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou, plus Taro / uni-app mini program builds.
-- **🎯 Automatic Capture & Context**: Captures global errors, Promise rejections, page errors, and memory warnings; records device, interaction, network, and page lifecycle breadcrumbs.
-- **⚡ Performance, Tracing & Logs**: Tracks navigation / rendering / resource / custom spans; reports API requests as `http.client` spans; supports standalone `Sentry.logger.*` logs.
-- **🗺️ Source Map & Stack Trace Resolution**: Unifies virtual stack paths across platforms, supports Debug ID injection, and allows custom `stackParser` logic for private runtimes or special stack formats.
-- **📡 Reliable Delivery & Consent Gate**: Caches failed sends locally and retries on reconnect; `requireConsent` buffers locally before user consent and sends nothing outbound.
-- **🎮 Mini Game Capabilities**: Auto-detects WeChat / Douyin mini games and adds cold-start first-frame timing plus FPS / jank monitoring.
-- **🛡️ Noise Reduction & Filtering**: Built-in deduplication, sample rates, and before-send hooks to prevent log storms.
+- **Automatic error capture**: Global errors, Promise rejections, page errors, and memory warnings.
+- **Useful debugging context**: Device info, page lifecycle, taps/touches, and network requests are recorded as breadcrumbs and sent with errors.
+- **Performance and tracing**: Startup, page rendering, resource loading, and API requests; requests can be reported as `http.client` spans for backend trace correlation.
+- **Source Map friendly stacks**: Platform-specific virtual paths are normalized to `app:///`, with Debug ID support and custom `stackParser` support for unusual runtimes.
+- **Weak-network and privacy flows**: Offline or failed sends are cached and retried; `requireConsent` can buffer events before user consent without sending network requests.
+- **Mini game support**: WeChat / Douyin mini games can report first frame, FPS, and jank.
+- **Familiar Sentry APIs**: `captureException`, `setUser`, `addBreadcrumb`, `startSpan`, `captureFeedback`, `Sentry.logger.*`, and more.
 
 ---
 
-## 📦 Installation
+## 🚀 Get It Working In 5 Minutes
+
+Before you start:
+
+- Create a Sentry project (SaaS or self-hosted).
+- Add your Sentry endpoint domain to the `request` trusted-domain list in your mini program console.
+
+Install:
 
 ```bash
 npm install sentry-miniapp
@@ -44,21 +52,13 @@ npm install sentry-miniapp
 
 > Not using npm? Copy `examples/wxapp/lib/sentry-miniapp.js` from this repo directly into your project.
 
-### 🤖 AI-Assisted Setup
+### 🤖 Use Codex For Guided Setup
 
-With [Claude Code](https://claude.ai/code) or [Cursor](https://cursor.com), get AI-guided setup:
+Open your mini program project in [Codex](https://openai.com/codex/) and ask:
 
-```bash
-npx skills add https://github.com/lizhiyao/sentry-miniapp --skill sentry-miniapp-sdk
-```
+> Help me set up sentry-miniapp. Detect the platform and framework first, then update the entry file and give me verification steps.
 
-Then just ask "help me set up Sentry monitoring" in your AI editor.
-
----
-
-## 🚀 Quick Start
-
-**Prerequisites**: ① a Sentry account ([SaaS](https://sentry.io/) or self-hosted); ② add your Sentry endpoint domain to the `request` trusted-domain list in your mini program console.
+Codex can use the `sentry-miniapp-sdk` skill to check native mini program / Taro / uni-app setup, entry-file placement, initialization order, and production configuration notes.
 
 Initialize at the **top** of your entry file (`app.js` / `app.ts`), **before** `App()`:
 
@@ -66,7 +66,7 @@ Initialize at the **top** of your entry file (`app.js` / `app.ts`), **before** `
 import * as Sentry from 'sentry-miniapp';
 
 Sentry.init({
-  dsn: 'https://<key>@sentry.io/<project>',
+  dsn: 'https://<key>@<org>.ingest.sentry.io/<project>',
   release: 'my-project@1.0.0', // match the release you upload Source Maps with
   environment: 'production',
   sampleRate: 1.0, // error sample rate
@@ -76,19 +76,20 @@ Sentry.init({
 App({ onLaunch() {} });
 ```
 
-Integration notes:
-
-- `Sentry.init` must run before `App()`; putting it in `App.onLaunch` degrades startup instrumentation.
-- Default integrations already include exception capture, performance monitoring, Source Map path normalization, network breadcrumbs, session, and network status monitoring. You usually don't need to pass `integrations`.
-- Full options are on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
-
-**Verify it works** — capture an event and check the Sentry "Issues" list:
+Verify it works:
 
 ```javascript
 Sentry.captureException(new Error('sentry test'));
 ```
 
-> ⚠️ `addBreadcrumb` is not reported on its own — it only ships with the next event. Calling it without capturing an event leaves your dashboard empty.
+Then check the Sentry Issues list.
+
+If nothing shows up, check these first:
+
+- `Sentry.init` must run before `App()`; putting it in `App.onLaunch` degrades startup instrumentation.
+- Default integrations already include exception capture, performance monitoring, Source Map path normalization, network breadcrumbs, session, and network status monitoring. You usually don't need to pass `integrations`.
+- `addBreadcrumb` is not reported on its own. It only ships with the next captured event.
+- `release` must exactly match the release used for Source Map upload, otherwise source stack traces cannot be resolved.
 
 ---
 
@@ -122,24 +123,26 @@ console.log(Sentry.getDiagnostics());
 Sentry.setConsent(true);
 ```
 
-Advanced options such as sampling, Logs, diagnostics, privacy consent, and `traceparent` propagation live on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
+---
+
+## 🧭 Where To Go Next
+
+After the first event is working, pick the guide based on what you are doing next:
+
+| I want to... | Read this |
+|--------------|-----------|
+| Follow the full native mini program setup | [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started) |
+| Integrate Taro / uni-app, especially component errors | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
+| Configure Source Maps, Debug IDs, or unresolved stacks | [Source Map Configuration](https://sentry-miniapp.pages.dev/guide/sourcemap) |
+| Configure sampling, Logs, privacy consent, `traceparent`, or custom transport | [Configuration Reference](https://sentry-miniapp.pages.dev/guide/configuration) |
+| Check platform, mini program, and mini game capability differences | [Platforms & Capabilities](https://sentry-miniapp.pages.dev/guide/platforms) |
+| Reduce main-package size | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
+| See runnable examples | [Examples](https://sentry-miniapp.pages.dev/guide/examples) |
+| Contribute to the project | [Development Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [Contributing Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
 
 ---
 
-## 🧭 Production Setup Pointers
-
-The README keeps only the decision-level summary. Production details live in the docs:
-
-| Scenario | README Summary | Details |
-|----------|----------------|---------|
-| Source Map | `release` must match the upload; the SDK normalizes stacks to `app:///`; use `sentry-miniapp-sourcemap-doctor` for local checks | [Source Map Configuration Guide](https://sentry-miniapp.pages.dev/guide/sourcemap) |
-| Taro / uni-app | Use `sentry-miniapp` in mini program builds; use official `@sentry/browser` for H5 builds | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
-| Mini games | Initialization is the same; mini-game runtimes enable dedicated lifecycle and frame-rate integrations | [Platforms & Capabilities](https://sentry-miniapp.pages.dev/guide/platforms) |
-| Bundle size | If main-package size matters, use subpackage async loading / dynamic loading | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
-
----
-
-## ❓ FAQ (quick reference)
+## ❓ FAQ
 
 - **Must I report manually in `onError`?** No — `init` hooks the global error listeners automatically.
 - **Are network requests included with errors?** Yes, on by default — recorded as `category: xhr` breadcrumbs shipped with the error.
@@ -148,19 +151,6 @@ The README keeps only the decision-level summary. Production details live in the
 - **H5 build?** Use official `@sentry/browser`, branched via conditional compilation.
 
 > Full answers on the **[docs site · FAQ](https://sentry-miniapp.pages.dev/guide/faq)**.
-
----
-
-## 📖 Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Documentation site](https://sentry-miniapp.pages.dev/) | Getting started / capability matrix / FAQ / Source Map / examples (recommended, with search) |
-| [Taro guide](https://sentry-miniapp.pages.dev/guide/taro) · [uni-app guide](https://sentry-miniapp.pages.dev/guide/uniapp) | Cross-platform framework setup & component error handling |
-| [Source Map Configuration Guide](https://sentry-miniapp.pages.dev/guide/sourcemap) | End-to-end setup, build tools, CI/CD, verification |
-| [Multi-Platform Compatibility Report](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/MultiPlatformCompatibilityReport.md) | Platform API differences |
-| [Examples](https://sentry-miniapp.pages.dev/guide/examples) | wxapp (native) / taro (React) / uniapp (Vue) runnable examples |
-| [Development Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) · [Contributing Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) | Local dev, debugging & contributing |
 
 ---
 
