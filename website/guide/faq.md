@@ -16,6 +16,12 @@
 
 如果错误里没有网络面包屑，多半是：① 错误触发前没发过请求；② `Sentry.init` 晚于请求执行（务必在请求之前 init）。
 
+## `Sentry.logger.*` 和 console 面包屑有什么区别？
+
+`Sentry.logger.*` 会发送独立的 log envelope，适合业务日志查询、聚合、告警和跨事件分析；需要在初始化时开启 `enableLogs: true`。
+
+`enableConsoleBreadcrumbs` 只会把 `console.log/warn/error` 记录成面包屑，随**下一次 error / message / transaction 事件**一起发送；如果后续没有事件，它不会单独出现在 Sentry。
+
 ## 组件内错误 {#组件内错误}
 
 ### uni-app（Vue）组件内的错误没上报 / 上报率很低？

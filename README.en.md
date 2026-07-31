@@ -20,18 +20,15 @@ A **mini program monitoring SDK** built on `@sentry/core`, providing **error mon
 > **📰 Featured Article (Chinese)**: [《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — How sentry-miniapp got listed in Sentry's official community-supported SDKs documentation. If you find this project useful, please consider giving it a ⭐ Star.
 
 <details>
-<summary><b>🆕 What's New: v1.3 → v1.11 (click to expand)</b></summary>
+<summary><b>🆕 Current Highlights: v1.11 → v1.16 (click to expand)</b></summary>
 
 | Version | Highlights |
 |---|---|
-| **v1.11** | Mini-game performance data reported as **independent transactions** (Sentry Performance page); API requests reported as `http.client` spans; launched the [documentation site](https://sentry-miniapp.pages.dev/), added Taro / uni-app examples and a [two-layer Source Map merge script](./scripts/merge-sourcemap.mjs) |
-| **v1.10** | 🎮 **Mini game support**: auto-detects mini-game environments; adds cold-start first-frame timing and frame-rate / jank (FPS) monitoring |
-| **v1.8.0** | AI-assisted integration skill — auto onboarding via Claude Code / Cursor |
-| **v1.7.0** | New `tracesSampler` for dynamic sampling; complete Source Map configuration guide |
-| **v1.6.0** | 13 enhancements + 16 fixes; build output minification — bundle size reduced by ~**59%** |
-| **v1.5.0** | Performance enhancements (configurable thresholds / slow `setData` detection / memory sampling); new page lifecycle, user interaction, and Console breadcrumbs |
-| **v1.4.0** | `NetworkBreadcrumbs` captures Request / Response body; configurable offline cache limit |
-| **v1.3.0** | 🎯 Build pipeline rewrite (Vite + bundle-inline): **zero external deps**, resolves the `miniprogram_npm` module-resolution issue; built-in Source Map path normalization |
+| **v1.16.0** | Source Map Debug ID support for mini-game globals outside `globalThis`; public `stackParser` option for private runtimes or special stack formats |
+| **v1.15.0** | `Sentry.logger.*` support for sending business logs as standalone Sentry Logs |
+| **v1.14.0** | Optional W3C `traceparent` propagation; improved mini-game / Cocos Source Map compatibility |
+| **v1.13.0** | `requireConsent` / `setConsent` privacy gate: collect into local buffers before consent, flush after consent |
+| **v1.11.x** | Mini-game performance data as independent transactions; docs site, Taro / uni-app examples, and two-layer Source Map merge script |
 
 See [CHANGELOG.md](./CHANGELOG.md) for full details.
 
@@ -50,6 +47,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for full details.
 - **📡 Offline Caching for Weak Networks**: Caches events to local storage on failure, silently retries when connectivity returns.
 - **⚡ Deep Performance Monitoring**: Navigation timing (FCP/LCP), render performance, resource loading, and custom marks.
 - **🔗 Distributed Tracing**: Injects `sentry-trace` / `baggage` headers, can optionally add W3C `traceparent`, and reports API timing as `http.client` spans, connecting mini program and backend call chains.
+- **🪵 Sentry Logs**: Send business logs through `Sentry.logger.*` as standalone log envelopes, separate from console breadcrumbs attached to events.
+- **🔒 Privacy Consent Gate**: `requireConsent` buffers collected events locally before user consent, then flushes them after `setConsent(true)`.
 - **📊 Session Health** & **📶 Network Status Monitoring**: Session lifecycle management + real-time network change tracking (WiFi/4G/offline).
 - **🛡️ Smart Deduplication & Filtering**: Built-in dedup and sample rate controls to prevent log storms.
 

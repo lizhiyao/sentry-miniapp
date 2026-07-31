@@ -18,18 +18,15 @@
 > **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
 <details>
-<summary><b>🆕 v1.3 → v1.11 What's New（点击展开）</b></summary>
+<summary><b>🆕 当前版本亮点（v1.11 → v1.16，点击展开）</b></summary>
 
 | 版本 | 亮点 |
 |---|---|
-| **v1.11** | 小游戏性能数据**独立上报为 transaction**（进 Sentry Performance 页）；API 请求上报为 `http.client` span；上线[文档站](https://sentry-miniapp.pages.dev/)、新增 Taro / uni-app 集成示例与[两层 Source Map 离线合成脚本](./scripts/merge-sourcemap.mjs) |
-| **v1.10** | 🎮 **小游戏支持**：自动识别小游戏环境，新增冷启动首帧耗时、帧率 / 卡顿（FPS / jank）监控 |
-| **v1.8.0** | AI 辅助接入 skill — Claude Code / Cursor 自动引导集成 |
-| **v1.7.0** | 新增 `tracesSampler` 动态采样；新增 Source Map 完整配置指南 |
-| **v1.6.0** | 13 项功能优化 + 16 项问题修复；构建产物压缩，包体积减少约 **59%** |
-| **v1.5.0** | Performance 增强（可配阈值 / setData 慢渲染检测 / 内存采集）；新增页面生命周期、用户交互、Console 三类 Breadcrumb |
-| **v1.4.0** | NetworkBreadcrumbs 抓 Request / Response Body；离线缓存上限可配 |
-| **v1.3.0** | 🎯 重构构建（Vite + bundle-inline）：对外**零依赖**，修掉 `miniprogram_npm` 模块解析问题；内置 Source Map 路径自动抹平 |
+| **v1.16.0** | Source Map Debug ID 兼容小游戏非 `globalThis` 注入；开放 `stackParser` 高级配置，适配私有引擎或特殊堆栈格式 |
+| **v1.15.0** | 支持 `Sentry.logger.*`，可将业务日志作为 Sentry Logs 独立上报 |
+| **v1.14.0** | 分布式追踪可选追加 W3C `traceparent`；优化小游戏 / Cocos Source Map 兼容 |
+| **v1.13.0** | 新增 `requireConsent` / `setConsent` 隐私合规门禁，同意前只采集入缓冲、不发网络 |
+| **v1.11.x** | 小游戏性能数据独立上报为 transaction；上线文档站、Taro / uni-app 示例与两层 Source Map 合成脚本 |
 
 完整变更见 [CHANGELOG.md](./CHANGELOG.md)。
 
@@ -48,6 +45,8 @@
 - **📡 弱网离线缓存**：断网或发送失败时自动缓存事件到本地 Storage，网络恢复后静默重试，确保数据不丢失。
 - **⚡ 深度性能监控**：采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及自定义性能标记。
 - **🔗 分布式追踪**：自动注入 `sentry-trace` / `baggage` 头，可选追加 W3C `traceparent`，并将 API 请求耗时上报为 `http.client` span，串联小程序与后端调用链。
+- **🪵 Sentry Logs**：通过 `Sentry.logger.*` 将业务日志作为独立 log envelope 上报，区别于随事件发送的 console 面包屑。
+- **🔒 隐私合规门禁**：`requireConsent` 支持用户同意前只采集入本地缓冲、同意后再补发，适配国内小程序隐私流程。
 - **📊 Session 健康监控** 与 **📶 网络状态监控**：会话生命周期管理 + 实时网络变化追踪（WiFi/4G/离线）。
 - **🛡️ 智能降噪**：内置错误去重与采样率控制，避免日志风暴。
 
