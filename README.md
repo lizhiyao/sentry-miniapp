@@ -17,20 +17,7 @@
 
 > **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
 
-<details>
-<summary><b>🆕 当前版本亮点（v1.11 → v1.16，点击展开）</b></summary>
-
-| 版本 | 亮点 |
-|---|---|
-| **v1.16.0** | Source Map Debug ID 兼容小游戏非 `globalThis` 注入；开放 `stackParser` 高级配置，适配私有引擎或特殊堆栈格式 |
-| **v1.15.0** | 支持 `Sentry.logger.*`，可将业务日志作为 Sentry Logs 独立上报 |
-| **v1.14.0** | 分布式追踪可选追加 W3C `traceparent`；优化小游戏 / Cocos Source Map 兼容 |
-| **v1.13.0** | 新增 `requireConsent` / `setConsent` 隐私合规门禁，同意前只采集入缓冲、不发网络 |
-| **v1.11.x** | 小游戏性能数据独立上报为 transaction；上线文档站、Taro / uni-app 示例与两层 Source Map 合成脚本 |
-
-完整变更见 [CHANGELOG.md](./CHANGELOG.md)。
-
-</details>
+完整版本历史见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ---
 
@@ -41,7 +28,7 @@
 - **🎮 小游戏支持**：自动识别小游戏环境，异常 / 网络 / 设备监控开箱即用，并提供小游戏专属的**冷启动首帧耗时**与**帧率 / 卡顿监控**。
 - **🎯 全自动异常捕获**：无需侵入业务代码，自动监听并上报生命周期异常（`onError`、`onUnhandledRejection`、`onPageNotFound`、`onMemoryWarning`）。
 - **🍞 丰富的上下文面包屑**：自动记录设备信息、用户点击 / 触摸、网络请求（XHR）以及页面生命周期。
-- **🗺️ 内置 SourceMap 路径抹平**：自动统一多端虚拟堆栈路径，配合 sentry-cli 极简实现 Source Map 解析。
+- **🗺️ Source Map 与堆栈还原**：自动统一多端虚拟堆栈路径，兼容 Debug ID 注入，并可通过 `stackParser` 适配私有引擎或特殊堆栈格式。
 - **📡 弱网离线缓存**：断网或发送失败时自动缓存事件到本地 Storage，网络恢复后静默重试，确保数据不丢失。
 - **⚡ 深度性能监控**：采集导航性能（FCP/LCP）、渲染性能、资源加载耗时及自定义性能标记。
 - **🔗 分布式追踪**：自动注入 `sentry-trace` / `baggage` 头，可选追加 W3C `traceparent`，并将 API 请求耗时上报为 `http.client` span，串联小程序与后端调用链。

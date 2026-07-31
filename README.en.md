@@ -19,20 +19,7 @@ A **mini program monitoring SDK** built on `@sentry/core`, providing **error mon
 
 > **📰 Featured Article (Chinese)**: [《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — How sentry-miniapp got listed in Sentry's official community-supported SDKs documentation. If you find this project useful, please consider giving it a ⭐ Star.
 
-<details>
-<summary><b>🆕 Current Highlights: v1.11 → v1.16 (click to expand)</b></summary>
-
-| Version | Highlights |
-|---|---|
-| **v1.16.0** | Source Map Debug ID support for mini-game globals outside `globalThis`; public `stackParser` option for private runtimes or special stack formats |
-| **v1.15.0** | `Sentry.logger.*` support for sending business logs as standalone Sentry Logs |
-| **v1.14.0** | Optional W3C `traceparent` propagation; improved mini-game / Cocos Source Map compatibility |
-| **v1.13.0** | `requireConsent` / `setConsent` privacy gate: collect into local buffers before consent, flush after consent |
-| **v1.11.x** | Mini-game performance data as independent transactions; docs site, Taro / uni-app examples, and two-layer Source Map merge script |
-
-See [CHANGELOG.md](./CHANGELOG.md) for full details.
-
-</details>
+See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
 ---
 
@@ -43,7 +30,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for full details.
 - **🎮 Mini Game Support**: Auto-detects mini-game environments — error / network / device monitoring out of the box, plus mini-game-specific **cold-start first-frame timing** and **frame-rate / jank monitoring**.
 - **🎯 Automatic Exception Capture**: No business code intrusion. Hooks into lifecycle error listeners (`onError`, `onUnhandledRejection`, `onPageNotFound`, `onMemoryWarning`).
 - **🍞 Rich Context Breadcrumbs**: Auto-records device info, user tap/touch, network requests (XHR), and page lifecycle.
-- **🗺️ Built-in SourceMap Path Normalization**: Unifies virtual stack paths across platforms; works with sentry-cli for seamless resolution.
+- **🗺️ Source Map & Stack Trace Resolution**: Unifies virtual stack paths across platforms, supports Debug ID injection, and allows custom `stackParser` logic for private runtimes or special stack formats.
 - **📡 Offline Caching for Weak Networks**: Caches events to local storage on failure, silently retries when connectivity returns.
 - **⚡ Deep Performance Monitoring**: Navigation timing (FCP/LCP), render performance, resource loading, and custom marks.
 - **🔗 Distributed Tracing**: Injects `sentry-trace` / `baggage` headers, can optionally add W3C `traceparent`, and reports API timing as `http.client` spans, connecting mini program and backend call chains.
