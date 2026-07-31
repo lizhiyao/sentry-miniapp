@@ -10,6 +10,7 @@ import type {
   StackParser,
 } from '@sentry/core';
 import type { MiniappTransportOptions } from './transports';
+import type { AppName } from './crossPlatform';
 
 /**
  * 分级卡顿阈值（毫秒）。各档全 optional，可只启用其中一两档（如只给 major + severe）。
@@ -244,6 +245,87 @@ export interface MiniappOptions {
  */
 export interface MiniappClientOptions extends ClientOptions<MiniappTransportOptions> {
   options?: MiniappOptions;
+}
+
+/** `Sentry.getDiagnostics()` 返回的 DSN 摘要。不会暴露完整 DSN。 */
+export interface MiniappDiagnosticsDsn {
+  configured: boolean;
+  valid: boolean;
+  host: string | null;
+}
+
+/** `Sentry.getDiagnostics()` 返回的初始化配置摘要。 */
+export interface MiniappDiagnosticsOptions {
+  dsn: MiniappDiagnosticsDsn;
+  release: string | null;
+  environment: string | null;
+  debug: boolean;
+  sampleRate: number | null;
+  tracesSampleRate: number | null;
+  tracesSamplerConfigured: boolean;
+  enableLogs: boolean;
+  enableSourceMap: boolean;
+  enableOfflineCache: boolean;
+  requireConsent: boolean;
+  consentGranted: boolean;
+  enableTracePropagation: boolean;
+  tracePropagationTargetsCount: number;
+  propagateTraceparent: boolean;
+  enableAutoSessionTracking: boolean;
+  enableNetworkStatusMonitoring: boolean;
+  enableConsoleBreadcrumbs: boolean;
+  enableNavigationBreadcrumbs: boolean;
+  enableUserInteractionBreadcrumbs: boolean;
+  enableMinigameLifecycle: boolean;
+  enableMinigameFrameRate: boolean;
+  customTransport: boolean;
+  customStackParser: boolean;
+  defaultIntegrations: 'enabled' | 'disabled' | 'custom';
+}
+
+/** `Sentry.getDiagnostics()` 返回的 transport 摘要。 */
+export interface MiniappDiagnosticsTransport {
+  custom: boolean;
+  offlineCache: boolean;
+  consentGate: boolean;
+}
+
+/** `Sentry.getDiagnostics()` 识别出的潜在接入问题。 */
+export interface MiniappDiagnosticsWarning {
+  code:
+    | 'not_miniapp_environment'
+    | 'client_not_initialized'
+    | 'non_miniapp_client'
+    | 'missing_dsn'
+    | 'invalid_dsn'
+    | 'missing_release'
+    | 'tracing_disabled'
+    | 'source_map_disabled'
+    | 'consent_blocking';
+  message: string;
+}
+
+/** SDK 运行时诊断信息，便于用户复制到 issue 排查接入问题。 */
+export interface MiniappDiagnostics {
+  sdk: {
+    name: string;
+    version: string;
+  };
+  platform: {
+    name: AppName;
+    isMiniappEnvironment: boolean;
+    isMinigame: boolean;
+  };
+  client: {
+    initialized: boolean;
+    miniappClient: boolean;
+    enabled: boolean;
+  };
+  options: MiniappDiagnosticsOptions | null;
+  transport: MiniappDiagnosticsTransport | null;
+  integrations: string[];
+  warnings: MiniappDiagnosticsWarning[];
+  timestamp: number;
 }
 
 /**

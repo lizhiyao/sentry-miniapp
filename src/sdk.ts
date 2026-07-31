@@ -9,6 +9,7 @@ import {
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
 import { setConsentGranted, isConsentGranted } from './consent';
+export { getDiagnostics } from './diagnostics';
 
 import { MiniappClient } from './client';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';

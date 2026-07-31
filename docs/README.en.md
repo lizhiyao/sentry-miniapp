@@ -115,11 +115,14 @@ await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { 
 // User feedback: mini programs have no DOM, so submit from your own native form
 Sentry.captureFeedback({ message: 'The page is frozen', name: 'John Doe', email: 'john@example.com' });
 
+// Diagnostics: attach the output to issues when troubleshooting SDK setup
+console.log(Sentry.getDiagnostics());
+
 // Privacy consent: after init({ requireConsent: true }), flush buffered events once granted
 Sentry.setConsent(true);
 ```
 
-Advanced options such as sampling, Logs, privacy consent, and `traceparent` propagation live on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
+Advanced options such as sampling, Logs, diagnostics, privacy consent, and `traceparent` propagation live on the [docs site · Configuration](https://sentry-miniapp.pages.dev/guide/configuration).
 
 ---
 
