@@ -50,6 +50,14 @@ npm install sentry-miniapp
 
 > 不使用 npm 时，也可直接将 `examples/wxapp/lib/sentry-miniapp.js` 复制到小程序项目中引入。
 
+### 🤖 使用 Codex 辅助接入
+
+在 [Codex](https://openai.com/codex/) 中打开你的小程序项目后，可以直接说：
+
+> 帮我接入 sentry-miniapp，先识别平台和框架，再完成初始化并给出验证步骤。
+
+Codex 会按 `sentry-miniapp-sdk` skill 检查原生小程序 / Taro / uni-app、入口文件位置、初始化顺序和生产配置注意事项。
+
 在入口文件（`app.js` / `app.ts`）**最顶部、`App()` 之前**初始化：
 
 ```javascript
@@ -129,18 +137,6 @@ Sentry.setConsent(true);
 | 关心主包体积 | [主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 | 看可运行示例 | [示例工程](https://sentry-miniapp.pages.dev/guide/examples) |
 | 参与开发或贡献 | [开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [贡献指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
-
----
-
-## 🤖 AI 辅助接入
-
-使用 [Claude Code](https://claude.ai/code) 或 [Cursor](https://cursor.com) 时，可让 AI 自动引导接入：
-
-```bash
-npx skills add https://github.com/lizhiyao/sentry-miniapp --skill sentry-miniapp-sdk
-```
-
-安装后在 AI 编辑器中输入“帮我接入 Sentry 监控”即可触发向导。
 
 ---
 

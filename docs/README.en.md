@@ -52,6 +52,14 @@ npm install sentry-miniapp
 
 > Not using npm? Copy `examples/wxapp/lib/sentry-miniapp.js` from this repo directly into your project.
 
+### 🤖 Use Codex For Guided Setup
+
+Open your mini program project in [Codex](https://openai.com/codex/) and ask:
+
+> Help me set up sentry-miniapp. Detect the platform and framework first, then update the entry file and give me verification steps.
+
+Codex can use the `sentry-miniapp-sdk` skill to check native mini program / Taro / uni-app setup, entry-file placement, initialization order, and production configuration notes.
+
 Initialize at the **top** of your entry file (`app.js` / `app.ts`), **before** `App()`:
 
 ```javascript
@@ -131,18 +139,6 @@ After the first event is working, pick the guide based on what you are doing nex
 | Reduce main-package size | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 | See runnable examples | [Examples](https://sentry-miniapp.pages.dev/guide/examples) |
 | Contribute to the project | [Development Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [Contributing Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
-
----
-
-## 🤖 AI-Assisted Setup
-
-With [Claude Code](https://claude.ai/code) or [Cursor](https://cursor.com), get AI-guided setup:
-
-```bash
-npx skills add https://github.com/lizhiyao/sentry-miniapp --skill sentry-miniapp-sdk
-```
-
-Then just ask "help me set up Sentry monitoring" in your AI editor.
 
 ---
 
