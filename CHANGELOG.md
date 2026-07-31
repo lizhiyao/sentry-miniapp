@@ -1,6 +1,30 @@
 # 更新日志
 
 本文档记录了 sentry-miniapp 项目的所有重要变更。
+## [1.16.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.15.0...v1.16.0) (2026-07-31)
+
+
+### ✨ Features | 新功能
+
+* **sdk:** 开放自定义 stackParser 配置 ([ee2f2f0](https://github.com/lizhiyao/sentry-miniapp/commit/ee2f2f0f6159a68ede20994ac6f896a11ff7ea25))
+* **skill:** 支持跨 Agent 自动发现 ([#253](https://github.com/lizhiyao/sentry-miniapp/issues/253)) ([d82c16d](https://github.com/lizhiyao/sentry-miniapp/commit/d82c16d5af52f5f5188f01646c5156e2bd3f226b))
+
+
+### 🐛 Bug Fixes | 修复
+
+* **sourcemap:** 兼容小游戏 Debug ID 全局读取 ([c08fcb9](https://github.com/lizhiyao/sentry-miniapp/commit/c08fcb9858f2d6b3d2f9e1ff8dccfa53a2b4668c))
+* **stacktrace:** 保留 V8 匿名括号帧 ([54c670b](https://github.com/lizhiyao/sentry-miniapp/commit/54c670b7a6992bfc99fb22d2a81bfb9ee1e27f18))
+
+
+### 🎫 Chores | 其他更新
+
+* **examples:** 同步 Debug ID 重构构建产物 ([f449c45](https://github.com/lizhiyao/sentry-miniapp/commit/f449c45d6cf5e4dd4a758ee04a7b67771b85f41b))
+
+
+### ♻️ Code Refactoring | 代码重构
+
+* **sourcemap:** 拆分 Debug ID 全局同步职责 ([ba1f6f7](https://github.com/lizhiyao/sentry-miniapp/commit/ba1f6f79116ca04d197ff88b54d7f5209024764b))
+
 ## [1.15.0](https://github.com/lizhiyao/sentry-miniapp/compare/v1.14.1...v1.15.0) (2026-07-28)
 
 
