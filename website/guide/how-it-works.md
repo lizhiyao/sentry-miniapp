@@ -23,6 +23,8 @@ sentry-miniapp（init + 默认集成）
   ├─ 网络面包屑        包裹全局 request，记 url/method/状态码/耗时
   ├─ Source Map 归一化  把各平台虚拟路径重写为 app:///
   ├─ 性能 / 追踪        请求耗时记为 http.client span，注入 trace 头
+  ├─ Logs              Sentry.logger.* 独立上报业务日志
+  ├─ 合规门禁          requireConsent 下同意前只写本地缓冲、不发网络
   ├─ 离线缓存          发送失败写本地 Storage，恢复后重试
   └─ 平台 API 抹平层    wx / my / tt / dd / qq / swan / ks 差异统一
       │
@@ -49,9 +51,15 @@ sentry-miniapp（init + 默认集成）
 
 默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API，无需额外配置）。开启 `tracesSampleRate` 后，请求耗时还会作为 `http.client` span，并注入 `sentry-trace` / `baggage` 头串联后端；需要接入 OpenTelemetry / W3C Trace Context 时，可再开启 `propagateTraceparent` 追加 `traceparent` 头。
 
+### Logs 与合规门禁
+
+`Sentry.logger.*` 产生独立的 log envelope，用于业务日志查询、聚合和告警；`enableConsoleBreadcrumbs` 只会把 `console` 输出作为面包屑挂到下一次事件，两者用途不同。
+
+开启 `requireConsent` 后，SDK 仍会采集异常、面包屑、性能和日志，但在 `Sentry.setConsent(true)` 前不会发送任何 Sentry 网络请求，事件先进入本地缓冲；同意后再补发，并恢复正常上报。
+
 ### Source Map 路径归一化
 
-小程序错误栈里的文件路径是各平台虚拟路径（如微信 `appservice/pages/index.js`、抖音小游戏 `tt://main/index.js`、Cocos `chunks:///_virtual/runtime.js`）。`RewriteFrames` 集成在上报前把它们统一重写为 `app:///` 前缀，这样你只需用 `--url-prefix "app:///"` 上传一次 Source Map 就能匹配。**真机上微信可能把逻辑层合并成单个 `appservice.app.js`**，这是另一种情况——见 [Source Map 配置](/guide/sourcemap)。
+小程序错误栈里的文件路径是各平台虚拟路径（如微信 `appservice/pages/index.js`、抖音小游戏 `tt://main/index.js`、Cocos `chunks:///_virtual/runtime.js`）。`RewriteFrames` 集成在上报前把它们统一重写为 `app:///` 前缀，这样你只需用 `--url-prefix "app:///"` 上传一次 Source Map 就能匹配。SDK 还会兼容 Debug ID map 被注入到非 `globalThis` 全局对象的小游戏场景；私有引擎或特殊堆栈格式可通过 `stackParser` 覆盖默认解析器。**真机上微信可能把逻辑层合并成单个 `appservice.app.js`**，这是另一种情况——见 [Source Map 配置](/guide/sourcemap)。
 
 ### 弱网离线缓存
 

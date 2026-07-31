@@ -11,6 +11,7 @@
 - [第五步：CI/CD 自动化](#第五步cicd-自动化)
 - [第六步：验证 Source Map 是否生效](#第六步验证-source-map-是否生效)
 - [平台特殊说明](#平台特殊说明)
+- [Debug ID 与自定义 stackParser](#debug-id-与自定义-stackparser)
 - [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)
 - [安全注意事项](#安全注意事项)
 - [常见问题排查](#常见问题排查)
@@ -479,6 +480,31 @@ Page({
 ### 其他平台
 
 SDK 会自动剥离所有 `协议://` 格式的前缀，因此 QQ、钉钉、快手等平台的虚拟路径也能被正确处理。
+
+---
+
+## Debug ID 与自定义 stackParser
+
+从 `1.16.0` 起，SDK 会在事件进入 `@sentry/core` 准备流程前，同步当前运行时可见全局对象上的 `_sentryDebugIds` / `_debugIds`。这用于兼容微信小游戏等宿主里 Debug ID map 可能被注入到 `window` / `global` / `self`，而 core 默认只读取 `globalThis` 的情况。
+
+大多数项目无需配置：内置 `miniappStackParser` 已覆盖常见 V8 / Safari / JavaScriptCore 堆栈格式，以及小程序 / 小游戏常见路径形态。
+
+只有私有引擎、特殊打包器或非标准堆栈格式解析失败时，才需要传入自定义 `stackParser`：
+
+```js
+import * as Sentry from 'sentry-miniapp';
+
+Sentry.init({
+  dsn: 'https://examplePublicKey@o0.ingest.sentry.io/0',
+  release: 'my-miniapp@1.0.0',
+  stackParser: (stack, skipFirstLines, framesToPop) => {
+    // 返回 Sentry StackFrame[]，filename 需能对应真实产物文件名
+    return Sentry.miniappStackParser(stack, skipFirstLines, framesToPop);
+  },
+});
+```
+
+`stackParser` 不替代 Source Map 上传，也不放宽 `release` 匹配要求；它只影响 SDK / core 如何把运行时堆栈解析成帧，再和上传的 map 或 Debug ID 关联。
 
 ---
 
