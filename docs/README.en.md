@@ -23,7 +23,7 @@ Mini program runtimes do not provide browser APIs like `window`, `fetch`, or `XM
 
 ---
 
-## ✨ Problems It Helps Solve
+## ✨ Core Capabilities and Use Cases
 
 - **Automatic error capture**: Captures global errors, Promise rejections, page errors, and memory warnings automatically, then sends them to Sentry Issues instead of leaving them only in user feedback.
 - **Debugging context**: Records device info, page lifecycle, taps/touches, and network breadcrumbs to help reconstruct what happened before a user hit an error.
@@ -78,11 +78,19 @@ If nothing shows up, first check the DSN, trusted domain, initialization placeme
 
 ### 🤖 AI Coding Agent Setup
 
-If you use an AI coding agent that can read repository context, ask it to read this repo's `AGENTS.md` and `.agents/skills/sentry-miniapp-sdk/`, then say:
+When working inside the sentry-miniapp repository, agents that support repository Agent Skills can usually auto-discover `sentry-miniapp-sdk`.
 
-> Help me set up sentry-miniapp. Detect the platform and framework first, then update the entry file and give me verification steps.
+For your own mini program / mini game project, install the skill into the project's `.agents/skills/` directory so agents that support repository Agent Skills can auto-discover it:
 
-The agent can then follow the repo guidance to check native mini program / Taro / uni-app setup, entry-file placement, initialization order, and production configuration notes.
+```bash
+npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agents/skills/sentry-miniapp-sdk
+```
+
+Then say from your project:
+
+> Use the `sentry-miniapp-sdk` skill to set up sentry-miniapp: detect the platform and framework first, then update the entry file and give me verification steps.
+
+To reuse it across multiple projects, change the command's destination path to your agent's global skills directory. If your agent does not auto-load the skill, point it to `.agents/skills/sentry-miniapp-sdk/SKILL.md`. The agent can then follow the repo guidance to check native mini program / Taro / uni-app setup, entry-file placement, initialization order, and production configuration notes.
 
 ---
 
