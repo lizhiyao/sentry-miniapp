@@ -34,7 +34,7 @@
 
 > ➖ 表示该环境无对应能力，SDK 自动跳过（no-op），不会报错。
 
-完整的平台 API 差异报告见仓库 [`docs/MultiPlatformCompatibilityReport.md`](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/MultiPlatformCompatibilityReport.md)。
+如果你正在排查某个平台独有的网络、Storage、异常监听或系统信息问题，请继续阅读[平台兼容性详解](/guide/platform-compatibility)。
 
 ## 小游戏：性能数据独立上报
 

@@ -50,6 +50,7 @@ export default defineConfig({
           text: '能力与排查',
           items: [
             { text: '支持平台与能力', link: '/guide/platforms' },
+            { text: '平台兼容性详解', link: '/guide/platform-compatibility' },
             { text: '工作原理', link: '/guide/how-it-works' },
             { text: '常见问题 (FAQ)', link: '/guide/faq' },
           ],

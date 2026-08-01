@@ -48,7 +48,7 @@ npm run build:weapp
 
 然后用**微信开发者工具**导入本目录（`project.config.json` 的 `miniprogramRoot` 指向 `dist/`），即可预览。点按钮后到 Sentry「Issues」/「Performance」查看事件与面包屑。
 
-> `project.config.json` 里 `es6` / `minified` 设为 `false`：交给 Taro 编译，避免微信开发者工具二次压缩导致 Source Map 错位（见仓库 `docs/SOURCEMAP_GUIDE.md`）。
+> `project.config.json` 里 `es6` / `minified` 设为 `false`：交给 Taro 编译，避免微信开发者工具二次压缩导致 Source Map 错位（见[文档站 · Source Map 配置](https://sentry-miniapp.pages.dev/guide/sourcemap)）。
 
 ## DSN 配置
 
@@ -60,7 +60,7 @@ npm run build:weapp
 
 ## Source Map（真机）
 
-Taro 真机错误栈是微信合并后的 `appservice.app.js`，**分页 Source Map 解不出**，需要两层 map 串联。详见仓库 [`docs/SOURCEMAP_GUIDE.md`](../../docs/SOURCEMAP_GUIDE.md) 的「跨端框架的两层 Source Map 串联」一节与 [`scripts/merge-sourcemap.mjs`](../../scripts/merge-sourcemap.mjs)。
+Taro 真机错误栈是微信合并后的 `appservice.app.js`，**分页 Source Map 解不出**，需要两层 map 串联。详见[文档站 · 跨端框架的两层 Source Map 串联](https://sentry-miniapp.pages.dev/guide/sourcemap#跨端框架的两层-source-map-串联)与 [`scripts/merge-sourcemap.mjs`](../../scripts/merge-sourcemap.mjs)。
 
 ## 用本地源码而非已发布版
 
