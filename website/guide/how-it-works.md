@@ -39,7 +39,7 @@ sentry-miniapp（init + 默认集成）
 
 ### 平台 API 抹平
 
-各平台全局对象（`wx` / `my` / `tt` / `dd` / `qq` / `swan` / `ks`）和 API 命名、入参、返回结构都有差异（如支付宝是 `my.httpRequest`、状态码字段叫 `status`）。SDK 在初始化时检测平台并把它们代理成统一调用，上层逻辑只面向一套 API。差异细节见[多端兼容性报告](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/MultiPlatformCompatibilityReport.md)。
+各平台全局对象（`wx` / `my` / `tt` / `dd` / `qq` / `swan` / `ks`）和 API 命名、入参、返回结构都有差异（如支付宝是 `my.httpRequest`、状态码字段叫 `status`）。SDK 在初始化时检测平台并把它们代理成统一调用，上层逻辑只面向一套 API。差异细节见[平台兼容性详解](/guide/platform-compatibility)。
 
 ### 全局异常捕获
 

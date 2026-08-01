@@ -4,7 +4,7 @@
 
 以下是针对各大小程序平台的兼容性调研及适配建议。
 
-> 📌 本报告聚焦**各平台底层 API 的差异与适配方式**（全局对象、网络、异常监听、存储等），偏工程实现视角。面向用户的**能力矩阵**（哪些能力在小程序 / 小游戏可用）请看[文档站 · 支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms)。
+> 📌 本报告聚焦**各平台底层 API 的差异与适配方式**（全局对象、网络、异常监听、存储等），偏工程实现视角。面向用户的**能力矩阵**请看[文档站 · 支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms)，遇到分端接入或降级问题请看[平台兼容性详解](https://sentry-miniapp.pages.dev/guide/platform-compatibility)。
 
 ---
 

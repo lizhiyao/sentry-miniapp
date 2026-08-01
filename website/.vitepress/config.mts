@@ -50,6 +50,7 @@ export default defineConfig({
           text: '能力与排查',
           items: [
             { text: '支持平台与能力', link: '/guide/platforms' },
+            { text: '平台兼容性详解', link: '/guide/platform-compatibility' },
             { text: '工作原理', link: '/guide/how-it-works' },
             { text: '常见问题 (FAQ)', link: '/guide/faq' },
           ],
@@ -69,7 +70,11 @@ export default defineConfig({
     darkModeSwitchLabel: '主题',
 
     editLink: {
-      pattern: `${GITHUB}/edit/master/website/:path`,
+      pattern: ({ filePath }) => {
+        const sourcePath =
+          filePath === 'guide/sourcemap.md' ? 'docs/SOURCEMAP_GUIDE.md' : `website/${filePath}`;
+        return `https://github.com/lizhiyao/sentry-miniapp/edit/master/${sourcePath}`;
+      },
       text: '在 GitHub 上编辑此页',
     },
 

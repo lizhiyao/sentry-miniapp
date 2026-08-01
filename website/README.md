@@ -13,9 +13,13 @@ yarn docs:build      # 构建到 website/.vitepress/dist
 yarn docs:preview    # 预览构建产物
 ```
 
-## 单一来源
+## 内容边界与单一来源
 
-站点不复制内容：大指南通过 VitePress 的 `<!--@include-->` 直接引入仓库 `docs/` 下的规范文档（如 `guide/sourcemap.md` 引入 `../../docs/SOURCEMAP_GUIDE.md`）。修改这类内容请改 `docs/` 里的源文件，站点会自动同步。
+`website/` 是面向 SDK 用户的主文档入口：接入、配置、框架指南、平台能力和排障内容都应在站内可发现，不应要求用户跳回仓库查找答案。
+
+`docs/` 保留不适合进入主导航的内容，包括英文仓库 README、工程调研报告、对外文章和媒体素材。工程报告中对用户有帮助的结论，应提炼到 `website/`，而不是直接把维护者视角的全文搬进站点。
+
+同一内容只维护一份。已有稳定外链的长指南可以继续以 `docs/` 文件作为内容源，再通过 VitePress 的 `<!--@include-->` 展示在官网。例如 `guide/sourcemap.md` 引入 `../../docs/SOURCEMAP_GUIDE.md`；官网的「在 GitHub 上编辑此页」会直接指向该源文件。
 
 ## 部署（Cloudflare Pages）
 
