@@ -21,7 +21,7 @@
 
 ---
 
-## ✨ 它适合解决哪些问题
+## ✨ 核心能力与适用场景
 
 - **异常自动捕获**：自动捕获全局异常、Promise rejection、页面异常和内存告警，把问题送进 Sentry Issues，而不是只停留在用户反馈里。
 - **排查上下文**：记录设备信息、页面生命周期、点击 / 触摸和网络请求面包屑，帮助还原用户出错前做了什么。
@@ -76,11 +76,19 @@ Sentry.captureException(new Error('sentry test'));
 
 ### 🤖 AI Coding Agent 辅助接入
 
-如果你使用支持读取仓库上下文的 AI Coding Agent，可以让它先读取本仓库的 `AGENTS.md` 和 `.agents/skills/sentry-miniapp-sdk/`，然后直接说：
+在 sentry-miniapp 仓库内使用时，支持仓库内 Agent Skills 的工具通常会自动发现 `sentry-miniapp-sdk`。
 
-> 帮我接入 sentry-miniapp，先识别平台和框架，再完成初始化并给出验证步骤。
+如果你是在自己的小程序 / 小游戏项目里接入，推荐把 skill 安装到当前项目的 `.agents/skills/`，这样支持仓库内 Agent Skills 的工具进入项目后就能自动发现：
 
-这样 Agent 会按仓库约定检查原生小程序 / Taro / uni-app、入口文件位置、初始化顺序和生产配置注意事项。
+```bash
+npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agents/skills/sentry-miniapp-sdk
+```
+
+然后在你的项目里直接说：
+
+> 使用 `sentry-miniapp-sdk` skill 帮我接入 sentry-miniapp：先识别平台和框架，再完成初始化并给出验证步骤。
+
+如果想跨多个项目复用，也可以把命令最后的目标路径换成你的 Agent 全局 skills 目录。Agent 没有自动加载时，让它读取 `.agents/skills/sentry-miniapp-sdk/SKILL.md` 即可。这样 Agent 会按仓库约定检查原生小程序 / Taro / uni-app、入口文件位置、初始化顺序和生产配置注意事项。
 
 ---
 
