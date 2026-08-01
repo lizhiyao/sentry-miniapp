@@ -97,8 +97,6 @@ tt://pages/b.js            -> app:///pages/b.js
 4. 对照本页确认目标能力依赖的宿主 API 是否存在，并在真机上验证；开发者工具的行为可能不同。
 5. 仍无法定位时提交 Issue，附 SDK 版本、目标平台、复现步骤、关键配置和脱敏后的诊断输出。
 
-面向 SDK 贡献者的底层 API 调研、适配位置与测试覆盖记录，继续维护在[多端兼容性调研报告](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/MultiPlatformCompatibilityReport.md)。
-
 ## 下一步
 
 - [支持平台与能力](/guide/platforms)

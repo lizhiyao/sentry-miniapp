@@ -70,11 +70,7 @@ export default defineConfig({
     darkModeSwitchLabel: '主题',
 
     editLink: {
-      pattern: ({ filePath }) => {
-        const sourcePath =
-          filePath === 'guide/sourcemap.md' ? 'docs/SOURCEMAP_GUIDE.md' : `website/${filePath}`;
-        return `https://github.com/lizhiyao/sentry-miniapp/edit/master/${sourcePath}`;
-      },
+      pattern: `${GITHUB}/edit/master/website/:path`,
       text: '在 GitHub 上编辑此页',
     },
 

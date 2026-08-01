@@ -58,7 +58,7 @@ cp -r .agents/skills/sentry-miniapp-sdk ~/.agents/skills/sentry-miniapp-sdk
 
 - 用户入口：`README.md` / `docs/README.en.md`
 - 用户文档站：`website/`（接入、配置、平台能力与排障内容的主入口）
-- 工程调研、文章与媒体素材：`docs/`
+- 英文用户入口、对外文章与媒体素材：`docs/`
 - 示例工程：`examples/wxapp/`
 - sentry-miniapp skill 入场：`.agents/skills/sentry-miniapp-sdk/SKILL.md`（单一来源，见上节）
 - 分支 / 贡献细节：`CONTRIBUTING.md`
