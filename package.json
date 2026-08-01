@@ -1,6 +1,6 @@
 {
   "name": "sentry-miniapp",
-  "version": "1.17.1",
+  "version": "1.17.2",
   "description": "Sentry SDK for Mini Programs (WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou) & Taro / uni-app | 小程序监控 SDK，支持异常监控、性能监控、错误收集",
   "repository": {
     "type": "git",
@@ -34,8 +34,8 @@
   "module": "dist/sentry-miniapp.esm.js",
   "types": "dist/types/index.d.ts",
   "bin": {
-    "sentry-miniapp-sourcemap-doctor": "./scripts/doctor-sourcemap.mjs",
-    "sentry-miniapp-sourcemap-merge": "./scripts/merge-sourcemap.mjs"
+    "sentry-miniapp-sourcemap-doctor": "scripts/doctor-sourcemap.mjs",
+    "sentry-miniapp-sourcemap-merge": "scripts/merge-sourcemap.mjs"
   },
   "exports": {
     ".": {
