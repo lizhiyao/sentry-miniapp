@@ -13,7 +13,7 @@
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
-小程序运行时没有浏览器 `window` / `fetch` / `XMLHttpRequest`，本 SDK 会使用各平台的小程序 API 完成事件上报与自动捕获。如果你的目标是 H5 页面，请使用官方 `@sentry/browser`；如果目标是小程序或小游戏，用本 SDK。
+小程序运行时没有浏览器 `window` / `fetch` / `XMLHttpRequest`，本 SDK 会使用各平台的小程序 API 完成事件上报与自动捕获。如果你的目标是 H5 页面，请使用官方 [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser)；如果目标是小程序或小游戏，用本 SDK。
 
 > **📖 接入细节与生产配置**：[sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) —— 快速接入、框架指南、配置项、Source Map、FAQ、示例工程都在文档站。
 
@@ -48,14 +48,6 @@ npm install sentry-miniapp
 
 > 不使用 npm 时，也可直接将 `examples/wxapp/lib/sentry-miniapp.js` 复制到小程序项目中引入。
 
-### 🤖 AI Coding Agent 辅助接入
-
-如果你使用支持读取仓库上下文的 AI Coding Agent，可以让它先读取本仓库的 `AGENTS.md` 和 `.agents/skills/sentry-miniapp-sdk/`，然后直接说：
-
-> 帮我接入 sentry-miniapp，先识别平台和框架，再完成初始化并给出验证步骤。
-
-这样 Agent 会按仓库约定检查原生小程序 / Taro / uni-app、入口文件位置、初始化顺序和生产配置注意事项。
-
 在入口文件（`app.js` / `app.ts`）**最顶部、`App()` 之前**初始化：
 
 ```javascript
@@ -81,6 +73,14 @@ Sentry.captureException(new Error('sentry test'));
 然后到 Sentry 的 Issues 列表查看事件。
 
 没看到事件时，优先确认 DSN、合法域名、初始化位置和采样配置；完整排查清单见 [文档站 · 快速接入](https://sentry-miniapp.pages.dev/guide/getting-started) 与 [FAQ](https://sentry-miniapp.pages.dev/guide/faq#no-events)。
+
+### 🤖 AI Coding Agent 辅助接入
+
+如果你使用支持读取仓库上下文的 AI Coding Agent，可以让它先读取本仓库的 `AGENTS.md` 和 `.agents/skills/sentry-miniapp-sdk/`，然后直接说：
+
+> 帮我接入 sentry-miniapp，先识别平台和框架，再完成初始化并给出验证步骤。
+
+这样 Agent 会按仓库约定检查原生小程序 / Taro / uni-app、入口文件位置、初始化顺序和生产配置注意事项。
 
 ---
 
@@ -110,7 +110,7 @@ Sentry.captureFeedback({ message: '页面卡住了', name: '张三', email: 'zha
 // 接入诊断：排查接入问题时，可将诊断结果附到 issue
 console.log(Sentry.getDiagnostics());
 
-// 隐私合规：init({ requireConsent: true }) 后，用户同意隐私协议再补发缓冲
+// 隐私合规：初始化时设置 requireConsent: true，用户同意后再补发缓冲事件
 Sentry.setConsent(true);
 ```
 
@@ -123,7 +123,7 @@ Sentry.setConsent(true);
 | 我想做什么 | 看这里 |
 |----------|--------|
 | 按原生小程序完整接一遍 | [快速接入](https://sentry-miniapp.pages.dev/guide/getting-started) |
-| 接 Taro / uni-app，尤其是组件错误 | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
+| 在 Taro / uni-app 项目中接入，并处理组件错误 | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
 | 配 Source Map、Debug ID 或排查堆栈不还原 | [Source Map 配置](https://sentry-miniapp.pages.dev/guide/sourcemap) |
 | 配采样、Logs、隐私同意、`traceparent`、自定义 transport | [配置项参考](https://sentry-miniapp.pages.dev/guide/configuration) |
 | 确认各平台、小程序 / 小游戏能力差异 | [支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms) |
@@ -141,7 +141,7 @@ Sentry.setConsent(true);
 - **网络请求会随错误上报吗？** 会。默认记录 `url`、`method`、状态码、耗时等摘要，并作为面包屑随事件上报；默认不记录请求 / 响应体，需要时再开启 `traceNetworkBody` 并做好脱敏。
 - **uni-app / Taro 组件错误为什么还要额外接？** 框架可能先接住组件错误，不一定冒泡到平台全局 `onError`。Vue 用 `app.config.errorHandler` / `Vue.config.errorHandler`，Taro React 建议加 Error Boundary。
 - **隐私协议同意前会发请求吗？** 默认会按 SDK 配置正常上报；如果业务要求同意前禁止出网，请开启 `requireConsent`，并在用户同意后调用 `Sentry.setConsent(true)`。
-- **支持 Session Replay 或 H5 端吗？** 小程序没有 DOM，暂不支持官方 Session Replay；H5 端请用官方 `@sentry/browser`，小程序端继续用 `sentry-miniapp`。
+- **支持 Session Replay 或 H5 端吗？** 小程序没有 DOM，暂不支持官方 Session Replay；H5 端请用官方 [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser)，小程序端继续用 `sentry-miniapp`。
 
 > 每条的完整解答见 **[文档站 · 常见问题](https://sentry-miniapp.pages.dev/guide/faq)**。
 
@@ -149,12 +149,13 @@ Sentry.setConsent(true);
 
 ## 💬 联系与交流
 
-遇到问题？想探讨小程序 / 小游戏监控方案？由于微信群二维码有 7 天时效，请添加作者微信（**备注 sentry-miniapp**），由作者邀请入群：
+如果是接入问题或线上排查，建议优先在 GitHub 提出来，方便把排查结论沉淀为可搜索的答案：
+
+- **Bug / 没有数据 / Source Map 不还原**：[提交 Issue](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)，请附 SDK 版本、目标平台、复现步骤、关键配置和 `Sentry.getDiagnostics()` 输出。
+- **功能建议 / 监控方案讨论**：[发起 Discussion](https://github.com/lizhiyao/sentry-miniapp/discussions)，说明业务场景、目标平台和期望行为。
+
+请勿公开 DSN、token 或用户隐私数据；贴日志和配置前请先脱敏。
+
+想实时交流小程序 / 小游戏监控方案，可以加入微信群。由于微信群二维码有 7 天时效，请添加作者微信（**备注 sentry-miniapp**），由作者邀请入群：
 
 <img src="https://raw.githubusercontent.com/lizhiyao/sentry-miniapp/master/docs/qrcode/zhiyao.jpeg" alt="作者微信二维码" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
-
----
-
-## License
-
-[MIT](./LICENSE)

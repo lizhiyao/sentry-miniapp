@@ -13,7 +13,7 @@
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 
-Mini program runtimes do not provide browser APIs like `window`, `fetch`, or `XMLHttpRequest`, so this SDK uses each platform's native mini program APIs for event delivery and automatic capture. For H5/web builds, use the official `@sentry/browser`; for mini programs or mini games, use this SDK.
+Mini program runtimes do not provide browser APIs like `window`, `fetch`, or `XMLHttpRequest`, so this SDK uses each platform's native mini program APIs for event delivery and automatic capture. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); for mini programs or mini games, use this SDK.
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western stack — think of them as a hybrid of PWAs and native apps, hosted within a platform's sandbox.
 
@@ -50,14 +50,6 @@ npm install sentry-miniapp
 
 > Not using npm? Copy `examples/wxapp/lib/sentry-miniapp.js` from this repo directly into your project.
 
-### 🤖 AI Coding Agent Setup
-
-If you use an AI coding agent that can read repository context, ask it to read this repo's `AGENTS.md` and `.agents/skills/sentry-miniapp-sdk/`, then say:
-
-> Help me set up sentry-miniapp. Detect the platform and framework first, then update the entry file and give me verification steps.
-
-The agent can then follow the repo guidance to check native mini program / Taro / uni-app setup, entry-file placement, initialization order, and production configuration notes.
-
 Initialize at the **top** of your entry file (`app.js` / `app.ts`), **before** `App()`:
 
 ```javascript
@@ -83,6 +75,14 @@ Sentry.captureException(new Error('sentry test'));
 Then check the Sentry Issues list.
 
 If nothing shows up, first check the DSN, trusted domain, initialization placement, and sampling config. The full checklist lives in [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started) and the [FAQ](https://sentry-miniapp.pages.dev/guide/faq#no-events).
+
+### 🤖 AI Coding Agent Setup
+
+If you use an AI coding agent that can read repository context, ask it to read this repo's `AGENTS.md` and `.agents/skills/sentry-miniapp-sdk/`, then say:
+
+> Help me set up sentry-miniapp. Detect the platform and framework first, then update the entry file and give me verification steps.
+
+The agent can then follow the repo guidance to check native mini program / Taro / uni-app setup, entry-file placement, initialization order, and production configuration notes.
 
 ---
 
@@ -112,7 +112,7 @@ Sentry.captureFeedback({ message: 'The page is frozen', name: 'John Doe', email:
 // Diagnostics: attach the output to issues when troubleshooting SDK setup
 console.log(Sentry.getDiagnostics());
 
-// Privacy consent: after init({ requireConsent: true }), flush buffered events once granted
+// Privacy consent: set requireConsent: true during initialization, then flush once granted
 Sentry.setConsent(true);
 ```
 
@@ -125,7 +125,7 @@ After the first event is working, pick the guide based on what you are doing nex
 | I want to... | Read this |
 |--------------|-----------|
 | Follow the full native mini program setup | [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started) |
-| Integrate Taro / uni-app, especially component errors | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
+| Set up Taro / uni-app projects and handle component errors | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
 | Configure Source Maps, Debug IDs, or unresolved stacks | [Source Map Configuration](https://sentry-miniapp.pages.dev/guide/sourcemap) |
 | Configure sampling, Logs, privacy consent, `traceparent`, or custom transport | [Configuration Reference](https://sentry-miniapp.pages.dev/guide/configuration) |
 | Check platform, mini program, and mini game capability differences | [Platforms & Capabilities](https://sentry-miniapp.pages.dev/guide/platforms) |
@@ -143,7 +143,7 @@ After the first event is working, pick the guide based on what you are doing nex
 - **Are network requests included with errors?** Yes. By default the SDK records `url`, `method`, status code, and duration summaries as breadcrumbs. Request / response bodies are not recorded by default; enable `traceNetworkBody` only when you also handle sanitization.
 - **Why do uni-app / Taro component errors need extra wiring?** Frameworks may catch component errors before they reach the platform global `onError`. Use `app.config.errorHandler` / `Vue.config.errorHandler` for Vue, and an Error Boundary for Taro React.
 - **Will it send requests before privacy consent?** By default the SDK reports normally according to your config. If your app must avoid network requests before consent, enable `requireConsent` and call `Sentry.setConsent(true)` once the user grants consent.
-- **Session Replay or H5 builds?** Mini programs have no DOM, so official Session Replay is not supported. For H5 builds, use official `@sentry/browser`; keep `sentry-miniapp` for mini program builds.
+- **Session Replay or H5 builds?** Mini programs have no DOM, so official Session Replay is not supported. For H5 builds, use official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); keep `sentry-miniapp` for mini program builds.
 
 > Full answers on the **[docs site · FAQ](https://sentry-miniapp.pages.dev/guide/faq)**.
 
@@ -151,12 +151,13 @@ After the first event is working, pick the guide based on what you are doing nex
 
 ## 💬 Community
 
-Have questions or want to discuss mini program / mini game monitoring? Due to WeChat group QR code expiration (7-day limit), please add the author on WeChat (**note: sentry-miniapp**) to be invited to the group:
+For setup issues or production troubleshooting, GitHub is the best first stop so answers stay searchable:
+
+- **Bugs / no events / Source Map issues**: [open an issue](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose) with the SDK version, target platform, reproduction steps, relevant config, and `Sentry.getDiagnostics()` output.
+- **Feature requests / monitoring design discussions**: [start a discussion](https://github.com/lizhiyao/sentry-miniapp/discussions) with your scenario, target platforms, and expected behavior.
+
+Please redact DSNs, tokens, and user data before sharing logs or config.
+
+For real-time mini program / mini game monitoring discussion, you can join the WeChat group. Due to WeChat group QR code expiration (7-day limit), please add the author on WeChat (**note: sentry-miniapp**) to be invited:
 
 <img src="https://raw.githubusercontent.com/lizhiyao/sentry-miniapp/master/docs/qrcode/zhiyao.jpeg" alt="Author WeChat QR Code" width="200" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
-
----
-
-## License
-
-[MIT](../LICENSE)
