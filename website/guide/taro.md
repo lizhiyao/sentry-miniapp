@@ -99,7 +99,7 @@ export default class SentryBoundary extends Component<{ children: ReactNode }, {
 事件回调 / `setTimeout` / 异步里的错误，错误边界捕获不到——那些请直接 `try/catch` 后 `Sentry.captureException`，或交给 SDK 的全局 / TryCatch 集成。
 :::
 
-> 这是 Taro(React) 对应 uni-app(Vue) `errorHandler` 的做法。对比见 [常见问题 · 组件内错误](/guide/faq#组件内错误)。
+> 这是 Taro(React) 对应 uni-app(Vue) `errorHandler` 的做法。对比见 [常见问题 · 组件内错误](/guide/faq#component-errors)。
 
 ## 5. 分端接入（同时要 H5）
 
