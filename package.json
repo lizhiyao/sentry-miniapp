@@ -75,7 +75,7 @@
     "vitepress": "^1.6.4"
   },
   "dependencies": {
-    "@sentry/core": "10.68.0"
+    "@sentry/core": "10.69.0"
   },
   "resolutions": {
     "js-yaml": "4.3.0",
