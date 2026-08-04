@@ -5,7 +5,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import {
   collectBuildMaps,
   collectFiles,
-  isWechatAppserviceName,
+  isWechatRuntimeBundleName,
   normalizeName,
   pickBuildMapCandidate,
   readJsonFile,
@@ -16,13 +16,13 @@ const DEFAULT_URL_PREFIX = 'app:///';
 const USAGE = `用法：
   npm run sourcemap:doctor -- --dist <构建产物目录> --release <release> [--url-prefix app:///] [--strict] [--json]
 
-  # 微信 / Taro / uni-app 真机两层 Source Map 诊断
-  npm run sourcemap:doctor -- --wechat <appservice.app.js.map> --build-maps <框架构建 map 目录> --release <release> [--strip <前缀>]... [--json]
+  # 微信体验版 / 线上版两层 Source Map 诊断（小程序或小游戏）
+  npm run sourcemap:doctor -- --wechat <微信线上.map> --build-maps <构建 map 目录> --release <release> [--strip <前缀>]... [--json]
 
 选项：
   --dist        普通构建产物目录，递归检查 .js 与 .map
-  --wechat      微信线上 Source Map（外层 Map B：appservice.app.js -> 编译产物 JS）
-  --build-maps  框架构建 Source Map 目录（内层 Map A：编译产物 JS -> 源码）
+  --wechat      微信上线 Source Map（外层 Map B：appservice.app.js / game.js -> 上传前 JS）
+  --build-maps  框架 / 游戏引擎构建 Source Map 目录（内层 Map A：上传前 JS -> 源码）
   --release     SDK init({ release }) 与 sentry-cli 上传 release，必须完全一致
   --url-prefix  上传 sourcemap 时使用的前缀，默认 app:///
   --strip       诊断两层 map 匹配时，从 B.sources 中剥掉的前缀，可重复
@@ -93,7 +93,7 @@ function printReport(report) {
   if (report.summary.wechat) {
     const merge = report.summary.wechat.merge;
     console.log(
-      `\n微信外层 Map：${report.summary.wechat.file}\n· sources：${report.summary.wechat.sources}`,
+      `\n微信线上外层 Map：${report.summary.wechat.file}\n· sources：${report.summary.wechat.sources}`,
     );
     if (merge) {
       console.log(
@@ -276,12 +276,12 @@ function inspectMapFile(report, mapFile, root, args, artifactSamples) {
     );
   }
 
-  if (isWechatAppserviceName(raw.file || basename(mapFile).replace(/\.map$/, ''))) {
+  if (isWechatRuntimeBundleName(raw.file || basename(mapFile).replace(/\.map$/, ''))) {
     push(
       report,
       'notices',
       'wechat_appservice_map',
-      '检测到微信 appservice 合并文件 map；如果你还想解析到 .vue/.tsx 源码，需要两层 sourcemap 合成。',
+      '检测到微信小程序 / 小游戏运行时文件 map；如果还要解析到框架或游戏引擎源码，需要两层 sourcemap 合成。',
       { mapFile },
     );
     addMergeSuggestion(report);
@@ -358,12 +358,12 @@ function inspectWechatMap(report, args) {
     outputFile: rawB.file ?? null,
   };
 
-  if (!isWechatAppserviceName(rawB.file || basename(wechatFile).replace(/\.map$/, ''))) {
+  if (!isWechatRuntimeBundleName(rawB.file || basename(wechatFile).replace(/\.map$/, ''))) {
     push(
       report,
       'warnings',
       'wechat_map_file_unexpected',
-      '传入的 --wechat map 看起来不像 appservice.app.js / app-service.js 对应的外层 map。',
+      '传入的 --wechat map 看起来不像 appservice.app.js / app-service.js / game.js 对应的外层 map。',
       { wechatFile, file: rawB.file },
     );
   }
@@ -474,7 +474,7 @@ function addReleaseWarning(report, args) {
 
 function addMergeSuggestion(report) {
   const suggestion =
-    '需要解析微信真机 appservice.app.js 到源码时，运行 scripts/merge-sourcemap.mjs 合成两层 map 后，再以 --url-prefix "app:///" 上传。';
+    '需要把微信真机 appservice.app.js / game.js 解析到源码时，运行 scripts/merge-sourcemap.mjs 合成微信线上 map 与框架 / 引擎 map，再以 --url-prefix "app:///" 上传。';
   if (!report.suggestions.includes(suggestion)) {
     report.suggestions.push(suggestion);
   }

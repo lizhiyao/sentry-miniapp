@@ -2,7 +2,7 @@
 
 > 🚀 **只想最快跑通？** 大多数项目只需三步：[第一步 SDK 配置 `release`](#第一步sdk-配置) → [第三步生成 Source Map](#第三步生成-source-map) → [第四步上传](#第四步上传-source-map)，再用[第六步](#第六步验证-source-map-是否生效)验证。
 >
-> [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)属于进阶场景：仅当你使用 Taro / uni-app，并且真机错误栈文件名是合并后的 `app:///appservice.app.js`（分页 Source Map 无法解析）时才需要。多数项目不需要，遇到后再处理。
+> 两层 Source Map 属于进阶场景：Taro / uni-app 真机栈为 `app:///appservice.app.js`，或 Cocos Creator 微信小游戏体验版的 `game.js` 行列号与本地 map 不一致时才需要。多数项目不需要，遇到后分别参考[跨端框架](#跨端框架的两层-source-map-串联)或[微信小游戏 / Cocos Creator](#wechat-minigame-cocos)专节。
 
 ## 概述
 
@@ -21,7 +21,7 @@ Cocos:    chunks:///_virtual/foo.js    →  app:///chunks/_virtual/foo.js
 
 因此，你在上传 Source Map 时只需统一使用 `--url-prefix "app:///"` 即可，无需关心各平台差异。
 
-> ⚠️ **真机可能是另一种形态。** 真机上微信常把逻辑层 JS 合并成单个 `app:///appservice.app.js`（用 Taro / uni-app 时几乎必然），分页 Source Map 解不出。**上传前先在真机触发一个错误、看清堆栈文件名，再决定传哪种 map**——详见 [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)。
+> ⚠️ **真机可能是另一种形态。** 微信小程序常把逻辑层 JS 合并成 `app:///appservice.app.js`；微信小游戏体验版也可能再次编译 `game.js`。**上传前先在真机触发一个错误、看清堆栈文件名与行列号，再决定传哪一层 map**。
 
 **端到端流程：**
 
@@ -502,6 +502,8 @@ npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
 
 `doctor` 负责判断，`merge-sourcemap` 负责生成合成 map。两者复用同一套 source 名称归一化和构建 map 匹配逻辑，避免排查结果和实际合成行为不一致。
 
+微信小游戏的 `app:///game.js` 使用同一套工具：把 `--wechat` 指向微信体验版 / 线上版的外层 `game.js.map`，把 `--build-maps` 指向 Cocos Creator 本地构建 map 目录，输出文件改为 `game.js.map`。完整流程见[微信小游戏 / Cocos Creator](#wechat-minigame-cocos)。
+
 ---
 
 ## 平台特殊说明
@@ -521,6 +523,51 @@ npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
 #### ⚠️ 跨端框架（Taro / uni-app）：真机栈是合并的 `appservice.app.js`
 
 用 Taro / uni-app 等框架时，真机错误栈的文件名通常是合并后的 `app:///appservice.app.js`，分页 Source Map 解不出，需要单独处理（含两层 map 的离线合成脚本）——详见独立专节 [跨端框架的两层 Source Map 串联](#跨端框架的两层-source-map-串联)。
+
+### 微信小游戏 / Cocos Creator {#wechat-minigame-cocos}
+
+Cocos Creator 本地生成的 `game.js.map` 只描述 **Cocos 构建后的 `game.js` → TypeScript 源码**。微信上传体验版 / 正式版时，如果启用了 ES6 转 ES5、代码压缩或代码保护，微信还会再次改写 `game.js`，真机堆栈里的行列号属于这份**微信编译后的 JS**。
+
+如果 Sentry 上报 `game.js:154:223616`，而微信 WE 分析展示同一错误为 `game.js:776:202003`，通常说明两个位置分别属于微信编译前后的两份 `game.js`。SDK 的堆栈解析只保留运行时给出的行列号，不会把最终产物坐标换算为 Cocos 构建产物坐标；WE 分析掌握微信生成的外层 map，因此能继续还原。把真机坐标直接套进 Cocos 本地 map，会定位错误或没有结果。
+
+需要准备三份同版本文件：
+
+| 文件                            | 作用                                                  | 获取位置                                                                        |
+| ------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 微信编译后的 `game.js`          | Sentry release 中与 `app:///game.js` 匹配的运行时文件 | 微信编译结果；可用 `miniprogram-ci get-compiled-result` 获取                    |
+| 微信线上 `game.js.map`（Map B） | 微信编译后的 `game.js` → Cocos 构建 `game.js`         | WE 分析下载，或 `miniprogram-ci get-dev-source-map` 获取同一 robot 最近上传版本 |
+| Cocos `game.js.map`（Map A）    | Cocos 构建 `game.js` → `.ts` 源码                     | Cocos Creator 构建时生成；Issue 中的“游戏符号表独立生成”即这一层                |
+
+先把微信线上 map 与 Cocos map 分开放，避免两个同名文件互相覆盖，然后体检匹配关系：
+
+```bash
+npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+  --wechat ./maps/wechat-online/game.js.map \
+  --build-maps ./maps/cocos-build \
+  --release "$SENTRY_RELEASE"
+```
+
+`matched` 不为 0 后再合成：
+
+```bash
+npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
+  --wechat ./maps/wechat-online/game.js.map \
+  --build-maps ./maps/cocos-build \
+  --out ./sentry-upload/game.js.map
+```
+
+把**同一微信上传版本**的最终 `game.js` 放进 `./sentry-upload/game.js`，与合成后的 map 成对上传。Sentry 的 release 模式需要同时拿到编译 JS 和 map，不能只上传 `.map`：
+
+```bash
+npx sentry-cli releases files "$SENTRY_RELEASE" upload-sourcemaps ./sentry-upload \
+  --url-prefix "app:///" \
+  --rewrite \
+  --validate
+```
+
+SDK 中的 `release` 必须与 `$SENTRY_RELEASE` 完全一致。体验版无法把 Debug ID 注入微信最终产物时，仍可使用这套 release + `app:///game.js` 匹配方式；Debug ID 不是前置条件。
+
+验证时应触发一个**新事件**：Sentry 不会重新处理 map 上传前已经入库的旧事件。如果仍失败，先看 Source Map Debug 是否同时找到了 `app:///game.js` 与 `app:///game.js.map`，再确认微信线上 map、最终 `game.js` 和体验版确实来自同一次上传。
 
 ### 支付宝小程序
 
