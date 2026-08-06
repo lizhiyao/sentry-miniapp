@@ -95,7 +95,17 @@ describe('SDK', () => {
       const defaultIntegrationCount = defaultIntegrations.length;
       const client = init({ dsn: 'https://test@sentry.io/123' });
       expect(client).toBeInstanceOf(MiniappClient);
+      expect(client?.getIntegrationByName?.('PerformanceAPI')).toBeDefined();
       expect(defaultIntegrations).toHaveLength(defaultIntegrationCount);
+    });
+
+    it('默认性能集成是可执行的实例', () => {
+      const performance = getDefaultIntegrations().find(
+        (integration) => integration.name === 'PerformanceAPI',
+      );
+
+      expect(performance).toBeDefined();
+      expect(performance?.setupOnce).toEqual(expect.any(Function));
     });
 
     it('defaultIntegrations=false 时跳过核心默认集成', () => {
