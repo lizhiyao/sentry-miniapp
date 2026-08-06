@@ -1,6 +1,64 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { transformAsync } from '@babel/core';
+import transformRegenerator from '@babel/plugin-transform-regenerator';
 import dts from 'vite-plugin-dts';
+
+function isolateUmdHelpers({ types }) {
+  return {
+    name: 'sentry-miniapp-isolate-umd-helpers',
+    visitor: {
+      Program: {
+        exit(path) {
+          const body = types.functionExpression(null, [], types.blockStatement(path.node.body));
+          const call = types.callExpression(
+            types.memberExpression(body, types.identifier('call')),
+            [types.thisExpression()]
+          );
+
+          path.node.body = [types.expressionStatement(call)];
+        }
+      },
+    }
+  };
+}
+
+function transformGenerators() {
+  return {
+    name: 'sentry-miniapp-transform-generators',
+    enforce: 'post',
+    renderChunk: {
+      order: 'post',
+      async handler(code, chunk, outputOptions) {
+        const plugins = [transformRegenerator];
+
+        if (outputOptions.format === 'umd') {
+          plugins.push(isolateUmdHelpers);
+        }
+
+        const result = await transformAsync(code, {
+          filename: chunk.fileName,
+          babelrc: false,
+          configFile: false,
+          comments: true,
+          compact: true,
+          sourceMaps: true,
+          sourceType: 'unambiguous',
+          plugins
+        });
+
+        if (!result?.code) {
+          return null;
+        }
+
+        return {
+          code: result.code,
+          map: result.map ?? null
+        };
+      },
+    }
+  };
+}
 
 // 通用构建配置
 const baseConfig = {
@@ -41,7 +99,8 @@ export default defineConfig(({ mode }) => {
       },
       define: {
         __DEV__: mode === 'development'
-      }
+      },
+      plugins: [transformGenerators()],
     };
   }
 
@@ -74,11 +133,12 @@ export default defineConfig(({ mode }) => {
             name: 'SentryMiniapp',
             exports: 'auto',
             globals: {}
-          }
+          },
         ]
       }
     },
     plugins: [
+      transformGenerators(),
       // 生成 TypeScript 类型定义文件
       dts({
         include: ['src/**/*'],

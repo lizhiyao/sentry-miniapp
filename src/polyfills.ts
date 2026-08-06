@@ -120,26 +120,27 @@ class URLSearchParamsPolyfill {
     }
   }
 
-  *keys(): IterableIterator<string> {
-    for (const [key] of this._entries) {
-      yield key;
+  private *_createIterator<T>(getValue: (entry: [string, string]) => T): IterableIterator<T> {
+    const entries = this._entries;
+    for (let index = 0; index < entries.length; index += 1) {
+      yield getValue(entries[index]!);
     }
   }
 
-  *values(): IterableIterator<string> {
-    for (const [, value] of this._entries) {
-      yield value;
-    }
+  keys(): IterableIterator<string> {
+    return this._createIterator(([key]) => key);
   }
 
-  *entries(): IterableIterator<[string, string]> {
-    for (const entry of this._entries) {
-      yield entry;
-    }
+  values(): IterableIterator<string> {
+    return this._createIterator(([, value]) => value);
   }
 
-  *[Symbol.iterator](): IterableIterator<[string, string]> {
-    yield* this.entries();
+  entries(): IterableIterator<[string, string]> {
+    return this._createIterator((entry) => entry);
+  }
+
+  [Symbol.iterator](): IterableIterator<[string, string]> {
+    return this.entries();
   }
 }
 
