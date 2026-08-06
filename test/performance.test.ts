@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
-import { PerformanceIntegration } from '../src/integrations/performance';
+import { PerformanceIntegration, performanceIntegration } from '../src/integrations/performance';
 import { getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type {
   PerformanceEntry,
@@ -334,6 +334,14 @@ describe('PerformanceIntegration', () => {
   });
 
   describe('constructor', () => {
+    it('functional factory should return a usable integration instance', () => {
+      const factoryIntegration = performanceIntegration({ enableNavigation: false });
+
+      expect(factoryIntegration).toBeInstanceOf(PerformanceIntegration);
+      expect(factoryIntegration.name).toBe('PerformanceAPI');
+      expect(factoryIntegration.setupOnce).toEqual(expect.any(Function));
+    });
+
     it('should initialize with default options', () => {
       const defaultIntegration = new PerformanceIntegration();
       expect(defaultIntegration.name).toBe('PerformanceAPI');
@@ -392,6 +400,7 @@ describe('PerformanceIntegration', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith('[sentry-miniapp] Performance API not available');
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
+      expect((integration as any)._reportTimer).toBeNull();
 
       consoleSpy.mockRestore();
     });
