@@ -7,7 +7,7 @@ export default defineConfig({
   lang: 'zh-CN',
   title: 'sentry-miniapp',
   description:
-    '跨端小程序 Sentry SDK — 微信 / 支付宝 / 字节跳动 / 钉钉 / QQ / 百度 / 快手 + Taro / uni-app，异常、性能与网络监控开箱即用。',
+    '基于 @sentry/core 的跨端小程序与小游戏监控 SDK，支持异常、性能、日志、离线缓存、链路追踪，以及 Taro / uni-app。',
   base: '/', // Cloudflare Pages 部署在根域，无子路径
   lastUpdated: true,
   cleanUrls: true,
@@ -19,40 +19,65 @@ export default defineConfig({
 
     nav: [
       { text: '快速接入', link: '/guide/getting-started' },
-      { text: '配置', link: '/guide/configuration' },
+      {
+        text: '能力指南',
+        items: [
+          { text: '异常、日志与上下文', link: '/guide/errors-and-context' },
+          { text: '性能与链路追踪', link: '/guide/performance-and-tracing' },
+          { text: '可靠上报与隐私同意', link: '/guide/reliability-and-privacy' },
+        ],
+      },
+      {
+        text: 'API 与配置',
+        items: [
+          { text: '常用 API', link: '/guide/api' },
+          { text: '配置项参考', link: '/guide/configuration' },
+          { text: '支持范围', link: '/guide/platforms' },
+          { text: 'npm 包', link: 'https://www.npmjs.com/package/sentry-miniapp' },
+        ],
+      },
       { text: 'Source Map', link: '/guide/sourcemap' },
-      { text: 'FAQ', link: '/guide/faq' },
-      { text: 'GitHub', link: GITHUB },
-      { text: 'npm', link: 'https://www.npmjs.com/package/sentry-miniapp' },
+      { text: '排障', link: '/guide/faq' },
     ],
 
     sidebar: {
       '/guide/': [
         {
-          text: '先判断与接入',
+          text: '开始使用',
           items: [
             { text: '它适合我吗？', link: '/guide/when-to-use' },
             { text: '快速接入（原生小程序）', link: '/guide/getting-started' },
             { text: 'Taro（React）', link: '/guide/taro' },
             { text: 'uni-app（Vue）', link: '/guide/uniapp' },
+            { text: '小游戏接入与性能', link: '/guide/minigame' },
             { text: '示例工程', link: '/guide/examples' },
           ],
         },
         {
-          text: '上线前配置',
+          text: '能力指南',
+          items: [
+            { text: '异常、日志与上下文', link: '/guide/errors-and-context' },
+            { text: '性能与链路追踪', link: '/guide/performance-and-tracing' },
+            { text: '可靠上报与隐私同意', link: '/guide/reliability-and-privacy' },
+          ],
+        },
+        {
+          text: '生产上线',
           items: [
             { text: '配置项参考', link: '/guide/configuration' },
-            { text: 'Source Map 配置', link: '/guide/sourcemap' },
+            { text: 'Source Map 上线指南', link: '/guide/sourcemap' },
+            { text: 'Source Map 进阶与排障', link: '/guide/sourcemap-advanced' },
             { text: '主包体积优化', link: '/guide/bundle-size' },
           ],
         },
         {
-          text: '能力与排查',
+          text: '参考与排障',
           items: [
-            { text: '支持平台与能力', link: '/guide/platforms' },
-            { text: '平台兼容性详解', link: '/guide/platform-compatibility' },
-            { text: '工作原理', link: '/guide/how-it-works' },
+            { text: '常用 API', link: '/guide/api' },
+            { text: '支持范围', link: '/guide/platforms' },
+            { text: '跨平台差异与降级', link: '/guide/platform-compatibility' },
             { text: '常见问题 (FAQ)', link: '/guide/faq' },
+            { text: '工作原理', link: '/guide/how-it-works' },
           ],
         },
       ],
@@ -75,7 +100,7 @@ export default defineConfig({
     },
 
     footer: {
-      message: '基于 @sentry/core 的跨端小程序 SDK · MIT Licensed',
+      message: '基于 @sentry/core 的跨端小程序与小游戏 SDK · MIT Licensed',
       copyright: `Copyright © 2019-present <a href="${GITHUB}">sentry-miniapp</a>`,
     },
   },

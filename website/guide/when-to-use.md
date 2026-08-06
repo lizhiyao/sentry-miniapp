@@ -32,11 +32,12 @@
 ## 为什么可以信任它
 
 - **已被收录进 [Sentry 官方文档](https://docs.sentry.io/platforms/#sdks-supported-by-our-community)** 的 community-supported SDK 列表。
-- 覆盖 **7 大平台 + Taro / uni-app**，100% 测试覆盖率，持续活跃维护。
+- 覆盖 **7 大平台 + Taro / uni-app**，通过自动化测试和 GitHub Actions 持续验证。
 - 有真实社区在用（微信交流群、GitHub fork / star）。
 
 ## 判断完了？
 
 - 适合 → 去 [快速接入](/guide/getting-started)（5 分钟跑通）。
-- 想先懂原理 → [工作原理](/guide/how-it-works)。
 - 用 Taro / uni-app → [Taro 接入](/guide/taro) / [uni-app 接入](/guide/uniapp)。
+- 做微信 / 抖音小游戏 → [小游戏接入与性能](/guide/minigame)。
+- 想先确认边界或原理 → [支持范围](/guide/platforms) / [工作原理](/guide/how-it-works)。

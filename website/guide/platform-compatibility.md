@@ -1,8 +1,8 @@
-# 平台兼容性详解
+# 跨平台差异与降级
 
 同一份 `sentry-miniapp` 配置可以运行在多个小程序平台，但平台提供的网络、Storage、异常监听和系统信息 API 并不完全一致。本页说明 SDK 如何抹平这些差异，以及某项能力在特定平台缺失时会发生什么。
 
-如果你只想确认某个平台是否支持异常、性能、小游戏或 Source Map，请先看[支持平台与能力](/guide/platforms)。遇到“微信正常、支付宝或钉钉异常”这类分端问题时，再回到本页排查。
+如果你只想确认某个平台是否支持异常、性能、小游戏或 Source Map，请先看[支持范围](/guide/platforms)。遇到“微信正常、支付宝或钉钉异常”这类分端问题时，再回到本页排查。
 
 ## SDK 如何处理平台差异
 
@@ -87,7 +87,7 @@ https://appx/pages/a.js    -> app:///pages/a.js
 tt://pages/b.js            -> app:///pages/b.js
 ```
 
-上传 Source Map 时仍需保证 `release` 与 SDK 初始化值完全一致。微信真机合并脚本、Debug ID、自定义 `stackParser` 等情况见 [Source Map 配置](/guide/sourcemap)。
+上传 Source Map 时仍需保证 `release` 与 SDK 初始化值完全一致。微信真机合并脚本、Debug ID、自定义 `stackParser` 等情况见 [Source Map 进阶与排障](/guide/sourcemap-advanced)。
 
 ## 分端问题怎么排查
 
@@ -99,6 +99,6 @@ tt://pages/b.js            -> app:///pages/b.js
 
 ## 下一步
 
-- [支持平台与能力](/guide/platforms)
+- [支持范围](/guide/platforms)
 - [配置项参考](/guide/configuration)
 - [常见问题](/guide/faq)

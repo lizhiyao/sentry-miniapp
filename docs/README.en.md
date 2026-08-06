@@ -134,9 +134,11 @@ After the first event is working, pick the guide based on what you are doing nex
 |--------------|-----------|
 | Follow the full native mini program setup | [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started) |
 | Set up Taro / uni-app projects and handle component errors | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
-| Configure Source Maps, Debug IDs, or unresolved stacks | [Source Map Configuration](https://sentry-miniapp.pages.dev/guide/sourcemap) |
-| Configure sampling, Logs, privacy consent, `traceparent`, or custom transport | [Configuration Reference](https://sentry-miniapp.pages.dev/guide/configuration) |
-| Check platform, mini program, and mini game capability differences | [Platforms & Capabilities](https://sentry-miniapp.pages.dev/guide/platforms) |
+| Set up WeChat / Douyin mini games and performance monitoring | [Mini Game Guide](https://sentry-miniapp.pages.dev/guide/minigame) |
+| Configure error context, Logs, performance, tracing, or privacy consent | [Capability Guides](https://sentry-miniapp.pages.dev/guide/errors-and-context) |
+| Look up public methods and initialization options | [Common APIs](https://sentry-miniapp.pages.dev/guide/api) / [Configuration Reference](https://sentry-miniapp.pages.dev/guide/configuration) |
+| Upload Source Maps or troubleshoot Debug IDs and WeChat merged bundles | [Deployment Guide](https://sentry-miniapp.pages.dev/guide/sourcemap) / [Advanced Troubleshooting](https://sentry-miniapp.pages.dev/guide/sourcemap-advanced) |
+| Check platform, mini program, and mini game capability differences | [Supported Scope](https://sentry-miniapp.pages.dev/guide/platforms) |
 | Reduce main-package size | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 | See runnable examples | [Examples](https://sentry-miniapp.pages.dev/guide/examples) |
 | Check version history and release notes | [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) |
