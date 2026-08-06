@@ -298,6 +298,16 @@ describe('Polyfills', () => {
           ['key2', 'value2'],
         ]);
       });
+
+      it('should include parameters appended during iteration', () => {
+        const params = new URLSearchParamsPolyfill('key1=value1');
+        const keys = params.keys();
+
+        expect(keys.next()).toEqual({ done: false, value: 'key1' });
+        params.append('key2', 'value2');
+        expect(keys.next()).toEqual({ done: false, value: 'key2' });
+        expect(keys.next()).toEqual({ done: true, value: undefined });
+      });
     });
   });
 

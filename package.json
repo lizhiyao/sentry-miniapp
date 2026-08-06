@@ -8,9 +8,10 @@
   },
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
-    "build": "vite build && npm run sync:examples",
+    "build": "vite build && npm run check:build-output && npm run sync:examples",
+    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.esm.js dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
     "sync:examples": "cp dist/sentry-miniapp.umd.js examples/wxapp/lib/sentry-miniapp.js && cp dist/sentry-miniapp.umd.js.map examples/wxapp/lib/sentry-miniapp.js.map",
-    "build:miniapp": "vite build --mode miniapp",
+    "build:miniapp": "vite build --mode miniapp && node scripts/internal/check-build-output.mjs examples/wxapp/lib/sentry-miniapp.js",
     "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types",
     "dev": "vite build --watch",
     "docs:dev": "vitepress dev website",
@@ -52,6 +53,8 @@
     "LICENSE"
   ],
   "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/plugin-transform-regenerator": "^7.29.8",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@jest/globals": "^30.0.4",
