@@ -34,8 +34,8 @@ export class NetworkBreadcrumbs implements Integration {
   private readonly _enableTracePropagation: boolean;
   private readonly _tracePropagationTargets: Array<string | RegExp>;
   private readonly _propagateTraceparent: boolean;
-  private _originalRequest: Function | null = null;
-  private _originalHttpRequest: Function | null = null;
+  private _restoreRequest: (() => void) | null = null;
+  private _restoreHttpRequest: (() => void) | null = null;
 
   public constructor(
     options: {
@@ -88,14 +88,26 @@ export class NetworkBreadcrumbs implements Integration {
 
     // Intercept standard request (WeChat, ByteDance, Swan, etc.)
     if (miniappSdk && typeof miniappSdk.request === 'function') {
-      this._originalRequest = miniappSdk.request;
-      fill(miniappSdk, 'request', this._createRequestWrapper.bind(this));
+      const result = fill(miniappSdk, 'request', this._createRequestWrapper.bind(this));
+      if (result?.replaced) {
+        this._restoreRequest = result.restore;
+      } else {
+        console.warn(
+          '[sentry-miniapp] 无法包装当前平台的 request API，网络面包屑和请求追踪将不可用',
+        );
+      }
     }
 
     // Intercept Alipay request
     if (miniappSdk && typeof miniappSdk.httpRequest === 'function') {
-      this._originalHttpRequest = miniappSdk.httpRequest;
-      fill(miniappSdk, 'httpRequest', this._createRequestWrapper.bind(this));
+      const result = fill(miniappSdk, 'httpRequest', this._createRequestWrapper.bind(this));
+      if (result?.replaced) {
+        this._restoreHttpRequest = result.restore;
+      } else {
+        console.warn(
+          '[sentry-miniapp] 无法包装当前平台的 httpRequest API，网络面包屑和请求追踪将不可用',
+        );
+      }
     }
   }
 
@@ -103,17 +115,10 @@ export class NetworkBreadcrumbs implements Integration {
    * 清理集成，恢复原始网络请求方法
    */
   public cleanup(): void {
-    const miniappSdk = sdk();
-    if (miniappSdk) {
-      if (this._originalRequest && typeof miniappSdk.request === 'function') {
-        miniappSdk.request = this._originalRequest;
-      }
-      if (this._originalHttpRequest && typeof miniappSdk.httpRequest === 'function') {
-        miniappSdk.httpRequest = this._originalHttpRequest;
-      }
-    }
-    this._originalRequest = null;
-    this._originalHttpRequest = null;
+    this._restoreRequest?.();
+    this._restoreHttpRequest?.();
+    this._restoreRequest = null;
+    this._restoreHttpRequest = null;
   }
 
   /**

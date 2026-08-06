@@ -457,7 +457,7 @@ export class PerformanceIntegration implements Integration {
    * 开始自动上报
    */
   private _startAutoReporting(): void {
-    if (this._options.reportInterval <= 0) {
+    if (!this._performanceManager || this._options.reportInterval <= 0) {
       return;
     }
 
@@ -715,6 +715,6 @@ export class PerformanceIntegration implements Integration {
 /**
  * Performance API 集成工厂函数
  */
-export const performanceIntegration = (options?: PerformanceIntegrationOptions): IntegrationFn => {
-  return () => new PerformanceIntegration(options);
-};
+export const performanceIntegration = ((
+  options?: PerformanceIntegrationOptions,
+): PerformanceIntegration => new PerformanceIntegration(options)) satisfies IntegrationFn;

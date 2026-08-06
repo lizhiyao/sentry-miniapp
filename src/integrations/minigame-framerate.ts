@@ -399,8 +399,9 @@ export class MinigameFrameRateIntegration implements Integration {
 }
 
 /**
- * 函数式工厂，风格对齐 performanceIntegration。
+ * 函数式工厂。
  */
-export const minigameFrameRateIntegration = (options?: MinigameFrameRateOptions): IntegrationFn => {
-  return () => new MinigameFrameRateIntegration(options);
-};
+export const minigameFrameRateIntegration = ((
+  options?: MinigameFrameRateOptions,
+): MinigameFrameRateIntegration =>
+  new MinigameFrameRateIntegration(options)) satisfies IntegrationFn;

@@ -104,6 +104,47 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(mockSpanEnd).toHaveBeenCalledTimes(1);
   });
 
+  it('should patch a configurable request accessor and restore its descriptor on cleanup', () => {
+    const getter = jest.fn(() => requestMock);
+    const setter = jest.fn();
+    const miniappSdk = {} as { request: Function };
+
+    Object.defineProperty(miniappSdk, 'request', {
+      configurable: true,
+      enumerable: true,
+      get: getter,
+      set: setter,
+    });
+    jest.spyOn(crossPlatform, 'sdk').mockReturnValue(miniappSdk as any);
+
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    expect(setter).toHaveBeenCalledTimes(1);
+    expect(miniappSdk.request).not.toBe(requestMock);
+
+    miniappSdk.request({
+      url: 'https://api.example.com/accessor',
+      method: 'GET',
+    });
+
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'xhr',
+        data: expect.objectContaining({ url: 'https://api.example.com/accessor' }),
+      }),
+    );
+
+    integration.cleanup();
+
+    const restoredDescriptor = Object.getOwnPropertyDescriptor(miniappSdk, 'request');
+    expect(restoredDescriptor?.get).toBe(getter);
+    expect(restoredDescriptor?.set).toBe(setter);
+    expect(restoredDescriptor?.configurable).toBe(true);
+    expect(restoredDescriptor?.enumerable).toBe(true);
+    expect(miniappSdk.request).toBe(requestMock);
+  });
+
   it('should sanitize query and fragment from request span name', () => {
     const integration = new NetworkBreadcrumbs();
     integration.setupOnce();
