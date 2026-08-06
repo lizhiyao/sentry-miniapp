@@ -1,6 +1,6 @@
 # 工作原理
 
-理解 SDK 怎么跑，能帮你更快定位「为什么没上报 / 堆栈对不上 / 上报率低」这类问题。本页讲设计，不讲 API（API 见[配置项参考](/guide/configuration)）。
+理解 SDK 怎么跑，能帮你更快定位「为什么没上报 / 堆栈对不上 / 上报率低」这类问题。本页讲设计，不讲调用方式；调用方式见[常用 API](/guide/api)，初始化选项见[配置项参考](/guide/configuration)。
 
 ## 为什么不能直接用 `@sentry/browser`
 
@@ -39,7 +39,7 @@ sentry-miniapp（init + 默认集成）
 
 ### 平台 API 抹平
 
-各平台全局对象（`wx` / `my` / `tt` / `dd` / `qq` / `swan` / `ks`）和 API 命名、入参、返回结构都有差异（如支付宝是 `my.httpRequest`、状态码字段叫 `status`）。SDK 在初始化时检测平台并把它们代理成统一调用，上层逻辑只面向一套 API。差异细节见[平台兼容性详解](/guide/platform-compatibility)。
+各平台全局对象（`wx` / `my` / `tt` / `dd` / `qq` / `swan` / `ks`）和 API 命名、入参、返回结构都有差异（如支付宝是 `my.httpRequest`、状态码字段叫 `status`）。SDK 在初始化时检测平台并把它们代理成统一调用，上层逻辑只面向一套 API。差异细节见[跨平台差异与降级](/guide/platform-compatibility)。
 
 ### 全局异常捕获
 
@@ -59,7 +59,7 @@ sentry-miniapp（init + 默认集成）
 
 ### Source Map 路径归一化
 
-小程序错误栈里的文件路径是各平台虚拟路径（如微信 `appservice/pages/index.js`、抖音小游戏 `tt://main/index.js`、Cocos `chunks:///_virtual/runtime.js`）。`RewriteFrames` 集成在上报前把它们统一重写为 `app:///` 前缀，这样你只需用 `--url-prefix "app:///"` 上传一次 Source Map 就能匹配。SDK 还会兼容 Debug ID map 被注入到非 `globalThis` 全局对象的小游戏场景；私有引擎或特殊堆栈格式可通过 `stackParser` 覆盖默认解析器。**真机上微信可能把逻辑层合并成单个 `appservice.app.js`**，这是另一种情况——见 [Source Map 配置](/guide/sourcemap)。
+小程序错误栈里的文件路径是各平台虚拟路径（如微信 `appservice/pages/index.js`、抖音小游戏 `tt://main/index.js`、Cocos `chunks:///_virtual/runtime.js`）。`RewriteFrames` 集成在上报前把它们统一重写为 `app:///` 前缀。SDK 还会兼容 Debug ID map 被注入到非 `globalThis` 全局对象的小游戏场景；私有引擎或特殊堆栈格式可通过 `stackParser` 覆盖默认解析器。真机上微信可能把逻辑层合并成 `appservice.app.js`，详见 [Source Map 进阶与排障](/guide/sourcemap-advanced)。
 
 ### 弱网离线缓存
 
@@ -81,4 +81,4 @@ Sentry 收到 → 用 app:/// 前缀匹配 Source Map → 展示源码位置
 
 ## 下一步
 
-- [配置项参考](/guide/configuration) · [支持平台与能力](/guide/platforms) · [Source Map 配置](/guide/sourcemap)
+- [常用 API](/guide/api) · [配置项参考](/guide/configuration) · [支持范围](/guide/platforms) · [Source Map 上线指南](/guide/sourcemap)

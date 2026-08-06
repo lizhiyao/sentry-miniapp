@@ -23,4 +23,4 @@ uni-app 用 `npm run dev:mp-weixin`；wxapp 直接用微信开发者工具导入
 ## 关键集成点
 
 - **初始化封装**：各示例的 `src/utils/sentry.*` 是集成核心（DSN、采样、`traceNetworkBody`、标签）。
-- **组件错误**：uni-app 在 `main.js` 接 `errorHandler`；Taro(React) 用 `SentryBoundary` 错误边界。详见 [常见问题 · 组件内错误](/guide/faq#component-errors)。
+- **组件错误**：uni-app 在 `main.js` 接 `errorHandler`；Taro React 使用错误边界。详见 [uni-app 接入](/guide/uniapp)与 [Taro 接入](/guide/taro)。
