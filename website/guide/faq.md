@@ -46,6 +46,12 @@ console.log(Sentry.getDiagnostics());
 
 `enableConsoleBreadcrumbs` 只会把 `console.log/warn/error` 记录成面包屑，随**下一次 error / message / transaction 事件**一起发送；如果后续没有事件，它不会单独出现在 Sentry。
 
+## 为什么控制台出现 `reportPerformance:fail SDK 暂不支持此API`？
+
+这是旧版本默认性能集成误调用宿主 `reportPerformance` 导致的，与业务是否开启 `tracesSampleRate` 无关。请升级到最新版；修复后的 SDK 只读取宿主 `getPerformance()` 数据，不再调用 `wx.reportPerformance()`。
+
+微信的 `wx.reportPerformance(id, value, dimensions?)` 是小程序后台的自定义测速接口，不是 Sentry 上报接口。如果业务本身需要使用，应先在微信小程序后台配置指标，再由业务代码自行调用。
+
 ## 组件内错误 {#component-errors}
 
 ### uni-app（Vue）组件内的错误没上报 / 上报率很低？

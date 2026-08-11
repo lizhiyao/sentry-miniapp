@@ -28,7 +28,6 @@ jest.mock('../src/crossPlatform', () => ({
   getSystemInfo: jest.fn(() => ({ platform: 'devtools' })),
   sdk: jest.fn(() => ({
     getPerformance: jest.fn(),
-    reportPerformance: jest.fn(),
   })),
 }));
 
@@ -687,7 +686,6 @@ describe('PerformanceIntegration', () => {
       const mockMemory = { jsHeapSizeUsed: 1024000, jsHeapSizeLimit: 10240000 };
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(() => ({ memory: mockMemory })),
-        reportPerformance: jest.fn(),
       });
 
       const memIntegration = new PerformanceIntegration({ enableMemory: true });
@@ -715,7 +713,6 @@ describe('PerformanceIntegration', () => {
     it('should handle missing memory API gracefully', () => {
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(() => ({})), // No memory property
-        reportPerformance: jest.fn(),
       });
 
       const memIntegration = new PerformanceIntegration({ enableMemory: true });
@@ -1009,8 +1006,8 @@ describe('PerformanceIntegration', () => {
     });
   });
 
-  describe('reportToNativeAPI', () => {
-    it('should report to native API when reportPerformance is available', () => {
+  describe('host performance reporting', () => {
+    it('should not call the host reportPerformance API', () => {
       const mockReportPerformance = jest.fn();
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(),
@@ -1028,13 +1025,7 @@ describe('PerformanceIntegration', () => {
 
       (integration as any)._reportBufferedEntries();
 
-      expect(mockReportPerformance).toHaveBeenCalledWith(
-        expect.objectContaining({
-          entries: expect.any(Array),
-          timestamp: expect.any(Number),
-          sampleRate: 1.0,
-        }),
-      );
+      expect(mockReportPerformance).not.toHaveBeenCalled();
     });
   });
 

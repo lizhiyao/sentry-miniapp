@@ -500,9 +500,6 @@ export class PerformanceIntegration implements Integration {
       // 检查性能阈值并发送警告
       this._checkPerformanceThresholds(stats);
 
-      // 使用小程序原生 API 上报性能数据
-      this._reportToNativeAPI();
-
       // 清空缓冲区
       this._entryBuffer = [];
     } catch (error) {
@@ -614,31 +611,6 @@ export class PerformanceIntegration implements Integration {
   }
 
   /**
-   * 使用小程序原生 API 上报性能数据
-   */
-  private _reportToNativeAPI(): void {
-    try {
-      const currentSdk = sdk();
-      if (currentSdk.reportPerformance && this._entryBuffer.length > 0) {
-        const performanceData = {
-          entries: this._entryBuffer.map((entry) => ({
-            name: entry.name,
-            entryType: entry.entryType,
-            startTime: entry.startTime,
-            duration: entry.duration,
-          })),
-          timestamp: Date.now(),
-          sampleRate: this._options.sampleRate,
-        };
-
-        currentSdk.reportPerformance(performanceData);
-      }
-    } catch (error) {
-      console.warn('[sentry-miniapp] Failed to report to native API:', error);
-    }
-  }
-
-  /**
    * 采集内存信息
    */
   private _collectMemoryInfo(): Record<string, any> | null {
@@ -672,11 +644,9 @@ export class PerformanceIntegration implements Integration {
 
       // 检查 Performance API 支持情况
       const hasPerformanceAPI = !!currentSdk.getPerformance;
-      const hasReportAPI = !!currentSdk.reportPerformance;
 
       scope.setContext('performance_support', {
         has_performance_api: hasPerformanceAPI,
-        has_report_api: hasReportAPI,
         integration_enabled: true,
         options: this._options,
       });
