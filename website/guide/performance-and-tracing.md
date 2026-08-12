@@ -49,6 +49,8 @@ Sentry.init({
 
 宿主没有对应 Performance API 时，相关采集会跳过，不影响异常上报。小游戏性能请看[小游戏接入与性能](/guide/minigame)。
 
+微信的 `wx.reportPerformance()` 属于小程序后台的自定义测速能力，不是 Sentry 性能监控的一部分；如需使用，请先在微信后台配置指标，再由业务代码主动调用。
+
 ## 添加业务 span
 
 需要测量登录、支付、数据转换等业务操作时，可以使用熟悉的 Sentry API：
