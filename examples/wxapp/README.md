@@ -76,15 +76,15 @@
 在项目根目录运行：
 
 ```bash
-npm run build
+yarn build:miniapp
 ```
 
-该命令会构建产物，并自动同步到 `examples/wxapp/lib/`。
+该命令会在本地生成 `examples/wxapp/lib/sentry-miniapp.js` 与 Source Map，并检查产物能否脱离仓库依赖独立加载。`lib/` 是生成目录，不提交到 Git。
 
 如果你在开发 SDK，本地持续构建可以运行：
 
 ```bash
-npm run dev
+yarn dev:miniapp
 ```
 
 ### 2. 在微信开发者工具中运行
@@ -96,7 +96,7 @@ npm run dev
 
 ### 3. 调试建议
 
-- 修改 SDK 源码后，重新运行 `npm run build`
+- 修改 SDK 源码后，重新运行 `yarn build:miniapp`；持续调试时保持 `yarn dev:miniapp` 运行
 - 修改 `examples/wxapp` 示例代码后，在开发者工具中重新编译
 - 需要观察原始上报时，优先看 Sentry 的事件明细而不是只看 Issues 列表
 

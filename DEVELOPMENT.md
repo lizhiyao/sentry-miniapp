@@ -23,9 +23,10 @@ yarn install
 
 | 命令 | 说明 |
 |------|------|
-| `yarn dev` | **[推荐]** 启动监听模式，自动构建并同步到示例项目中 |
-| `yarn build` | 构建标准版本（产出 ESM/CJS/UMD 格式，并自动同步到 examples） |
-| `yarn build:miniapp` | 仅构建小程序版本 |
+| `yarn dev` | 监听源码并持续构建标准 ESM/CJS/UMD 产物 |
+| `yarn build` | 构建标准 ESM/CJS/UMD 产物与类型声明 |
+| `yarn build:miniapp` | 构建微信示例使用的独立 CommonJS bundle，并执行兼容性与加载检查 |
+| `yarn dev:miniapp` | 监听源码并持续构建微信示例 bundle |
 | `yarn build:types` | 构建类型定义文件（d.ts） |
 | `yarn test` | 运行单元测试（Jest） |
 | `yarn lint` | 运行 ESLint 检查 |
@@ -36,15 +37,14 @@ yarn install
 
 我们提供了一个完整的微信小程序示例项目（`examples/wxapp`），用于在真实环境中验证您的代码修改。
 
-### 自动同步机制
+### 示例产物
 
-得益于最新的构建脚本，您**不需要手动复制文件**。
-当您运行 `yarn build` 或 `yarn dev` 时，系统会自动将构建出的 `dist/sentry-miniapp.umd.js` 复制到 `examples/wxapp/lib/sentry-miniapp.js` 中。
+`examples/wxapp/lib/` 是本地生成目录，不进入版本控制。标准 `yarn build` 只负责 npm 包产物；需要运行微信示例时，使用专用的小程序构建命令，避免日常构建产生无关的大文件 diff。
 
 ### 调试步骤
 
-1. **启动监听**：在终端运行 `yarn dev`。
-2. **修改源码**：在 `src/` 目录下修改 TypeScript 代码。保存后终端会提示自动重新构建并同步。
+1. **启动监听**：在终端运行 `yarn dev:miniapp`。
+2. **修改源码**：在 `src/` 目录下修改 TypeScript 代码。保存后会自动重新生成 `examples/wxapp/lib/sentry-miniapp.js` 与 Source Map。
 3. **微信开发者工具**：
    - 打开微信开发者工具，导入 `examples/wxapp` 目录。
    - 每次代码保存后，开发者工具会自动热更新。
@@ -102,6 +102,6 @@ yarn lint && yarn test
    git push origin vX.Y.Z
    ```
 
-6. GitHub Actions 将自动接管构建、发布到 NPM，并在发布成功后通过 `softprops/action-gh-release@v3` 创建对应的 GitHub Release，`generate_release_notes` 会由 GitHub 根据 tag 之间的 PR 自动生成变更说明。
+6. GitHub Actions 将自动接管构建、发布到 NPM，并在发布成功后通过 `softprops/action-gh-release@v3` 创建对应的 GitHub Release。Release notes 由 GitHub 根据 tag 之间的 PR 自动生成，同时附带可直接下载的 `sentry-miniapp.umd.js` 与 Source Map。
 
 仓库不再保留单独的 `CHANGELOG.md`。PR title / description 是发版说明的唯一信息源，包含 BREAKING CHANGE、迁移方式或兼容性注意事项的改动必须在 PR 描述里写清楚。

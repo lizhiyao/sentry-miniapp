@@ -46,7 +46,7 @@
 npm install sentry-miniapp
 ```
 
-> 不使用 npm 时，也可直接将 `examples/wxapp/lib/sentry-miniapp.js` 复制到小程序项目中引入。
+> 不使用 npm 时，可从 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) 下载对应版本的 `sentry-miniapp.umd.js`；调试源码仓库中的微信示例时，运行 `yarn build:miniapp` 生成示例依赖。
 
 在入口文件（`app.js` / `app.ts`）**最顶部、`App()` 之前**初始化：
 

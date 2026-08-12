@@ -48,7 +48,7 @@ Install:
 npm install sentry-miniapp
 ```
 
-> Not using npm? Copy `examples/wxapp/lib/sentry-miniapp.js` from this repo directly into your project.
+> Not using npm? Download the versioned `sentry-miniapp.umd.js` asset from [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases). To run the WeChat example from source, generate its local bundle with `yarn build:miniapp`.
 
 Initialize at the **top** of your entry file (`app.js` / `app.ts`), **before** `App()`:
 
