@@ -23,7 +23,7 @@ Sentry.captureException(new Error('minigame sentry test'));
 
 ## 平台识别与游戏引擎
 
-SDK 默认通过 `wx`、`tt` 等宿主对象自动识别平台。如果抖音小游戏事件被识别为 `wechat`，可显式传入 `platform: 'bytedance'`，将事件的 `contexts.miniapp.platform` 标为 `bytedance`。底层异常监听和网络请求仍使用自动检测到的平台 API；详见[跨平台差异与降级](/guide/platform-compatibility#sdk-如何处理平台差异)。
+SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时，还会结合宿主名称、`ttfile://` 数据路径和 `tt...` AppID 等平台专属信息自动判定抖音环境。如果宿主 API 不可用或未返回有效信息，仍可显式传入 `platform: 'bytedance'` 作为事件标记兜底；详见[跨平台差异与降级](/guide/platform-compatibility#sdk-如何处理平台差异)。
 
 ## 能捕获什么
 

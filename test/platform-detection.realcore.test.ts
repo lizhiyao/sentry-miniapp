@@ -16,7 +16,7 @@ function collectEvents(captured: any[]): any[] {
   return events;
 }
 
-describe('显式平台覆盖（真 @sentry/core 集成）', () => {
+describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
   const g = global as any;
   let captured: any[];
   let tt: any;
@@ -34,6 +34,7 @@ describe('显式平台覆盖（真 @sentry/core 集成）', () => {
         brand: 'ByteDance',
         model: 'Douyin Device',
         system: 'iOS 18',
+        appName: 'Douyin',
         SDKVersion: '3.0.0',
       })),
       onError: jest.fn(),
@@ -51,13 +52,50 @@ describe('显式平台覆盖（真 @sentry/core 集成）', () => {
     delete g.tt;
   });
 
-  it('platform=bytedance 覆盖事件标记，但保留自动检测到的兼容运行时 API', async () => {
+  it('wx / tt 共存时自动识别抖音宿主，并兼容 beforeSend 顶层 platform', async () => {
+    const wxOnError = g.wx.onError;
+    const client = init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      beforeSend: (event) => ({ ...event, platform: 'javascript' }),
+      transport: () => ({
+        send: (envelope: any) => {
+          captured.push(envelope);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    });
+    expect(client).toBeDefined();
+    expect(tt.onError).toHaveBeenCalledTimes(1);
+    expect(wxOnError).not.toHaveBeenCalled();
+
+    captureException(new Error('bytedance auto detection'));
+    await flush(2000);
+
+    const event = collectEvents(captured).find((item) =>
+      item.exception?.values?.some((value: any) =>
+        value.value?.includes('bytedance auto detection'),
+      ),
+    );
+    expect(event).toBeDefined();
+    expect(event.platform).toBe('javascript');
+    expect(event.contexts?.miniapp?.platform).toBe('bytedance');
+    expect(event.contexts?.device?.brand).toBe('ByteDance');
+  });
+
+  it('宿主信号不足时允许 platform=bytedance 覆盖事件标记', async () => {
+    tt.getSystemInfoSync.mockReturnValue({
+      brand: 'Unknown Adapter',
+      model: 'Unknown Device',
+      system: 'iOS 18',
+      SDKVersion: '3.0.0',
+    });
     const wxOnError = g.wx.onError;
     const client = init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       platform: 'bytedance',
       enableAutoSessionTracking: false,
-      beforeSend: (event) => ({ ...event, platform: 'javascript' }),
       transport: () => ({
         send: (envelope: any) => {
           captured.push(envelope);
@@ -70,17 +108,16 @@ describe('显式平台覆盖（真 @sentry/core 集成）', () => {
     expect(wxOnError).toHaveBeenCalledTimes(1);
     expect(tt.onError).not.toHaveBeenCalled();
 
-    captureException(new Error('bytedance platform override'));
+    captureException(new Error('bytedance explicit fallback'));
     await flush(2000);
 
     const event = collectEvents(captured).find((item) =>
       item.exception?.values?.some((value: any) =>
-        value.value?.includes('bytedance platform override'),
+        value.value?.includes('bytedance explicit fallback'),
       ),
     );
     expect(event).toBeDefined();
-    expect(event.platform).toBe('javascript');
+    expect(event.platform).toBe('bytedance');
     expect(event.contexts?.miniapp?.platform).toBe('bytedance');
-    expect(event.contexts?.device?.brand).toBe('Apple');
   });
 });

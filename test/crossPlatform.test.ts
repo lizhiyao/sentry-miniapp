@@ -67,6 +67,81 @@ describe('CrossPlatform', () => {
       expect(detectPlatform()?.name).toBe('wechat');
     });
 
+    it('wx / tt 共存时根据抖音宿主 appName 自动识别为 bytedance', async () => {
+      const mockWx = { request: jest.fn(), getSystemInfoSync: jest.fn(() => ({})) };
+      const mockTt = {
+        request: jest.fn(),
+        getSystemInfoSync: jest.fn(() => ({ appName: 'Douyin' })),
+      };
+      (global as any).wx = mockWx;
+      (global as any).tt = mockTt;
+
+      const { getSDK, appName, detectPlatform } = await import('../src/crossPlatform');
+      expect(getSDK()).toBe(mockTt);
+      expect(appName()).toBe('bytedance');
+      expect(detectPlatform()).toEqual({ sdk: mockTt, name: 'bytedance' });
+    });
+
+    it('兼容对象返回抖音 hostName 时保留该对象作为 SDK，并纠正平台标记', async () => {
+      const compatibleWx = {
+        request: jest.fn(),
+        getSystemInfoSync: jest.fn(() => ({ hostName: 'Douyin' })),
+      };
+      (global as any).wx = compatibleWx;
+      (global as any).tt = { request: jest.fn() };
+
+      const { getSDK, appName } = await import('../src/crossPlatform');
+      expect(getSDK()).toBe(compatibleWx);
+      expect(appName()).toBe('bytedance');
+    });
+
+    it('通过抖音环境路径和 AppID 识别 bytedance', async () => {
+      (global as any).wx = { request: jest.fn() };
+      const mockTt = {
+        request: jest.fn(),
+        getEnvInfoSync: jest.fn(() => ({
+          microapp: { appId: 'tt1234567890' },
+          common: { USER_DATA_PATH: 'ttfile://user' },
+        })),
+      };
+      (global as any).tt = mockTt;
+
+      const { detectPlatform } = await import('../src/crossPlatform');
+      expect(detectPlatform()).toEqual({ sdk: mockTt, name: 'bytedance' });
+    });
+
+    it('宿主信息 API 抛错或没有明确证据时保留历史 first-match', async () => {
+      const mockWx = {
+        request: jest.fn(),
+        getSystemInfoSync: jest.fn(() => {
+          throw new Error('not ready');
+        }),
+      };
+      (global as any).wx = mockWx;
+      (global as any).tt = { request: jest.fn(), getSystemInfoSync: jest.fn(() => ({})) };
+
+      const { getSDK, appName } = await import('../src/crossPlatform');
+      expect(getSDK()).toBe(mockWx);
+      expect(appName()).toBe('wechat');
+    });
+
+    it('sdk 与 appName 共享同一次平台解析结果', async () => {
+      (global as any).wx = { request: jest.fn() };
+      const getSystemInfoSync = jest
+        .fn<() => Record<string, string>>()
+        .mockReturnValueOnce({ appName: 'Douyin' })
+        .mockImplementation(() => {
+          throw new Error('transient failure');
+        });
+      const mockTt = { request: jest.fn(), getSystemInfoSync };
+      (global as any).tt = mockTt;
+
+      const { getSDK, appName } = await import('../src/crossPlatform');
+      expect(getSDK()).toBe(mockTt);
+      expect(appName()).toBe('bytedance');
+      expect(getSystemInfoSync).toHaveBeenCalledTimes(1);
+    });
+
     it('should return my SDK when wx not available but my is', async () => {
       const mockMy = {
         request: jest.fn(),

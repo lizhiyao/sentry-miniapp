@@ -133,7 +133,7 @@ export interface MiniappOptions {
 
   /**
    * 事件的小程序平台标记，写入顶层 `platform` 与 `contexts.miniapp.platform`。
-   * 默认按宿主全局对象自动识别；当运行时存在多个平台对象或识别结果不准确时可显式指定。
+   * 默认按宿主全局对象及平台专属宿主信息自动识别；无法消除多对象歧义时可显式指定。
    * 此选项不切换底层运行时 API。百度小程序使用 `swan`，没有单独的 `baidu`。
    */
   platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou';

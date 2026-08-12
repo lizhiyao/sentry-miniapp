@@ -20,7 +20,13 @@ SDK 初始化时按当前运行时的全局对象识别平台，业务代码不�
 
 识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常无需手动设置 `platform`。
 
-SDK 按上表顺序使用首个检测到的平台对象。如果运行时同时存在多个平台对象，或者外部代码注入了其它平台对象，自动识别结果可能与实际发布平台不一致。此时可显式指定事件的平台标记：
+只有一个平台对象时，SDK 直接使用它。运行时同时存在多个平台对象时，SDK 会进一步读取同步宿主信息，以平台专属信号消除歧义：
+
+- 抖音 `getSystemInfoSync()` 返回的 `appName` / `hostName`；
+- `getEnvInfoSync()` 返回的 `ttfile://` 数据路径和 `tt...` AppID；
+- `getAccountInfoSync()` 或 `getLaunchOptionsSync()` 返回的平台 AppID。
+
+这些 API 不存在、调用失败或未返回明确平台信息时，SDK 才按上表顺序兼容回退。此时可显式指定事件的平台标记：
 
 ```js
 Sentry.init({
