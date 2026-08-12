@@ -26,7 +26,7 @@ SDK 初始化时按当前运行时的全局对象识别平台，业务代码不�
 - `getEnvInfoSync()` 返回的 `ttfile://` 数据路径和 `tt...` AppID；
 - `getAccountInfoSync()` 或 `getLaunchOptionsSync()` 返回的平台 AppID。
 
-这些 API 不存在、调用失败或未返回明确平台信息时，SDK 才按上表顺序兼容回退。此时可显式指定事件的平台标记：
+这些 API 不存在、调用失败、未返回明确信息或不同对象的信号互相冲突时，SDK 会按上表顺序兼容回退。此时可显式指定事件的平台标记：
 
 ```js
 Sentry.init({
@@ -35,7 +35,7 @@ Sentry.init({
 });
 ```
 
-显式配置会覆盖事件顶层 `platform` 与 `contexts.miniapp.platform`，但不会切换底层宿主对象。异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API，避免改变原本可用的上报链路。如果需要让 Sentry 按 JavaScript 事件处理 Source Map，可继续在 `beforeSend` 中将顶层 `event.platform` 改为 `javascript`；`contexts.miniapp.platform` 仍会保留真实小游戏平台。
+显式配置会作为事件顶层 `platform` 的默认值，并覆盖 `contexts.miniapp.platform`，但不会切换底层宿主对象。异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API，避免改变原本可用的上报链路。如果需要让 Sentry 按 JavaScript 事件处理 Source Map，可继续在 `beforeSend` 中将顶层 `event.platform` 改为 `javascript`；`contexts.miniapp.platform` 仍会保留真实小游戏平台。
 
 ## 网络请求差异
 

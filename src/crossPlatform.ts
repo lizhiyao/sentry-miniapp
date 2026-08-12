@@ -171,10 +171,10 @@ const BYTEDANCE_HOST_NAMES = new Set([
 ]);
 
 const callPlatformInfo = (platformSdk: SDK, method: keyof SDK): Record<string, any> | null => {
-  const fn = platformSdk[method];
-  if (typeof fn !== 'function') return null;
-
   try {
+    const fn = platformSdk[method];
+    if (typeof fn !== 'function') return null;
+
     const result = fn.call(platformSdk);
     return result && typeof result === 'object' ? result : null;
   } catch (_error) {
@@ -239,11 +239,19 @@ export const detectPlatform = (): DetectedPlatform | null => {
     return candidates[0] ?? null;
   }
 
+  const inferredPlatforms = new Set<AppName>();
   for (const candidate of candidates) {
     const inferredPlatform = inferPlatformFromRuntime(candidate.sdk);
-    if (inferredPlatform) {
-      return { sdk: candidate.sdk, name: inferredPlatform };
+    if (inferredPlatform && candidates.some((item) => item.name === inferredPlatform)) {
+      inferredPlatforms.add(inferredPlatform);
     }
+  }
+
+  if (inferredPlatforms.size === 1) {
+    const [inferredPlatform] = inferredPlatforms;
+    // 宿主证据只用于选择同名候选对象，不能把 A 平台 SDK 与 B 平台名称拼在一起；
+    // getSDK() 后续会按 name 执行支付宝/钉钉等平台适配，二者错配会破坏请求和 Storage。
+    return candidates.find((item) => item.name === inferredPlatform) ?? candidates[0] ?? null;
   }
 
   return candidates[0] ?? null;

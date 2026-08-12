@@ -82,28 +82,41 @@ describe('CrossPlatform', () => {
       expect(detectPlatform()).toEqual({ sdk: mockTt, name: 'bytedance' });
     });
 
-    it('兼容对象返回抖音 hostName 时保留该对象作为 SDK，并纠正平台标记', async () => {
+    it('兼容对象返回抖音 hostName 时选择同名 tt 对象，避免 SDK 与平台名称错配', async () => {
       const compatibleWx = {
         request: jest.fn(),
         getSystemInfoSync: jest.fn(() => ({ hostName: 'Douyin' })),
       };
       (global as any).wx = compatibleWx;
-      (global as any).tt = { request: jest.fn() };
+      const mockTt = { request: jest.fn() };
+      (global as any).tt = mockTt;
 
       const { getSDK, appName } = await import('../src/crossPlatform');
-      expect(getSDK()).toBe(compatibleWx);
+      expect(getSDK()).toBe(mockTt);
       expect(appName()).toBe('bytedance');
     });
 
-    it('通过抖音环境路径和 AppID 识别 bytedance', async () => {
+    it('通过抖音环境数据路径识别 bytedance', async () => {
       (global as any).wx = { request: jest.fn() };
       const mockTt = {
         request: jest.fn(),
         getEnvInfoSync: jest.fn(() => ({
-          microapp: { appId: 'tt1234567890' },
           common: { USER_DATA_PATH: 'ttfile://user' },
         })),
       };
+      (global as any).tt = mockTt;
+
+      const { detectPlatform } = await import('../src/crossPlatform');
+      expect(detectPlatform()).toEqual({ sdk: mockTt, name: 'bytedance' });
+    });
+
+    it.each([
+      ['getEnvInfoSync', () => ({ microapp: { appId: 'tt1234567890' } })],
+      ['getAccountInfoSync', () => ({ miniProgram: { appId: 'tt1234567890' } })],
+      ['getLaunchOptionsSync', () => ({ extra: { appId: 'tt1234567890' } })],
+    ])('通过 %s 返回的抖音 AppID 识别 bytedance', async (method, getInfo) => {
+      (global as any).wx = { request: jest.fn() };
+      const mockTt = { request: jest.fn(), [method]: jest.fn(getInfo) };
       (global as any).tt = mockTt;
 
       const { detectPlatform } = await import('../src/crossPlatform');
@@ -119,6 +132,37 @@ describe('CrossPlatform', () => {
       };
       (global as any).wx = mockWx;
       (global as any).tt = { request: jest.fn(), getSystemInfoSync: jest.fn(() => ({})) };
+
+      const { getSDK, appName } = await import('../src/crossPlatform');
+      expect(getSDK()).toBe(mockWx);
+      expect(appName()).toBe('wechat');
+    });
+
+    it('宿主信息 API getter 抛错时保留历史 first-match', async () => {
+      const mockWx = { request: jest.fn() };
+      Object.defineProperty(mockWx, 'getSystemInfoSync', {
+        get: () => {
+          throw new Error('unsupported getter');
+        },
+      });
+      (global as any).wx = mockWx;
+      (global as any).tt = { request: jest.fn() };
+
+      const { getSDK, appName } = await import('../src/crossPlatform');
+      expect(getSDK()).toBe(mockWx);
+      expect(appName()).toBe('wechat');
+    });
+
+    it('不同候选对象返回冲突平台信号时保留历史 first-match', async () => {
+      const mockWx = {
+        request: jest.fn(),
+        getEnvInfoSync: jest.fn(() => ({ common: { USER_DATA_PATH: 'wxfile://user' } })),
+      };
+      (global as any).wx = mockWx;
+      (global as any).tt = {
+        request: jest.fn(),
+        getSystemInfoSync: jest.fn(() => ({ appName: 'Douyin' })),
+      };
 
       const { getSDK, appName } = await import('../src/crossPlatform');
       expect(getSDK()).toBe(mockWx);

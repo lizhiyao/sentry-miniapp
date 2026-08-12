@@ -163,7 +163,7 @@ Sentry.init({
 
 ### Step 3: Configure Platform (if needed)
 
-The SDK auto-detects the platform at runtime. When multiple platform globals are present, it uses platform-specific host names, data paths, and App IDs to disambiguate them. Set `platform` only when those runtime signals are unavailable or the detected event label still does not match the release target.
+The SDK auto-detects the platform at runtime. When multiple platform globals are present, it uses platform-specific host names, data paths, and App IDs to disambiguate them. Set `platform` only when those runtime signals are unavailable, conflicting, or the detected event label still does not match the release target.
 
 If you need to override the event's miniapp platform label:
 
@@ -175,7 +175,7 @@ Sentry.init({
 });
 ```
 
-The configured value is written to both the top-level event `platform` and `contexts.miniapp.platform`. It does not switch the underlying runtime API: error handlers, requests, and storage continue using the compatible global detected automatically. If Source Map processing requires top-level `event.platform = 'javascript'`, set that in `beforeSend`; the miniapp context keeps the configured platform.
+The configured value is used as the default top-level event `platform` and is written to `contexts.miniapp.platform`. It does not switch the underlying runtime API: error handlers, requests, and storage continue using the compatible global detected automatically. If Source Map processing requires top-level `event.platform = 'javascript'`, set that in `beforeSend`; the miniapp context keeps the configured platform.
 
 ### Step 4: Add User Context
 
