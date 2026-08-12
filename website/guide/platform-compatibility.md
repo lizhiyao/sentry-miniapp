@@ -1,8 +1,8 @@
-# 平台兼容性详解
+# 跨平台差异与降级
 
 同一份 `sentry-miniapp` 配置可以运行在多个小程序平台，但平台提供的网络、Storage、异常监听和系统信息 API 并不完全一致。本页说明 SDK 如何抹平这些差异，以及某项能力在特定平台缺失时会发生什么。
 
-如果你只想确认某个平台是否支持异常、性能、小游戏或 Source Map，请先看[支持平台与能力](/guide/platforms)。遇到“微信正常、支付宝或钉钉异常”这类分端问题时，再回到本页排查。
+如果你只想确认某个平台是否支持异常、性能、小游戏或 Source Map，请先看[支持范围](/guide/platforms)。遇到“微信正常、支付宝或钉钉异常”这类分端问题时，再回到本页排查。
 
 ## SDK 如何处理平台差异
 
@@ -18,7 +18,24 @@ SDK 初始化时按当前运行时的全局对象识别平台，业务代码不�
 | 百度智能小程序 | `swan` | `swan` | `swan.request` |
 | 快手小程序 | `ks` | `kuaishou` | `ks.request` |
 
-识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常不应手动设置 `platform`；该选项只影响事件上的平台标记，不能把当前运行时转换成另一个平台。
+识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常无需手动设置 `platform`。
+
+只有一个平台对象时，SDK 直接使用它。运行时同时存在多个平台对象时，SDK 会进一步读取同步宿主信息，以平台专属信号消除歧义：
+
+- 抖音 `getSystemInfoSync()` 返回的 `appName` / `hostName`；
+- `getEnvInfoSync()` 返回的 `ttfile://` 数据路径和 `tt...` AppID；
+- `getAccountInfoSync()` 或 `getLaunchOptionsSync()` 返回的平台 AppID。
+
+这些 API 不存在、调用失败、未返回明确信息或不同对象的信号互相冲突时，SDK 会按上表顺序兼容回退。此时可显式指定事件的平台标记：
+
+```js
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  platform: 'bytedance',
+});
+```
+
+显式配置会作为事件顶层 `platform` 的默认值，并覆盖 `contexts.miniapp.platform`，但不会切换底层宿主对象。异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API，避免改变原本可用的上报链路。如果需要让 Sentry 按 JavaScript 事件处理 Source Map，可继续在 `beforeSend` 中将顶层 `event.platform` 改为 `javascript`；`contexts.miniapp.platform` 仍会保留真实小游戏平台。
 
 ## 网络请求差异
 
@@ -87,7 +104,7 @@ https://appx/pages/a.js    -> app:///pages/a.js
 tt://pages/b.js            -> app:///pages/b.js
 ```
 
-上传 Source Map 时仍需保证 `release` 与 SDK 初始化值完全一致。微信真机合并脚本、Debug ID、自定义 `stackParser` 等情况见 [Source Map 配置](/guide/sourcemap)。
+上传 Source Map 时仍需保证 `release` 与 SDK 初始化值完全一致。微信真机合并脚本、Debug ID、自定义 `stackParser` 等情况见 [Source Map 进阶与排障](/guide/sourcemap-advanced)。
 
 ## 分端问题怎么排查
 
@@ -99,6 +116,6 @@ tt://pages/b.js            -> app:///pages/b.js
 
 ## 下一步
 
-- [支持平台与能力](/guide/platforms)
+- [支持范围](/guide/platforms)
 - [配置项参考](/guide/configuration)
 - [常见问题](/guide/faq)

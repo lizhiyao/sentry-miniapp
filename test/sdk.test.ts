@@ -16,6 +16,7 @@ import type { StackParser } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
+import { shouldIgnoreOnError } from '../src/helpers';
 
 describe('SDK', () => {
   beforeEach(() => {
@@ -95,7 +96,17 @@ describe('SDK', () => {
       const defaultIntegrationCount = defaultIntegrations.length;
       const client = init({ dsn: 'https://test@sentry.io/123' });
       expect(client).toBeInstanceOf(MiniappClient);
+      expect(client?.getIntegrationByName?.('PerformanceAPI')).toBeDefined();
       expect(defaultIntegrations).toHaveLength(defaultIntegrationCount);
+    });
+
+    it('默认性能集成是可执行的实例', () => {
+      const performance = getDefaultIntegrations().find(
+        (integration) => integration.name === 'PerformanceAPI',
+      );
+
+      expect(performance).toBeDefined();
+      expect(performance?.setupOnce).toEqual(expect.any(Function));
     });
 
     it('defaultIntegrations=false 时跳过核心默认集成', () => {
@@ -414,14 +425,24 @@ describe('SDK', () => {
     });
 
     it('should capture exceptions and re-throw', () => {
-      init({ dsn: 'https://test@sentry.io/123' });
-      const error = new Error('Test wrap error');
-      const fn = () => {
-        throw error;
-      };
-      const wrapped = wrap(fn);
+      jest.useFakeTimers();
 
-      expect(() => wrapped()).toThrow('Test wrap error');
+      try {
+        init({ dsn: 'https://test@sentry.io/123' });
+        const error = new Error('Test wrap error');
+        const fn = () => {
+          throw error;
+        };
+        const wrapped = wrap(fn);
+
+        expect(() => wrapped()).toThrow('Test wrap error');
+        expect(shouldIgnoreOnError()).toBe(true);
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
+
+      expect(shouldIgnoreOnError()).toBe(false);
     });
 
     it('should preserve this context', () => {

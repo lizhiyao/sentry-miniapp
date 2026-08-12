@@ -20,7 +20,10 @@ jest.mock('@sentry/core', () => ({
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
-import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
+import {
+  MinigameFrameRateIntegration,
+  minigameFrameRateIntegration,
+} from '../src/integrations/minigame-framerate';
 
 describe('MinigameFrameRateIntegration', () => {
   const g = global as any;
@@ -37,6 +40,14 @@ describe('MinigameFrameRateIntegration', () => {
     rafCallback = null;
     cb!();
   }
+
+  it('函数式工厂返回可用的帧率集成实例', () => {
+    const integration = minigameFrameRateIntegration({ fpsWarningThreshold: 45 });
+
+    expect(integration).toBeInstanceOf(MinigameFrameRateIntegration);
+    expect(integration.name).toBe('MinigameFrameRate');
+    expect(integration.setupOnce).toEqual(expect.any(Function));
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();

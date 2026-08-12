@@ -31,7 +31,7 @@ export interface PerformanceIntegrationOptions {
   sampleRate?: number;
   /** 性能条目缓冲区大小 */
   bufferSize?: number;
-  /** 自动上报间隔 (毫秒) */
+  /** 性能条目统计汇总间隔 (毫秒) */
   reportInterval?: number;
   /** 性能阈值配置 */
   thresholds?: {
@@ -453,11 +453,9 @@ export class PerformanceIntegration implements Integration {
     }
   }
 
-  /**
-   * 开始自动上报
-   */
+  /** 开始定时汇总性能条目 */
   private _startAutoReporting(): void {
-    if (this._options.reportInterval <= 0) {
+    if (!this._performanceManager || this._options.reportInterval <= 0) {
       return;
     }
 
@@ -466,9 +464,7 @@ export class PerformanceIntegration implements Integration {
     }, this._options.reportInterval);
   }
 
-  /**
-   * 上报缓冲的性能条目
-   */
+  /** 汇总缓冲的性能条目，并写入当前 Sentry scope */
   private _reportBufferedEntries(): void {
     if (this._entryBuffer.length === 0) {
       return;
@@ -500,13 +496,10 @@ export class PerformanceIntegration implements Integration {
       // 检查性能阈值并发送警告
       this._checkPerformanceThresholds(stats);
 
-      // 使用小程序原生 API 上报性能数据
-      this._reportToNativeAPI();
-
       // 清空缓冲区
       this._entryBuffer = [];
     } catch (error) {
-      console.warn('[sentry-miniapp] Failed to report buffered entries:', error);
+      console.warn('[sentry-miniapp] Failed to summarize buffered performance entries:', error);
     }
   }
 
@@ -614,31 +607,6 @@ export class PerformanceIntegration implements Integration {
   }
 
   /**
-   * 使用小程序原生 API 上报性能数据
-   */
-  private _reportToNativeAPI(): void {
-    try {
-      const currentSdk = sdk();
-      if (currentSdk.reportPerformance && this._entryBuffer.length > 0) {
-        const performanceData = {
-          entries: this._entryBuffer.map((entry) => ({
-            name: entry.name,
-            entryType: entry.entryType,
-            startTime: entry.startTime,
-            duration: entry.duration,
-          })),
-          timestamp: Date.now(),
-          sampleRate: this._options.sampleRate,
-        };
-
-        currentSdk.reportPerformance(performanceData);
-      }
-    } catch (error) {
-      console.warn('[sentry-miniapp] Failed to report to native API:', error);
-    }
-  }
-
-  /**
    * 采集内存信息
    */
   private _collectMemoryInfo(): Record<string, any> | null {
@@ -672,11 +640,9 @@ export class PerformanceIntegration implements Integration {
 
       // 检查 Performance API 支持情况
       const hasPerformanceAPI = !!currentSdk.getPerformance;
-      const hasReportAPI = !!currentSdk.reportPerformance;
 
       scope.setContext('performance_support', {
         has_performance_api: hasPerformanceAPI,
-        has_report_api: hasReportAPI,
         integration_enabled: true,
         options: this._options,
       });
@@ -707,7 +673,7 @@ export class PerformanceIntegration implements Integration {
       this._reportTimer = null;
     }
 
-    // 最后一次上报
+    // 最后一次汇总
     this._reportBufferedEntries();
   }
 }
@@ -715,6 +681,6 @@ export class PerformanceIntegration implements Integration {
 /**
  * Performance API 集成工厂函数
  */
-export const performanceIntegration = (options?: PerformanceIntegrationOptions): IntegrationFn => {
-  return () => new PerformanceIntegration(options);
-};
+export const performanceIntegration = ((
+  options?: PerformanceIntegrationOptions,
+): PerformanceIntegration => new PerformanceIntegration(options)) satisfies IntegrationFn;

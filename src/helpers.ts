@@ -46,6 +46,10 @@ export function wrap(
     try {
       return fn.apply(this, args);
     } catch (ex) {
+      // 平台全局 onError 会在异常重新抛出后再次收到同一个错误。短暂屏蔽该回调，
+      // 与 Sentry Browser 的 TryCatch / GlobalHandlers 去重策略保持一致。
+      ignoreNextOnErrorCall();
+
       // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
       // 绝不能用 getCurrentScope().addEventProcessor——那会把处理器永久挂在当前 scope 上，给之后
       // 每个 unrelated 事件都盖上本次的 mechanism/arguments（尤其把未处理错误误标成 handled:true，
@@ -153,15 +157,57 @@ export function getFunctionName(fn: any): string {
 /**
  * 用新值填充对象属性，保留原始值的引用
  */
+export interface FillResult {
+  replaced: boolean;
+  restore: () => void;
+}
+
+function replacePropertyValue(
+  source: { [key: string]: any },
+  name: string,
+  value: any,
+  enumerable: boolean,
+): boolean {
+  try {
+    source[name] = value;
+    if (source[name] === value) return true;
+  } catch (_e) {
+    // 部分小程序真机把原生 API 暴露为 accessor，直接赋值可能抛错或被 setter 忽略。
+  }
+
+  try {
+    Object.defineProperty(source, name, {
+      configurable: true,
+      enumerable,
+      value,
+      writable: true,
+    });
+    return source[name] === value;
+  } catch (_e) {
+    // 不可配置的宿主属性无法安全替换。
+    return false;
+  }
+}
+
 export function fill(
   source: { [key: string]: any },
   name: string,
   replacementFactory: (...args: any[]) => any,
-): void {
+): FillResult | undefined {
   if (!(name in source)) {
-    return;
+    return undefined;
   }
 
+  let hadOwnProperty = false;
+  let descriptorInspected = false;
+  let originalDescriptor: PropertyDescriptor | undefined;
+  try {
+    hadOwnProperty = Object.prototype.hasOwnProperty.call(source, name);
+    originalDescriptor = hadOwnProperty ? Object.getOwnPropertyDescriptor(source, name) : undefined;
+    descriptorInspected = true;
+  } catch (_e) {
+    // 宿主代理可能不允许读取 descriptor；仍可继续尝试普通赋值。
+  }
   const original = source[name] as () => any;
   const wrapped = replacementFactory(original);
 
@@ -174,7 +220,38 @@ export function fill(
     }
   }
 
-  source[name] = wrapped;
+  const enumerable = originalDescriptor?.enumerable ?? true;
+  const replaced = replacePropertyValue(source, name, wrapped, enumerable);
+
+  return {
+    replaced,
+    restore: () => {
+      if (!replaced) return;
+
+      try {
+        if (!descriptorInspected) {
+          replacePropertyValue(source, name, original, enumerable);
+        } else if (hadOwnProperty && originalDescriptor) {
+          Object.defineProperty(source, name, originalDescriptor);
+
+          // accessor 可能把值保存在宿主内部；恢复 descriptor 后再尽力恢复原始值。
+          if (source[name] !== original && originalDescriptor.set) {
+            source[name] = original;
+          }
+        } else {
+          delete source[name];
+
+          // 若赋值命中了继承的 setter，删除自有属性后还需恢复其内部值。
+          if (source[name] !== original) {
+            source[name] = original;
+          }
+        }
+      } catch (_e) {
+        // 宿主拒绝精确恢复 descriptor 时，至少尽力恢复原始函数。
+        replacePropertyValue(source, name, original, enumerable);
+      }
+    },
+  };
 }
 
 /**

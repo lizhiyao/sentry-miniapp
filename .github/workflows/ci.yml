@@ -42,8 +42,11 @@ jobs:
     - name: Build Project
       run: yarn run build
 
-    - name: Check examples are in sync with dist
-      run: git diff --exit-code examples/wxapp/lib/sentry-miniapp.js examples/wxapp/lib/sentry-miniapp.js.map
+    - name: Build and Check Mini Program Example Bundle
+      run: yarn run build:miniapp
+
+    - name: Check Working Tree
+      run: git diff --exit-code
 
     - name: Run Tests
       run: yarn run test

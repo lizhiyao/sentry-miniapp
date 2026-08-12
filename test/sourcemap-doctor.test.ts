@@ -203,7 +203,7 @@ describe('doctor-sourcemap', () => {
     );
   });
 
-  it('describes game.js as a WeChat minigame runtime map in dist mode', () => {
+  it('does not assume a game.js map in dist mode is a WeChat outer map', () => {
     const dist = makeTempDir();
     writeFileSync(join(dist, 'game.js'), 'throw new Error("test");\n');
     writeJson(join(dist, 'game.js.map'), {
@@ -222,6 +222,6 @@ describe('doctor-sourcemap', () => {
     );
 
     expect(result.status).toBe(0);
-    expect(notice?.message).toContain('微信小程序 / 小游戏运行时文件 map');
+    expect(notice).toBeUndefined();
   });
 });

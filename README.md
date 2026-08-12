@@ -46,7 +46,7 @@
 npm install sentry-miniapp
 ```
 
-> 不使用 npm 时，也可直接将 `examples/wxapp/lib/sentry-miniapp.js` 复制到小程序项目中引入。
+> 不使用 npm 时，可从 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) 下载对应版本的 `sentry-miniapp.umd.js`；调试源码仓库中的微信示例时，运行 `yarn build:miniapp` 生成示例依赖。
 
 在入口文件（`app.js` / `app.ts`）**最顶部、`App()` 之前**初始化：
 
@@ -132,9 +132,11 @@ Sentry.setConsent(true);
 |----------|--------|
 | 按原生小程序完整接一遍 | [快速接入](https://sentry-miniapp.pages.dev/guide/getting-started) |
 | 在 Taro / uni-app 项目中接入，并处理组件错误 | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
-| 配 Source Map、Debug ID 或排查堆栈不还原 | [Source Map 配置](https://sentry-miniapp.pages.dev/guide/sourcemap) |
-| 配采样、Logs、隐私同意、`traceparent`、自定义 transport | [配置项参考](https://sentry-miniapp.pages.dev/guide/configuration) |
-| 确认各平台、小程序 / 小游戏能力差异 | [支持平台与能力](https://sentry-miniapp.pages.dev/guide/platforms) |
+| 接入微信 / 抖音小游戏和性能监控 | [小游戏接入与性能](https://sentry-miniapp.pages.dev/guide/minigame) |
+| 配异常上下文、Logs、性能、追踪或隐私同意 | [能力指南](https://sentry-miniapp.pages.dev/guide/errors-and-context) |
+| 查公开方法和完整初始化参数 | [常用 API](https://sentry-miniapp.pages.dev/guide/api) / [配置项参考](https://sentry-miniapp.pages.dev/guide/configuration) |
+| 上传 Source Map 或排查 Debug ID、微信合并文件 | [上线指南](https://sentry-miniapp.pages.dev/guide/sourcemap) / [进阶排障](https://sentry-miniapp.pages.dev/guide/sourcemap-advanced) |
+| 确认各平台、小程序 / 小游戏能力差异 | [支持范围](https://sentry-miniapp.pages.dev/guide/platforms) |
 | 关心主包体积 | [主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 | 看可运行示例 | [示例工程](https://sentry-miniapp.pages.dev/guide/examples) |
 | 查看版本历史与每次发布内容 | [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) |

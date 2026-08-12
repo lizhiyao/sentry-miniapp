@@ -78,6 +78,10 @@ export function collectBuildMaps(dir) {
   return { index, fileCount: found.length, invalidMaps, files: found };
 }
 
+export function isWechatAppserviceName(name) {
+  return /(^|\/)(appservice\.app|app-service|appservice)\.js$/i.test(normalizeName(name, []));
+}
+
 export function isWechatRuntimeBundleName(name) {
-  return /(^|\/)(appservice\.app|app-service|appservice|game)\.js$/i.test(normalizeName(name, []));
+  return isWechatAppserviceName(name) || /(^|\/)game\.js$/i.test(normalizeName(name, []));
 }

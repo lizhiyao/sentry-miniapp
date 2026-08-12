@@ -1,6 +1,8 @@
 # 配置项参考
 
-`Sentry.init({ ... })` 支持的全部选项。**通常只需 `dsn` + `release` 即可上手**（见[快速接入](/guide/getting-started)），下面是完整清单，按需取用。
+`Sentry.init({ ... })` 支持的全部选项。通常只需 `dsn` + `release` 即可上手（见[快速接入](/guide/getting-started)），下面按参数类别列出类型、默认值和行为。
+
+如果你还在判断“为什么需要这个选项”，先看对应的[异常、日志与上下文](/guide/errors-and-context)、[性能与链路追踪](/guide/performance-and-tracing)、[可靠上报与隐私同意](/guide/reliability-and-privacy)或[小游戏](/guide/minigame)指南。
 
 ## 基础
 
@@ -10,7 +12,7 @@
 | `release` | `string` | — | 版本号；**Source Map 解析的关键**，需与上传时的 release 完全一致 |
 | `environment` | `string` | — | 环境标识，如 `production` / `staging` |
 | `debug` | `boolean` | `false` | 开启 SDK 调试日志 |
-| `platform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 事件上标注的平台；运行时平台 SDK 会自动检测，一般无需手动设。百度小程序的全局对象是 `swan`，因此平台标识使用 `swan`，没有单独的 `baidu` |
+| `platform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 事件的平台标记，作为顶层 `platform` 的默认值并写入 `contexts.miniapp.platform`。SDK 会结合平台对象、宿主名称、数据路径和 AppID 尽量消除 `wx` / `tt` 等多对象歧义；仅在宿主信息缺失或冲突时需要手动指定。该选项不切换底层运行时 API。百度小程序使用 `swan`，没有单独的 `baidu` |
 
 ## 采样
 
@@ -91,10 +93,12 @@ console.log(diagnostics.warnings);
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `enableSourceMap` | `boolean` | `true` | 自动将各平台虚拟堆栈路径归一化为 `app:///` 前缀。详见 [Source Map 配置](/guide/sourcemap) |
+| `enableSourceMap` | `boolean` | `true` | 自动将各平台虚拟堆栈路径归一化为 `app:///` 前缀。详见 [Source Map 上线指南](/guide/sourcemap) |
 | `stackParser` | `StackParser` | `miniappStackParser` | 自定义堆栈解析器；私有引擎或特殊堆栈格式才需要覆盖 |
 
 ## 离线缓存（弱网可靠性）
+
+工作方式与验证步骤见[可靠上报与隐私同意](/guide/reliability-and-privacy#弱网离线缓存)。
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
@@ -103,6 +107,8 @@ console.log(diagnostics.warnings);
 | `offlineCacheMaxAge` | `number` | `86400000` | 缓存过期时间（ms），默认 24 小时，超时丢弃 |
 
 ## 隐私合规（同意后上报）
+
+开始配置前建议先阅读[用户同意前不发送 Sentry 网络](/guide/reliability-and-privacy#用户同意前不发送-sentry-网络)。
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
@@ -135,6 +141,8 @@ Sentry.setConsent(false);
 
 ## 分布式追踪
 
+追踪头的用途、域名限制与验证方式见[性能与链路追踪](/guide/performance-and-tracing#串联小程序与服务端)。
+
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `enableTracePropagation` | `boolean` | `true` | 是否注入分布式追踪头（`sentry-trace` / `baggage`，以及可选 `traceparent`）。只控制传播，不关闭本地 API 请求 span |
@@ -156,7 +164,7 @@ Sentry.setConsent(false);
 | `enableMinigameFrameRate` | `boolean` | 小游戏 `true` / 小程序 `false` | 帧率（FPS）/ 卡顿（jank）监控；小程序无全局 rAF，开启也安全 no-op |
 | `minigameFrameRateOptions` | `object` | 见下 | 帧率监控细调，仅 `enableMinigameFrameRate` 生效时使用 |
 
-`minigameFrameRateOptions` 子项：`fpsWarningThreshold`（默认 `30`）、`longFrameThresholdMs`（默认 `50`）、`reportInterval`（默认 `10000`）、`maxJankBreadcrumbsPerWindow`（默认 `3`）、`jankLevels`（可选，分级卡顿阈值）。详见 [支持平台与能力](/guide/platforms)。
+`minigameFrameRateOptions` 子项：`fpsWarningThreshold`（默认 `30`）、`longFrameThresholdMs`（默认 `50`）、`reportInterval`（默认 `10000`）、`maxJankBreadcrumbsPerWindow`（默认 `3`）、`jankLevels`（可选，分级卡顿阈值）。使用方法与数据去向见[小游戏接入与性能](/guide/minigame)。
 
 `jankLevels` 为 `{ minor?, major?, severe? }`（毫秒，各档全可选）。提供后切换为**分级统计**：每帧卡顿按命中的最高档归类，面包屑带 `jankLevel`，会话汇总额外增发 `jank_minor_count` / `jank_major_count` / `jank_severe_count`（仅启用的档）。不提供时沿用 `longFrameThresholdMs` 单档，行为与历史完全一致；两者同时提供时 `jankLevels` 优先。
 

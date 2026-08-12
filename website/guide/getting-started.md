@@ -2,7 +2,7 @@
 
 `sentry-miniapp` 是基于 [`@sentry/core`](https://github.com/getsentry/sentry-javascript) 的跨端小程序 Sentry SDK，覆盖微信、支付宝、字节跳动、钉钉、QQ、百度、快手，并兼容 Taro / uni-app。
 
-> 本页即**原生小程序**（微信 / 支付宝 / 字节等原生工程）的接入方式。用 Taro / uni-app 框架的另见 [Taro 接入指南](/guide/taro) 与 [uni-app 接入指南](/guide/uniapp)。
+> 本页是**原生小程序**的最短接入路径。Taro、uni-app 或小游戏请直接进入 [Taro](/guide/taro)、[uni-app](/guide/uniapp)或[小游戏](/guide/minigame)指南。
 
 ## 1. 安装
 
@@ -24,18 +24,6 @@ Sentry.init({
   // release 是 Source Map 生效的关键，需与上传 Source Map 时的 release 完全一致
   release: 'my-miniapp@1.0.0',
   environment: 'production',
-
-  // 采样
-  sampleRate: 1.0, // error 采样率
-  tracesSampleRate: 1.0, // 性能采样率；开启后 API 请求会作为 http.client span 上报
-
-  // 面包屑开关（均为默认值）
-  enableUserInteractionBreadcrumbs: true,
-  enableNavigationBreadcrumbs: true,
-  enableConsoleBreadcrumbs: false,
-
-  // 网络请求体：默认只记 url/method/状态码/耗时，开启后连请求/响应体也记录（内置脱敏）
-  traceNetworkBody: false,
 });
 ```
 
@@ -43,9 +31,9 @@ Sentry.init({
 不要把 `Sentry.init` 放进 `App.onLaunch` 里：此时 `App()` 已注册完成，SDK 无法再提前包装本次 `onLaunch`。这会导致 App 生命周期面包屑、首次 Session 启动，以及依赖 `onLaunch` 起点的冷启动耗时缺失。若只关心后续异常、网络面包屑和手动上报，放在 `onLaunch` 内仍可工作，但启动阶段能力会降级。
 :::
 
-默认初始化路径已包含：**自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控**。通常无需手动传 `integrations`——只有要替换核心默认集成时才传；Source Map / 网络 / Session 等能力仍由各自顶层开关控制。
+默认初始化路径已包含自动异常捕获、Source Map 路径归一化、网络面包屑、Session、网络状态与可用的平台性能集成。通常无需手动传 `integrations`。
 
-> 上面只是最小配置。离线缓存、采样、追踪头注入、面包屑开关、小游戏等**完整配置项**见 [配置项参考](/guide/configuration)。
+先用最小配置跑通事件，再按需要开启性能采样、Logs、隐私同意或其它能力。全部选项见[配置项参考](/guide/configuration)。
 
 ## 3. 验证是否打通
 
@@ -70,9 +58,8 @@ Sentry.captureException(new Error('sentry test'));
 
 ## 下一步
 
-- [配置项参考](/guide/configuration) — 全部 `init` 选项
-- [支持平台与能力矩阵](/guide/platforms)
-- [Taro 接入指南](/guide/taro) · [uni-app 接入指南](/guide/uniapp)
-- [常见问题 (FAQ)](/guide/faq)
-- [Source Map 配置](/guide/sourcemap)
-- [示例工程](/guide/examples)
+- 让线上堆栈还原到源码：[Source Map 上线指南](/guide/sourcemap)
+- 配置错误上下文和 Logs：[异常、日志与上下文](/guide/errors-and-context)
+- 开启性能数据和请求链路：[性能与链路追踪](/guide/performance-and-tracing)
+- 处理弱网和隐私授权：[可靠上报与隐私同意](/guide/reliability-and-privacy)
+- 查调用方式或参数：[常用 API](/guide/api) · [配置项参考](/guide/configuration)

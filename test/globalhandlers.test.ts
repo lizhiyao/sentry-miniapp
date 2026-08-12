@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { captureException, getCurrentScope } from '@sentry/core';
 import { GlobalHandlers } from '../src/integrations/globalhandlers';
+import { ignoreNextOnErrorCall } from '../src/helpers';
 
 // Mock @sentry/core
 jest.mock('@sentry/core', () => ({
@@ -92,11 +93,32 @@ describe('GlobalHandlers', () => {
       handler('Something went wrong');
 
       expect(captureException).toHaveBeenCalledWith(
-        expect.any(Error),
+        expect.objectContaining({
+          message: 'Something went wrong',
+          stack: 'Something went wrong',
+        }),
         expect.objectContaining({
           mechanism: { type: 'onerror', handled: false },
         }),
       );
+    });
+
+    it('should ignore the global callback after a wrapped handler captured the error', () => {
+      jest.useFakeTimers();
+
+      try {
+        const integration = new GlobalHandlers();
+        integration.setupOnce();
+        const handler = mockSdk.onError.mock.calls[0][0];
+
+        ignoreNextOnErrorCall();
+        handler('duplicate platform error');
+
+        expect(captureException).not.toHaveBeenCalled();
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
     });
 
     it('should capture Error objects', () => {

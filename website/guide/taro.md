@@ -28,14 +28,6 @@ Sentry.init({
   dsn: 'https://your-dsn@o0.ingest.sentry.io/0',
   release: 'my-taro-app@1.0.0', // 与上传 Source Map 时的 release 完全一致
   environment: 'production',
-
-  platform: 'wechat',
-  sampleRate: 1.0, // error 采样率
-  tracesSampleRate: 1.0, // 性能采样率；开启后 API 请求会作为 http.client span 上报
-
-  // 网络面包屑默认开启（自动包裹平台请求 API；Taro.request 最终也走它，无需额外配置）。
-  // 开 traceNetworkBody 连请求 / 响应体也记录（内置脱敏）。
-  traceNetworkBody: false,
 });
 
 Sentry.setTag('app.framework', 'taro-react');
@@ -43,7 +35,7 @@ Sentry.setTag('app.framework', 'taro-react');
 export default Sentry;
 ```
 
-默认初始化路径已含：自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控。**通常无需手动传 `integrations`**——只有要替换核心默认集成时才传；Source Map / 网络 / Session 等能力仍由各自顶层开关控制。
+平台会自动识别。默认初始化路径已含自动异常捕获、Source Map 路径归一化、网络面包屑、Session 与网络状态监控，通常无需手动传 `integrations`。
 
 ## 3. 尽早初始化
 
@@ -121,8 +113,9 @@ if (process.env.TARO_ENV === 'h5') {
 ## 6. 其它
 
 - **网络**：`Taro.request` 最终走对应小程序端被包裹的全局请求 API，请求会自动记成 `xhr` 面包屑、随错误事件上报，无需额外配置。
-- **Source Map**：Taro 经过编译，错误栈是编译后代码，需上传 Source Map 才能还原。配置见 [Source Map 配置](/guide/sourcemap)。
+- **性能与追踪**：需要独立性能数据时再设置采样率，见[性能与链路追踪](/guide/performance-and-tracing)。
+- **Source Map**：Taro 经过编译，错误栈是编译后代码，需上传 Source Map 才能还原。配置见 [Source Map 上线指南](/guide/sourcemap)。
 
 ## 下一步
 
-- [示例工程](/guide/examples) · [常见问题](/guide/faq) · [支持平台与能力](/guide/platforms)
+- [示例工程](/guide/examples) · [异常、日志与上下文](/guide/errors-and-context) · [常见问题](/guide/faq)

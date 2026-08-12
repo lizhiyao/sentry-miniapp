@@ -24,13 +24,13 @@ interface SDK {
   offShow?: Function;
   offHide?: Function;
   getLaunchOptionsSync?: Function;
+  getEnvInfoSync?: Function;
   getAccountInfoSync?: Function;
   getUpdateManager?: Function;
   showModal?: Function;
   URLSearchParams?: Function;
   // Performance API
   getPerformance?: Function; // 获取性能管理器
-  reportPerformance?: Function; // 上报性能数据
   // Storage API
   setStorageSync?: Function;
   getStorageSync?: Function;
@@ -145,8 +145,8 @@ const isBrowserRuntime = (): boolean => {
  */
 /**
  * 平台描述表：全局对象名 → 平台标识。平台检测的唯一来源，getSDK() / getAppName() /
- * isMiniappEnvironment() 均基于此。数组顺序即 first-match 优先级（多个平台全局对象
- * 共存时取靠前者），新增平台或调整优先级只需改这一处。
+ * isMiniappEnvironment() 均基于此。数组顺序只作为宿主信号无法消除多对象歧义时的兼容回退，
+ * 新增平台只需改这一处。
  */
 const PLATFORMS: ReadonlyArray<{ global: string; name: AppName }> = [
   { global: 'wx', name: 'wechat' },
@@ -158,22 +158,116 @@ const PLATFORMS: ReadonlyArray<{ global: string; name: AppName }> = [
   { global: 'ks', name: 'kuaishou' },
 ];
 
-/**
- * 检测当前平台：返回首个命中的平台全局对象与标识，未命中返回 null。
- */
-export const detectPlatform = (): { sdk: SDK; name: AppName } | null => {
-  const g = globalThis as Record<string, unknown>;
-  for (const platform of PLATFORMS) {
-    const candidate = g[platform.global];
-    if (typeof candidate === 'object' && candidate !== null) {
-      return { sdk: candidate as SDK, name: platform.name };
-    }
+type DetectedPlatform = { sdk: SDK; name: AppName };
+
+const BYTEDANCE_HOST_NAMES = new Set([
+  'toutiao',
+  'douyin',
+  'douyin_lite',
+  'news_article_lite',
+  'aweme_hotsoon',
+  'xigua',
+  'douyin_web',
+]);
+
+const callPlatformInfo = (platformSdk: SDK, method: keyof SDK): Record<string, any> | null => {
+  try {
+    const fn = platformSdk[method];
+    if (typeof fn !== 'function') return null;
+
+    const result = fn.call(platformSdk);
+    return result && typeof result === 'object' ? result : null;
+  } catch (_error) {
+    return null;
   }
+};
+
+const inferPlatformFromAppId = (appId: unknown): AppName | null => {
+  if (typeof appId !== 'string') return null;
+  if (appId.startsWith('tt')) return 'bytedance';
+  if (appId.startsWith('wx')) return 'wechat';
   return null;
 };
 
+/**
+ * 从宿主 API 返回值推断真实平台，仅识别有稳定、平台专属格式的信号。
+ * 该推断只在多个平台全局对象共存时使用，失败时由 detectPlatform 保留历史 first-match。
+ */
+const inferPlatformFromRuntime = (platformSdk: SDK): AppName | null => {
+  const envInfo = callPlatformInfo(platformSdk, 'getEnvInfoSync');
+  const envPlatform = inferPlatformFromAppId(envInfo?.['microapp']?.['appId']);
+  if (envPlatform) return envPlatform;
+
+  const userDataPath = envInfo?.['common']?.['USER_DATA_PATH'];
+  if (typeof userDataPath === 'string') {
+    if (userDataPath.startsWith('ttfile://')) return 'bytedance';
+    if (userDataPath.startsWith('wxfile://')) return 'wechat';
+  }
+
+  const systemInfo = callPlatformInfo(platformSdk, 'getSystemInfoSync');
+  const hostName = systemInfo?.['appName'] ?? systemInfo?.['hostName'];
+  if (typeof hostName === 'string' && BYTEDANCE_HOST_NAMES.has(hostName.toLowerCase())) {
+    return 'bytedance';
+  }
+
+  const accountInfo = callPlatformInfo(platformSdk, 'getAccountInfoSync');
+  const accountPlatform = inferPlatformFromAppId(accountInfo?.['miniProgram']?.['appId']);
+  if (accountPlatform) return accountPlatform;
+
+  const launchOptions = callPlatformInfo(platformSdk, 'getLaunchOptionsSync');
+  const launchPlatform = inferPlatformFromAppId(launchOptions?.['extra']?.['appId']);
+  if (launchPlatform) return launchPlatform;
+
+  return null;
+};
+
+/**
+ * 检测当前平台。单一命中直接返回；多个平台对象共存时优先采用宿主 API 的明确证据，
+ * 无法判定才回退历史 first-match 顺序，未命中返回 null。
+ */
+export const detectPlatform = (): DetectedPlatform | null => {
+  const g = globalThis as Record<string, unknown>;
+  const candidates: DetectedPlatform[] = [];
+  for (const platform of PLATFORMS) {
+    const platformSdk = g[platform.global];
+    if (typeof platformSdk === 'object' && platformSdk !== null) {
+      candidates.push({ sdk: platformSdk as SDK, name: platform.name });
+    }
+  }
+
+  if (candidates.length <= 1) {
+    return candidates[0] ?? null;
+  }
+
+  const inferredPlatforms = new Set<AppName>();
+  for (const candidate of candidates) {
+    const inferredPlatform = inferPlatformFromRuntime(candidate.sdk);
+    if (inferredPlatform && candidates.some((item) => item.name === inferredPlatform)) {
+      inferredPlatforms.add(inferredPlatform);
+    }
+  }
+
+  if (inferredPlatforms.size === 1) {
+    const [inferredPlatform] = inferredPlatforms;
+    // 宿主证据只用于选择同名候选对象，不能把 A 平台 SDK 与 B 平台名称拼在一起；
+    // getSDK() 后续会按 name 执行支付宝/钉钉等平台适配，二者错配会破坏请求和 Storage。
+    return candidates.find((item) => item.name === inferredPlatform) ?? candidates[0] ?? null;
+  }
+
+  return candidates[0] ?? null;
+};
+
+let _detectedPlatform: DetectedPlatform | null | undefined;
+
+const resolvePlatform = (): DetectedPlatform | null => {
+  if (_detectedPlatform === undefined) {
+    _detectedPlatform = detectPlatform();
+  }
+  return _detectedPlatform;
+};
+
 const getSDK = (): SDK => {
-  const detected = detectPlatform();
+  const detected = resolvePlatform();
 
   if (!detected) {
     if (isBrowserRuntime()) {
@@ -241,7 +335,7 @@ const getSDK = (): SDK => {
  * 获取平台名称
  */
 const getAppName = (): AppName => {
-  return detectPlatform()?.name ?? 'unknown';
+  return resolvePlatform()?.name ?? 'unknown';
 };
 
 /**
@@ -417,8 +511,9 @@ export const isMinigame = (): boolean => {
   return _isMinigame;
 };
 
-/** 统一重置平台检测相关缓存（_sdk / _appName / _isMinigame），仅供测试使用。 */
+/** 统一重置平台解析及其派生缓存，仅供测试使用。 */
 export const resetPlatformCache = (): void => {
+  _detectedPlatform = undefined;
   _sdk = null;
   _appName = null;
   _isMinigame = null;

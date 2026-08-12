@@ -5,6 +5,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import {
   collectBuildMaps,
   collectFiles,
+  isWechatAppserviceName,
   isWechatRuntimeBundleName,
   normalizeName,
   pickBuildMapCandidate,
@@ -276,12 +277,14 @@ function inspectMapFile(report, mapFile, root, args, artifactSamples) {
     );
   }
 
-  if (isWechatRuntimeBundleName(raw.file || basename(mapFile).replace(/\.map$/, ''))) {
+  // 普通 dist 中的 game.js.map 也可能只是 Cocos 的内层构建 map，不能仅凭文件名
+  // 把它判定为微信线上外层 map。小游戏只在显式 --wechat 模式下检查两层映射。
+  if (isWechatAppserviceName(raw.file || basename(mapFile).replace(/\.map$/, ''))) {
     push(
       report,
       'notices',
       'wechat_appservice_map',
-      '检测到微信小程序 / 小游戏运行时文件 map；如果还要解析到框架或游戏引擎源码，需要两层 sourcemap 合成。',
+      '检测到微信小程序运行时合并文件 map；如果还要解析到框架源码，需要两层 sourcemap 合成。',
       { mapFile },
     );
     addMergeSuggestion(report);

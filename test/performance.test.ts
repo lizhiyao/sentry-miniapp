@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
-import { PerformanceIntegration } from '../src/integrations/performance';
+import { PerformanceIntegration, performanceIntegration } from '../src/integrations/performance';
 import { getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type {
   PerformanceEntry,
@@ -28,7 +28,6 @@ jest.mock('../src/crossPlatform', () => ({
   getSystemInfo: jest.fn(() => ({ platform: 'devtools' })),
   sdk: jest.fn(() => ({
     getPerformance: jest.fn(),
-    reportPerformance: jest.fn(),
   })),
 }));
 
@@ -334,6 +333,14 @@ describe('PerformanceIntegration', () => {
   });
 
   describe('constructor', () => {
+    it('functional factory should return a usable integration instance', () => {
+      const factoryIntegration = performanceIntegration({ enableNavigation: false });
+
+      expect(factoryIntegration).toBeInstanceOf(PerformanceIntegration);
+      expect(factoryIntegration.name).toBe('PerformanceAPI');
+      expect(factoryIntegration.setupOnce).toEqual(expect.any(Function));
+    });
+
     it('should initialize with default options', () => {
       const defaultIntegration = new PerformanceIntegration();
       expect(defaultIntegration.name).toBe('PerformanceAPI');
@@ -392,6 +399,7 @@ describe('PerformanceIntegration', () => {
 
       expect(consoleSpy).toHaveBeenCalledWith('[sentry-miniapp] Performance API not available');
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
+      expect((integration as any)._reportTimer).toBeNull();
 
       consoleSpy.mockRestore();
     });
@@ -678,7 +686,6 @@ describe('PerformanceIntegration', () => {
       const mockMemory = { jsHeapSizeUsed: 1024000, jsHeapSizeLimit: 10240000 };
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(() => ({ memory: mockMemory })),
-        reportPerformance: jest.fn(),
       });
 
       const memIntegration = new PerformanceIntegration({ enableMemory: true });
@@ -706,7 +713,6 @@ describe('PerformanceIntegration', () => {
     it('should handle missing memory API gracefully', () => {
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(() => ({})), // No memory property
-        reportPerformance: jest.fn(),
       });
 
       const memIntegration = new PerformanceIntegration({ enableMemory: true });
@@ -757,7 +763,7 @@ describe('PerformanceIntegration', () => {
 
       integration.cleanup();
 
-      // 清理时应调用最后一次上报
+      // 清理时应完成最后一次汇总
       expect(mockScope.setContext).toHaveBeenCalledWith(
         'performance_summary',
         expect.objectContaining({ total_entries: 1 }),
@@ -1000,8 +1006,8 @@ describe('PerformanceIntegration', () => {
     });
   });
 
-  describe('reportToNativeAPI', () => {
-    it('should report to native API when reportPerformance is available', () => {
+  describe('host performance reporting', () => {
+    it('should not call the host reportPerformance API', () => {
       const mockReportPerformance = jest.fn();
       (sdk as jest.Mock).mockReturnValue({
         getPerformance: jest.fn(),
@@ -1019,13 +1025,7 @@ describe('PerformanceIntegration', () => {
 
       (integration as any)._reportBufferedEntries();
 
-      expect(mockReportPerformance).toHaveBeenCalledWith(
-        expect.objectContaining({
-          entries: expect.any(Array),
-          timestamp: expect.any(Number),
-          sampleRate: 1.0,
-        }),
-      );
+      expect(mockReportPerformance).not.toHaveBeenCalled();
     });
   });
 

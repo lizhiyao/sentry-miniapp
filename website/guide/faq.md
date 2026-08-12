@@ -50,59 +50,27 @@ console.log(Sentry.getDiagnostics());
 
 ### uni-app（Vue）组件内的错误没上报 / 上报率很低？
 
-uni-app 底层是 Vue。**组件内（render / 生命周期 / watch / `@click` 方法）抛的错会被 Vue 自己的 `errorHandler` 接住、不冒泡到 `wx.onError`**，SDK 默认捕获不到——这是「`sampleRate` 设了 1 却只偶尔上报一条」的常见根因。把 Vue 的 `errorHandler` 接到 Sentry：
-
-```js
-// uni-app Vue3（main.js / main.ts）
-export function createApp() {
-  const app = createSSRApp(App);
-  app.config.errorHandler = (err, instance, info) => {
-    Sentry.captureException(err, { extra: { lifecycleHook: info } });
-  };
-  return { app };
-}
-```
-
-Vue2 用 `Vue.config.errorHandler`。
+uni-app 底层是 Vue。组件渲染、生命周期、watch 或模板事件中的异常可能先被 Vue `errorHandler` 接住，不再冒泡到平台 `onError`。Vue 3 需要接 `app.config.errorHandler`，Vue 2 使用 `Vue.config.errorHandler`。完整代码只在 [uni-app 接入指南](/guide/uniapp#_3-main-js-尽早初始化-接-vue-errorhandler-关键)维护。
 
 ### Taro 呢？
 
-**Taro 不是 Vue**，默认用 React（也支持 Vue）。用 **Vue** 时同理接 `errorHandler`；用 **React** 时，React 不像 Vue 那样静默吞错，但可加一个**错误边界（Error Boundary）**把渲染错误转给 Sentry：
-
-```jsx
-class SentryBoundary extends React.Component {
-  componentDidCatch(error, info) {
-    Sentry.captureException(error, { extra: info });
-  }
-  render() {
-    return this.props.children;
-  }
-}
-// 包住根组件：<SentryBoundary><App /></SentryBoundary>
-```
-
-完整示例见 [示例工程](/guide/examples)。
+Taro React 的渲染期错误建议由 Error Boundary 捕获并转交 Sentry；事件回调和异步错误不属于 Error Boundary 的捕获范围。使用 Taro Vue 时按 Vue `errorHandler` 处理。完整代码见 [Taro 接入指南](/guide/taro#_4-组件错误-用-react-错误边界)。
 
 ## 隐私协议同意前如何避免发送 Sentry 网络请求？ {#privacy-consent}
 
-默认情况下，SDK 会按你的初始化配置正常上报事件。如果业务要求用户同意隐私协议前不能发出 Sentry 网络请求，可以开启 `requireConsent`：
+默认情况下，SDK 会按初始化配置正常上报。如果业务要求用户同意隐私协议前不能发出 Sentry 网络请求，初始化时设置 `requireConsent: true`，用户明确同意后调用 `Sentry.setConsent(true)`。
 
 ```js
 Sentry.init({
   dsn: 'https://your-dsn@o0.ingest.sentry.io/0',
   requireConsent: true,
 });
-```
 
-开启后，同意前捕获到的事件会写入本地缓冲，不会向 Sentry 发起请求。用户同意后调用：
-
-```js
+// 用户明确同意隐私协议后
 Sentry.setConsent(true);
 ```
 
-SDK 会恢复发送，并补发仍在缓冲期内的事件。用户撤回同意时可调用 `Sentry.setConsent(false)`，后续事件会继续进入缓冲而不是出网。
-
-这个能力适合隐私协议弹窗、分端合规开关、灰度验证等场景；如果只是想降低上报量，优先使用 `sampleRate` / `tracesSampleRate`，不要把 `requireConsent` 当采样开关。
+同意前事件会写入本地缓冲；放行后会补发并恢复实时上报。撤回同意、缓存上限和验证方法见[可靠上报与隐私同意](/guide/reliability-and-privacy)。如果只是想降低上报量，请使用采样配置，不要把 consent 当作采样开关。
 
 ## 支持 Session Replay（屏幕操作回放）吗？
 

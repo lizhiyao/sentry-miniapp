@@ -28,6 +28,7 @@ describe('Helpers', () => {
     });
 
     it('should handle function that throws error', () => {
+      jest.useFakeTimers();
       const mockCaptureException = jest.fn();
       const mockGetClient = jest.fn(() => ({
         captureException: mockCaptureException,
@@ -46,8 +47,13 @@ describe('Helpers', () => {
 
       const wrappedFn = wrap(errorFn);
 
-      expect(() => wrappedFn()).toThrow('Test error');
-      expect(errorFn).toHaveBeenCalled();
+      try {
+        expect(() => wrappedFn()).toThrow('Test error');
+        expect(errorFn).toHaveBeenCalled();
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
     });
 
     it('should preserve function properties', () => {
@@ -90,16 +96,98 @@ describe('Helpers', () => {
       };
       const originalMethod = obj.method;
 
-      fill(obj, 'method', (original) => {
+      const fillResult = fill(obj, 'method', (original) => {
         return function (this: any, ...args: any[]) {
           return 'wrapped: ' + original.apply(this, args);
         };
       });
 
-      const result = obj.method();
+      const methodResult = obj.method();
 
-      expect(result).toBe('wrapped: original');
+      expect(methodResult).toBe('wrapped: original');
       expect(obj.method).not.toBe(originalMethod);
+      expect(fillResult?.replaced).toBe(true);
+
+      fillResult?.restore();
+      expect(obj.method).toBe(originalMethod);
+    });
+
+    it('should replace and restore an accessor when its setter ignores assignment', () => {
+      const originalMethod = jest.fn(() => 'original');
+      const getter = jest.fn(() => originalMethod);
+      const setter = jest.fn();
+      const obj = {} as { method: () => string };
+
+      Object.defineProperty(obj, 'method', {
+        configurable: true,
+        enumerable: true,
+        get: getter,
+        set: setter,
+      });
+
+      const result = fill(obj, 'method', (original) => {
+        return function (this: any, ...args: any[]) {
+          return 'wrapped: ' + original.apply(this, args);
+        };
+      });
+
+      expect(setter).toHaveBeenCalledTimes(1);
+      expect(result?.replaced).toBe(true);
+      expect(obj.method()).toBe('wrapped: original');
+      expect(Object.getOwnPropertyDescriptor(obj, 'method')).toMatchObject({
+        configurable: true,
+        enumerable: true,
+        value: obj.method,
+        writable: true,
+      });
+
+      result?.restore();
+
+      const restoredDescriptor = Object.getOwnPropertyDescriptor(obj, 'method');
+      expect(restoredDescriptor?.get).toBe(getter);
+      expect(restoredDescriptor?.set).toBe(setter);
+      expect(restoredDescriptor?.configurable).toBe(true);
+      expect(restoredDescriptor?.enumerable).toBe(true);
+      expect(obj.method).toBe(originalMethod);
+    });
+
+    it('should leave a non-configurable accessor unchanged when assignment is ignored', () => {
+      const originalMethod = jest.fn(() => 'original');
+      const obj = {} as { method: () => string };
+
+      Object.defineProperty(obj, 'method', {
+        configurable: false,
+        get: () => originalMethod,
+        set: () => {},
+      });
+
+      const result = fill(obj, 'method', () => jest.fn(() => 'wrapped'));
+
+      expect(result?.replaced).toBe(false);
+      expect(obj.method).toBe(originalMethod);
+      expect(() => result?.restore()).not.toThrow();
+    });
+
+    it('should keep using assignment when a host proxy rejects descriptor inspection', () => {
+      const originalMethod = jest.fn(() => 'original');
+      const target = { method: originalMethod };
+      const proxy = new Proxy(target, {
+        getOwnPropertyDescriptor: () => {
+          throw new Error('descriptor unavailable');
+        },
+      });
+
+      const result = fill(proxy, 'method', (original) => {
+        return function (this: any, ...args: any[]) {
+          return 'wrapped: ' + original.apply(this, args);
+        };
+      });
+
+      expect(result?.replaced).toBe(true);
+      expect(proxy.method()).toBe('wrapped: original');
+
+      result?.restore();
+      expect(proxy.method).toBe(originalMethod);
     });
 
     it('should handle non-existent property', () => {
@@ -185,8 +273,15 @@ describe('Helpers', () => {
     });
 
     it('should return true after ignoreNextOnErrorCall', () => {
-      ignoreNextOnErrorCall();
-      expect(shouldIgnoreOnError()).toBe(true);
+      jest.useFakeTimers();
+
+      try {
+        ignoreNextOnErrorCall();
+        expect(shouldIgnoreOnError()).toBe(true);
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
     });
 
     it('should return false after timeout', (done) => {
@@ -200,9 +295,16 @@ describe('Helpers', () => {
     });
 
     it('should handle multiple calls', () => {
-      ignoreNextOnErrorCall();
-      ignoreNextOnErrorCall();
-      expect(shouldIgnoreOnError()).toBe(true);
+      jest.useFakeTimers();
+
+      try {
+        ignoreNextOnErrorCall();
+        ignoreNextOnErrorCall();
+        expect(shouldIgnoreOnError()).toBe(true);
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
     });
   });
 
