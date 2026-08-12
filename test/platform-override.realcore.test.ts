@@ -27,7 +27,7 @@ describe('显式平台覆盖（真 @sentry/core 集成）', () => {
     _resetAppLifecycle();
     installedIntegrations.length = 0;
 
-    // 模拟 Cocos 抖音小游戏：适配层暴露 wx 兼容对象，真实宿主同时提供 tt。
+    // 复现 issue #288 的可观测状态：wx / tt 同时存在，默认顺序先命中 wx。
     tt = {
       request: jest.fn(),
       getSystemInfoSync: jest.fn(() => ({

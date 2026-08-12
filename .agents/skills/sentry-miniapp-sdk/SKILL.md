@@ -163,7 +163,7 @@ Sentry.init({
 
 ### Step 3: Configure Platform (if needed)
 
-The SDK auto-detects the platform at runtime. No explicit `platform` option is required in most cases. Game engine adapters such as Cocos may expose a cross-platform compatibility global; set `platform` when the event label is detected incorrectly.
+The SDK auto-detects the platform at runtime. No explicit `platform` option is required in most cases. Set `platform` when multiple platform globals are present or the detected event label does not match the actual release target.
 
 If you need to override the event's miniapp platform label:
 

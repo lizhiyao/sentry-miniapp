@@ -20,7 +20,7 @@ SDK 初始化时按当前运行时的全局对象识别平台，业务代码不�
 
 识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常无需手动设置 `platform`。
 
-Cocos 等游戏引擎的适配层可能暴露跨平台兼容对象，例如抖音小游戏运行时首先被识别为 `wx`。如果事件的平台标记不正确，可显式指定：
+SDK 按上表顺序使用首个检测到的平台对象。如果运行时同时存在多个平台对象，或者外部代码注入了其它平台对象，自动识别结果可能与实际发布平台不一致。此时可显式指定事件的平台标记：
 
 ```js
 Sentry.init({
@@ -29,7 +29,7 @@ Sentry.init({
 });
 ```
 
-显式配置会覆盖事件顶层 `platform` 与 `contexts.miniapp.platform`，但不会切换底层宿主对象。异常监听、网络和 Storage 等能力仍使用自动检测到的兼容 API，避免破坏引擎适配层原本可用的上报链路。如果需要让 Sentry 按 JavaScript 事件处理 Source Map，可继续在 `beforeSend` 中将顶层 `event.platform` 改为 `javascript`；`contexts.miniapp.platform` 仍会保留真实小游戏平台。
+显式配置会覆盖事件顶层 `platform` 与 `contexts.miniapp.platform`，但不会切换底层宿主对象。异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API，避免改变原本可用的上报链路。如果需要让 Sentry 按 JavaScript 事件处理 Source Map，可继续在 `beforeSend` 中将顶层 `event.platform` 改为 `javascript`；`contexts.miniapp.platform` 仍会保留真实小游戏平台。
 
 ## 网络请求差异
 
