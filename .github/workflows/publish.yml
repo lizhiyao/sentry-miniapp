@@ -71,3 +71,7 @@ jobs:
       uses: softprops/action-gh-release@v3
       with:
         generate_release_notes: true
+        fail_on_unmatched_files: true
+        files: |
+          dist/sentry-miniapp.umd.js
+          dist/sentry-miniapp.umd.js.map
