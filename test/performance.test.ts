@@ -763,7 +763,7 @@ describe('PerformanceIntegration', () => {
 
       integration.cleanup();
 
-      // 清理时应调用最后一次上报
+      // 清理时应完成最后一次汇总
       expect(mockScope.setContext).toHaveBeenCalledWith(
         'performance_summary',
         expect.objectContaining({ total_entries: 1 }),

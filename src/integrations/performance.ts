@@ -31,7 +31,7 @@ export interface PerformanceIntegrationOptions {
   sampleRate?: number;
   /** 性能条目缓冲区大小 */
   bufferSize?: number;
-  /** 自动上报间隔 (毫秒) */
+  /** 性能条目统计汇总间隔 (毫秒) */
   reportInterval?: number;
   /** 性能阈值配置 */
   thresholds?: {
@@ -453,9 +453,7 @@ export class PerformanceIntegration implements Integration {
     }
   }
 
-  /**
-   * 开始自动上报
-   */
+  /** 开始定时汇总性能条目 */
   private _startAutoReporting(): void {
     if (!this._performanceManager || this._options.reportInterval <= 0) {
       return;
@@ -466,9 +464,7 @@ export class PerformanceIntegration implements Integration {
     }, this._options.reportInterval);
   }
 
-  /**
-   * 上报缓冲的性能条目
-   */
+  /** 汇总缓冲的性能条目，并写入当前 Sentry scope */
   private _reportBufferedEntries(): void {
     if (this._entryBuffer.length === 0) {
       return;
@@ -503,7 +499,7 @@ export class PerformanceIntegration implements Integration {
       // 清空缓冲区
       this._entryBuffer = [];
     } catch (error) {
-      console.warn('[sentry-miniapp] Failed to report buffered entries:', error);
+      console.warn('[sentry-miniapp] Failed to summarize buffered performance entries:', error);
     }
   }
 
@@ -677,7 +673,7 @@ export class PerformanceIntegration implements Integration {
       this._reportTimer = null;
     }
 
-    // 最后一次上报
+    // 最后一次汇总
     this._reportBufferedEntries();
   }
 }
