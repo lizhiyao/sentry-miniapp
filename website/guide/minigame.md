@@ -21,6 +21,10 @@ Sentry.captureException(new Error('minigame sentry test'));
 
 小游戏运行时会自动启用生命周期和帧率集成；普通小程序中默认关闭。通常不需要手动传 `integrations`。
 
+## 平台识别与游戏引擎
+
+SDK 默认通过 `wx`、`tt` 等宿主对象自动识别平台。Cocos 等引擎适配层可能让抖音小游戏首先被识别为 `wechat`；此时可显式传入 `platform: 'bytedance'`，将事件的 `contexts.miniapp.platform` 标为 `bytedance`。底层异常监听和网络请求仍沿用适配层提供的可用 API；详见[跨平台差异与降级](/guide/platform-compatibility#sdk-如何处理平台差异)。
+
 ## 能捕获什么
 
 | 能力 | 微信小游戏 | 抖音小游戏 | 说明 |

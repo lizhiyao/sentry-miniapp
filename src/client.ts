@@ -154,7 +154,7 @@ export class MiniappClient extends Client<any> {
       event.contexts = {};
     }
     event.contexts['miniapp'] = {
-      platform: appName(),
+      platform: this.getOptions().platform || appName(),
       sdk_version: SDK_VERSION,
     };
 

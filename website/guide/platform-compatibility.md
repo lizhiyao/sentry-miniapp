@@ -18,7 +18,18 @@ SDK 初始化时按当前运行时的全局对象识别平台，业务代码不�
 | 百度智能小程序 | `swan` | `swan` | `swan.request` |
 | 快手小程序 | `ks` | `kuaishou` | `ks.request` |
 
-识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常不应手动设置 `platform`；该选项只影响事件上的平台标记，不能把当前运行时转换成另一个平台。
+识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常无需手动设置 `platform`。
+
+Cocos 等游戏引擎的适配层可能暴露跨平台兼容对象，例如抖音小游戏运行时首先被识别为 `wx`。如果事件的平台标记不正确，可显式指定：
+
+```js
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  platform: 'bytedance',
+});
+```
+
+显式配置会覆盖事件顶层 `platform` 与 `contexts.miniapp.platform`，但不会切换底层宿主对象。异常监听、网络和 Storage 等能力仍使用自动检测到的兼容 API，避免破坏引擎适配层原本可用的上报链路。如果需要让 Sentry 按 JavaScript 事件处理 Source Map，可继续在 `beforeSend` 中将顶层 `event.platform` 改为 `javascript`；`contexts.miniapp.platform` 仍会保留真实小游戏平台。
 
 ## 网络请求差异
 

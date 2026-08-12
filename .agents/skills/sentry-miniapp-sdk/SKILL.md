@@ -163,17 +163,19 @@ Sentry.init({
 
 ### Step 3: Configure Platform (if needed)
 
-The SDK auto-detects the platform at runtime. No explicit `platform` option is required in most cases.
+The SDK auto-detects the platform at runtime. No explicit `platform` option is required in most cases. Game engine adapters such as Cocos may expose a cross-platform compatibility global; set `platform` when the event label is detected incorrectly.
 
-If you need to force a specific platform:
+If you need to override the event's miniapp platform label:
 
 ```javascript
 Sentry.init({
   dsn: '...',
-  platform: 'wechat', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou'
+  platform: 'bytedance', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou'
   // Note: Baidu's global object is `swan`, so use 'swan' (there is no 'baidu' value).
 });
 ```
+
+The configured value is written to both the top-level event `platform` and `contexts.miniapp.platform`. It does not switch the underlying runtime API: error handlers, requests, and storage continue using the compatible global detected automatically. If Source Map processing requires top-level `event.platform = 'javascript'`, set that in `beforeSend`; the miniapp context keeps the configured platform.
 
 ### Step 4: Add User Context
 

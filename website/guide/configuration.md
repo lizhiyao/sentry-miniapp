@@ -12,7 +12,7 @@
 | `release` | `string` | — | 版本号；**Source Map 解析的关键**，需与上传时的 release 完全一致 |
 | `environment` | `string` | — | 环境标识，如 `production` / `staging` |
 | `debug` | `boolean` | `false` | 开启 SDK 调试日志 |
-| `platform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 事件上标注的平台；运行时平台 SDK 会自动检测，一般无需手动设。百度小程序的全局对象是 `swan`，因此平台标识使用 `swan`，没有单独的 `baidu` |
+| `platform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 事件的平台标记，同时写入顶层 `platform` 与 `contexts.miniapp.platform`。通常无需设置；当 Cocos 等引擎适配层导致自动识别错误时再指定。该选项不切换底层运行时 API。百度小程序使用 `swan`，没有单独的 `baidu` |
 
 ## 采样
 
