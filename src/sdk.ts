@@ -13,6 +13,7 @@ export { getDiagnostics } from './diagnostics';
 
 import { MiniappClient } from './client';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
+import { ignoreNextOnErrorCall } from './helpers';
 import {
   GlobalHandlers,
   TryCatch,
@@ -215,6 +216,7 @@ export function wrap<T extends (...args: any[]) => any>(fn: T): T {
       try {
         return fn.apply(this, args);
       } catch (error) {
+        ignoreNextOnErrorCall();
         getCurrentScope().captureException(error);
         throw error;
       }

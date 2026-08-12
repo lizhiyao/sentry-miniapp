@@ -21,6 +21,8 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
   const g = global as any;
   let captured: any[];
   let realSetTimeout: any;
+  let realRequestAnimationFrame: any;
+  let onErrorHandler: ((e: string | Error) => void) | undefined;
 
   beforeEach(() => {
     captured = [];
@@ -28,16 +30,25 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     _resetAppLifecycle();
     installedIntegrations.length = 0;
     realSetTimeout = g.setTimeout;
+    realRequestAnimationFrame = g.requestAnimationFrame;
+    onErrorHandler = undefined;
     g.wx = {
       request: jest.fn(),
       getSystemInfoSync: () => ({ brand: 'Apple', SDKVersion: '3' }),
-      onError: jest.fn(),
+      onError: jest.fn((h: (e: string | Error) => void) => {
+        onErrorHandler = h;
+      }),
       onUnhandledRejection: jest.fn(),
     };
   });
 
   afterEach(async () => {
     g.setTimeout = realSetTimeout;
+    if (realRequestAnimationFrame === undefined) {
+      delete g.requestAnimationFrame;
+    } else {
+      g.requestAnimationFrame = realRequestAnimationFrame;
+    }
     const c = getClient();
     if (c) await c.close(0);
     installedIntegrations.length = 0;
@@ -89,6 +100,47 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(val.mechanism?.handled).toBe(true);
     expect((errEvent.exception as any).mechanism).toBeUndefined(); // 不再误挂容器级
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
+  });
+
+  it('requestAnimationFrame 抛错后平台 onError 不会重复上报', async () => {
+    g.requestAnimationFrame = (callback: () => void) => callback();
+
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      enableOfflineCache: false,
+      enableMinigameFrameRate: false,
+      transport: () => ({
+        send: (env: any) => {
+          captured.push(env);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    expect(() => {
+      g.requestAnimationFrame(() => {
+        throw new TypeError('duplicate raf boom');
+      });
+    }).toThrow('duplicate raf boom');
+
+    // 微信会在重新抛出后以字符串形式触发 onError；这条回调应被短暂屏蔽。
+    onErrorHandler!(
+      ['MiniProgramError', 'TypeError: duplicate raf boom', 'at (engine/game.js:12000:20)'].join(
+        '\n',
+      ),
+    );
+    await flush(2000);
+
+    const events = collectEvents(captured).filter((event) =>
+      event.exception?.values?.some((value: any) => value.value?.includes('duplicate raf boom')),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0].exception.values[0].mechanism).toMatchObject({
+      type: 'instrument',
+      handled: true,
+    });
   });
 
   it('Error.cause 链存在时，instrument mechanism 标在原始抛错而非 cause', async () => {

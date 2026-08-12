@@ -2,6 +2,19 @@ import { captureException, getCurrentScope } from '@sentry/core';
 import type { Integration, IntegrationFn } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
+import { shouldIgnoreOnError } from '../helpers';
+
+function errorFromPlatformValue(value: string | Error): Error {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const error = new Error(value);
+  // 小程序 / 小游戏 onError 只给字符串时，堆栈也包含在该字符串中。覆盖本地构造
+  // Error 产生的无关 stack，让 MiniappClient 使用用户配置的 stackParser 解析宿主帧。
+  error.stack = value;
+  return error;
+}
 
 /** JSDoc */
 interface GlobalHandlersIntegrations {
@@ -82,7 +95,11 @@ export class GlobalHandlers implements Integration {
 
     if (sdk().onError) {
       this._errorHandler = (err: string | Error) => {
-        const error = typeof err === 'string' ? new Error(err) : err;
+        if (shouldIgnoreOnError()) {
+          return;
+        }
+
+        const error = errorFromPlatformValue(err);
         captureException(error, {
           mechanism: {
             type: 'onerror',
