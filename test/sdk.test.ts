@@ -16,6 +16,7 @@ import type { StackParser } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
+import { shouldIgnoreOnError } from '../src/helpers';
 
 describe('SDK', () => {
   beforeEach(() => {
@@ -424,14 +425,24 @@ describe('SDK', () => {
     });
 
     it('should capture exceptions and re-throw', () => {
-      init({ dsn: 'https://test@sentry.io/123' });
-      const error = new Error('Test wrap error');
-      const fn = () => {
-        throw error;
-      };
-      const wrapped = wrap(fn);
+      jest.useFakeTimers();
 
-      expect(() => wrapped()).toThrow('Test wrap error');
+      try {
+        init({ dsn: 'https://test@sentry.io/123' });
+        const error = new Error('Test wrap error');
+        const fn = () => {
+          throw error;
+        };
+        const wrapped = wrap(fn);
+
+        expect(() => wrapped()).toThrow('Test wrap error');
+        expect(shouldIgnoreOnError()).toBe(true);
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
+
+      expect(shouldIgnoreOnError()).toBe(false);
     });
 
     it('should preserve this context', () => {

@@ -28,6 +28,7 @@ describe('Helpers', () => {
     });
 
     it('should handle function that throws error', () => {
+      jest.useFakeTimers();
       const mockCaptureException = jest.fn();
       const mockGetClient = jest.fn(() => ({
         captureException: mockCaptureException,
@@ -46,8 +47,13 @@ describe('Helpers', () => {
 
       const wrappedFn = wrap(errorFn);
 
-      expect(() => wrappedFn()).toThrow('Test error');
-      expect(errorFn).toHaveBeenCalled();
+      try {
+        expect(() => wrappedFn()).toThrow('Test error');
+        expect(errorFn).toHaveBeenCalled();
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
     });
 
     it('should preserve function properties', () => {
@@ -267,8 +273,15 @@ describe('Helpers', () => {
     });
 
     it('should return true after ignoreNextOnErrorCall', () => {
-      ignoreNextOnErrorCall();
-      expect(shouldIgnoreOnError()).toBe(true);
+      jest.useFakeTimers();
+
+      try {
+        ignoreNextOnErrorCall();
+        expect(shouldIgnoreOnError()).toBe(true);
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
     });
 
     it('should return false after timeout', (done) => {
@@ -282,9 +295,16 @@ describe('Helpers', () => {
     });
 
     it('should handle multiple calls', () => {
-      ignoreNextOnErrorCall();
-      ignoreNextOnErrorCall();
-      expect(shouldIgnoreOnError()).toBe(true);
+      jest.useFakeTimers();
+
+      try {
+        ignoreNextOnErrorCall();
+        ignoreNextOnErrorCall();
+        expect(shouldIgnoreOnError()).toBe(true);
+      } finally {
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+      }
     });
   });
 

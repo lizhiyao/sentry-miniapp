@@ -46,6 +46,10 @@ export function wrap(
     try {
       return fn.apply(this, args);
     } catch (ex) {
+      // 平台全局 onError 会在异常重新抛出后再次收到同一个错误。短暂屏蔽该回调，
+      // 与 Sentry Browser 的 TryCatch / GlobalHandlers 去重策略保持一致。
+      ignoreNextOnErrorCall();
+
       // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
       // 绝不能用 getCurrentScope().addEventProcessor——那会把处理器永久挂在当前 scope 上，给之后
       // 每个 unrelated 事件都盖上本次的 mechanism/arguments（尤其把未处理错误误标成 handled:true，

@@ -81,4 +81,42 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     expect(val.value).toContain('boom from platform');
     expect(val.mechanism).toEqual({ type: 'onerror', handled: false });
   });
+
+  it('wx.onError 字符串中的小游戏堆栈会转为结构化 frames', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      transport: () => ({
+        send: (env: any) => {
+          captured.push(env);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    onErrorHandler!(
+      [
+        'MiniProgramError',
+        "undefined is not an object (evaluating 'object.someProperty')",
+        "TypeError: undefined is not an object (evaluating 'object.someProperty')",
+        'at (subpackages/engine/game.js:12000:20)',
+        'at (WAGameSubContext.js:1:200000)',
+      ].join('\n'),
+    );
+    await flush(2000);
+
+    const events = collectEvents(captured);
+    const value = events[0]?.exception?.values?.[0];
+    expect(value.mechanism).toEqual({ type: 'onerror', handled: false });
+    expect(value.stacktrace?.frames).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          filename: 'app:///subpackages/engine/game.js',
+          lineno: 12000,
+          colno: 20,
+        }),
+      ]),
+    );
+  });
 });
