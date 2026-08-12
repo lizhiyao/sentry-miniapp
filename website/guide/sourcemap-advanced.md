@@ -37,6 +37,7 @@ npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
 |--------------|----------|
 | `filename` 是分页文件，但显示压缩代码 | release、artifact 名称、JS/map 是否成对、sourcesContent |
 | `filename` 是 `app:///appservice.app.js` | 微信真机两层 Source Map |
+| `filename` 是 `app:///game.js`，坐标无法用同版本 Cocos map 还原 | 微信小游戏 / Cocos Creator 两层映射排查 |
 | filename 使用 `chunks://`、`assets/` 或私有协议 | 平台路径与上传 artifact 结构 |
 | 事件有 `debug_meta` 但仍未解析 | Debug ID 是否注入到最终发布的 JS、对应 bundle 是否上传 |
 | 堆栈本身就缺少 filename / 行列 | 自定义 `stackParser` 或运行时堆栈能力 |
@@ -122,6 +123,60 @@ npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
 合成精度取两份 map 中较低的一层；个别列号可能不精确。该方案属于 best-effort，匹配效果取决于框架、打包器和版本产生的 source 名称。
 
 相关背景见 [issue #162](https://github.com/lizhiyao/sentry-miniapp/issues/162) 与 [issue #173](https://github.com/lizhiyao/sentry-miniapp/issues/173)。
+
+## 微信小游戏 / Cocos Creator 两层映射
+
+Cocos Creator 生成的 `game.js.map` 通常描述 **Cocos 构建的 `game.js` → TypeScript 源码**。如果真机执行的 `app:///game.js` 能直接用这份 map 还原，就不需要本节。
+
+只有同时出现以下情况时，才继续检查两层映射：
+
+- 体验版或正式版事件的 `filename` 是 `app:///game.js`；
+- 事件行列号无法用同一次 Cocos 构建的 `game.js.map` 还原；
+- 微信上传启用了 ES6 转 ES5、JS 压缩或代码保护等可能改写 JS 的选项。
+
+这些现象只能说明“上传前后产物可能不同”，不能只凭两个行号直接认定根因。先确认事件的 `mechanism`、release 中是否同时存在 `app:///game.js` 与 `app:///game.js.map`，并确保所有文件来自同一次上传。
+
+### 1. 准备同版本文件
+
+| 文件 | 映射关系 | 获取方式 |
+|------|----------|----------|
+| 微信上传包中的 `game.js` | Sentry 中的 `app:///game.js` artifact | 在同一上传流水线中保存编译结果；`miniprogram-ci get-compiled-result` 可导出本地编译后的上传包 |
+| 微信外层 `game.js.map`（Map B） | 微信上传包 `game.js` → 上传前 `game.js` | 从 WE 分析下载，或用 `miniprogram-ci get-dev-source-map` 获取同一 robot 最近上传版本 |
+| Cocos `game.js.map`（Map A） | 上传前 `game.js` → `.ts` 源码 | Cocos Creator 同一次构建生成 |
+
+`get-compiled-result` 会重新编译当前本地项目，不能代替已经丢失的历史线上产物。建议在上传流水线中保存它，并确保项目、编译设置、robot 与实际发布版本一致。微信的命令和参数以 [`miniprogram-ci` 文档](https://www.npmjs.com/package/miniprogram-ci)为准。
+
+### 2. 诊断两层 map 是否能对齐
+
+把两份同名 map 分开放置，再运行：
+
+```bash
+npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+  --wechat ./maps/wechat-online/game.js.map \
+  --build-maps ./maps/cocos-build \
+  --release "$SENTRY_RELEASE"
+```
+
+只有输出中的 `matched` 大于 0，才继续合成。`unmatched` 或 `ambiguous` 表示外层 map 的 source 名称还无法唯一对应到 Cocos 构建 map。
+
+### 3. 合成并上传
+
+```bash
+npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
+  --wechat ./maps/wechat-online/game.js.map \
+  --build-maps ./maps/cocos-build \
+  --out ./sentry-upload/game.js.map
+
+npx sentry-cli releases files "$SENTRY_RELEASE" upload-sourcemaps ./sentry-upload \
+  --url-prefix "app:///" \
+  --ext js \
+  --ext map \
+  --validate
+```
+
+上传目录中还要放入同一微信上传版本的 `game.js`。SDK 的 `release` 必须与 `$SENTRY_RELEASE` 完全一致；上传后触发一个新事件验证，旧事件不会被重新处理。
+
+这个流程是可验证的 best-effort 工具链，不承诺所有 Cocos / 微信版本的 source 名称都能自动匹配。doctor 无法匹配时应保留诊断结果并补充脱敏样本，不要强行合成。
 
 ## Debug ID 与自定义 stackParser
 

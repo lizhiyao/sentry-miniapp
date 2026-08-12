@@ -153,4 +153,75 @@ describe('doctor-sourcemap', () => {
     });
     expect(report.errors).toHaveLength(0);
   });
+
+  it('accepts a WeChat minigame game.js outer map and matches the Cocos build map', () => {
+    const root = makeTempDir();
+    const wechat = join(root, 'wechat-online', 'game.js.map');
+    const buildMaps = join(root, 'cocos-build');
+    mkdirSync(join(root, 'wechat-online'), { recursive: true });
+    mkdirSync(buildMaps, { recursive: true });
+
+    writeJson(wechat, {
+      version: 3,
+      file: 'game.js',
+      sources: ['game.js'],
+      sourcesContent: ['compiled Cocos game code'],
+      names: [],
+      mappings: 'AAAA',
+    });
+    writeJson(join(buildMaps, 'game.js.map'), {
+      version: 3,
+      file: 'game.js',
+      sources: ['assets/SdkDemoPanel.ts'],
+      sourcesContent: ['throw new Error("Source Map test");'],
+      names: [],
+      mappings: 'AAAA',
+    });
+
+    const result = runDoctor([
+      '--wechat',
+      wechat,
+      '--build-maps',
+      buildMaps,
+      '--release',
+      'minigame@1.0.0',
+    ]);
+    const report = JSON.parse(result.stdout);
+    const warningCodes = report.warnings.map((warning: { code: string }) => warning.code);
+
+    expect(result.status).toBe(0);
+    expect(report.summary.wechat).toMatchObject({ outputFile: 'game.js', sources: 1 });
+    expect(report.summary.wechat.merge).toMatchObject({
+      total: 1,
+      matched: 1,
+      unmatched: 0,
+      ambiguous: 0,
+    });
+    expect(warningCodes).not.toContain('wechat_map_file_unexpected');
+    expect(report.suggestions).toContain(
+      '需要把微信真机 appservice.app.js / game.js 解析到源码时，运行 scripts/merge-sourcemap.mjs 合成微信线上 map 与框架 / 引擎 map，再以 --url-prefix "app:///" 上传。',
+    );
+  });
+
+  it('does not assume a game.js map in dist mode is a WeChat outer map', () => {
+    const dist = makeTempDir();
+    writeFileSync(join(dist, 'game.js'), 'throw new Error("test");\n');
+    writeJson(join(dist, 'game.js.map'), {
+      version: 3,
+      file: 'game.js',
+      sources: ['assets/SdkDemoPanel.ts'],
+      sourcesContent: ['throw new Error("test");'],
+      names: [],
+      mappings: 'AAAA',
+    });
+
+    const result = runDoctor(['--dist', dist, '--release', 'minigame@1.0.0']);
+    const report = JSON.parse(result.stdout);
+    const notice = report.notices.find(
+      (item: { code: string }) => item.code === 'wechat_appservice_map',
+    );
+
+    expect(result.status).toBe(0);
+    expect(notice).toBeUndefined();
+  });
 });

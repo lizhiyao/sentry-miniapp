@@ -4,19 +4,19 @@
  * 两层 Source Map 离线合成脚本（best-effort）
  * ===========================================
  *
- * 解决的问题：uni-app / Taro 等框架的小程序，代码上线前会被**压缩两次**——
- *   1. 框架构建（webpack / vite）：你的 `.vue` / `.tsx` → 编译产物 JS（这层产出 Map A）
- *   2. 微信上传（开发者工具 / miniprogram-ci，es6→es5 + 压缩）：编译产物 JS →
- *      合并后的单文件 `appservice.app.js`（这层产出 Map B）
+ * 解决的问题：小程序 / 小游戏代码上线前可能被**编译两次**——
+ *   1. 框架或游戏引擎构建：`.vue` / `.tsx` / `.ts` → 上传前 JS（这层产出 Map A）
+ *   2. 微信上传（开发者工具 / miniprogram-ci，es6→es5、压缩或代码保护）：上传前 JS →
+ *      真机执行的 `appservice.app.js`（小程序）或 `game.js`（小游戏）（这层产出 Map B）
  *
- * 真机错误栈落在「压两次后」的 `app:///appservice.app.js` 上。只传 A 翻一半卡在
- * 编译产物 JS、只传 B 又到不了源码——必须把两份 map **串成一份**
- * `appservice.app.js → 源码`，再以 `app:///appservice.app.js` 名字传 Sentry。
+ * 真机错误栈落在微信编译后的文件上。只传 A 时行列号属于另一份 JS，只传 B 又可能
+ * 停在框架 / 引擎产物——必须把两份 map **串成一份**，再以实际运行时文件名
+ * `app:///appservice.app.js` 或 `app:///game.js` 上传 Sentry。
  *
  * 本脚本用 mozilla `source-map` 的 `applySourceMap` 做这件事：
  *   gen = SourceMapGenerator.fromSourceMap(B)   // 起点是外层 map B
  *   gen.applySourceMap(A_i, <B.sources[i]>)      // 把每个内层 map A 折进去
- *   → 输出一份 appservice.app.js → 源码 的合成 map
+ *   → 输出一份微信运行时 JS → 源码的合成 map
  *
  * ⚠️ 这是「带刀的菜谱」，不是「带保修的厨电」：合并算法是稳的，难点全在**喂进来的
  * 两份 map 能否对齐**（B.sources 里的文件名 ↔ 构建 map 描述的文件名）。不同框架 /
@@ -27,25 +27,29 @@
  * --------
  * 1. 装依赖（只在用本脚本时装，不进 SDK 运行时）：
  *      npm i -D source-map
- * 2. 拿 Map B（外层，微信合并+压缩）：微信「We 分析 → 性能 / JS 报错 → 下载线上
- *    Source Map」，得到 `appservice.app.js` 对应的 `.map`。注意：只有体验版 / 线上版
- *    有，miniprogram-ci 预览的开发版拿不到；版本要与线上一致。
- * 3. 拿 Map A（内层，框架构建）：在框架构建里**开 sourcemap**（uni-app 对 mp-weixin
- *    默认常是关的；vite 设 `build.sourcemap: true`，webpack 设 `devtool: 'source-map'`），
- *    得到一批编译产物 JS 的 `.map`，放在同一个目录下。
+ * 2. 拿 Map B（外层，微信编译产物）：从微信 We 分析下载线上 Source Map，或用
+ *    miniprogram-ci 的 get-dev-source-map 获取最近上传版本，版本必须与体验版 / 线上版一致。
+ * 3. 拿 Map A（内层，框架 / 引擎构建）：Taro / uni-app 开启构建 sourcemap；Cocos
+ *    Creator 保留本地生成的 `game.js.map`。把这些内层 map 放在同一个目录下。
  *
  * 用法
  * ----
  *   node scripts/merge-sourcemap.mjs \
- *     --wechat ./wechat/appservice.app.js.map \
+ *     --wechat ./wechat-online/appservice.app.js.map \
  *     --build-maps ./dist/dev/mp-weixin \
  *     --out ./merged/appservice.app.js.map
+ *
+ *   # 微信小游戏 / Cocos Creator
+ *   node scripts/merge-sourcemap.mjs \
+ *     --wechat ./wechat-online/game.js.map \
+ *     --build-maps ./cocos-build-maps \
+ *     --out ./merged/game.js.map
  *
  * 可选：
  *   --strip <prefix>   从 B.sources 名字里剥掉的前缀（可多次），常见如 webpack:// app:///
  *   --verbose          打印每条 source 的匹配明细
  *
- * 产出的 `--out` 即可上传 Sentry（名字保持 `appservice.app.js` 对应关系，
+ * 产出的 `--out` 即可上传 Sentry（保持外层 map 的 `file` 对应关系，
  * `--url-prefix "app:///"` 不变）。
  */
 
@@ -78,8 +82,8 @@ function parseArgs(argv) {
 const USAGE = `用法：
   node scripts/merge-sourcemap.mjs --wechat <B.map> --build-maps <构建 map 目录> --out <合成.map> [--strip <前缀>]... [--verbose]
 
-  --wechat       微信线上 Source Map（外层 Map B：appservice.app.js → 编译产物 JS）
-  --build-maps   框架构建 Source Map 所在目录（内层 Map A：编译产物 JS → 源码），会递归查找 *.map
+  --wechat       微信上线 Source Map（外层 Map B：appservice.app.js / game.js → 上传前 JS）
+  --build-maps   框架 / 引擎构建 Source Map 目录（内层 Map A：上传前 JS → 源码），会递归查找 *.map
   --out          合成后输出的 .map 路径
   --strip        从 B.sources 名字里剥掉的前缀，可重复（如 --strip webpack:// --strip app:///）
   --verbose      打印每条 source 的匹配明细
@@ -113,7 +117,7 @@ const rawB = readJsonFile(args.wechat);
 const bSources = Array.isArray(rawB.sources) ? rawB.sources : [];
 if (bSources.length === 0) {
   console.error(
-    '✗ 外层 map 没有 sources 字段，无法合成。确认 --wechat 传的是微信线上 appservice.app.js 的 map。',
+    '✗ 外层 map 没有 sources 字段，无法合成。确认 --wechat 传的是微信线上 appservice.app.js / game.js 的 map。',
   );
   process.exit(1);
 }
@@ -202,10 +206,15 @@ if (unmatched.length > 0) {
 const outFile = resolve(args.out);
 mkdirSync(dirname(outFile), { recursive: true });
 writeFileSync(outFile, generator.toString(), 'utf8');
+const runtimeFile = normalizeName(rawB.file || basename(args.wechat).replace(/\.map$/, ''), [
+  'app:///',
+]);
+const artifactName = `app:///${runtimeFile}`;
 console.log(`\n✓ 已写出合成 map：${outFile}`);
 console.log(
-  '  接着以 `app:///appservice.app.js` 的名字上传到 Sentry（--url-prefix "app:///" 不变）。',
+  `  接着把它与同版本的微信编译 JS 成对上传到 Sentry；运行时 artifact 应为 \`${artifactName}\`。`,
 );
+console.log('  release 与 SDK init({ release }) 必须一致，--url-prefix 继续使用 "app:///"。');
 console.log('  注意：合成后精度是「两份 map 的较小值」，定位到行没问题，个别列号可能略糙。');
 console.log(
   '  ⚠ 合成 map 内嵌源码（sourcesContent），仅用于上传 Sentry，别打进小程序包或公开发布，用完即删。',
