@@ -33,8 +33,8 @@ describe('支付宝 my 平台（真 @sentry/core 集成）', () => {
     resetPlatformCache();
     _resetAppLifecycle();
     installedIntegrations.length = 0;
-    // test/setup.ts 全局注入了 global.wx，detectPlatform 会优先命中 wx → 恒为 wechat。
-    // 要真正走支付宝分支，必须先清掉 wx，只留 my。（这也正是非 wx 路径长期被遮蔽的原因。）
+    // test/setup.ts 全局注入了 global.wx；mock 没有可消除歧义的宿主信息时会回退到 wx。
+    // 要隔离验证支付宝分支，必须先清掉 wx，只留 my。
     savedWx = g.wx;
     delete g.wx;
     g.my = {
