@@ -181,7 +181,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   // 平台标记。device / os / app context 由 MiniappClient._prepareEvent 在每个事件上统一写入
   // （唯一权威），此处不再重复设置，避免字段不一致与覆盖歧义（见架构 review P2-b）。
   setContext('miniapp', {
-    platform: appName(),
+    platform: opts.platform || appName(),
     environment: 'miniapp',
   });
 

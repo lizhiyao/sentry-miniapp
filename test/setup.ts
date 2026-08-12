@@ -4,10 +4,8 @@ import { resetPlatformCache } from '../src/crossPlatform';
 // 所有平台全局：每个用例前后统一清理，杜绝跨用例残留导致 detectPlatform 串味。
 const PLATFORM_GLOBALS = ['wx', 'my', 'tt', 'dd', 'qq', 'swan', 'ks'];
 
-// 默认 wx（微信）平台 mock。注意：detectPlatform 按 PLATFORMS 顺序、wx 优先命中，
-// 因此只要 global.wx 存在，平台恒为 wechat。要测非 wx 平台（支付宝 my / 字节 tt 等），
-// 用例需在自己的 beforeEach 里 `delete (global as any).wx` 再注入目标平台全局——
-// 本文件的 beforeEach 先执行、用例的 beforeEach 后执行覆盖，故清除生效。
+// 默认 wx（微信）平台 mock。多平台对象共存但没有平台专属宿主信息时，detectPlatform
+// 会按 PLATFORMS 顺序回退到 wx。要隔离验证非 wx 路径，测试仍应清掉默认 wx。
 function makeDefaultWx(): any {
   return {
     request: jest.fn(),

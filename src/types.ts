@@ -132,8 +132,9 @@ export interface MiniappOptions {
   beforeSendLog?: (log: Log) => Log | null;
 
   /**
-   * Miniapp platform label stored on events. Runtime platform detection is automatic.
-   * 取值与运行时 `AppName` 对齐（百度小程序的全局对象是 `swan`，故用 `swan` 表示，无独立 `baidu`）。
+   * 事件的小程序平台标记，作为顶层 `platform` 的默认值并写入 `contexts.miniapp.platform`。
+   * 默认按宿主全局对象及平台专属宿主信息自动识别；无法消除多对象歧义时可显式指定。
+   * 此选项不切换底层运行时 API。百度小程序使用 `swan`，没有单独的 `baidu`。
    */
   platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou';
 
