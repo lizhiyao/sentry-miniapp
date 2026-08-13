@@ -11,6 +11,24 @@
 
 它们复用平台 Storage 和离线 transport，但策略与上限可以分别配置。
 
+## 不让监控请求占满业务并发
+
+小程序宿主会限制同时进行的网络请求数。内置 transport 默认只允许最多 `2` 个 Sentry 请求同时在途，并把单次上报超时设为 `3000ms`：
+
+```js
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  transportOptions: {
+    requestTimeout: 3000,
+    maxConcurrentRequests: 2,
+  },
+});
+```
+
+Sentry 服务不可达或长时间无响应时，SDK 除了把超时传给平台请求 API，还会启动自己的计时器；到时会主动调用宿主 `RequestTask.abort()`（宿主提供该能力时），尽快释放网络槽位。发送失败的事件随后进入离线缓存，等待网络恢复后重试。
+
+当已有 `2` 个 Sentry 请求未结束时，新事件会先在 `@sentry/core` 的有界缓冲中等待；只有缓冲也达到上限时才会记为 `queue_overflow` 并丢弃。这样既优先保障正常业务请求，也能承接短时间的 Sentry 上报峰值。可以通过 `transportOptions` 调整超时和网络并发，但通常应保持较短超时和较小并发。
+
 ## 弱网离线缓存
 
 默认配置已经适合大多数项目：

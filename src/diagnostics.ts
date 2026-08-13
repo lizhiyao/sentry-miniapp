@@ -1,8 +1,9 @@
 import { getClient, isEnabled } from '@sentry/core';
 import { isConsentGranted, isConsentRequired } from './consent';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
-import { MiniappClient } from './client';
+import { MiniappClient, usesCustomTransport } from './client';
 import { miniappStackParser } from './stacktrace';
+import { normalizeMaxConcurrentRequests, normalizeRequestTimeout } from './transports/xhr';
 import type {
   MiniappDiagnostics,
   MiniappDiagnosticsOptions,
@@ -17,8 +18,9 @@ export function getDiagnostics(): MiniappDiagnostics {
   const client = getClient();
   const isMiniappClient = client instanceof MiniappClient;
   const options = isMiniappClient ? (client.getOptions() as MiniappOptions) : null;
-  const transport = options ? buildTransportDiagnostics(options) : null;
-  const diagnosticsOptions = options ? buildOptionsDiagnostics(options) : null;
+  const customTransport = isMiniappClient ? usesCustomTransport(client) : false;
+  const transport = options ? buildTransportDiagnostics(options, customTransport) : null;
+  const diagnosticsOptions = options ? buildOptionsDiagnostics(options, customTransport) : null;
   const diagnostics: MiniappDiagnostics = {
     sdk: {
       name: SDK_NAME,
@@ -45,9 +47,11 @@ export function getDiagnostics(): MiniappDiagnostics {
   return diagnostics;
 }
 
-function buildOptionsDiagnostics(options: MiniappOptions): MiniappDiagnosticsOptions {
+function buildOptionsDiagnostics(
+  options: MiniappOptions,
+  customTransport: boolean,
+): MiniappDiagnosticsOptions {
   const dsn = normalizeDsn(options.dsn);
-  const customTransport = typeof options.transport === 'function';
   return {
     dsn,
     release: options.release ?? null,
@@ -83,13 +87,21 @@ function buildOptionsDiagnostics(options: MiniappOptions): MiniappDiagnosticsOpt
   };
 }
 
-function buildTransportDiagnostics(options: MiniappOptions): MiniappDiagnosticsTransport {
-  const customTransport = typeof options.transport === 'function';
+function buildTransportDiagnostics(
+  options: MiniappOptions,
+  customTransport: boolean,
+): MiniappDiagnosticsTransport {
   return {
     custom: customTransport,
     offlineCache:
       options.requireConsent === true || (!customTransport && options.enableOfflineCache !== false),
     consentGate: options.requireConsent === true,
+    requestTimeout: customTransport
+      ? null
+      : normalizeRequestTimeout(options.transportOptions?.requestTimeout),
+    maxConcurrentRequests: customTransport
+      ? null
+      : normalizeMaxConcurrentRequests(options.transportOptions?.maxConcurrentRequests),
   };
 }
 

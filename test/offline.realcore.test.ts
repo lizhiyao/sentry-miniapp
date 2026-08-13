@@ -1,6 +1,7 @@
 import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
 import { makeOfflineTransport } from '@sentry/core';
 import { createMiniappOfflineStore } from '../src/transports/offlineStore';
+import { createMiniappTransport } from '../src/transports/xhr';
 import { resetPlatformCache } from '../src/crossPlatform';
 
 /**
@@ -61,9 +62,32 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
     expect(mem[OFFLINE_KEY]).toContain('off-1');
   });
 
+  it('内置请求超时并 abort 后，envelope 落入小程序 storage', async () => {
+    const abort = jest.fn();
+    g.wx.request = jest.fn(() => ({ abort }));
+    resetPlatformCache();
+
+    const offline = makeOfflineTransport((options: any) =>
+      createMiniappTransport({ ...options, requestTimeout: 10 }),
+    )({
+      url: 'https://o0.ingest.sentry.io/api/0/envelope/',
+      recordDroppedEvent: () => {},
+      createStore: (o: any) => createMiniappOfflineStore(o),
+      flushAtStartup: false,
+    } as any);
+
+    await offline.send(makeEnvelope('timeout-1') as any);
+
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(mem[OFFLINE_KEY]).toBeDefined();
+    expect(mem[OFFLINE_KEY]).toContain('timeout-1');
+  });
+
   it('storage 中已有积压 → 恢复后经 makeOfflineTransport 取回重发', async () => {
     // 预置一条积压（新格式：{envelope, timestamp}[]）
-    mem[OFFLINE_KEY] = JSON.stringify([{ envelope: makeEnvelope('queued-1'), timestamp: 1640995200000 }]);
+    mem[OFFLINE_KEY] = JSON.stringify([
+      { envelope: makeEnvelope('queued-1'), timestamp: 1640995200000 },
+    ]);
 
     const sent: any[] = [];
     const baseSend = jest.fn((env: any) => {

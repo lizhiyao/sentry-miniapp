@@ -85,7 +85,7 @@ console.log(diagnostics.warnings);
 | `platform` | 当前检测到的平台、是否小程序环境、是否小游戏 |
 | `client` | 是否已初始化、当前 client 是否为 `MiniappClient` |
 | `options` | `release`、`environment`、采样、Source Map、Logs、consent、trace header 等配置摘要 |
-| `transport` | 是否自定义 transport、是否启用离线缓存、是否处于 consent 门禁 |
+| `transport` | 是否自定义 transport、离线缓存与 consent 门禁状态，以及内置上报超时 / 网络并发上限 |
 | `integrations` | 已装配的 integration 名称列表 |
 | `warnings` | SDK 识别出的潜在接入问题，如缺 `release`、tracing 未开启、consent 正在阻断上报 |
 
@@ -178,7 +178,7 @@ Sentry.setConsent(false);
 | `beforeSend` | `function` | — | 事件发送前的钩子，可修改或返回 `null` 丢弃 |
 | `beforeSendTransaction` | `function` | — | Transaction 事件发送前的钩子，可修改或返回 `null` 丢弃 |
 | `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |
-| `transportOptions` | `object` | — | 传给内置 transport 的选项；可用 `headers` 自定义 envelope 请求头 |
+| `transportOptions` | `object` | 见下 | 内置上报通道选项：请求头、超时和 Sentry 网络并发上限 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |
 
 > `allowUrls` / `denyUrls` / `ignoreErrors` 由内置的 `EventFilters` 集成实现，`init` 时自动装配（若你在 `integrations` 里已自带 `EventFilters` / `InboundFilters`，则不重复追加）。
@@ -187,12 +187,20 @@ Sentry.setConsent(false);
 Sentry.init({
   dsn: 'https://<key>@sentry.io/<project>',
   transportOptions: {
+    requestTimeout: 3000,
+    maxConcurrentRequests: 2,
     headers: {
       'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
     },
   },
 });
 ```
+
+- `requestTimeout`：单次 Sentry 上报的超时时间（ms），默认 `3000`。超时后 SDK 会在宿主支持时调用 `RequestTask.abort()`，并把发送失败交给离线缓存处理。
+- `maxConcurrentRequests`：最多同时占用宿主网络槽位的 Sentry 请求数，默认 `2`。更多事件会先在 `@sentry/core` 的有界缓冲中等待，避免监控请求占满小程序网络并发、影响业务接口。
+- `headers`：附加到 envelope 请求的自定义请求头。
+
+通常不建议调大 `requestTimeout` 或 `maxConcurrentRequests`。自建 Sentry 服务响应较慢时，应先检查服务和网络链路；确需调整时，也要在真机上确认业务请求不受影响。
 
 ## 集成
 

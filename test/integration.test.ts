@@ -150,6 +150,7 @@ describe('Integration（真 @sentry/core 端到端）', () => {
       enableOfflineCache: false,
       integrations: [],
       transportOptions: {
+        requestTimeout: 1500,
         headers: {
           'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
           'X-Gateway-Token': 'miniapp-token',
@@ -162,6 +163,7 @@ describe('Integration（真 @sentry/core 端到端）', () => {
 
     expect(mockRequest).toHaveBeenCalled();
     const callArgs = mockRequest.mock.calls[0]![0] as any;
+    expect(callArgs.timeout).toBe(1500);
     expect(callArgs.header).toMatchObject({
       'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
       'X-Gateway-Token': 'miniapp-token',

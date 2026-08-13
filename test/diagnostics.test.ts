@@ -45,9 +45,46 @@ describe('getDiagnostics', () => {
       propagateTraceparent: true,
       tracePropagationTargetsCount: 1,
     });
+    expect(diagnostics.transport).toMatchObject({
+      custom: false,
+      requestTimeout: 3000,
+      maxConcurrentRequests: 2,
+    });
     expect(JSON.stringify(diagnostics)).not.toContain('public@example');
     expect(diagnostics.integrations).toContain('NetworkBreadcrumbs');
     expect(diagnostics.warnings.map((warning) => warning.code)).not.toContain('missing_release');
+  });
+
+  it('reports custom built-in transport safeguards', () => {
+    init({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      transportOptions: {
+        requestTimeout: 1500,
+        maxConcurrentRequests: 1,
+      },
+    });
+
+    expect(getDiagnostics().transport).toMatchObject({
+      custom: false,
+      requestTimeout: 1500,
+      maxConcurrentRequests: 1,
+    });
+  });
+
+  it('does not report built-in safeguards for a custom transport', () => {
+    init({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      transport: () => ({
+        send: async () => ({}),
+        flush: async () => true,
+      }),
+    });
+
+    expect(getDiagnostics().transport).toMatchObject({
+      custom: true,
+      requestTimeout: null,
+      maxConcurrentRequests: null,
+    });
   });
 
   it('reports consent gate blocking and clears it after setConsent(true)', () => {
@@ -70,9 +107,7 @@ describe('getDiagnostics', () => {
 
     const afterConsent = getDiagnostics();
     expect(afterConsent.options?.consentGranted).toBe(true);
-    expect(afterConsent.warnings.map((warning) => warning.code)).not.toContain(
-      'consent_blocking',
-    );
+    expect(afterConsent.warnings.map((warning) => warning.code)).not.toContain('consent_blocking');
   });
 
   it('surfaces missing production options as warnings', () => {
