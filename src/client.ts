@@ -16,6 +16,12 @@ import type { MiniappTransportOptions } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
 
+const clientsWithCustomTransport = new WeakSet<MiniappClient>();
+
+export function usesCustomTransport(client: MiniappClient): boolean {
+  return clientsWithCustomTransport.has(client);
+}
+
 /**
  * The Sentry Miniapp SDK Client.
  *
@@ -30,6 +36,8 @@ export class MiniappClient extends Client<any> {
    * @param options Configuration options for this SDK.
    */
   public constructor(options: MiniappOptions = {}) {
+    const usesCustomTransport = typeof options.transport === 'function';
+
     // 配置隐私合规「同意门禁」。必须在 super() 之前——transport 工厂在 super() 执行期间被 core
     // 调用建立，其 shouldSend / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
     // 不触碰 this，故在 super 前调用合法。requireConsent=false 时它把门禁置为「恒放行」，行为不变。
@@ -91,6 +99,10 @@ export class MiniappClient extends Client<any> {
         return baseTransport;
       },
     });
+
+    if (usesCustomTransport) {
+      clientsWithCustomTransport.add(this);
+    }
   }
 
   /**

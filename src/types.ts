@@ -110,7 +110,10 @@ export interface MiniappOptions {
   /** Transport function */
   transport?: (transportOptions: MiniappTransportOptions) => Transport;
 
-  /** Transport options forwarded to the miniapp transport factory */
+  /**
+   * Built-in transport options, including custom headers, request timeout (default 3000 ms),
+   * and maximum concurrent host requests (maxConcurrentRequests, default 2).
+   */
   transportOptions?: Partial<MiniappTransportOptions>;
 
   /** Before send hook */
@@ -289,6 +292,10 @@ export interface MiniappDiagnosticsTransport {
   custom: boolean;
   offlineCache: boolean;
   consentGate: boolean;
+  /** 内置 transport 的单次请求超时；自定义 transport 时为 null。 */
+  requestTimeout: number | null;
+  /** 内置 transport 允许同时占用宿主网络槽位的最大请求数；自定义 transport 时为 null。 */
+  maxConcurrentRequests: number | null;
 }
 
 /** `Sentry.getDiagnostics()` 识别出的潜在接入问题。 */

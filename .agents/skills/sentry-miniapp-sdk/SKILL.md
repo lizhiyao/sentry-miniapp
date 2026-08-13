@@ -256,7 +256,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `allowUrls` | `Array<string\|RegExp>` | — | Only send errors whose URL matches (others dropped) |
 | `denyUrls` | `Array<string\|RegExp>` | — | Drop errors whose URL matches |
 | `ignoreErrors` | `Array<string\|RegExp>` | — | Drop errors whose message/type matches |
-| `transportOptions` | `object` | — | Options forwarded to built-in transport; `headers` customizes envelope request headers |
+| `transportOptions` | `object` | see below | Built-in transport safeguards and headers |
 | `defaultIntegrations` | `false\|Integration[]` | built-in core integrations | Set `false` to skip core defaults; custom array replaces the core-default base |
 | `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | Minigame cold-start + scene + show/hide breadcrumbs |
 | `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
@@ -264,6 +264,8 @@ Walk through features one at a time. Load the corresponding reference file:
 | `beforeSendTransaction` | `function` | — | Hook to filter/modify transaction events before sending |
 | `beforeSendLog` | `function` | — | Hook to filter/modify logs before sending |
 | `beforeBreadcrumb` | `function` | — | Hook to filter/modify breadcrumbs before they are attached |
+
+The built-in transport defaults to `requestTimeout: 3000` and `maxConcurrentRequests: 2` so Sentry cannot occupy all mini program network slots when the service is unavailable. Additional envelopes wait in the bounded `@sentry/core` buffer. A timed-out request is aborted when the host returns an abortable request task, then handed to offline caching. Keep these defaults unless real-device testing shows a need to adjust them; `transportOptions.headers` remains available for custom envelope headers.
 
 ### Privacy Consent Gate
 
