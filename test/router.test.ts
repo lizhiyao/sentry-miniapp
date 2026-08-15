@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { Router, routerIntegration } from '../src/integrations/router';
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
 
 // Mock Sentry core functions
-jest.mock('@sentry/core', () => ({
-  addBreadcrumb: jest.fn(),
-  getCurrentScope: jest.fn(() => ({
-    setTag: jest.fn(),
-    setContext: jest.fn(),
+vi.mock('@sentry/core', () => ({
+  addBreadcrumb: vi.fn(),
+  getCurrentScope: vi.fn(() => ({
+    setTag: vi.fn(),
+    setContext: vi.fn(),
   })),
 }));
 
 // Mock crossPlatform sdk
 const mockSdk: any = {};
-jest.mock('../src/crossPlatform', () => ({
-  sdk: jest.fn(() => mockSdk),
+vi.mock('../src/crossPlatform', () => ({
+  sdk: vi.fn(() => mockSdk),
 }));
 
 import { sdk as sdkFn } from '../src/crossPlatform';
@@ -33,45 +33,45 @@ describe('Router Integration', () => {
 
     // Create mock scope
     mockScope = {
-      setTag: jest.fn(),
-      setContext: jest.fn(),
+      setTag: vi.fn(),
+      setContext: vi.fn(),
     };
 
     // Mock getCurrentScope
-    (getCurrentScope as jest.Mock).mockReturnValue(mockScope);
+    (getCurrentScope as Mock).mockReturnValue(mockScope);
 
     // Set up mock SDK with wx-like APIs
-    mockSdk.navigateTo = jest.fn();
-    mockSdk.redirectTo = jest.fn();
-    mockSdk.switchTab = jest.fn();
-    mockSdk.navigateBack = jest.fn();
-    mockSdk.reLaunch = jest.fn();
+    mockSdk.navigateTo = vi.fn();
+    mockSdk.redirectTo = vi.fn();
+    mockSdk.switchTab = vi.fn();
+    mockSdk.navigateBack = vi.fn();
+    mockSdk.reLaunch = vi.fn();
 
     // Mock getCurrentPages on globalThis
-    (globalThis as any).getCurrentPages = jest.fn(() => [
+    (globalThis as any).getCurrentPages = vi.fn(() => [
       { route: 'pages/index/index' },
       { route: 'pages/detail/detail' },
     ]);
 
     // Mock setInterval to avoid actual timing
-    (global as any).setInterval = jest.fn();
+    (global as any).setInterval = vi.fn();
 
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // Re-setup mockSdk methods after clearAllMocks
-    mockSdk.navigateTo = jest.fn();
-    mockSdk.redirectTo = jest.fn();
-    mockSdk.switchTab = jest.fn();
-    mockSdk.navigateBack = jest.fn();
-    mockSdk.reLaunch = jest.fn();
+    mockSdk.navigateTo = vi.fn();
+    mockSdk.redirectTo = vi.fn();
+    mockSdk.switchTab = vi.fn();
+    mockSdk.navigateBack = vi.fn();
+    mockSdk.reLaunch = vi.fn();
 
-    (getCurrentScope as jest.Mock).mockReturnValue(mockScope);
-    (sdkFn as jest.Mock).mockReturnValue(mockSdk);
-    (globalThis as any).getCurrentPages = jest.fn(() => [
+    (getCurrentScope as Mock).mockReturnValue(mockScope);
+    (sdkFn as Mock).mockReturnValue(mockSdk);
+    (globalThis as any).getCurrentPages = vi.fn(() => [
       { route: 'pages/index/index' },
       { route: 'pages/detail/detail' },
     ]);
-    (global as any).setInterval = jest.fn();
+    (global as any).setInterval = vi.fn();
   });
 
   afterEach(() => {
@@ -234,7 +234,7 @@ describe('Router Integration', () => {
     });
 
     it('should handle sdk() throwing gracefully', () => {
-      (sdkFn as jest.Mock).mockImplementation(() => {
+      (sdkFn as Mock).mockImplementation(() => {
         throw new Error('sentry-miniapp 暂不支持此平台');
       });
 
@@ -256,11 +256,11 @@ describe('Router Integration', () => {
       router.setupOnce();
 
       // Get the interval callback
-      const setIntervalMock = (global as any).setInterval as jest.Mock;
+      const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
       // Simulate route change
-      ((globalThis as any).getCurrentPages as jest.Mock).mockReturnValue([
+      ((globalThis as any).getCurrentPages as Mock).mockReturnValue([
         { route: 'pages/index/index' },
         { route: 'pages/new/new' },
       ]);
@@ -289,12 +289,12 @@ describe('Router Integration', () => {
     it('should not trigger route change for same route', () => {
       router.setupOnce();
 
-      const setIntervalMock = (global as any).setInterval as jest.Mock;
+      const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
       // Execute callback first time to establish current route
       intervalCallback();
-      const firstCallCount = (addBreadcrumb as jest.Mock).mock.calls.length;
+      const firstCallCount = (addBreadcrumb as Mock).mock.calls.length;
 
       // Execute callback again with same route
       intervalCallback();
@@ -304,34 +304,34 @@ describe('Router Integration', () => {
     });
 
     it('should handle getCurrentPages errors gracefully', () => {
-      ((globalThis as any).getCurrentPages as jest.Mock).mockImplementation(() => {
+      ((globalThis as any).getCurrentPages as Mock).mockImplementation(() => {
         throw new Error('getCurrentPages error');
       });
 
       router.setupOnce();
-      const setIntervalMock = (global as any).setInterval as jest.Mock;
+      const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
       expect(() => intervalCallback()).not.toThrow();
     });
 
     it('should handle empty pages array', () => {
-      ((globalThis as any).getCurrentPages as jest.Mock).mockReturnValue([]);
+      ((globalThis as any).getCurrentPages as Mock).mockReturnValue([]);
 
       router.setupOnce();
-      const setIntervalMock = (global as any).setInterval as jest.Mock;
+      const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
       expect(() => intervalCallback()).not.toThrow();
     });
 
     it('should handle pages with __route__ property', () => {
-      ((globalThis as any).getCurrentPages as jest.Mock).mockReturnValue([
+      ((globalThis as any).getCurrentPages as Mock).mockReturnValue([
         { __route__: 'pages/legacy/legacy' },
       ]);
 
       router.setupOnce();
-      const setIntervalMock = (global as any).setInterval as jest.Mock;
+      const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
       intervalCallback();
@@ -351,7 +351,7 @@ describe('Router Integration', () => {
       delete (globalThis as any).getCurrentPages;
 
       router.setupOnce();
-      const setIntervalMock = (global as any).setInterval as jest.Mock;
+      const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
       expect(() => intervalCallback()).not.toThrow();
@@ -394,16 +394,16 @@ describe('Router Integration', () => {
   describe('non-wx platform support (Alipay)', () => {
     it('should instrument navigation on Alipay SDK (my)', () => {
       // Set up an Alipay-like SDK
-      const alipayNavigateTo = jest.fn();
+      const alipayNavigateTo = vi.fn();
       const alipaySdk = {
         navigateTo: alipayNavigateTo,
-        redirectTo: jest.fn(),
-        switchTab: jest.fn(),
-        navigateBack: jest.fn(),
-        reLaunch: jest.fn(),
+        redirectTo: vi.fn(),
+        switchTab: vi.fn(),
+        navigateBack: vi.fn(),
+        reLaunch: vi.fn(),
       };
 
-      (sdkFn as jest.Mock).mockReturnValue(alipaySdk);
+      (sdkFn as Mock).mockReturnValue(alipaySdk);
 
       const alipayRouter = new Router();
       alipayRouter.setupOnce();

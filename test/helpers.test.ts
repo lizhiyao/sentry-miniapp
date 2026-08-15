@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   wrap,
   fill,
@@ -13,12 +13,12 @@ import {
 
 describe('Helpers', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('wrap', () => {
     it('should wrap function and preserve original behavior', () => {
-      const originalFn = jest.fn((a: number, b: number) => a + b);
+      const originalFn = vi.fn((a: number, b: number) => a + b);
       const wrappedFn = wrap(originalFn);
 
       const result = wrappedFn(2, 3);
@@ -28,20 +28,20 @@ describe('Helpers', () => {
     });
 
     it('should handle function that throws error', () => {
-      jest.useFakeTimers();
-      const mockCaptureException = jest.fn();
-      const mockGetClient = jest.fn(() => ({
+      vi.useFakeTimers();
+      const mockCaptureException = vi.fn();
+      const mockGetClient = vi.fn(() => ({
         captureException: mockCaptureException,
       }));
 
       // Mock getCurrentHub
-      jest.doMock('@sentry/core', () => ({
+      vi.doMock('@sentry/core', () => ({
         getCurrentHub: () => ({
           getClient: mockGetClient,
         }),
       }));
 
-      const errorFn = jest.fn(() => {
+      const errorFn = vi.fn(() => {
         throw new Error('Test error');
       });
 
@@ -51,13 +51,13 @@ describe('Helpers', () => {
         expect(() => wrappedFn()).toThrow('Test error');
         expect(errorFn).toHaveBeenCalled();
       } finally {
-        jest.runOnlyPendingTimers();
-        jest.useRealTimers();
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
       }
     });
 
     it('should preserve function properties', () => {
-      const originalFn = jest.fn();
+      const originalFn = vi.fn();
       (originalFn as any).customProperty = 'test';
 
       const wrappedFn = wrap(originalFn);
@@ -66,7 +66,7 @@ describe('Helpers', () => {
     });
 
     it('should mark function as wrapped', () => {
-      const originalFn = jest.fn();
+      const originalFn = vi.fn();
       const wrappedFn = wrap(originalFn);
 
       expect((wrappedFn as any).__sentry__).toBe(true);
@@ -74,7 +74,7 @@ describe('Helpers', () => {
     });
 
     it('should not double-wrap already wrapped functions', () => {
-      const originalFn = jest.fn();
+      const originalFn = vi.fn();
       const wrappedFn1 = wrap(originalFn);
       const wrappedFn2 = wrap(wrappedFn1);
 
@@ -92,7 +92,7 @@ describe('Helpers', () => {
   describe('fill', () => {
     it('should replace object method with wrapped version', () => {
       const obj = {
-        method: jest.fn(() => 'original'),
+        method: vi.fn(() => 'original'),
       };
       const originalMethod = obj.method;
 
@@ -113,9 +113,9 @@ describe('Helpers', () => {
     });
 
     it('should replace and restore an accessor when its setter ignores assignment', () => {
-      const originalMethod = jest.fn(() => 'original');
-      const getter = jest.fn(() => originalMethod);
-      const setter = jest.fn();
+      const originalMethod = vi.fn(() => 'original');
+      const getter = vi.fn(() => originalMethod);
+      const setter = vi.fn();
       const obj = {} as { method: () => string };
 
       Object.defineProperty(obj, 'method', {
@@ -152,7 +152,7 @@ describe('Helpers', () => {
     });
 
     it('should leave a non-configurable accessor unchanged when assignment is ignored', () => {
-      const originalMethod = jest.fn(() => 'original');
+      const originalMethod = vi.fn(() => 'original');
       const obj = {} as { method: () => string };
 
       Object.defineProperty(obj, 'method', {
@@ -161,7 +161,7 @@ describe('Helpers', () => {
         set: () => {},
       });
 
-      const result = fill(obj, 'method', () => jest.fn(() => 'wrapped'));
+      const result = fill(obj, 'method', () => vi.fn(() => 'wrapped'));
 
       expect(result?.replaced).toBe(false);
       expect(obj.method).toBe(originalMethod);
@@ -169,7 +169,7 @@ describe('Helpers', () => {
     });
 
     it('should keep using assignment when a host proxy rejects descriptor inspection', () => {
-      const originalMethod = jest.fn(() => 'original');
+      const originalMethod = vi.fn(() => 'original');
       const target = { method: originalMethod };
       const proxy = new Proxy(target, {
         getOwnPropertyDescriptor: () => {
@@ -229,7 +229,7 @@ describe('Helpers', () => {
 
     it('should handle replacement function that throws', () => {
       const obj = {
-        method: jest.fn(() => 'original'),
+        method: vi.fn(() => 'original'),
       };
 
       fill(obj, 'method', () => {
@@ -243,7 +243,7 @@ describe('Helpers', () => {
 
     it('should replace method multiple times', () => {
       const obj = {
-        method: jest.fn(() => 'original'),
+        method: vi.fn(() => 'original'),
       };
       const originalMethod = obj.method;
 
@@ -273,37 +273,41 @@ describe('Helpers', () => {
     });
 
     it('should return true after ignoreNextOnErrorCall', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
 
       try {
         ignoreNextOnErrorCall();
         expect(shouldIgnoreOnError()).toBe(true);
       } finally {
-        jest.runOnlyPendingTimers();
-        jest.useRealTimers();
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
       }
     });
 
-    it('should return false after timeout', (done) => {
-      ignoreNextOnErrorCall();
-      expect(shouldIgnoreOnError()).toBe(true);
+    it('should return false after timeout', async () => {
+      vi.useFakeTimers();
 
-      setTimeout(() => {
+      try {
+        ignoreNextOnErrorCall();
+        expect(shouldIgnoreOnError()).toBe(true);
+
+        await vi.advanceTimersByTimeAsync(10);
         expect(shouldIgnoreOnError()).toBe(false);
-        done();
-      }, 10);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should handle multiple calls', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
 
       try {
         ignoreNextOnErrorCall();
         ignoreNextOnErrorCall();
         expect(shouldIgnoreOnError()).toBe(true);
       } finally {
-        jest.runOnlyPendingTimers();
-        jest.useRealTimers();
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
       }
     });
   });

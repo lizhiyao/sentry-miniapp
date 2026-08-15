@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { captureException, flush, getClient } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { init } from '../src/index';
@@ -11,8 +11,8 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
     captured = [];
     resetPlatformCache();
     g.wx = {
-      request: jest.fn(),
-      getSystemInfoSync: jest.fn(() => ({
+      request: vi.fn(),
+      getSystemInfoSync: vi.fn(() => ({
         brand: 'Apple',
         model: 'iPhone',
         system: 'iOS 17',
@@ -23,15 +23,15 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
         version: '2.0.0',
         SDKVersion: '3.1.0',
       })),
-      getAccountInfoSync: jest.fn(() => ({
+      getAccountInfoSync: vi.fn(() => ({
         miniProgram: {
           appId: 'wx-app-id',
           version: '1.2.3',
         },
       })),
-      onError: jest.fn(),
-      onUnhandledRejection: jest.fn(),
-      getNetworkType: jest.fn(),
+      onError: vi.fn(),
+      onUnhandledRejection: vi.fn(),
+      getNetworkType: vi.fn(),
     };
   });
 

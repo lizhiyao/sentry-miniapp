@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { getClient, flush, captureException, installedIntegrations } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
@@ -38,8 +38,8 @@ describe('支付宝 my 平台（真 @sentry/core 集成）', () => {
     savedWx = g.wx;
     delete g.wx;
     g.my = {
-      request: jest.fn(),
-      httpRequest: jest.fn(),
+      request: vi.fn(),
+      httpRequest: vi.fn(),
       getSystemInfoSync: () => ({
         brand: 'Alipay',
         model: 'AP-1',
@@ -47,8 +47,8 @@ describe('支付宝 my 平台（真 @sentry/core 集成）', () => {
         version: '10.3',
         SDKVersion: '2.7',
       }),
-      onError: jest.fn(),
-      onUnhandledRejection: jest.fn(),
+      onError: vi.fn(),
+      onUnhandledRejection: vi.fn(),
     };
   });
 

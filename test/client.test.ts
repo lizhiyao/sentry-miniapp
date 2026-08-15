@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -17,7 +17,7 @@ describe('MiniappClient', () => {
       debug: false,
     };
     client = new MiniappClient(options);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('eventFromException', () => {
@@ -383,8 +383,8 @@ describe('MiniappClient', () => {
 
   describe('showReportDialog', () => {
     it('should show console warning instead of modal', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      const mockShowModal = jest.fn();
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const mockShowModal = vi.fn();
       (global as any).wx.showModal = mockShowModal;
 
       client.showReportDialog();

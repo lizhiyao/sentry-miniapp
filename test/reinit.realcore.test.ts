@@ -1,4 +1,4 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { getClient, installedIntegrations } from '@sentry/core';
 import { init } from '../src/index';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -28,10 +28,10 @@ describe('close → re-init 重新挂载（F2）', () => {
     _resetAppLifecycle();
     installedIntegrations.length = 0; // 模拟全新进程
     g.wx = {
-      onError: jest.fn(),
-      onUnhandledRejection: jest.fn(),
+      onError: vi.fn(),
+      onUnhandledRejection: vi.fn(),
       getSystemInfoSync: () => ({}),
-      request: jest.fn(),
+      request: vi.fn(),
     };
   });
 
@@ -47,10 +47,10 @@ describe('close → re-init 重新挂载（F2）', () => {
   it('init → close → init 后全局错误处理重新注册', async () => {
     init(makeOpts() as any);
     // init#1：GlobalHandlers.setupOnce 注册 wx.onError
-    expect((g.wx.onError as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect((g.wx.onError as Mock).mock.calls.length).toBeGreaterThanOrEqual(1);
 
     await getClient()!.close(0);
-    (g.wx.onError as jest.Mock).mockClear();
+    (g.wx.onError as Mock).mockClear();
 
     init(makeOpts() as any);
     // 修复前：'GlobalHandlers' 仍在 installedIntegrations 门禁里 → setupOnce 跳过 →

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { captureException, flush, getClient, installedIntegrations } from '@sentry/core';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -29,16 +29,16 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
 
     // 复现 issue #288 的可观测状态：wx / tt 同时存在，默认顺序先命中 wx。
     tt = {
-      request: jest.fn(),
-      getSystemInfoSync: jest.fn(() => ({
+      request: vi.fn(),
+      getSystemInfoSync: vi.fn(() => ({
         brand: 'ByteDance',
         model: 'Douyin Device',
         system: 'iOS 18',
         appName: 'Douyin',
         SDKVersion: '3.0.0',
       })),
-      onError: jest.fn(),
-      onUnhandledRejection: jest.fn(),
+      onError: vi.fn(),
+      onUnhandledRejection: vi.fn(),
     };
     g.tt = tt;
   });

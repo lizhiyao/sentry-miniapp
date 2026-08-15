@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from '@jest/globals';
+import { describe, it, expect, afterEach } from 'vitest';
 import { close, getCurrentScope } from '@sentry/core';
 import { getDiagnostics, init, setConsent } from '../src/index';
 import { resetConsentState } from '../src/consent';
@@ -44,6 +44,7 @@ describe('getDiagnostics', () => {
       tracesSampleRate: 0.5,
       propagateTraceparent: true,
       tracePropagationTargetsCount: 1,
+      defaultIntegrations: 'enabled',
     });
     expect(diagnostics.transport).toMatchObject({
       custom: false,
@@ -123,6 +124,53 @@ describe('getDiagnostics', () => {
     expect(warningCodes).toEqual(
       expect.arrayContaining(['invalid_dsn', 'missing_release', 'tracing_disabled']),
     );
+  });
+
+  it('reports missing DSN, disabled source maps, and disabled default integrations', () => {
+    init({
+      release: 'miniapp@1.0.0',
+      enableSourceMap: false,
+      defaultIntegrations: false,
+    });
+
+    const diagnostics = getDiagnostics();
+    const warningCodes = diagnostics.warnings.map((warning) => warning.code);
+
+    expect(diagnostics.options).toMatchObject({
+      dsn: { configured: false, valid: false, host: null },
+      enableSourceMap: false,
+      defaultIntegrations: 'disabled',
+    });
+    expect(warningCodes).toEqual(expect.arrayContaining(['missing_dsn', 'source_map_disabled']));
+  });
+
+  it('reports a custom default integration list', () => {
+    init({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      defaultIntegrations: [],
+    });
+
+    expect(getDiagnostics().options?.defaultIntegrations).toBe('custom');
+  });
+
+  it('uses minigame defaults and respects explicit lifecycle opt-outs', () => {
+    (global as any).GameGlobal = {};
+    resetPlatformCache();
+    init({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+    });
+
+    expect(getDiagnostics()).toMatchObject({
+      platform: { isMinigame: true },
+      options: {
+        enableMinigameLifecycle: false,
+        enableMinigameFrameRate: false,
+      },
+    });
+
+    delete (global as any).GameGlobal;
   });
 
   it('works before init in unsupported runtimes', async () => {

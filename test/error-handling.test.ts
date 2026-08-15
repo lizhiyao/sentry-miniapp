@@ -1,35 +1,35 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi, type MockedFunction } from 'vitest';
 import { captureException, captureMessage, withScope } from '@sentry/core';
 
 // Mock Sentry core functions
-jest.mock('@sentry/core', () => ({
-  captureException: jest.fn(),
-  captureMessage: jest.fn(),
-  withScope: jest.fn((callback: any) =>
+vi.mock('@sentry/core', () => ({
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+  withScope: vi.fn((callback: any) =>
     callback({
-      setTag: jest.fn(),
-      setContext: jest.fn(),
-      setLevel: jest.fn(),
-      setUser: jest.fn(),
-      setExtra: jest.fn(),
+      setTag: vi.fn(),
+      setContext: vi.fn(),
+      setLevel: vi.fn(),
+      setUser: vi.fn(),
+      setExtra: vi.fn(),
     }),
   ),
-  getCurrentHub: jest.fn(() => ({
-    getClient: jest.fn(() => ({
-      captureException: jest.fn(),
-      captureMessage: jest.fn(),
+  getCurrentHub: vi.fn(() => ({
+    getClient: vi.fn(() => ({
+      captureException: vi.fn(),
+      captureMessage: vi.fn(),
     })),
   })),
 }));
 
 describe('Error Handling', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Exception capturing', () => {
     it('should capture JavaScript errors', () => {
-      const mockCaptureException = captureException as jest.MockedFunction<typeof captureException>;
+      const mockCaptureException = captureException as MockedFunction<typeof captureException>;
       const error = new Error('Test JavaScript error');
 
       captureException(error);
@@ -38,7 +38,7 @@ describe('Error Handling', () => {
     });
 
     it('should capture promise rejections', async () => {
-      const mockCaptureException = captureException as jest.MockedFunction<typeof captureException>;
+      const mockCaptureException = captureException as MockedFunction<typeof captureException>;
       const rejectionReason = new Error('Promise rejection error');
 
       // Simulate unhandled promise rejection
@@ -52,7 +52,7 @@ describe('Error Handling', () => {
     });
 
     it('should capture miniapp API errors', () => {
-      const mockCaptureException = captureException as jest.MockedFunction<typeof captureException>;
+      const mockCaptureException = captureException as MockedFunction<typeof captureException>;
       const apiError = {
         errMsg: 'request:fail timeout',
         errCode: -1,
@@ -68,7 +68,7 @@ describe('Error Handling', () => {
     });
 
     it('should capture network errors', () => {
-      const mockCaptureException = captureException as jest.MockedFunction<typeof captureException>;
+      const mockCaptureException = captureException as MockedFunction<typeof captureException>;
       const networkError = new Error('Network request failed');
       networkError.name = 'NetworkError';
 
@@ -83,8 +83,8 @@ describe('Error Handling', () => {
     });
 
     it('should capture custom errors with context', () => {
-      const mockWithScope = withScope as jest.MockedFunction<typeof withScope>;
-      const mockCaptureException = captureException as jest.MockedFunction<typeof captureException>;
+      const mockWithScope = withScope as MockedFunction<typeof withScope>;
+      const mockCaptureException = captureException as MockedFunction<typeof captureException>;
 
       const customError = new Error('Custom business logic error');
 
@@ -104,7 +104,7 @@ describe('Error Handling', () => {
 
   describe('Message capturing', () => {
     it('should capture info messages', () => {
-      const mockCaptureMessage = captureMessage as jest.MockedFunction<typeof captureMessage>;
+      const mockCaptureMessage = captureMessage as MockedFunction<typeof captureMessage>;
 
       captureMessage('User completed onboarding', 'info');
 
@@ -112,7 +112,7 @@ describe('Error Handling', () => {
     });
 
     it('should capture warning messages', () => {
-      const mockCaptureMessage = captureMessage as jest.MockedFunction<typeof captureMessage>;
+      const mockCaptureMessage = captureMessage as MockedFunction<typeof captureMessage>;
 
       captureMessage('API response time is slow', 'warning');
 
@@ -120,7 +120,7 @@ describe('Error Handling', () => {
     });
 
     it('should capture debug messages', () => {
-      const mockCaptureMessage = captureMessage as jest.MockedFunction<typeof captureMessage>;
+      const mockCaptureMessage = captureMessage as MockedFunction<typeof captureMessage>;
 
       captureMessage('Debug: User interaction tracked', 'debug');
 
@@ -128,8 +128,8 @@ describe('Error Handling', () => {
     });
 
     it('should capture messages with additional context', () => {
-      const mockWithScope = withScope as jest.MockedFunction<typeof withScope>;
-      const mockCaptureMessage = captureMessage as jest.MockedFunction<typeof captureMessage>;
+      const mockWithScope = withScope as MockedFunction<typeof withScope>;
+      const mockCaptureMessage = captureMessage as MockedFunction<typeof captureMessage>;
 
       withScope((scope) => {
         scope.setTag('feature', 'payment');
@@ -144,7 +144,7 @@ describe('Error Handling', () => {
 
   describe('Error boundaries', () => {
     it('should handle component lifecycle errors', () => {
-      const mockCaptureException = captureException as jest.MockedFunction<typeof captureException>;
+      const mockCaptureException = captureException as MockedFunction<typeof captureException>;
 
       // Simulate component error
       const componentError = new Error('Component render failed');
@@ -168,7 +168,7 @@ describe('Error Handling', () => {
     });
 
     it('should handle async operation errors', async () => {
-      const mockCaptureException = captureException as jest.MockedFunction<typeof captureException>;
+      const mockCaptureException = captureException as MockedFunction<typeof captureException>;
 
       const asyncError = new Error('Async operation failed');
 
@@ -192,7 +192,7 @@ describe('Error Handling', () => {
     });
 
     it('should handle event handler errors', () => {
-      const mockCaptureException = captureException as jest.MockedFunction<typeof captureException>;
+      const mockCaptureException = captureException as MockedFunction<typeof captureException>;
 
       const eventError = new Error('Event handler failed');
 
@@ -220,7 +220,7 @@ describe('Error Handling', () => {
 
   describe('Error recovery', () => {
     it('should implement retry logic for network errors', async () => {
-      const mockCaptureMessage = captureMessage as jest.MockedFunction<typeof captureMessage>;
+      const mockCaptureMessage = captureMessage as MockedFunction<typeof captureMessage>;
       let attempts = 0;
       const maxRetries = 3;
 
@@ -255,7 +255,7 @@ describe('Error Handling', () => {
     });
 
     it('should implement fallback mechanisms', () => {
-      const mockCaptureMessage = captureMessage as jest.MockedFunction<typeof captureMessage>;
+      const mockCaptureMessage = captureMessage as MockedFunction<typeof captureMessage>;
 
       const primaryOperation = () => {
         throw new Error('Primary operation failed');
@@ -284,7 +284,7 @@ describe('Error Handling', () => {
     });
 
     it('should implement graceful degradation', () => {
-      const mockCaptureMessage = captureMessage as jest.MockedFunction<typeof captureMessage>;
+      const mockCaptureMessage = captureMessage as MockedFunction<typeof captureMessage>;
 
       const advancedFeature = () => {
         throw new Error('Advanced feature not supported');

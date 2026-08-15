@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { getClient, flush } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
@@ -23,14 +23,14 @@ describe('Session（真 @sentry/core 集成）', () => {
     _resetAppLifecycle();
     savedApp = g.App;
     g.wx = {
-      request: jest.fn(),
-      getSystemInfoSync: jest.fn(() => ({ brand: 'Apple', SDKVersion: '3.1.0' })),
-      onError: jest.fn(),
-      onUnhandledRejection: jest.fn(),
-      getNetworkType: jest.fn(),
+      request: vi.fn(),
+      getSystemInfoSync: vi.fn(() => ({ brand: 'Apple', SDKVersion: '3.1.0' })),
+      onError: vi.fn(),
+      onUnhandledRejection: vi.fn(),
+      getNetworkType: vi.fn(),
     };
     // 提供全局 App，让 appLifecycle 能包装；原 App 被调用时回放 onLaunch（模拟平台触发）。
-    g.App = jest.fn((opts: any) => {
+    g.App = vi.fn((opts: any) => {
       if (opts && typeof opts.onLaunch === 'function') opts.onLaunch({});
     });
   });
@@ -72,7 +72,7 @@ describe('Session（真 @sentry/core 集成）', () => {
     } as any);
 
     // 平台注册 App → wrapper 注入并回放 onLaunch → SessionIntegration 开启 Session。
-    (globalThis as any).App({ onLaunch: jest.fn() });
+    (globalThis as any).App({ onLaunch: vi.fn() });
     await flush(2000);
 
     const afterLaunch = collectSessions();

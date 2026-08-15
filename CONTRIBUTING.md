@@ -65,7 +65,9 @@ This is critical: when modifying functionality, **always consider the impact on 
 
 - Write unit tests for all new features and bug fixes.
 - Test files should be placed in the `test/` directory, mirroring the `src/` structure.
-- The project targets 100% test coverage.
+- Coverage must stay above the enforced global thresholds: 95% statements/lines,
+  90% branches, and 97% functions. New changes should improve coverage without
+  excluding production code from measurement.
 
 ## License
 

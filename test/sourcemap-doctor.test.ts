@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from '@jest/globals';
+import { describe, expect, it, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GlobalHandlers } from '../src/integrations/globalhandlers';
 import { TryCatch } from '../src/integrations/trycatch';
 import { System } from '../src/integrations/system';
-import { HttpContext } from '../src/integrations/httpcontext';
-import { LinkedErrors } from '../src/integrations/linkederrors';
+import { HttpContext, httpContextIntegration } from '../src/integrations/httpcontext';
+import { LinkedErrors, linkedErrorsIntegration } from '../src/integrations/linkederrors';
 
 describe('Integrations', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('GlobalHandlers', () => {
@@ -22,8 +22,8 @@ describe('Integrations', () => {
     });
 
     it('should setup error handlers', () => {
-      const mockOnError = jest.fn();
-      const mockOnUnhandledRejection = jest.fn();
+      const mockOnError = vi.fn();
+      const mockOnUnhandledRejection = vi.fn();
       (global as any).wx.onError = mockOnError;
       (global as any).wx.onUnhandledRejection = mockOnUnhandledRejection;
 
@@ -34,13 +34,13 @@ describe('Integrations', () => {
     });
 
     it('should handle wx.onError callback', () => {
-      (global as any).wx.onError = jest.fn();
+      (global as any).wx.onError = vi.fn();
 
       expect(() => integration.setupOnce()).not.toThrow();
     });
 
     it('should handle wx.onUnhandledRejection callback', () => {
-      (global as any).wx.onUnhandledRejection = jest.fn();
+      (global as any).wx.onUnhandledRejection = vi.fn();
 
       expect(() => integration.setupOnce()).not.toThrow();
     });
@@ -116,6 +116,10 @@ describe('Integrations', () => {
       integration = new HttpContext();
     });
 
+    it('should create the functional integration', () => {
+      expect(httpContextIntegration()).toBeInstanceOf(HttpContext);
+    });
+
     it('should have correct name', () => {
       expect(integration.name).toBe('HttpContext');
     });
@@ -130,6 +134,13 @@ describe('Integrations', () => {
 
     beforeEach(() => {
       integration = new LinkedErrors();
+    });
+
+    it('should create the functional integration with options', () => {
+      const created = linkedErrorsIntegration({ key: 'reason', limit: 2 });
+
+      expect(created).toBeInstanceOf(LinkedErrors);
+      expect(created.name).toBe('LinkedErrors');
     });
 
     it('should have correct name', () => {

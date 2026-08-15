@@ -1,18 +1,24 @@
-import { PageBreadcrumbs } from '../src/integrations/pagebreadcrumbs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  PageBreadcrumbs,
+  pageBreadcrumbsIntegration,
+} from '../src/integrations/pagebreadcrumbs';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 
-jest.mock('@sentry/core', () => ({
-  addBreadcrumb: jest.fn(),
+vi.mock('@sentry/core', () => ({
+  addBreadcrumb: vi.fn(),
+  setContext: vi.fn(),
 }));
 
-import { addBreadcrumb } from '@sentry/core';
+import { addBreadcrumb, setContext } from '@sentry/core';
 
 describe('PageBreadcrumbs Integration', () => {
   let originalPage: any;
   let originalApp: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     _resetAppLifecycle(); // 清共享 App 包装状态，避免用例间残留
     originalPage = (globalThis as any).Page;
     originalApp = (globalThis as any).App;
@@ -26,12 +32,12 @@ describe('PageBreadcrumbs Integration', () => {
 
   describe('Page lifecycle breadcrumbs', () => {
     it('should wrap Page() and record onShow breadcrumb', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
 
-      const onShowFn = jest.fn();
+      const onShowFn = vi.fn();
       const pageOptions = {
         onShow: onShowFn,
         route: 'pages/index/index',
@@ -56,12 +62,12 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('should wrap Page() and record onHide breadcrumb', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
 
-      const onHideFn = jest.fn();
+      const onHideFn = vi.fn();
       const pageOptions = { onHide: onHideFn };
 
       const wrapped = (globalThis as any).Page(pageOptions);
@@ -77,13 +83,13 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('should wrap onLoad and onUnload', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
 
-      const onLoadFn = jest.fn();
-      const onUnloadFn = jest.fn();
+      const onLoadFn = vi.fn();
+      const onUnloadFn = vi.fn();
       const pageOptions = { onLoad: onLoadFn, onUnload: onUnloadFn };
 
       const wrapped = (globalThis as any).Page(pageOptions);
@@ -95,13 +101,40 @@ describe('PageBreadcrumbs Integration', () => {
       expect(addBreadcrumb).toHaveBeenCalledTimes(2);
     });
 
+    it('records cold-start duration on the first page ready only', () => {
+      (globalThis as any).App = vi.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
+      vi.mocked(Date.now).mockReturnValueOnce(1000).mockReturnValueOnce(1250);
+
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      const app = (globalThis as any).App({});
+      const page = (globalThis as any).Page({ onReady: vi.fn() });
+
+      app.onLaunch();
+      page.onReady.call({ route: 'pages/home/index' });
+      page.onReady.call({ route: 'pages/home/index' });
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+      expect(setContext).toHaveBeenCalledWith('startup', {
+        coldStartDuration: 250,
+        firstPage: 'pages/home/index',
+      });
+      expect(addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'page.lifecycle',
+          data: expect.objectContaining({ coldStartDuration: 250 }),
+        }),
+      );
+    });
+
     it('should not wrap lifecycle when enableLifecycle is false', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs({ enableLifecycle: false });
       integration.setupOnce();
 
-      const onShowFn = jest.fn();
+      const onShowFn = vi.fn();
       const pageOptions = { onShow: onShowFn };
 
       const wrapped = (globalThis as any).Page(pageOptions);
@@ -117,12 +150,12 @@ describe('PageBreadcrumbs Integration', () => {
 
   describe('User interaction breadcrumbs', () => {
     it('should wrap tap handler and record breadcrumb', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
 
-      const onTapFn = jest.fn();
+      const onTapFn = vi.fn();
       const pageOptions = { onTap: onTapFn };
 
       const wrapped = (globalThis as any).Page(pageOptions);
@@ -148,14 +181,14 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('should wrap handleClick, bindChange, onSubmit handlers', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
 
-      const clickSpy = jest.fn();
-      const changeSpy = jest.fn();
-      const submitSpy = jest.fn();
+      const clickSpy = vi.fn();
+      const changeSpy = vi.fn();
+      const submitSpy = vi.fn();
       const pageOptions = {
         handleClick: clickSpy,
         bindChange: changeSpy,
@@ -174,16 +207,45 @@ describe('PageBreadcrumbs Integration', () => {
       expect(submitSpy).toHaveBeenCalled();
     });
 
+    it('captures interaction coordinates and touch details', () => {
+      (globalThis as any).Page = vi.fn((options: any) => options);
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      const onInput = vi.fn();
+      const page = (globalThis as any).Page({ onInput });
+      const event = {
+        type: 'input',
+        detail: { x: 12, y: 34 },
+        touches: [{ pageX: 56, pageY: 78 }],
+      };
+
+      page.onInput.call({ __route__: 'pages/form/index' }, event, 'extra');
+
+      expect(onInput).toHaveBeenCalledWith(event, 'extra');
+      expect(addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'user.interaction',
+          data: expect.objectContaining({
+            page: 'pages/form/index',
+            x: 12,
+            y: 34,
+            touchX: 56,
+            touchY: 78,
+          }),
+        }),
+      );
+    });
+
     it('should NOT wrap lifecycle methods as user interactions', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs({ enableLifecycle: false });
       integration.setupOnce();
 
       const pageOptions = {
-        onShow: jest.fn(),
-        onHide: jest.fn(),
-        onLoad: jest.fn(),
+        onShow: vi.fn(),
+        onHide: vi.fn(),
+        onLoad: vi.fn(),
       };
 
       const wrapped = (globalThis as any).Page(pageOptions);
@@ -198,12 +260,12 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('should NOT wrap private methods starting with _', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
 
-      const pageOptions = { _privateMethod: jest.fn() };
+      const pageOptions = { _privateMethod: vi.fn() };
 
       const wrapped = (globalThis as any).Page(pageOptions);
       wrapped._privateMethod.call({ route: 'test' });
@@ -214,12 +276,12 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('should not wrap interactions when enableUserInteraction is false', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs({ enableUserInteraction: false });
       integration.setupOnce();
 
-      const pageOptions = { onTap: jest.fn() };
+      const pageOptions = { onTap: vi.fn() };
 
       const wrapped = (globalThis as any).Page(pageOptions);
       wrapped.onTap.call({ route: 'test' }, { type: 'tap' });
@@ -232,12 +294,12 @@ describe('PageBreadcrumbs Integration', () => {
 
   describe('App lifecycle breadcrumbs', () => {
     it('should wrap App() and record onLaunch breadcrumb', () => {
-      (globalThis as any).App = jest.fn((options: any) => options);
+      (globalThis as any).App = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
 
-      const onLaunchFn = jest.fn();
+      const onLaunchFn = vi.fn();
       const appOptions = { onLaunch: onLaunchFn };
 
       const wrapped = (globalThis as any).App(appOptions);
@@ -253,13 +315,13 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('should wrap App onShow and onHide', () => {
-      (globalThis as any).App = jest.fn((options: any) => options);
+      (globalThis as any).App = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
 
-      const showSpy = jest.fn();
-      const hideSpy = jest.fn();
+      const showSpy = vi.fn();
+      const hideSpy = vi.fn();
       const appOptions = {
         onShow: showSpy,
         onHide: hideSpy,
@@ -291,7 +353,7 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('should handle Page() with no options', () => {
-      (globalThis as any).Page = jest.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
@@ -303,7 +365,7 @@ describe('PageBreadcrumbs Integration', () => {
 
   describe('Page 包装幂等与安全还原', () => {
     it('二次 setupOnce 不重复包装 Page（幂等守卫）', () => {
-      const base = jest.fn((o: any) => o);
+      const base = vi.fn((o: any) => o);
       (globalThis as any).Page = base;
 
       const integration = new PageBreadcrumbs();
@@ -323,7 +385,7 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('cleanup 不清掉他人在我们之后包装的 Page', () => {
-      const base = jest.fn((o: any) => o);
+      const base = vi.fn((o: any) => o);
       (globalThis as any).Page = base;
 
       const integration = new PageBreadcrumbs();
@@ -331,7 +393,7 @@ describe('PageBreadcrumbs Integration', () => {
       const ourWrapper = (globalThis as any).Page;
 
       // 第三方在我们之后再包一层
-      const thirdParty = jest.fn((o: any) => ourWrapper(o));
+      const thirdParty = vi.fn((o: any) => ourWrapper(o));
       (globalThis as any).Page = thirdParty;
 
       integration.cleanup();
@@ -340,14 +402,14 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('cleanup 不被第三方复制的 __sentryPageWrapper 标记误导', () => {
-      const base = jest.fn((o: any) => o);
+      const base = vi.fn((o: any) => o);
       (globalThis as any).Page = base;
 
       const integration = new PageBreadcrumbs();
       integration.setupOnce();
       const ourWrapper = (globalThis as any).Page;
 
-      const thirdParty = jest.fn((o: any) => ourWrapper(o));
+      const thirdParty = vi.fn((o: any) => ourWrapper(o));
       // 模拟第三方包装器复制了当前 Page 上的属性；cleanup 必须按 wrapper 身份判断，
       // 不能只看布尔标记，否则会把第三方包装误清掉。
       (thirdParty as any).__sentryPageWrapper = (ourWrapper as any).__sentryPageWrapper;
@@ -358,7 +420,7 @@ describe('PageBreadcrumbs Integration', () => {
     });
 
     it('cleanup 在我们仍是顶层包装时正常还原原始 Page', () => {
-      const base = jest.fn((o: any) => o);
+      const base = vi.fn((o: any) => o);
       (globalThis as any).Page = base;
 
       const integration = new PageBreadcrumbs();
@@ -368,5 +430,11 @@ describe('PageBreadcrumbs Integration', () => {
       integration.cleanup();
       expect((globalThis as any).Page).toBe(base);
     });
+  });
+
+  it('creates an integration through the public factory', () => {
+    expect(pageBreadcrumbsIntegration({ enableLifecycle: false })).toBeInstanceOf(
+      PageBreadcrumbs,
+    );
   });
 });

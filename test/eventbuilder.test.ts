@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   eventFromException,
   eventFromMessage,
@@ -9,15 +9,15 @@ import { SeverityLevel } from '@sentry/core';
 import type { EventHint } from '@sentry/core';
 
 // Mock helpers
-jest.mock('../src/helpers', () => ({
-  isError: jest.fn((value: any) => value instanceof Error),
-  isPlainObject: jest.fn(
+vi.mock('../src/helpers', () => ({
+  isError: vi.fn((value: any) => value instanceof Error),
+  isPlainObject: vi.fn(
     (value: any) => value !== null && typeof value === 'object' && value.constructor === Object,
   ),
 }));
 
 // Mock exceptionFromError function
-const exceptionFromError = jest.fn((_stackParser: any, error: any) => {
+const exceptionFromError = vi.fn((_stackParser: any, error: any) => {
   if (error === null) {
     return {
       type: 'Error',
@@ -63,7 +63,7 @@ const exceptionFromError = jest.fn((_stackParser: any, error: any) => {
 
 describe('EventBuilder', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('eventFromException', () => {
@@ -283,7 +283,7 @@ describe('EventBuilder', () => {
   });
 
   describe('eventFromString', () => {
-    const mockStackParser = jest.fn();
+    const mockStackParser = vi.fn();
 
     it('should create event from string with default level', () => {
       const input = 'Test string message';
@@ -313,7 +313,7 @@ describe('EventBuilder', () => {
   });
 
   describe('eventFromUnknownInput', () => {
-    const mockStackParser = jest.fn();
+    const mockStackParser = vi.fn();
 
     it('should handle ErrorEvent with error property', () => {
       const errorEvent = {
@@ -488,6 +488,30 @@ describe('EventBuilder', () => {
 
       expect(event.message).toContain('Non-Error exception captured with keys:');
       expect(event.message).toContain('\u2026'); // ellipsis for truncated keys
+    });
+
+    it('keeps a single long key intact for stable issue grouping', () => {
+      const longKey = 'x'.repeat(40);
+      const hint: EventHint = {
+        syntheticException: new Error('Synthetic error'),
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, { [longKey]: true }, hint);
+
+      expect(event.message).toBe(`Non-Error exception captured with keys: ${longKey}`);
+      expect(event.exception?.values?.[0]?.value).toBe(event.message);
+    });
+
+    it('falls back to a safe marker for cyclic objects', () => {
+      const cyclic: any = { label: 'cycle' };
+      cyclic.self = cyclic;
+      const hint: EventHint = {
+        syntheticException: new Error('Synthetic error'),
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, cyclic, hint);
+
+      expect(event.extra?.['__serialized__']).toBe('[Object]');
     });
   });
 });

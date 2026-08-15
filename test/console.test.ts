@@ -1,7 +1,9 @@
-import { ConsoleBreadcrumbs } from '../src/integrations/console';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-jest.mock('@sentry/core', () => ({
-  addBreadcrumb: jest.fn(),
+import { ConsoleBreadcrumbs, consoleBreadcrumbsIntegration } from '../src/integrations/console';
+
+vi.mock('@sentry/core', () => ({
+  addBreadcrumb: vi.fn(),
 }));
 
 import { addBreadcrumb } from '@sentry/core';
@@ -10,7 +12,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
   const originalConsole: Record<string, any> = {};
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Save original console methods
     for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
       originalConsole[level] = console[level as keyof Console];
@@ -139,5 +141,31 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
     expect(() => console.log('circular:', circular)).not.toThrow();
     expect(addBreadcrumb).toHaveBeenCalled();
+  });
+
+  it('restores the original console methods during cleanup', () => {
+    const originalLog = console.log;
+    const integration = new ConsoleBreadcrumbs({ levels: ['log'] });
+
+    integration.setupOnce();
+    expect(console.log).not.toBe(originalLog);
+
+    integration.cleanup();
+    expect(console.log).toBe(originalLog);
+  });
+
+  it('skips unavailable console methods', () => {
+    (console as any).info = undefined;
+    const integration = new ConsoleBreadcrumbs({ levels: ['info'] });
+
+    expect(() => integration.setupOnce()).not.toThrow();
+    expect(() => integration.cleanup()).not.toThrow();
+    expect(addBreadcrumb).not.toHaveBeenCalled();
+  });
+
+  it('creates an integration through the public factory', () => {
+    expect(consoleBreadcrumbsIntegration({ levels: ['error'] })).toBeInstanceOf(
+      ConsoleBreadcrumbs,
+    );
   });
 });

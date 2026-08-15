@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * isMinigame() 真值表测试。通过增删全局 wx / App / Page / getCurrentPages / GameGlobal，
@@ -10,7 +10,7 @@ describe('isMinigame', () => {
 
   beforeEach(() => {
     savedWx = g.wx;
-    jest.resetModules();
+    vi.resetModules();
     delete g.App;
     delete g.Page;
     delete g.getCurrentPages;
@@ -26,13 +26,13 @@ describe('isMinigame', () => {
   });
 
   it('平台存在且无 App/Page/getCurrentPages → 判定为小游戏', async () => {
-    g.wx = { request: jest.fn() };
+    g.wx = { request: vi.fn() };
     const { isMinigame } = await import('../src/crossPlatform');
     expect(isMinigame()).toBe(true);
   });
 
   it('平台存在且 App/Page/getCurrentPages 都在 → 判定为小程序（非小游戏）', async () => {
-    g.wx = { request: jest.fn() };
+    g.wx = { request: vi.fn() };
     g.App = () => {};
     g.Page = () => {};
     g.getCurrentPages = () => [];
@@ -41,7 +41,7 @@ describe('isMinigame', () => {
   });
 
   it('存在全局 GameGlobal → 判定为小游戏（即便 App 存在）', async () => {
-    g.wx = { request: jest.fn() };
+    g.wx = { request: vi.fn() };
     g.App = () => {};
     g.GameGlobal = {};
     const { isMinigame } = await import('../src/crossPlatform');
@@ -55,7 +55,7 @@ describe('isMinigame', () => {
   });
 
   it('resetPlatformCache 统一清除 _sdk / _appName / _isMinigame 缓存', async () => {
-    g.wx = { request: jest.fn() };
+    g.wx = { request: vi.fn() };
     const mod = await import('../src/crossPlatform');
     // 先用小游戏态填充缓存
     expect(mod.isMinigame()).toBe(true);

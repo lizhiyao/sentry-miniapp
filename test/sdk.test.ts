@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   init,
   showReportDialog,
@@ -20,7 +20,7 @@ import { shouldIgnoreOnError } from '../src/helpers';
 
 describe('SDK', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('init', () => {
@@ -62,8 +62,8 @@ describe('SDK', () => {
         release: '1.0.0',
         sampleRate: 0.5,
         maxBreadcrumbs: 50,
-        beforeSend: jest.fn((event: any) => event) as any,
-        beforeBreadcrumb: jest.fn((breadcrumb: any) => breadcrumb) as any,
+        beforeSend: vi.fn((event: any) => event) as any,
+        beforeBreadcrumb: vi.fn((breadcrumb: any) => breadcrumb) as any,
       };
 
       const client = init(options);
@@ -77,7 +77,7 @@ describe('SDK', () => {
     });
 
     it('should allow overriding stackParser', () => {
-      const stackParser = jest.fn(() => []) as StackParser;
+      const stackParser = vi.fn(() => []) as StackParser;
       const client = init({
         dsn: 'https://test@sentry.io/123',
         integrations: [],
@@ -126,7 +126,7 @@ describe('SDK', () => {
     it('defaultIntegrations 数组会替换核心默认集成基底', () => {
       const customDefault = {
         name: 'CustomDefaultIntegration',
-        setupOnce: jest.fn(),
+        setupOnce: vi.fn(),
       };
 
       const client = init({
@@ -307,7 +307,7 @@ describe('SDK', () => {
       });
       const transport = client?.getTransport();
       expect(transport).toBeDefined();
-      const flushSpy = jest
+      const flushSpy = vi
         .spyOn(transport!, 'flush')
         .mockImplementation(() => Promise.resolve(true));
 
@@ -333,7 +333,7 @@ describe('SDK', () => {
     });
 
     it('wraps custom transport with the consent gate', async () => {
-      const send = jest.fn((_: any) => Promise.resolve({ statusCode: 200 }));
+      const send = vi.fn((_: any) => Promise.resolve({ statusCode: 200 }));
       const client = init({
         dsn: 'https://test@sentry.io/123',
         requireConsent: true,
@@ -359,7 +359,7 @@ describe('SDK', () => {
 
   describe('showReportDialog', () => {
     it('should log a deprecation warning', () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       showReportDialog();
 
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -369,7 +369,7 @@ describe('SDK', () => {
     });
 
     it('should accept optional options', () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       expect(() => showReportDialog({ eventId: '123' })).not.toThrow();
       consoleSpy.mockRestore();
     });
@@ -417,7 +417,7 @@ describe('SDK', () => {
 
     it('should call the original function', () => {
       init({ dsn: 'https://test@sentry.io/123' });
-      const fn = jest.fn(() => 'result');
+      const fn = vi.fn(() => 'result');
       const wrapped = wrap(fn as any);
       const result = wrapped();
       expect(fn).toHaveBeenCalled();
@@ -425,7 +425,7 @@ describe('SDK', () => {
     });
 
     it('should capture exceptions and re-throw', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
 
       try {
         init({ dsn: 'https://test@sentry.io/123' });
@@ -438,8 +438,8 @@ describe('SDK', () => {
         expect(() => wrapped()).toThrow('Test wrap error');
         expect(shouldIgnoreOnError()).toBe(true);
       } finally {
-        jest.runOnlyPendingTimers();
-        jest.useRealTimers();
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
       }
 
       expect(shouldIgnoreOnError()).toBe(false);
@@ -478,7 +478,7 @@ describe('SDK', () => {
 
     it('should warn and return empty string when no client', () => {
       // 这取决于是否有前序 init 调用，主要测试函数不抛异常
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const result = captureFeedback({ message: 'feedback' });
       expect(typeof result === 'string').toBe(true);
       consoleSpy.mockRestore();
