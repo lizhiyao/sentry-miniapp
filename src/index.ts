@@ -2,9 +2,8 @@
 // Based on @sentry/core
 // Development Mode: Auto-rebuild enabled
 
-// Install polyfills for miniapp environment
-import { ensurePolyfills } from './polyfills';
-ensurePolyfills();
+// 必须作为首个静态依赖求值，确保其余 SDK 模块加载前已补齐小程序运行时能力。
+import './polyfills-bootstrap';
 
 // Export types from @sentry/core (types moved from @sentry/types to @sentry/core)
 export type {

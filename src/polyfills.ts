@@ -201,4 +201,4 @@ export function ensurePolyfills(): void {
   installPolyfills();
 }
 
-// 不在工具模块导入时隐式修改全局；SDK 唯一入口 src/index.ts 显式调用一次。
+// 不在工具模块导入时隐式修改全局；SDK 入口通过 polyfills-bootstrap.ts 显式调用一次。
