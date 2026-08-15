@@ -1,5 +1,5 @@
 import { getCurrentScope } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
+import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { startSpan } from '@sentry/core';
 
 import {
@@ -65,6 +65,7 @@ export class PerformanceIntegration implements Integration {
   private _observers: PerformanceObserver[] = [];
   private _entryBuffer: PerformanceEntry[] = [];
   private _reportTimer: ReturnType<typeof setInterval> | null = null;
+  private _isSetup: boolean = false;
 
   constructor(options: PerformanceIntegrationOptions = {}) {
     this._options = {
@@ -91,6 +92,17 @@ export class PerformanceIntegration implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
     this._initializePerformanceManager();
     this._setupPerformanceObservers();
     this._startAutoReporting();
@@ -675,6 +687,8 @@ export class PerformanceIntegration implements Integration {
 
     // 最后一次汇总
     this._reportBufferedEntries();
+    this._performanceManager = null;
+    this._isSetup = false;
   }
 }
 

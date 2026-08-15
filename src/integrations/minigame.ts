@@ -1,5 +1,5 @@
 import { addBreadcrumb, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
+import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 
 /**
@@ -23,6 +23,7 @@ export class MinigameIntegration implements Integration {
   private _showHandler: ((res: any) => void) | null = null;
   private _hideHandler: (() => void) | null = null;
   private _coldStartReported: boolean = false;
+  private _isSetup: boolean = false;
   // 累积的 minigame 上下文。setContext 为「覆盖」语义，故内部维护完整对象，
   // 每次补充字段后整体写回，避免后续字段冲掉启动场景。
   private _minigameContext: {
@@ -34,6 +35,21 @@ export class MinigameIntegration implements Integration {
   } = { runtime: 'minigame' };
 
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
+    this._initTs = now();
+    this._initEpoch = epochNow();
+    this._coldStartReported = false;
+
     const miniappSdk = sdk();
     if (!miniappSdk) return;
 
@@ -127,19 +143,21 @@ export class MinigameIntegration implements Integration {
 
   public cleanup(): void {
     const miniappSdk = sdk();
-    if (!miniappSdk) return;
-    try {
-      if (this._showHandler && typeof miniappSdk.offShow === 'function') {
-        miniappSdk.offShow(this._showHandler);
+    if (miniappSdk) {
+      try {
+        if (this._showHandler && typeof miniappSdk.offShow === 'function') {
+          miniappSdk.offShow(this._showHandler);
+        }
+        if (this._hideHandler && typeof miniappSdk.offHide === 'function') {
+          miniappSdk.offHide(this._hideHandler);
+        }
+      } catch (_e) {
+        // ignore
       }
-      if (this._hideHandler && typeof miniappSdk.offHide === 'function') {
-        miniappSdk.offHide(this._hideHandler);
-      }
-    } catch (_e) {
-      // ignore
     }
     this._showHandler = null;
     this._hideHandler = null;
+    this._isSetup = false;
   }
 }
 

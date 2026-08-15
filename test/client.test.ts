@@ -529,27 +529,23 @@ describe('MiniappClient', () => {
       expect(getConfiguredDefaultIntegrationsMode(fakeClient)).toBe('disabled');
     });
 
-    it('warns in debug mode when integration cleanup fails', async () => {
+    it('warns in debug mode when a registered cleanup callback fails', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const brokenIntegration = {
-        name: 'BrokenIntegration',
-        cleanup: () => {
-          throw new Error('cleanup failed');
-        },
-      };
       const c = new MiniappClient({
         debug: true,
-        integrations: [brokenIntegration as any],
         transport: () => ({
           send: async () => ({}),
           flush: async () => true,
         }),
       });
+      c.registerCleanup(() => {
+        throw new Error('cleanup failed');
+      });
 
       await c.close(0);
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[sentry-miniapp] 集成 BrokenIntegration cleanup 失败:',
+        '[sentry-miniapp] 集成资源清理失败:',
         expect.any(Error),
       );
     });

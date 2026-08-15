@@ -1,5 +1,5 @@
 import { addBreadcrumb, setContext, getClient } from '@sentry/core';
-import type { Integration } from '@sentry/core';
+import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 
 /**
@@ -12,8 +12,21 @@ export class NetworkStatusIntegration implements Integration {
 
   private _statusChangeHandler: ((res: any) => void) | null = null;
   private _lastConnected: boolean | null = null;
+  private _isSetup: boolean = false;
 
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
+
     const miniappSdk = sdk();
     if (!miniappSdk) return;
 
@@ -85,5 +98,7 @@ export class NetworkStatusIntegration implements Integration {
       }
       this._statusChangeHandler = null;
     }
+    this._lastConnected = null;
+    this._isSetup = false;
   }
 }

@@ -7,7 +7,7 @@ import {
   setHttpStatus,
   startInactiveSpan,
 } from '@sentry/core';
-import type { Integration, Span } from '@sentry/core';
+import type { Client, Integration, Span } from '@sentry/core';
 import { fill } from '../helpers';
 import { sdk } from '../crossPlatform';
 
@@ -36,6 +36,7 @@ export class NetworkBreadcrumbs implements Integration {
   private readonly _propagateTraceparent: boolean;
   private _restoreRequest: (() => void) | null = null;
   private _restoreHttpRequest: (() => void) | null = null;
+  private _isSetup: boolean = false;
 
   public constructor(
     options: {
@@ -84,6 +85,17 @@ export class NetworkBreadcrumbs implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
     const miniappSdk = sdk();
 
     // Intercept standard request (WeChat, ByteDance, Swan, etc.)
@@ -119,6 +131,7 @@ export class NetworkBreadcrumbs implements Integration {
     this._restoreHttpRequest?.();
     this._restoreRequest = null;
     this._restoreHttpRequest = null;
+    this._isSetup = false;
   }
 
   /**

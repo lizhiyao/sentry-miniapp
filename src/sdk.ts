@@ -38,10 +38,9 @@ import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './
 /**
  * 构造一组**全新**的默认集成实例。
  *
- * 必须每次 init 现造新实例：集成的 setupOnce/cleanup 会把补丁状态留在实例上，跨多次 init 或
- * 多 client 复用同一批单例会让状态互踩（close 后再 init、或并存两个 client 时尤甚）。这与
- * client.close() 清 core 的 setupOnce 门禁（按 name）互补——name 门禁放行后，全新实例才能干净
- * 地重新 setupOnce。
+ * 必须每次 init 现造新实例：有全局副作用的集成会在实例上保存补丁与订阅状态。
+ * core 的 `setupOnce` 只负责进程级初始化；每个 client 的安装与回收由 `setup(client)` /
+ * `client.registerCleanup()` 配对，不再修改 core 内部的全局门禁。
  */
 export function getDefaultIntegrations(options: MiniappOptions = {}): Integration[] {
   const integrations: Integration[] = [

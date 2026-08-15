@@ -8,7 +8,6 @@ import {
   getCurrentScope,
   makeOfflineTransport,
   stackParserFromStackParserOptions,
-  installedIntegrations,
 } from '@sentry/core';
 import type {
   BaseTransportOptions,
@@ -79,6 +78,8 @@ export function setConfiguredDefaultIntegrationsMode(
  * @see SentryClient for usage documentation.
  */
 export class MiniappClient extends Client<MiniappClientOptions> {
+  private readonly _disposeCallbacks: Array<() => void> = [];
+
   /**
    * Creates a new Miniapp SDK instance.
    *
@@ -279,40 +280,33 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     return event;
   }
 
-  /**
-   * 关闭客户端，清理所有集成资源。
-   *
-   * 用公开的 `getOptions().integrations`（装配后的集成实例数组）遍历，而非基类内部的
-   * `_integrations` 字段——后者是 protected、非公开契约，@sentry/core 升级若改名/改结构会
-   * 静默失效。`cleanup()` 是本 SDK 集成的自定义方法（非 core Integration 接口的一部分），故做窄类型断言。
-   */
-  public override close(timeout?: number): PromiseLike<boolean> {
-    const integrations = this.getOptions().integrations;
-    if (Array.isArray(integrations)) {
-      for (const integration of integrations) {
-        const cleanup = (integration as unknown as { cleanup?: () => void }).cleanup;
-        if (typeof cleanup === 'function') {
-          try {
-            cleanup.call(integration);
-          } catch (e) {
-            if (this.getOptions().debug) {
-              console.warn(`[sentry-miniapp] 集成 ${integration.name} cleanup 失败:`, e);
-            }
-          }
-        }
+  /** @inheritDoc */
+  public override registerCleanup(callback: () => void): void {
+    this._disposeCallbacks.push(callback);
+  }
 
-        // 从 core 的进程级 setupOnce 门禁里移除本集成名，让后续 init() 能重新 setupOnce。
-        // core 用 installedIntegrations（按 name 记、从不清除）守卫 setupOnce：cleanup 还原了
-        // 补丁、门禁却仍记着该名，二次 init 会跳过 setup → 全局错误处理/面包屑等静默哑火（F2）。
-        if (Array.isArray(installedIntegrations)) {
-          const idx = installedIntegrations.indexOf(integration.name);
-          if (idx !== -1) {
-            installedIntegrations.splice(idx, 1);
-          }
+  /** @inheritDoc */
+  public override dispose(): void {
+    for (const callback of this._disposeCallbacks.splice(0)) {
+      try {
+        callback();
+      } catch (error) {
+        if (this.getOptions().debug) {
+          console.warn('[sentry-miniapp] 集成资源清理失败:', error);
         }
       }
     }
-    return super.close(timeout);
+    super.dispose();
+  }
+
+  /**
+   * 关闭客户端并执行集成通过 `setup(client)` 注册的清理回调。
+   */
+  public override close(timeout?: number): PromiseLike<boolean> {
+    return Promise.resolve(super.close(timeout)).then((result) => {
+      this.dispose();
+      return result;
+    });
   }
 
   /**

@@ -1,5 +1,5 @@
 import { addBreadcrumb, setContext } from '@sentry/core';
-import type { Integration } from '@sentry/core';
+import type { Client, Integration } from '@sentry/core';
 import { subscribeAppLifecycle } from '../appLifecycle';
 
 /**
@@ -55,6 +55,7 @@ export class PageBreadcrumbs implements Integration {
   private _unsubscribeApp: (() => void) | null = null;
   private _launchTime: number = 0;
   private _firstPageReady: boolean = false;
+  private _isSetup: boolean = false;
 
   constructor(options: PageBreadcrumbsOptions = {}) {
     this._options = {
@@ -65,6 +66,17 @@ export class PageBreadcrumbs implements Integration {
   }
 
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
     this._wrapPage();
     this._subscribeApp();
   }
@@ -230,6 +242,9 @@ export class PageBreadcrumbs implements Integration {
       this._unsubscribeApp();
       this._unsubscribeApp = null;
     }
+    this._launchTime = 0;
+    this._firstPageReady = false;
+    this._isSetup = false;
   }
 }
 

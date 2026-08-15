@@ -1,5 +1,5 @@
-import { captureException, getCurrentScope } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
+import { captureException, getClient, getCurrentScope } from '@sentry/core';
+import type { Client, Integration, IntegrationFn } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
 import { shouldIgnoreOnError } from '../helpers';
@@ -52,6 +52,7 @@ export class GlobalHandlers implements Integration {
     | ((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => void)
     | null = null;
   private _memoryWarningHandler: ((res: { level: number }) => void) | null = null;
+  private _client: Client | undefined;
 
   /** JSDoc */
   public constructor(options?: Partial<GlobalHandlersIntegrations>) {
@@ -68,6 +69,17 @@ export class GlobalHandlers implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
+    this._setup();
+  }
+
+  /** 按 core 官方生命周期在每个 client 上安装，并由 client 统一回收。 */
+  public setup(client: Client): void {
+    this._client = client;
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
     Error.stackTraceLimit = 50;
 
     if (this._options.onerror) {
@@ -95,6 +107,7 @@ export class GlobalHandlers implements Integration {
 
     if (sdk().onError) {
       this._errorHandler = (err: string | Error) => {
+        if (this._client && getClient() !== this._client) return;
         if (shouldIgnoreOnError()) {
           return;
         }
@@ -127,6 +140,7 @@ export class GlobalHandlers implements Integration {
         reason: string | Error;
         promise: Promise<any>;
       }) => {
+        if (this._client && getClient() !== this._client) return;
         const error = typeof reason === 'string' ? new Error(reason) : reason;
         captureException(error, {
           mechanism: {
@@ -156,6 +170,7 @@ export class GlobalHandlers implements Integration {
         query: Record<string, any>;
         isEntryPage: boolean;
       }) => {
+        if (this._client && getClient() !== this._client) return;
         const scope = getCurrentScope();
         const url = res.path.split('?')[0];
 
@@ -187,6 +202,7 @@ export class GlobalHandlers implements Integration {
 
     if (sdk().onMemoryWarning) {
       this._memoryWarningHandler = ({ level = -1 }: { level: number }) => {
+        if (this._client && getClient() !== this._client) return;
         let levelMessage = '没有获取到告警级别信息';
 
         switch (level) {

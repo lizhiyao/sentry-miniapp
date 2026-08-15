@@ -1,5 +1,5 @@
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
-import type { Integration } from '@sentry/core';
+import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 
 /**
@@ -25,11 +25,24 @@ export class Router implements Integration {
   private _lastRoute: string = '';
 
   private _monitorTimer: ReturnType<typeof setInterval> | null = null;
+  private _restoreNavigation: Array<() => void> = [];
+  private _isSetup: boolean = false;
 
   /**
    * @inheritDoc
    */
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
     this._instrumentNavigation();
     this._startRouteMonitoring();
   }
@@ -49,19 +62,29 @@ export class Router implements Integration {
     for (const method of methods) {
       if (currentSdk[method]) {
         const original = currentSdk[method];
-        currentSdk[method] = (options: any) => {
+        const wrapped = (options: any) => {
           this._recordNavigation(method, options.url, this._getCurrentRoute());
           return original.call(currentSdk, options);
         };
+        currentSdk[method] = wrapped;
+        this._restoreNavigation.push(() => {
+          if (currentSdk[method] === wrapped) currentSdk[method] = original;
+        });
       }
     }
 
     if (currentSdk.navigateBack) {
       const originalNavigateBack = currentSdk.navigateBack;
-      currentSdk.navigateBack = (options: any = {}) => {
+      const wrappedNavigateBack = (options: any = {}) => {
         this._recordNavigation('navigateBack', 'back', this._getCurrentRoute(), options.delta);
         return originalNavigateBack.call(currentSdk, options);
       };
+      currentSdk.navigateBack = wrappedNavigateBack;
+      this._restoreNavigation.push(() => {
+        if (currentSdk.navigateBack === wrappedNavigateBack) {
+          currentSdk.navigateBack = originalNavigateBack;
+        }
+      });
     }
   }
 
@@ -87,6 +110,11 @@ export class Router implements Integration {
       clearInterval(this._monitorTimer);
       this._monitorTimer = null;
     }
+    for (const restore of this._restoreNavigation.splice(0).reverse()) {
+      restore();
+    }
+    this._lastRoute = '';
+    this._isSetup = false;
   }
 
   /**

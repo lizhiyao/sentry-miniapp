@@ -1,5 +1,5 @@
 import { addBreadcrumb, flush, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
+import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 import type { MinigameFrameRateOptions, MinigameJankLevels } from '../types';
 
@@ -119,6 +119,7 @@ export class MinigameFrameRateIntegration implements Integration {
   private _fpsSamples: number[] = [];
   private _showHandler: ((res: any) => void) | null = null;
   private _hideHandler: (() => void) | null = null;
+  private _isSetup: boolean = false;
 
   constructor(options: MinigameFrameRateOptions = {}) {
     this._options = {
@@ -139,6 +140,18 @@ export class MinigameFrameRateIntegration implements Integration {
   }
 
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
+
     const raf = (globalThis as any).requestAnimationFrame;
     if (typeof raf !== 'function') {
       console.warn(
@@ -395,6 +408,7 @@ export class MinigameFrameRateIntegration implements Integration {
     }
     this._hideHandler = null;
     this._showHandler = null;
+    this._isSetup = false;
   }
 }
 

@@ -1,5 +1,5 @@
 import { addBreadcrumb } from '@sentry/core';
-import type { Integration, SeverityLevel } from '@sentry/core';
+import type { Client, Integration, SeverityLevel } from '@sentry/core';
 
 const CONSOLE_LEVELS = ['debug', 'info', 'warn', 'error', 'log'] as const;
 
@@ -35,19 +35,33 @@ export class ConsoleBreadcrumbs implements Integration {
 
   private _levels: ConsoleLevel[];
   private _originalMethods: Partial<Record<ConsoleLevel, (...args: any[]) => void>> = {};
+  private _wrappedMethods: Partial<Record<ConsoleLevel, (...args: any[]) => void>> = {};
+  private _isSetup: boolean = false;
 
   constructor(options: ConsoleBreadcrumbsOptions = {}) {
     this._levels = options.levels || [...CONSOLE_LEVELS];
   }
 
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
+
     for (const level of this._levels) {
       if (typeof console[level] !== 'function') continue;
 
       const original = console[level];
       this._originalMethods[level] = original;
 
-      console[level] = function (...args: any[]) {
+      const wrapped = function (...args: any[]) {
         addBreadcrumb({
           category: 'console',
           level: LEVEL_TO_SEVERITY[level],
@@ -65,6 +79,8 @@ export class ConsoleBreadcrumbs implements Integration {
 
         return original.apply(console, args);
       };
+      this._wrappedMethods[level] = wrapped;
+      console[level] = wrapped;
     }
   }
 
@@ -74,11 +90,13 @@ export class ConsoleBreadcrumbs implements Integration {
   public cleanup(): void {
     for (const level of this._levels) {
       const original = this._originalMethods[level];
-      if (original) {
+      if (original && console[level] === this._wrappedMethods[level]) {
         console[level] = original;
       }
     }
     this._originalMethods = {};
+    this._wrappedMethods = {};
+    this._isSetup = false;
   }
 }
 
