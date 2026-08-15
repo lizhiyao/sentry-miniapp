@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { captureException, getCurrentScope } from '@sentry/core';
+import { captureException, withScope } from '@sentry/core';
 import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/index';
 import { ignoreNextOnErrorCall } from '../src/helpers';
 
 // Mock @sentry/core
 vi.mock('@sentry/core', () => ({
   captureException: vi.fn(),
-  getCurrentScope: vi.fn(),
+  withScope: vi.fn(),
 }));
 
 // Mock crossPlatform
@@ -25,7 +25,9 @@ describe('GlobalHandlers', () => {
       setTag: vi.fn(),
       setContext: vi.fn(),
     };
-    (getCurrentScope as Mock).mockReturnValue(mockScope);
+    (withScope as Mock).mockImplementation((callback: (scope: any) => void) =>
+      callback(mockScope),
+    );
 
     // 重置 mockSdk
     Object.keys(mockSdk).forEach((key) => delete mockSdk[key]);
@@ -191,6 +193,7 @@ describe('GlobalHandlers', () => {
       });
 
       expect(mockScope.setTag).toHaveBeenCalledWith('pagenotfound', 'pages/missing');
+      expect(withScope).toHaveBeenCalledTimes(1);
       expect(mockScope.setContext).toHaveBeenCalledWith(
         'page_not_found',
         expect.objectContaining({
@@ -217,6 +220,7 @@ describe('GlobalHandlers', () => {
       handler({ level: 5 });
 
       expect(mockScope.setTag).toHaveBeenCalledWith('memory-warning', '5');
+      expect(withScope).toHaveBeenCalledTimes(1);
       expect(mockScope.setContext).toHaveBeenCalledWith(
         'memory_warning',
         expect.objectContaining({

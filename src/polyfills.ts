@@ -201,6 +201,4 @@ export function ensurePolyfills(): void {
   installPolyfills();
 }
 
-// Auto-install polyfills immediately when this module is loaded
-// This runs before any other SDK functionality
-ensurePolyfills();
+// 不在工具模块导入时隐式修改全局；SDK 唯一入口 src/index.ts 显式调用一次。

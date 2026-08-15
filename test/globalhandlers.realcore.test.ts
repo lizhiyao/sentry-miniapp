@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { getClient, flush, installedIntegrations } from '@sentry/core';
+import { captureException, getClient, flush, installedIntegrations } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init } from '../src/index';
@@ -28,6 +28,9 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
   const g = global as any;
   let captured: any[];
   let onErrorHandler: ((e: string | Error) => void) | undefined;
+  let onPageNotFoundHandler:
+    | ((event: { path: string; query: Record<string, unknown>; isEntryPage: boolean }) => void)
+    | undefined;
 
   beforeEach(() => {
     captured = [];
@@ -35,6 +38,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     _resetAppLifecycle();
     installedIntegrations.length = 0;
     onErrorHandler = undefined;
+    onPageNotFoundHandler = undefined;
     g.wx = {
       request: vi.fn(),
       getSystemInfoSync: () => ({ brand: 'Apple', SDKVersion: '3' }),
@@ -42,6 +46,9 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
         onErrorHandler = h;
       }),
       onUnhandledRejection: vi.fn(),
+      onPageNotFound: vi.fn((handler) => {
+        onPageNotFoundHandler = handler;
+      }),
     };
   });
 
@@ -118,5 +125,40 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
         }),
       ]),
     );
+  });
+
+  it('page-not-found context 只附着本次事件，不泄漏到后续错误', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      transport: () => ({
+        send: (env: any) => {
+          captured.push(env);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    expect(onPageNotFoundHandler).toBeDefined();
+    onPageNotFoundHandler!({
+      path: 'pages/missing?id=1',
+      query: { id: '1' },
+      isEntryPage: false,
+    });
+    captureException(new Error('unrelated after page-not-found'));
+    await flush(2000);
+
+    const events = collectEvents(captured);
+    const pageEvent = events.find((event) =>
+      event.exception?.values?.[0]?.value?.includes('页面无法找到'),
+    );
+    const unrelated = events.find((event) =>
+      event.exception?.values?.[0]?.value?.includes('unrelated after page-not-found'),
+    );
+    expect(pageEvent?.tags?.pagenotfound).toBe('pages/missing');
+    expect(pageEvent?.contexts?.page_not_found).toBeDefined();
+    expect(unrelated?.tags?.pagenotfound).toBeUndefined();
+    expect(unrelated?.contexts?.page_not_found).toBeUndefined();
   });
 });
