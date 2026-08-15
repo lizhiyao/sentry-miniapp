@@ -21,7 +21,8 @@ export class TryCatch implements Integration {
       args[0] = wrap(originalCallback, {
         mechanism: {
           data: { function: getFunctionName(original) },
-          handled: true,
+          // 回调异常捕获后仍会重新抛出，对 crash-free 统计必须标记为未处理。
+          handled: false,
           type: 'instrument',
         },
       });
@@ -32,14 +33,15 @@ export class TryCatch implements Integration {
   /** JSDoc */
   private _wrapRAF(original: any): (callback: () => void) => any {
     return function (this: any, callback: () => void): any {
-      return original(
+      return original.call(
+        this,
         wrap(callback, {
           mechanism: {
             data: {
               function: 'requestAnimationFrame',
               handler: getFunctionName(original),
             },
-            handled: true,
+            handled: false,
             type: 'instrument',
           },
         }),

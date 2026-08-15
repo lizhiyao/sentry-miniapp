@@ -97,7 +97,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     // 而非容器级 exception.mechanism——后者后端读不到，等于没标记。
     const val = errEvent.exception.values.find((v: any) => v.value?.includes('timer boom'));
     expect(val.mechanism?.type).toBe('instrument');
-    expect(val.mechanism?.handled).toBe(true);
+    expect(val.mechanism?.handled).toBe(false);
     expect((errEvent.exception as any).mechanism).toBeUndefined(); // 不再误挂容器级
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
@@ -139,7 +139,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(events).toHaveLength(1);
     expect(events[0].exception.values[0].mechanism).toMatchObject({
       type: 'instrument',
-      handled: true,
+      handled: false,
     });
   });
 
@@ -188,7 +188,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(root).toBeDefined();
     expect(outer).toBeDefined();
     expect(outer.mechanism?.type).toBe('instrument');
-    expect(outer.mechanism?.handled).toBe(true);
+    expect(outer.mechanism?.handled).toBe(false);
     expect(root.mechanism?.type).not.toBe('instrument');
   });
 

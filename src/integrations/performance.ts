@@ -1,11 +1,11 @@
-import { getCurrentScope } from '@sentry/core';
+import { getCurrentScope, startInactiveSpan, startSpan, withActiveSpan } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
-import { startSpan } from '@sentry/core';
 
 import {
   getPerformanceManager,
   getSystemInfo,
   sdk,
+  epochNow,
   type PerformanceEntry,
   type NavigationPerformanceEntry,
   type RenderPerformanceEntry,
@@ -66,6 +66,7 @@ export class PerformanceIntegration implements Integration {
   private _entryBuffer: PerformanceEntry[] = [];
   private _reportTimer: ReturnType<typeof setInterval> | null = null;
   private _isSetup: boolean = false;
+  private _relativeTimeOrigin: number | null = null;
 
   constructor(options: PerformanceIntegrationOptions = {}) {
     this._options = {
@@ -268,14 +269,62 @@ export class PerformanceIntegration implements Integration {
       return;
     }
 
-    entriesArray.forEach((entry) => {
-      try {
-        this._processPerformanceEntry(entry);
-        this._addToBuffer(entry);
-      } catch (error) {
-        console.warn('[sentry-miniapp] Failed to process performance entry:', error);
-      }
+    this._initializeRelativeTimeOrigin(entriesArray);
+    const rootStart = Math.min(...entriesArray.map((entry) => this._entryTimes(entry).start));
+    const rootEnd = Math.max(...entriesArray.map((entry) => this._entryTimes(entry).end));
+    const navigation = entriesArray.find((entry) => entry.entryType === 'navigation');
+    const rootSpan = startInactiveSpan({
+      name: navigation ? `Navigation: ${navigation.name}` : 'Miniapp Performance',
+      op: navigation ? 'navigation' : 'miniapp.performance',
+      forceTransaction: true,
+      startTime: rootStart,
     });
+    rootSpan.setAttributes({
+      'performance.entry_count': entriesArray.length,
+      'performance.entry_types': Array.from(
+        new Set(entriesArray.map((entry) => entry.entryType)),
+      ).join(','),
+    });
+
+    withActiveSpan(rootSpan, () => {
+      entriesArray.forEach((entry) => {
+        try {
+          this._processPerformanceEntry(entry);
+          this._addToBuffer(entry);
+        } catch (error) {
+          console.warn('[sentry-miniapp] Failed to process performance entry:', error);
+        }
+      });
+    });
+    rootSpan.end(rootEnd);
+  }
+
+  /**
+   * 小程序 PerformanceEntry.startTime 通常是相对运行时起点的毫秒数，不是 Unix epoch。
+   * 第一批条目用“最晚结束点 ≈ 当前时间”建立稳定锚点；已是 epoch 毫秒的宿主值则原样使用。
+   */
+  private _initializeRelativeTimeOrigin(entries: PerformanceEntry[]): void {
+    if (this._relativeTimeOrigin !== null) return;
+    const relativeEnds = entries
+      .filter((entry) => Number.isFinite(entry.startTime) && entry.startTime < 100_000_000_000)
+      .map(
+        (entry) =>
+          Math.max(0, entry.startTime) +
+          (Number.isFinite(entry.duration) ? Math.max(0, entry.duration) : 0),
+      );
+    if (relativeEnds.length === 0) return;
+    this._relativeTimeOrigin = epochNow() - Math.max(0, ...relativeEnds);
+  }
+
+  private _entryTimes(entry: PerformanceEntry): { start: number; end: number } {
+    const validStart = Number.isFinite(entry.startTime) ? entry.startTime : 0;
+    const startMilliseconds =
+      validStart >= 100_000_000_000
+        ? validStart
+        : (this._relativeTimeOrigin ?? epochNow()) + Math.max(0, validStart);
+    const endMilliseconds =
+      startMilliseconds + (Number.isFinite(entry.duration) ? Math.max(0, entry.duration) : 0);
+    return { start: startMilliseconds / 1000, end: endMilliseconds / 1000 };
   }
 
   /**
@@ -305,6 +354,7 @@ export class PerformanceIntegration implements Integration {
    * 处理导航性能条目
    */
   private _processNavigationEntry(entry: NavigationPerformanceEntry): void {
+    const times = this._entryTimes(entry);
     // 添加面包屑
     const scope = getCurrentScope();
     scope.addBreadcrumb({
@@ -322,7 +372,7 @@ export class PerformanceIntegration implements Integration {
       {
         name: `Navigation: ${entry.name}`,
         op: 'navigation',
-        startTime: entry.startTime / 1000, // 转换为秒
+        startTime: times.start,
       },
       (span) => {
         span.setAttributes({
@@ -333,7 +383,7 @@ export class PerformanceIntegration implements Integration {
           'navigation.first_render_time': entry.firstRenderTime || 0,
         });
 
-        span.end((entry.startTime + entry.duration) / 1000);
+        span.end(times.end);
       },
     );
   }
@@ -342,11 +392,12 @@ export class PerformanceIntegration implements Integration {
    * 处理渲染性能条目
    */
   private _processRenderEntry(entry: RenderPerformanceEntry): void {
+    const times = this._entryTimes(entry);
     startSpan(
       {
         name: `Render: ${entry.name}`,
         op: 'render',
-        startTime: entry.startTime / 1000,
+        startTime: times.start,
       },
       (span) => {
         span.setAttributes({
@@ -358,7 +409,7 @@ export class PerformanceIntegration implements Integration {
           'render.script_end': entry.scriptEnd || 0,
         });
 
-        span.end((entry.startTime + entry.duration) / 1000);
+        span.end(times.end);
       },
     );
 
@@ -387,11 +438,12 @@ export class PerformanceIntegration implements Integration {
    * 处理资源加载性能条目
    */
   private _processResourceEntry(entry: ResourcePerformanceEntry): void {
+    const times = this._entryTimes(entry);
     startSpan(
       {
         name: `Resource: ${entry.name}`,
         op: 'resource',
-        startTime: entry.startTime / 1000,
+        startTime: times.start,
       },
       (span) => {
         span.setAttributes({
@@ -412,7 +464,7 @@ export class PerformanceIntegration implements Integration {
           });
         }
 
-        span.end((entry.startTime + entry.duration) / 1000);
+        span.end(times.end);
       },
     );
   }
@@ -421,12 +473,13 @@ export class PerformanceIntegration implements Integration {
    * 处理用户自定义性能条目
    */
   private _processUserTimingEntry(entry: UserTimingPerformanceEntry): void {
+    const times = this._entryTimes(entry);
     if (entry.entryType === 'measure') {
       startSpan(
         {
           name: `Measure: ${entry.name}`,
           op: 'measure',
-          startTime: entry.startTime / 1000,
+          startTime: times.start,
         },
         (span) => {
           span.setAttributes({
@@ -435,7 +488,7 @@ export class PerformanceIntegration implements Integration {
             'measure.detail': entry.detail ? JSON.stringify(entry.detail) : undefined,
           });
 
-          span.end((entry.startTime + entry.duration) / 1000);
+          span.end(times.end);
         },
       );
     } else if (entry.entryType === 'mark') {
@@ -446,7 +499,7 @@ export class PerformanceIntegration implements Integration {
         category: 'performance.mark',
         level: 'info',
         data: {
-          timestamp: entry.startTime,
+          timestamp: times.start * 1000,
           detail: entry.detail,
         },
       });
@@ -688,6 +741,7 @@ export class PerformanceIntegration implements Integration {
     // 最后一次汇总
     this._reportBufferedEntries();
     this._performanceManager = null;
+    this._relativeTimeOrigin = null;
     this._isSetup = false;
   }
 }

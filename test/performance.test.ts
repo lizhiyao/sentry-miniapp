@@ -9,7 +9,12 @@ import {
   type Mocked,
   type MockedFunction,
 } from 'vitest';
-import { addBreadcrumb, getCurrentScope, startSpan } from '@sentry/core';
+import {
+  addBreadcrumb,
+  getCurrentScope,
+  startInactiveSpan,
+  startSpan,
+} from '@sentry/core';
 import { PerformanceIntegration, performanceIntegration } from '../src/integrations/performance';
 import { getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type {
@@ -22,7 +27,9 @@ import type {
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
   getCurrentScope: vi.fn(),
+  startInactiveSpan: vi.fn(),
   startSpan: vi.fn(),
+  withActiveSpan: vi.fn((_span, callback) => callback()),
   withScope: vi.fn(),
   getCurrentHub: vi.fn(() => ({
     getClient: vi.fn(() => ({
@@ -39,6 +46,7 @@ vi.mock('../src/crossPlatform', () => ({
   sdk: vi.fn(() => ({
     getPerformance: vi.fn(),
   })),
+  epochNow: vi.fn(() => 1_700_000_000_000),
 }));
 
 // Mock startTransaction since it's not available in v9
@@ -340,6 +348,7 @@ describe('PerformanceIntegration', () => {
 
     (getPerformanceManager as Mock).mockReturnValue(mockPerformanceManager);
     (getCurrentScope as Mock).mockReturnValue(mockScope);
+    (startInactiveSpan as Mock).mockReturnValue(mockSpan);
     (startSpan as Mock).mockImplementation((_options: unknown, callback: (span: any) => unknown) =>
       callback(mockSpan),
     );
@@ -568,7 +577,7 @@ describe('PerformanceIntegration', () => {
       expect(mockSpan.setAttributes).toHaveBeenCalledWith(
         expect.objectContaining({ 'render.duration': 100 }),
       );
-      expect(mockSpan.end).toHaveBeenCalledWith(2.1);
+      expect(mockSpan.end).toHaveBeenCalledWith(1_700_000_000);
     });
 
     it('should reject primitive entry formats safely', () => {
@@ -920,7 +929,7 @@ describe('PerformanceIntegration', () => {
         'resource.response_end': 700,
         'resource.network_time': 190,
       });
-      expect(mockSpan.end).toHaveBeenCalledWith(0.7);
+      expect(mockSpan.end).toHaveBeenCalledWith(1_700_000_000);
     });
 
     it('should use resource defaults when optional timing data is absent', () => {
