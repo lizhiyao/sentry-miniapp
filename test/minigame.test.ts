@@ -30,7 +30,7 @@ vi.mock('@sentry/core', () => ({
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
-import { MinigameIntegration } from '../src/integrations/minigame';
+import { MinigameIntegration, minigameIntegration } from '../src/integrations/minigame';
 
 describe('MinigameIntegration', () => {
   const g = global as any;
@@ -71,6 +71,13 @@ describe('MinigameIntegration', () => {
   afterEach(() => {
     g.requestAnimationFrame = savedRaf;
     vi.restoreAllMocks();
+  });
+
+  it('函数式工厂返回小游戏集成实例', () => {
+    const integration = minigameIntegration();
+
+    expect(integration).toBeInstanceOf(MinigameIntegration);
+    expect(integration.name).toBe('Minigame');
   });
 
   it('记录启动场景上下文与冷启动面包屑', () => {

@@ -28,7 +28,8 @@ yarn install
 | `yarn build:miniapp` | 构建微信示例使用的独立 CommonJS bundle，并执行兼容性与加载检查 |
 | `yarn dev:miniapp` | 监听源码并持续构建微信示例 bundle |
 | `yarn build:types` | 构建类型定义文件（d.ts） |
-| `yarn test` | 运行单元测试（Jest） |
+| `yarn test` | 运行单元测试（Vitest） |
+| `yarn test:coverage` | 运行单元测试并检查覆盖率门槛 |
 | `yarn lint` | 运行 ESLint 检查 |
 
 ---
@@ -62,7 +63,7 @@ sentry-miniapp/
 │   ├── client.ts                 # 核心 Client 实现
 │   ├── integrations/             # 各类集成模块（如 Performance, Router 等）
 │   └── transports/               # 数据传输层（XHR, 离线缓存）
-├── test/                         # 单元测试（Jest）
+├── test/                         # 单元测试（Vitest）
 ├── examples/wxapp/               # 用于调试的微信小程序示例
 │   ├── lib/                      # [自动生成] SDK 构建产物目录
 │   ├── app.js                    # 小程序入口，SDK 初始化处
@@ -74,9 +75,9 @@ sentry-miniapp/
 
 ## 🧪 测试和质量保证
 
-项目包含完善的测试覆盖率（近 500 个测试用例）：
+项目包含完善的测试覆盖率（650+ 个测试用例）：
 
-- **单元测试 (`yarn test`，Jest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
+- **单元测试 (`yarn test`，Vitest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
 
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 

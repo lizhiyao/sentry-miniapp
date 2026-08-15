@@ -9,7 +9,7 @@ import {
   type Mocked,
   type MockedFunction,
 } from 'vitest';
-import { addBreadcrumb, getCurrentScope } from '@sentry/core';
+import { addBreadcrumb, getCurrentScope, startSpan } from '@sentry/core';
 import { PerformanceIntegration, performanceIntegration } from '../src/integrations/performance';
 import { getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type {
@@ -303,6 +303,7 @@ describe('PerformanceIntegration', () => {
   let mockPerformanceManager: Mocked<PerformanceManager>;
   let mockScope: any;
   let mockObserver: Mocked<PerformanceObserver>;
+  let mockSpan: { setAttributes: Mock; end: Mock };
 
   beforeEach(() => {
     // Reset all mocks
@@ -332,8 +333,16 @@ describe('PerformanceIntegration', () => {
       addBreadcrumb: vi.fn(),
     };
 
+    mockSpan = {
+      setAttributes: vi.fn(),
+      end: vi.fn(),
+    };
+
     (getPerformanceManager as Mock).mockReturnValue(mockPerformanceManager);
     (getCurrentScope as Mock).mockReturnValue(mockScope);
+    (startSpan as Mock).mockImplementation((_options: unknown, callback: (span: any) => unknown) =>
+      callback(mockSpan),
+    );
 
     integration = new PerformanceIntegration();
   });
@@ -410,6 +419,65 @@ describe('PerformanceIntegration', () => {
       expect(consoleSpy).toHaveBeenCalledWith('[sentry-miniapp] Performance API not available');
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
       expect((integration as any)._reportTimer).toBeNull();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle performance manager initialization failures', () => {
+      const error = new Error('host API failed');
+      (getPerformanceManager as Mock).mockImplementation(() => {
+        throw error;
+      });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      expect(() => integration.setupOnce()).not.toThrow();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] Failed to initialize performance manager:',
+        error,
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should skip observer creation when all entry types are disabled', () => {
+      const disabledIntegration = new PerformanceIntegration({
+        enableNavigation: false,
+        enableRender: false,
+        enableResource: false,
+      });
+
+      disabledIntegration.setupOnce();
+
+      expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
+      disabledIntegration.cleanup();
+    });
+
+    it('should disable user timing when system info lookup fails', () => {
+      (getSystemInfo as Mock).mockImplementation(() => {
+        throw new Error('system info unavailable');
+      });
+      const userTimingIntegration = new PerformanceIntegration({ enableUserTiming: true });
+
+      userTimingIntegration.setupOnce();
+
+      expect(mockObserver.observe).toHaveBeenCalledWith({
+        entryTypes: ['navigation', 'render', 'resource'],
+      });
+      userTimingIntegration.cleanup();
+    });
+
+    it('should contain observer setup errors when no fallback is possible', () => {
+      const error = new Error('observe unavailable');
+      mockObserver.observe.mockImplementation(() => {
+        throw error;
+      });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      expect(() => integration.setupOnce()).not.toThrow();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] Failed to setup performance observers:',
+        error,
+      );
 
       consoleSpy.mockRestore();
     });
@@ -493,6 +561,48 @@ describe('PerformanceIntegration', () => {
 
       // Should process without errors
       expect(observerCallback).toBeDefined();
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Render: component-render', op: 'render' }),
+        expect.any(Function),
+      );
+      expect(mockSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({ 'render.duration': 100 }),
+      );
+      expect(mockSpan.end).toHaveBeenCalledWith(2.1);
+    });
+
+    it('should reject primitive entry formats safely', () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+
+      observerCallback?.('invalid' as any);
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] Invalid entries format:',
+        'string',
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it('should continue when one performance entry fails to process', () => {
+      const error = new Error('span failed');
+      (startSpan as Mock).mockImplementationOnce(() => {
+        throw error;
+      });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+
+      expect(() =>
+        observerCallback?.([
+          { name: 'failed-render', entryType: 'render', startTime: 0, duration: 10 },
+        ]),
+      ).not.toThrow();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] Failed to process performance entry:',
+        error,
+      );
+
+      consoleSpy.mockRestore();
     });
 
     it('should respect sample rate', () => {
@@ -805,6 +915,30 @@ describe('PerformanceIntegration', () => {
 
       // 应处理资源条目无报错
       expect(observerCallback).toBeDefined();
+      expect(mockSpan.setAttributes).toHaveBeenCalledWith({
+        'resource.fetch_start': 510,
+        'resource.response_end': 700,
+        'resource.network_time': 190,
+      });
+      expect(mockSpan.end).toHaveBeenCalledWith(0.7);
+    });
+
+    it('should use resource defaults when optional timing data is absent', () => {
+      integration.setupOnce();
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+
+      observerCallback?.([
+        { name: 'inline-resource', entryType: 'resource', startTime: 0, duration: 5 },
+      ]);
+
+      expect(mockSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'resource.type': 'unknown',
+          'resource.transfer_size': 0,
+          'resource.encoded_size': 0,
+          'resource.decoded_size': 0,
+        }),
+      );
     });
   });
 
@@ -826,6 +960,24 @@ describe('PerformanceIntegration', () => {
       }
 
       expect(observerCallback).toBeDefined();
+      expect(mockSpan.setAttributes).toHaveBeenCalledWith({
+        'measure.name': 'api-call',
+        'measure.duration': 300,
+        'measure.detail': '{"url":"/api/data"}',
+      });
+    });
+
+    it('should omit absent measure details', () => {
+      integration.setupOnce();
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+
+      observerCallback?.([
+        { name: 'plain-measure', entryType: 'measure', startTime: 0, duration: 1 },
+      ]);
+
+      expect(mockSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({ 'measure.detail': undefined }),
+      );
     });
 
     it('should process mark entries as breadcrumbs', () => {
@@ -1047,6 +1199,55 @@ describe('PerformanceIntegration', () => {
       expect((noReportIntegration as any)._reportTimer).toBeNull();
 
       noReportIntegration.cleanup();
+    });
+  });
+
+  describe('reporting fallbacks', () => {
+    it('should keep buffered entries when summary context writing fails', () => {
+      const error = new Error('scope unavailable');
+      mockScope.setContext.mockImplementation((name: string) => {
+        if (name === 'performance_summary') throw error;
+      });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      integration.setupOnce();
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      observerCallback?.([
+        { name: 'pending', entryType: 'navigation', startTime: 0, duration: 1 },
+      ]);
+
+      expect(() => (integration as any)._reportBufferedEntries()).not.toThrow();
+      expect((integration as any)._entryBuffer).toHaveLength(1);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] Failed to summarize buffered performance entries:',
+        error,
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should ignore host memory lookup failures', () => {
+      (sdk as Mock).mockImplementation(() => {
+        throw new Error('host unavailable');
+      });
+      const memIntegration = new PerformanceIntegration({ enableMemory: true });
+
+      expect((memIntegration as any)._collectMemoryInfo()).toBeNull();
+    });
+
+    it('should contain performance context failures', () => {
+      const error = new Error('host unavailable');
+      (sdk as Mock).mockImplementation(() => {
+        throw error;
+      });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      expect(() => integration.setupOnce()).not.toThrow();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] Failed to add performance context:',
+        error,
+      );
+
+      consoleSpy.mockRestore();
     });
   });
 });

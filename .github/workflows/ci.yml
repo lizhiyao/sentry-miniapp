@@ -48,5 +48,5 @@ jobs:
     - name: Check Working Tree
       run: git diff --exit-code
 
-    - name: Run Tests
-      run: yarn run test
+    - name: Run Tests with Coverage
+      run: yarn run test:coverage

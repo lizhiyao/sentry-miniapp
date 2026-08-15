@@ -489,5 +489,29 @@ describe('EventBuilder', () => {
       expect(event.message).toContain('Non-Error exception captured with keys:');
       expect(event.message).toContain('\u2026'); // ellipsis for truncated keys
     });
+
+    it('keeps a single long key intact for stable issue grouping', () => {
+      const longKey = 'x'.repeat(40);
+      const hint: EventHint = {
+        syntheticException: new Error('Synthetic error'),
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, { [longKey]: true }, hint);
+
+      expect(event.message).toBe(`Non-Error exception captured with keys: ${longKey}`);
+      expect(event.exception?.values?.[0]?.value).toBe(event.message);
+    });
+
+    it('falls back to a safe marker for cyclic objects', () => {
+      const cyclic: any = { label: 'cycle' };
+      cyclic.self = cyclic;
+      const hint: EventHint = {
+        syntheticException: new Error('Synthetic error'),
+      };
+
+      const event = eventFromUnknownInput(mockStackParser, cyclic, hint);
+
+      expect(event.extra?.['__serialized__']).toBe('[Object]');
+    });
   });
 });

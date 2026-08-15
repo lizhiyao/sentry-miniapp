@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { getCurrentScope } from '@sentry/core';
-import { System } from '../src/integrations/system';
-import { getSystemInfo } from '../src/crossPlatform';
+import { addBreadcrumb, getCurrentScope } from '@sentry/core';
+import { System, systemIntegration } from '../src/integrations/system';
+import { getSystemInfo, sdk } from '../src/crossPlatform';
 
 // Mock @sentry/core
 vi.mock('@sentry/core', () => ({
+  addBreadcrumb: vi.fn(),
   getCurrentScope: vi.fn(),
 }));
 
@@ -43,6 +44,8 @@ describe('System', () => {
       setTag: vi.fn(),
     };
     (getCurrentScope as Mock).mockReturnValue(mockScope);
+    (getSystemInfo as Mock).mockReturnValue(mockSystemInfo);
+    (sdk as Mock).mockReturnValue(mockSdk);
 
     // 重置 mockSdk
     Object.keys(mockSdk).forEach((key) => delete mockSdk[key]);
@@ -207,6 +210,69 @@ describe('System', () => {
     });
   });
 
+  describe('storage context', () => {
+    it('records storage usage and warns when the quota is nearly full', () => {
+      mockSdk.getStorageInfoSync = vi.fn(() => ({ currentSize: 850, limitSize: 1000 }));
+
+      new System().setupOnce();
+
+      expect(mockScope.setContext).toHaveBeenCalledWith('storage', {
+        currentSize: 850,
+        limitSize: 1000,
+        usagePercent: 85,
+      });
+      expect(addBreadcrumb).toHaveBeenCalledWith({
+        category: 'storage.warning',
+        message: '存储使用率 85%（850KB / 1000KB）',
+        level: 'warning',
+        data: { currentSize: 850, limitSize: 1000, usagePercent: 85 },
+      });
+    });
+
+    it('uses conservative defaults and does not warn without a usable quota', () => {
+      mockSdk.getStorageInfoSync = vi.fn(() => ({}));
+
+      new System().setupOnce();
+
+      expect(mockScope.setContext).toHaveBeenCalledWith('storage', {
+        currentSize: 0,
+        limitSize: 0,
+        usagePercent: 0,
+      });
+      expect(addBreadcrumb).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('app update context', () => {
+    it('records update availability and readiness callbacks', () => {
+      let checkForUpdate: ((res: { hasUpdate: boolean }) => void) | undefined;
+      let updateReady: (() => void) | undefined;
+      mockSdk.getUpdateManager = vi.fn(() => ({
+        onCheckForUpdate: vi.fn((callback: typeof checkForUpdate) => {
+          checkForUpdate = callback;
+        }),
+        onUpdateReady: vi.fn((callback: typeof updateReady) => {
+          updateReady = callback;
+        }),
+      }));
+
+      new System().setupOnce();
+      checkForUpdate?.({ hasUpdate: false });
+      expect(mockScope.setTag).not.toHaveBeenCalledWith('has_update', 'true');
+
+      checkForUpdate?.({ hasUpdate: true });
+      updateReady?.();
+
+      expect(mockScope.setTag).toHaveBeenCalledWith('has_update', 'true');
+      expect(addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'app.update', data: { hasUpdate: true } }),
+      );
+      expect(addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'app.update', data: { updateReady: true } }),
+      );
+    });
+  });
+
   describe('error handling', () => {
     it('should handle getSystemInfo returning null', () => {
       (getSystemInfo as Mock).mockReturnValueOnce(null);
@@ -231,6 +297,14 @@ describe('System', () => {
         }),
       );
     });
+
+    it('swallows host SDK access errors from optional context collectors', () => {
+      (sdk as Mock).mockImplementation(() => {
+        throw new Error('host API unavailable');
+      });
+
+      expect(() => new System().setupOnce()).not.toThrow();
+    });
   });
 
   describe('metadata', () => {
@@ -238,6 +312,10 @@ describe('System', () => {
       const integration = new System();
       expect(integration.name).toBe('System');
       expect(System.id).toBe('System');
+    });
+
+    it('creates the compatibility integration through its factory', () => {
+      expect(systemIntegration()).toBeInstanceOf(System);
     });
   });
 });

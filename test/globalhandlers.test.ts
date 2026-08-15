@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { captureException, getCurrentScope } from '@sentry/core';
-import { GlobalHandlers } from '../src/integrations/globalhandlers';
+import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/globalhandlers';
 import { ignoreNextOnErrorCall } from '../src/helpers';
 
 // Mock @sentry/core
@@ -37,6 +37,13 @@ describe('GlobalHandlers', () => {
     mockSdk.offUnhandledRejection = vi.fn();
     mockSdk.offPageNotFound = vi.fn();
     mockSdk.offMemoryWarning = vi.fn();
+  });
+
+  it('creates the functional integration with options', () => {
+    const integration = globalHandlersIntegration({ onerror: false });
+
+    expect(integration).toBeInstanceOf(GlobalHandlers);
+    expect(integration.name).toBe('GlobalHandlers');
   });
 
   describe('setupOnce', () => {

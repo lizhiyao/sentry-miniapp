@@ -21,6 +21,7 @@
     "lint": "eslint src test --ext .ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "prepublishOnly": "npm run build",
     "prepare": "husky",
     "release": "commit-and-tag-version"

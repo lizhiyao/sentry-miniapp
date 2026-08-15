@@ -108,6 +108,59 @@ describe('NetworkStatusIntegration', () => {
     expect(() => integration.setupOnce()).not.toThrow();
   });
 
+  it('should handle an unavailable platform SDK gracefully', () => {
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue(null as any);
+
+    expect(() => new NetworkStatusIntegration().setupOnce()).not.toThrow();
+  });
+
+  it('falls back to unknown network type and infers connectivity', () => {
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
+      getNetworkType: vi.fn((options: any) => options.success({})),
+      onNetworkStatusChange: vi.fn((callback: any) => {
+        networkChangeCallback = callback;
+      }),
+    } as any);
+    const integration = new NetworkStatusIntegration();
+
+    integration.setupOnce();
+    expect(mockSetContext).toHaveBeenCalledWith('network', {
+      type: 'unknown',
+      isConnected: true,
+    });
+
+    networkChangeCallback!({ networkType: 'none' });
+    expect(mockSetContext).toHaveBeenLastCalledWith('network', {
+      type: 'none',
+      isConnected: false,
+    });
+  });
+
+  it('contains host API and flush errors during setup, reconnect, and cleanup', () => {
+    const offNetworkStatusChange = vi.fn(() => {
+      throw new Error('off failed');
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
+      getNetworkType: vi.fn(() => {
+        throw new Error('getNetworkType failed');
+      }),
+      onNetworkStatusChange: vi.fn((callback: any) => {
+        networkChangeCallback = callback;
+      }),
+      offNetworkStatusChange,
+    } as any);
+    const integration = new NetworkStatusIntegration();
+
+    expect(() => integration.setupOnce()).not.toThrow();
+    networkChangeCallback!({ networkType: 'none' });
+    mockGetClient.mockImplementationOnce(() => {
+      throw new Error('flush unavailable');
+    });
+    expect(() => networkChangeCallback!({ networkType: 'wifi' })).not.toThrow();
+    expect(() => integration.cleanup()).not.toThrow();
+    expect(offNetworkStatusChange).toHaveBeenCalled();
+  });
+
   it('网络从断到连时触发 client.flush 补发离线积压', () => {
     const integration = new NetworkStatusIntegration();
     integration.setupOnce(); // 初始 wifi → _lastConnected = true

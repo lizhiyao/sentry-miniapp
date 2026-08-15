@@ -530,6 +530,78 @@ describe('Dedupe Integration', () => {
       // Restore original method
       (dedupe as any)._shouldDropEvent = originalMethod;
     });
+
+    it('should fuzzy-match exception values with dynamic IDs', () => {
+      const fuzzyDedupe = new Dedupe({ fuzzyMatch: true });
+      const first: Event = {
+        exception: { values: [{ type: 'Error', value: 'Request 1234567890 failed' }] },
+      };
+      const second: Event = {
+        exception: { values: [{ type: 'Error', value: 'Request 9876543210 failed' }] },
+      };
+
+      expect(fuzzyDedupe.processEvent(first)).toBe(first);
+      expect(fuzzyDedupe.processEvent(second)).toBeNull();
+    });
+
+    it('should not fuzzy-match when one exception value is absent', () => {
+      const fuzzyDedupe = new Dedupe({ fuzzyMatch: true });
+      const first: Event = { exception: { values: [{ type: 'Error' }] } };
+      const second: Event = {
+        exception: { values: [{ type: 'Error', value: 'Request failed' }] },
+      };
+
+      fuzzyDedupe.processEvent(first);
+
+      expect(fuzzyDedupe.processEvent(second)).toBe(second);
+    });
+
+    it('should distinguish message events when only one has a stacktrace in either order', () => {
+      const withStack: Event = {
+        message: 'same message',
+        exception: {
+          values: [{ stacktrace: { frames: [{ filename: 'page.js', lineno: 1 }] } }],
+        },
+      };
+      const withoutStack: Event = { message: 'same message' };
+
+      dedupe.processEvent(withStack);
+      expect(dedupe.processEvent(withoutStack)).toBe(withoutStack);
+
+      const reverseDedupe = new Dedupe();
+      reverseDedupe.processEvent(withoutStack);
+      expect(reverseDedupe.processEvent(withStack)).toBe(withStack);
+    });
+
+    it('should distinguish exception events when only one has a fingerprint in either order', () => {
+      const withFingerprint: Event = {
+        fingerprint: ['custom'],
+        exception: { values: [{ type: 'Error', value: 'same error' }] },
+      };
+      const withoutFingerprint: Event = {
+        exception: { values: [{ type: 'Error', value: 'same error' }] },
+      };
+
+      dedupe.processEvent(withFingerprint);
+      expect(dedupe.processEvent(withoutFingerprint)).toBe(withoutFingerprint);
+
+      const reverseDedupe = new Dedupe();
+      reverseDedupe.processEvent(withoutFingerprint);
+      expect(reverseDedupe.processEvent(withFingerprint)).toBe(withFingerprint);
+    });
+
+    it('should treat a throwing fingerprint implementation as non-matching', () => {
+      const first: Event = { message: 'same message', fingerprint: ['custom'] };
+      const throwingFingerprint = ['custom'];
+      throwingFingerprint.join = () => {
+        throw new Error('join unavailable');
+      };
+      const second: Event = { message: 'same message', fingerprint: throwingFingerprint };
+
+      dedupe.processEvent(first);
+
+      expect(dedupe.processEvent(second)).toBe(second);
+    });
   });
 
   describe('dedupeIntegration factory', () => {

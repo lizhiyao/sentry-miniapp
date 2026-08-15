@@ -1,13 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PageBreadcrumbs } from '../src/integrations/pagebreadcrumbs';
+import {
+  PageBreadcrumbs,
+  pageBreadcrumbsIntegration,
+} from '../src/integrations/pagebreadcrumbs';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
+  setContext: vi.fn(),
 }));
 
-import { addBreadcrumb } from '@sentry/core';
+import { addBreadcrumb, setContext } from '@sentry/core';
 
 describe('PageBreadcrumbs Integration', () => {
   let originalPage: any;
@@ -97,6 +101,33 @@ describe('PageBreadcrumbs Integration', () => {
       expect(addBreadcrumb).toHaveBeenCalledTimes(2);
     });
 
+    it('records cold-start duration on the first page ready only', () => {
+      (globalThis as any).App = vi.fn((options: any) => options);
+      (globalThis as any).Page = vi.fn((options: any) => options);
+      vi.mocked(Date.now).mockReturnValueOnce(1000).mockReturnValueOnce(1250);
+
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      const app = (globalThis as any).App({});
+      const page = (globalThis as any).Page({ onReady: vi.fn() });
+
+      app.onLaunch();
+      page.onReady.call({ route: 'pages/home/index' });
+      page.onReady.call({ route: 'pages/home/index' });
+
+      expect(setContext).toHaveBeenCalledTimes(1);
+      expect(setContext).toHaveBeenCalledWith('startup', {
+        coldStartDuration: 250,
+        firstPage: 'pages/home/index',
+      });
+      expect(addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'page.lifecycle',
+          data: expect.objectContaining({ coldStartDuration: 250 }),
+        }),
+      );
+    });
+
     it('should not wrap lifecycle when enableLifecycle is false', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
@@ -174,6 +205,35 @@ describe('PageBreadcrumbs Integration', () => {
       expect(clickSpy).toHaveBeenCalled();
       expect(changeSpy).toHaveBeenCalled();
       expect(submitSpy).toHaveBeenCalled();
+    });
+
+    it('captures interaction coordinates and touch details', () => {
+      (globalThis as any).Page = vi.fn((options: any) => options);
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      const onInput = vi.fn();
+      const page = (globalThis as any).Page({ onInput });
+      const event = {
+        type: 'input',
+        detail: { x: 12, y: 34 },
+        touches: [{ pageX: 56, pageY: 78 }],
+      };
+
+      page.onInput.call({ __route__: 'pages/form/index' }, event, 'extra');
+
+      expect(onInput).toHaveBeenCalledWith(event, 'extra');
+      expect(addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'user.interaction',
+          data: expect.objectContaining({
+            page: 'pages/form/index',
+            x: 12,
+            y: 34,
+            touchX: 56,
+            touchY: 78,
+          }),
+        }),
+      );
     });
 
     it('should NOT wrap lifecycle methods as user interactions', () => {
@@ -370,5 +430,11 @@ describe('PageBreadcrumbs Integration', () => {
       integration.cleanup();
       expect((globalThis as any).Page).toBe(base);
     });
+  });
+
+  it('creates an integration through the public factory', () => {
+    expect(pageBreadcrumbsIntegration({ enableLifecycle: false })).toBeInstanceOf(
+      PageBreadcrumbs,
+    );
   });
 });

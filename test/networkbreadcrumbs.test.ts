@@ -512,4 +512,154 @@ describe('NetworkBreadcrumbs Integration', () => {
         'tenant=demo,sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
     });
   });
+
+  it('recursively filters sensitive fields from request and response bodies', () => {
+    const bodyRequestMock = vi.fn((options) => {
+      options.success({
+        statusCode: 200,
+        data: { token: 'response-secret', nested: { password: 'response-password' } },
+      });
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: bodyRequestMock });
+    const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
+    integration.setupOnce();
+
+    crossPlatform.sdk().request({
+      url: 'https://api.example.com/private',
+      method: 'POST',
+      data: { password: 'request-secret', nested: { access_token: 'request-token' } },
+    });
+
+    const breadcrumb = (addBreadcrumb as Mock).mock.calls[0]![0];
+    expect(JSON.parse(breadcrumb.data.request_body)).toEqual({
+      password: '[Filtered]',
+      nested: { access_token: '[Filtered]' },
+    });
+    expect(JSON.parse(breadcrumb.data.response_body)).toEqual({
+      token: '[Filtered]',
+      nested: { password: '[Filtered]' },
+    });
+  });
+
+  it('filters form-encoded sensitive values and honors string body deny patterns', () => {
+    const integration = new NetworkBreadcrumbs({
+      traceNetworkBody: true,
+      denyBodyUrls: ['do-not-record'],
+    });
+    integration.setupOnce();
+    const miniappSdk = crossPlatform.sdk();
+
+    miniappSdk.request({
+      url: 'https://api.example.com/form',
+      method: 'POST',
+      data: 'password=secret&token=abc&safe=yes',
+    });
+    const formBreadcrumb = (addBreadcrumb as Mock).mock.calls[0]![0];
+    expect(formBreadcrumb.data.request_body).toBe(
+      'password=[Filtered]&token=[Filtered]&safe=yes',
+    );
+
+    miniappSdk.request({
+      url: 'https://api.example.com/do-not-record',
+      method: 'POST',
+      data: { password: 'must-not-appear' },
+    });
+    const deniedBreadcrumb = (addBreadcrumb as Mock).mock.calls[1]![0];
+    expect(deniedBreadcrumb.data.request_body).toBeUndefined();
+    expect(deniedBreadcrumb.data.response_body).toBeUndefined();
+  });
+
+  it('normalizes unusual request options and preserves callbacks', () => {
+    const success = vi.fn();
+    const complete = vi.fn();
+    const callbackRequestMock = vi.fn((options) => {
+      options.success(undefined);
+      options.complete(undefined);
+      return { abort: vi.fn() };
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: callbackRequestMock });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    const task = crossPlatform.sdk().request({
+      url: 42,
+      method: '   ',
+      success,
+      complete,
+    } as any);
+
+    expect(task).toEqual({ abort: expect.any(Function) });
+    expect(success).toHaveBeenCalledWith(undefined);
+    expect(complete).toHaveBeenCalledWith(undefined);
+    expect(mockSpanEnd).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ url: '42', method: 'GET' }),
+      }),
+    );
+  });
+
+  it('handles string error statuses and marks slow successful requests as warnings', () => {
+    const responseRequestMock = vi.fn((options) => {
+      options.success({ statusCode: options.url.includes('error') ? '503' : 200 });
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: responseRequestMock });
+    vi.mocked(Date.now)
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(1001)
+      .mockReturnValueOnce(2000)
+      .mockReturnValueOnce(6001);
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+    const miniappSdk = crossPlatform.sdk();
+
+    miniappSdk.request({ url: 'https://api.example.com/error' });
+    miniappSdk.request({ url: 'https://api.example.com/slow' });
+
+    expect(mockSetHttpStatus).toHaveBeenCalledWith(mockSpan, 503);
+    expect(addBreadcrumb).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ level: 'warning' }),
+    );
+    expect(addBreadcrumb).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        level: 'warning',
+        data: expect.objectContaining({ duration: 4001 }),
+      }),
+    );
+  });
+
+  it('keeps requests working when span creation or trace header injection fails', () => {
+    mockStartInactiveSpan.mockImplementationOnce(() => {
+      throw new Error('span unavailable');
+    });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+    const miniappSdk = crossPlatform.sdk();
+
+    expect(() => miniappSdk.request({ url: 'https://api.example.com/no-span' })).not.toThrow();
+    expect(requestMock.mock.calls[0]![0].header).toBeUndefined();
+
+    mockGetTraceData.mockImplementationOnce(() => {
+      throw new Error('trace data unavailable');
+    });
+    expect(() => miniappSdk.request({ url: 'https://api.example.com/no-trace' })).not.toThrow();
+    expect(requestMock.mock.calls[1]![0].header).toBeUndefined();
+  });
+
+  it('finishes the span and rethrows synchronous host request errors', () => {
+    const throwingRequest = vi.fn(() => {
+      throw new Error('request crashed');
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: throwingRequest });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    expect(() =>
+      crossPlatform.sdk().request({ url: 'https://api.example.com/crash' }),
+    ).toThrow('request crashed');
+    expect(mockSpanSetAttribute).toHaveBeenCalledWith('error.message', 'request crashed');
+    expect(mockSpanEnd).toHaveBeenCalledTimes(1);
+  });
 });

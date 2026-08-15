@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TryCatch } from '../src/integrations/trycatch';
+import { TryCatch, tryCatchIntegration } from '../src/integrations/trycatch';
 
 // Mock @sentry/core
 vi.mock('@sentry/core', () => ({
@@ -142,6 +142,13 @@ describe('TryCatch', () => {
       const integration = new TryCatch();
       expect(integration.name).toBe('TryCatch');
       expect(TryCatch.id).toBe('TryCatch');
+    });
+
+    it('should create the functional integration', () => {
+      const integration = tryCatchIntegration();
+
+      expect(integration).toBeInstanceOf(TryCatch);
+      expect(integration.name).toBe('TryCatch');
     });
   });
 });
