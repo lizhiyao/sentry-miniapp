@@ -8,6 +8,7 @@ const { mockGetCurrentScope } = vi.hoisted(() => ({
 vi.mock('@sentry/core', () => ({
   exceptionFromError: vi.fn(() => ({ type: 'Error', value: 'linked' })),
   getCurrentScope: mockGetCurrentScope,
+  linkedErrorsIntegration: vi.fn(() => ({ name: 'LinkedErrors' })),
 }));
 
 import { LinkedErrors } from '../src/integrations/linkederrors';

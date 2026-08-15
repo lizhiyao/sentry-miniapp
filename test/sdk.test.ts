@@ -113,6 +113,7 @@ describe('SDK', () => {
       const client = init({ dsn: 'https://test@sentry.io/123' });
       expect(client).toBeInstanceOf(MiniappClient);
       expect(client?.getIntegrationByName?.('PerformanceAPI')).toBeDefined();
+      expect(client?.getIntegrationByName?.('FunctionToString')).toBeDefined();
       expect(defaultIntegrations).toHaveLength(defaultIntegrationCount);
     });
 

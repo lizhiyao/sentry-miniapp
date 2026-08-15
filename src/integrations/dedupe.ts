@@ -1,4 +1,5 @@
-import type { Event, EventHint, Integration, IntegrationFn } from '@sentry/core';
+import { dedupeIntegration as coreDedupeIntegration } from '@sentry/core';
+import type { Event, EventHint, Integration } from '@sentry/core';
 
 /** Deduplication filter */
 export class Dedupe implements Integration {
@@ -251,9 +252,7 @@ export class Dedupe implements Integration {
 /**
  * Dedupe integration
  */
-export const dedupeIntegration: IntegrationFn = () => {
-  return new Dedupe();
-};
+export const dedupeIntegration = (): Integration => coreDedupeIntegration();
 
 /**
  * 模糊匹配：忽略错误消息中的动态部分（时间戳、UUID、数字 ID 等）

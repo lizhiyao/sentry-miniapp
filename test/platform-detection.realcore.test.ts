@@ -84,7 +84,7 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
     expect(event.contexts?.device?.brand).toBe('ByteDance');
   });
 
-  it('宿主信号不足时允许 platform=bytedance 覆盖事件标记', async () => {
+  it('宿主信号不足时允许 platform=bytedance 覆盖小程序宿主标记', async () => {
     tt.getSystemInfoSync.mockReturnValue({
       brand: 'Unknown Adapter',
       model: 'Unknown Device',
@@ -117,7 +117,7 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
       ),
     );
     expect(event).toBeDefined();
-    expect(event.platform).toBe('bytedance');
+    expect(event.platform).toBe('javascript');
     expect(event.contexts?.miniapp?.platform).toBe('bytedance');
   });
 });

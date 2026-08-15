@@ -84,7 +84,8 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
     });
     expect(event.contexts.app).toEqual(
       expect.objectContaining({
-        app_version: '3.1.0',
+        app_identifier: 'wx-app-id',
+        app_version: '1.2.3',
         name: 'wx-app-id',
         version: '1.2.3',
       }),

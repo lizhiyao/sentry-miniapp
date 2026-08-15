@@ -155,6 +155,10 @@ describe('MiniappClient', () => {
       expect(preparedEvent?.sdk).toBeDefined();
       expect(preparedEvent?.sdk?.name).toBe('sentry.javascript.miniapp');
       expect(preparedEvent?.sdk?.version).toBeDefined();
+      expect(preparedEvent?.sdk?.packages).toContainEqual({
+        name: 'npm:sentry-miniapp',
+        version: preparedEvent?.sdk?.version,
+      });
     });
 
     it('should add miniapp context', async () => {
@@ -164,6 +168,7 @@ describe('MiniappClient', () => {
       expect(preparedEvent?.contexts).toBeDefined();
       expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
       expect(preparedEvent?.contexts?.['miniapp']?.['platform']).toBe('wechat');
+      expect(preparedEvent?.platform).toBe('javascript');
     });
 
     it('should add system information', async () => {
@@ -214,6 +219,9 @@ describe('MiniappClient', () => {
           version: '8.0.0',
           SDKVersion: '2.19.4',
         }),
+        getAccountInfoSync: () => ({
+          miniProgram: { appId: 'wx-test-app', version: '1.2.3' },
+        }),
       };
 
       const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
@@ -235,8 +243,15 @@ describe('MiniappClient', () => {
       });
 
       expect(event?.contexts?.app).toEqual({
-        app_version: '2.19.4',
+        app_identifier: 'wx-test-app',
+        app_version: '1.2.3',
       });
+      expect(event?.contexts?.miniapp).toEqual(
+        expect.objectContaining({
+          host_version: '8.0.0',
+          host_sdk_version: '2.19.4',
+        }),
+      );
     });
 
     it('should handle undefined system info fields gracefully', async () => {
@@ -279,6 +294,7 @@ describe('MiniappClient', () => {
       });
 
       expect(event?.contexts?.app).toEqual({
+        app_identifier: 'unknown',
         app_version: 'unknown',
       });
 
@@ -312,6 +328,7 @@ describe('MiniappClient', () => {
       });
 
       expect(event?.contexts?.app).toEqual({
+        app_identifier: 'unknown',
         app_version: 'unknown',
       });
 
@@ -329,12 +346,19 @@ describe('MiniappClient', () => {
         message: 'test',
         contexts: {
           custom: { data: 'value' },
+          miniapp: { environment: 'custom-environment', tenant: 'tenant-a' },
         },
       };
       const preparedEvent = await client['_prepareEvent'](event, {});
 
       expect(preparedEvent?.contexts?.['custom']).toEqual({ data: 'value' });
-      expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
+      expect(preparedEvent?.contexts?.['miniapp']).toEqual(
+        expect.objectContaining({
+          environment: 'custom-environment',
+          tenant: 'tenant-a',
+          platform: 'wechat',
+        }),
+      );
     });
 
     it('should read Debug IDs from non-globalThis miniapp globals', async () => {

@@ -143,8 +143,8 @@ describe('Integrations', () => {
     it('should create the functional integration with options', () => {
       const created = linkedErrorsIntegration({ key: 'reason', limit: 2 });
 
-      expect(created).toBeInstanceOf(LinkedErrors);
       expect(created.name).toBe('LinkedErrors');
+      expect(created.preprocessEvent).toEqual(expect.any(Function));
     });
 
     it('should have correct name', () => {

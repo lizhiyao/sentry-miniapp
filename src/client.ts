@@ -18,7 +18,7 @@ import type {
   SeverityLevel,
 } from '@sentry/core';
 
-import { appName, getSystemInfo } from './crossPlatform';
+import { appName, getAccountInfo, getSystemInfo } from './crossPlatform';
 import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
@@ -29,9 +29,13 @@ import { miniappStackParser } from './stacktrace';
 
 export type MiniappClientOptions = Omit<
   MiniappOptions,
-  'integrations' | 'stackParser' | 'transport'
+  'integrations' | 'platform' | 'stackParser' | 'transport'
 > &
-  ClientOptions<MiniappTransportOptions>;
+  ClientOptions<MiniappTransportOptions> & {
+    platform: string;
+    /** 小程序宿主标识；与 Sentry 顶层 event.platform 分离。 */
+    miniappPlatform?: string | undefined;
+  };
 
 const clientsWithCustomTransport = new WeakSet<MiniappClient>();
 type DefaultIntegrationsMode = 'enabled' | 'disabled' | 'custom';
@@ -88,6 +92,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   public constructor(options: MiniappOptions | MiniappClientOptions = {}) {
     const usesCustomTransport = typeof options.transport === 'function';
     const defaultIntegrationsMode = resolveDefaultIntegrationsMode(options.defaultIntegrations);
+    const miniappPlatform =
+      ('miniappPlatform' in options && options.miniappPlatform) || options.platform;
 
     // 配置隐私合规「同意门禁」。必须在 super() 之前——transport 工厂在 super() 执行期间被 core
     // 调用建立，其 shouldSend / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
@@ -102,6 +108,10 @@ export class MiniappClient extends Client<MiniappClientOptions> {
 
     const clientOptions: MiniappClientOptions = {
       ...options,
+      // Sentry 后端按顶层 platform 选择 JavaScript 栈解析与聚合逻辑。
+      // 小程序宿主类型单独放在 contexts.miniapp.platform。
+      platform: 'javascript',
+      miniappPlatform,
       integrations: Array.isArray(options.integrations) ? options.integrations : [],
       stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
       transport: (transportOptions: BaseTransportOptions) => {
@@ -191,29 +201,19 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     hint?: EventHint,
     scope?: Scope,
   ): PromiseLike<Event | null> {
-    event.platform = event.platform || this.getOptions().platform || 'javascript';
+    event.platform = event.platform || 'javascript';
 
     // Add SDK information
     event.sdk = {
       ...event.sdk,
       name: SDK_NAME,
       packages: [
-        ...((event.sdk && event.sdk.packages) || []),
-        {
-          name: 'npm:@sentry/miniapp',
-          version: SDK_VERSION,
-        },
+        ...((event.sdk && event.sdk.packages) || []).filter(
+          (pkg) => pkg.name !== 'npm:sentry-miniapp',
+        ),
+        { name: 'npm:sentry-miniapp', version: SDK_VERSION },
       ],
       version: SDK_VERSION,
-    };
-
-    // miniapp 标记是 SDK 自有的身份信息，始终写（无用户覆盖语义）。
-    if (!event.contexts) {
-      event.contexts = {};
-    }
-    event.contexts['miniapp'] = {
-      platform: this.getOptions().platform || appName(),
-      sdk_version: SDK_VERSION,
     };
 
     try {
@@ -250,14 +250,31 @@ export class MiniappClient extends Client<MiniappClientOptions> {
    * 自动值会盖掉用户的 setContext('device'/'os'/'app')。放到 super 之后按缺失填充即可两头兼顾。
    */
   private _fillDefaultContexts(event: Event | null): Event | null {
-    if (!event || this.getOptions().enableSystemInfo === false) {
+    if (!event) {
       return event;
     }
-    const info = getSystemInfo();
     if (!event.contexts) {
       event.contexts = {};
     }
     const contexts = event.contexts;
+    contexts['miniapp'] = {
+      environment: 'miniapp',
+      ...contexts['miniapp'],
+      platform: this.getOptions().miniappPlatform || appName(),
+      sdk_version: SDK_VERSION,
+    };
+
+    if (this.getOptions().enableSystemInfo === false) {
+      return event;
+    }
+
+    const info = getSystemInfo();
+    const account = getAccountInfo();
+    contexts['miniapp'] = {
+      ...contexts['miniapp'],
+      host_version: info?.version || 'unknown',
+      host_sdk_version: info?.SDKVersion || 'unknown',
+    };
     contexts.device = {
       brand: info?.brand || 'unknown',
       model: info?.model || 'unknown',
@@ -274,7 +291,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       ...contexts.os,
     };
     contexts.app = {
-      app_version: info?.SDKVersion || 'unknown',
+      app_identifier: account.appId,
+      app_version: account.version,
       ...contexts.app,
     };
     return event;

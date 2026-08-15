@@ -1,12 +1,9 @@
-import type {
-  Event,
-  EventHint,
-  Exception,
-  ExtendedError,
-  Integration,
-  IntegrationFn,
+import type { Event, EventHint, Exception, ExtendedError, Integration } from '@sentry/core';
+import {
+  exceptionFromError,
+  getCurrentScope,
+  linkedErrorsIntegration as coreLinkedErrorsIntegration,
 } from '@sentry/core';
-import { exceptionFromError, getCurrentScope } from '@sentry/core';
 
 const DEFAULT_KEY = 'cause';
 const DEFAULT_LIMIT = 5;
@@ -111,9 +108,5 @@ function isInstanceOf(wat: any, base: any): boolean {
 /**
  * LinkedErrors integration
  */
-export const linkedErrorsIntegration: IntegrationFn = (options?: {
-  key?: string;
-  limit?: number;
-}) => {
-  return new LinkedErrors(options);
-};
+export const linkedErrorsIntegration = (options?: { key?: string; limit?: number }): Integration =>
+  coreLinkedErrorsIntegration(options);

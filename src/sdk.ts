@@ -20,11 +20,11 @@ import { ignoreNextOnErrorCall } from './helpers';
 import {
   GlobalHandlers,
   TryCatch,
-  LinkedErrors,
+  linkedErrorsIntegration,
   HttpContext,
-  Dedupe,
+  dedupeIntegration,
   performanceIntegration,
-  RewriteFrames,
+  rewriteFramesIntegration,
   NetworkBreadcrumbs,
   PageBreadcrumbs,
   ConsoleBreadcrumbs,
@@ -33,6 +33,7 @@ import {
   MinigameIntegration,
   MinigameFrameRateIntegration,
 } from './integrations/index';
+import { functionToStringIntegration } from '@sentry/core';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
 /**
@@ -45,11 +46,12 @@ import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './
 export function getDefaultIntegrations(options: MiniappOptions = {}): Integration[] {
   const integrations: Integration[] = [
     // Core integrations
+    functionToStringIntegration(),
     new HttpContext(),
-    new Dedupe(),
     new GlobalHandlers(),
     new TryCatch(),
-    new LinkedErrors(),
+    linkedErrorsIntegration(),
+    dedupeIntegration(),
     // Performance monitoring
     performanceIntegration({
       enableNavigation: true,
@@ -62,7 +64,7 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   ];
 
   if (options.enableSourceMap !== false) {
-    integrations.push(new RewriteFrames());
+    integrations.push(rewriteFramesIntegration());
   }
 
   const networkOptions: Record<string, any> = { traceNetworkBody: options.traceNetworkBody };
@@ -195,16 +197,17 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
     transport: options.transport,
   };
+  const miniappPlatform = options.platform || appName();
 
   // 平台标记。device / os / app context 由 MiniappClient._prepareEvent 在每个事件上统一写入
   // （唯一权威），此处不再重复设置，避免字段不一致与覆盖歧义（见架构 review P2-b）。
   setContext('miniapp', {
-    platform: opts.platform || appName(),
+    platform: miniappPlatform,
     environment: 'miniapp',
   });
 
-  // @sentry/core 未公开导出 ClientClass 类型，且 MiniappClient 用 Client<any>（见 client.ts），
-  // 故此处保留 as any。opts 在运行时即合法 ClientOptions（含 stackParser/transport/integrations）。
+  // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
+  // 更宽的公开 MiniappOptions，并在构造期间补齐 transport / stackParser，因此这里仅作边界适配。
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initAndBind(MiniappClient as any, opts as any);
   const client = getCurrentScope().getClient() as MiniappClient | undefined;
