@@ -108,6 +108,20 @@ describe('Router Integration', () => {
         clearIntervalSpy.mockRestore();
       }
     });
+
+    it('registers cleanup through the official client lifecycle', () => {
+      const registerCleanup = vi.fn();
+
+      router.setup({ registerCleanup } as any);
+      router.setup({ registerCleanup } as any);
+
+      expect(registerCleanup).toHaveBeenCalledTimes(2);
+      expect(registerCleanup).toHaveBeenCalledWith(expect.any(Function));
+      expect((global as any).setInterval).toHaveBeenCalledTimes(1);
+
+      registerCleanup.mock.calls[0][0]();
+      expect((global as any).setInterval).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('setupOnce', () => {

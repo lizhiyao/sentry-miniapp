@@ -1014,6 +1014,47 @@ describe('PerformanceIntegration', () => {
   });
 
   describe('entry formats', () => {
+    it('normalizes epoch, invalid, and negative timing values conservatively', () => {
+      const epochEntry = {
+        name: 'epoch-entry',
+        entryType: 'navigation',
+        startTime: 1_700_000_000_000,
+        duration: Number.NaN,
+      } as PerformanceEntry;
+
+      (integration as any)._initializeRelativeTimeOrigin([epochEntry]);
+      expect((integration as any)._relativeTimeOrigin).toBeNull();
+      expect((integration as any)._entryTimes(epochEntry)).toEqual({
+        start: 1_700_000_000,
+        end: 1_700_000_000,
+      });
+
+      const invalidEntry = {
+        name: 'invalid-entry',
+        entryType: 'render',
+        startTime: Number.NaN,
+        duration: -10,
+      } as PerformanceEntry;
+      expect((integration as any)._entryTimes(invalidEntry)).toEqual({
+        start: 1_700_000_000,
+        end: 1_700_000_000,
+      });
+
+      const relativeEntry = {
+        name: 'relative-entry',
+        entryType: 'render',
+        startTime: 100,
+        duration: Number.NaN,
+      } as PerformanceEntry;
+      (integration as any)._initializeRelativeTimeOrigin([relativeEntry]);
+      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
+
+      (integration as any)._initializeRelativeTimeOrigin([
+        { ...relativeEntry, startTime: 500 },
+      ]);
+      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
+    });
+
     it('should handle PerformanceObserverEntryList format', () => {
       integration.setupOnce();
 
