@@ -6,6 +6,9 @@ const {
   mockSpanEnd,
   mockSpan,
   mockStartInactiveSpan,
+  mockGetActiveSpan,
+  mockHasSpansEnabled,
+  mockIsSentryRequestUrl,
   mockGetTraceData,
   mockSetHttpStatus,
 } = vi.hoisted(() => {
@@ -24,6 +27,9 @@ const {
     mockSpanEnd,
     mockSpan,
     mockStartInactiveSpan: vi.fn(() => mockSpan),
+    mockGetActiveSpan: vi.fn(() => ({ spanContext: () => ({ spanId: 'parent' }) })),
+    mockHasSpansEnabled: vi.fn(() => true),
+    mockIsSentryRequestUrl: vi.fn(() => false),
     mockGetTraceData: vi.fn(() => ({
       'sentry-trace': 'trace-id-span-id-1',
       baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
@@ -40,9 +46,12 @@ const mockTraceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 vi.mock('@sentry/core', () => {
   return {
     addBreadcrumb: vi.fn(),
+    getActiveSpan: mockGetActiveSpan,
     getClient: vi.fn(() => ({
       getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
     })),
+    hasSpansEnabled: mockHasSpansEnabled,
+    isSentryRequestUrl: mockIsSentryRequestUrl,
     getTraceData: mockGetTraceData,
     setHttpStatus: mockSetHttpStatus,
     SPAN_STATUS_OK: 1,
@@ -52,7 +61,7 @@ vi.mock('@sentry/core', () => {
 });
 import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
 import * as crossPlatform from '../src/crossPlatform';
-import { addBreadcrumb, getClient } from '@sentry/core';
+import { addBreadcrumb } from '@sentry/core';
 
 describe('NetworkBreadcrumbs Integration', () => {
   let requestMock: Mock;
@@ -111,12 +120,9 @@ describe('NetworkBreadcrumbs Integration', () => {
       }),
     );
     const requestOptions = requestMock.mock.calls[0]![0];
-    expect(requestOptions.header).toEqual({
-      'sentry-trace': 'trace-id-span-id-1',
-      baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
-    });
-    expect(requestOptions.headers).toBe(requestOptions.header);
-    expect(mockGetTraceData).toHaveBeenCalledWith({ span: mockSpan });
+    expect(requestOptions.header).toBeUndefined();
+    expect(requestOptions.headers).toBeUndefined();
+    expect(mockGetTraceData).not.toHaveBeenCalled();
     expect(mockSetHttpStatus).toHaveBeenCalledWith(mockSpan, 200);
     expect(mockSpanSetAttribute).toHaveBeenCalledWith('http.response.status_code', 200);
     expect(mockSpanSetStatus).toHaveBeenCalledWith({ code: 1 });
@@ -277,7 +283,8 @@ describe('NetworkBreadcrumbs Integration', () => {
     );
   });
 
-  it('should ignore sentry.io requests', () => {
+  it('should ignore requests identified as SDK envelopes by core', () => {
+    mockIsSentryRequestUrl.mockReturnValueOnce(true);
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
     integration.setupOnce();
 
@@ -290,6 +297,10 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(addBreadcrumb).not.toHaveBeenCalled();
     expect(mockStartInactiveSpan).not.toHaveBeenCalled();
     expect(requestMock).toHaveBeenCalled();
+    expect(mockIsSentryRequestUrl).toHaveBeenCalledWith(
+      'https://sentry.io/api/123/store/',
+      expect.anything(),
+    );
   });
 
   it('should NOT ignore URLs that merely contain sentry.io as substring', () => {
@@ -315,13 +326,14 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(addBreadcrumb).toHaveBeenCalledTimes(1);
   });
 
-  it('should ignore subdomain of sentry.io', () => {
+  it('should ignore an ingest envelope URL identified by core', () => {
+    mockIsSentryRequestUrl.mockReturnValueOnce(true);
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
     integration.setupOnce();
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
-      url: 'https://o113510.ingest.sentry.io/api/123/envelope/',
+      url: 'https://o113510.ingest.sentry.io/api/123/envelope/?sentry_key=key',
       method: 'POST',
     });
 
@@ -330,11 +342,8 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(requestMock).toHaveBeenCalled();
   });
 
-  it('should ignore self-hosted sentry requests based on DSN', () => {
-    // Override the getClient mock for this test
-    (getClient as Mock).mockReturnValueOnce({
-      getOptions: () => ({ dsn: 'http://mykey@sentry.mycompany.com:9000/1' }),
-    });
+  it('should ignore self-hosted or tunneled envelopes identified by core', () => {
+    mockIsSentryRequestUrl.mockReturnValueOnce(true);
 
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
     integration.setupOnce();
@@ -458,7 +467,10 @@ describe('NetworkBreadcrumbs Integration', () => {
       traceparent: mockTraceparent,
     } as any);
 
-    const integration = new NetworkBreadcrumbs({ propagateTraceparent: true });
+    const integration = new NetworkBreadcrumbs({
+      propagateTraceparent: true,
+      tracePropagationTargets: ['api.example.com'],
+    });
     integration.setupOnce();
 
     const miniappSdk = crossPlatform.sdk();
@@ -486,7 +498,10 @@ describe('NetworkBreadcrumbs Integration', () => {
       traceparent: mockTraceparent,
     } as any);
 
-    const integration = new NetworkBreadcrumbs({ propagateTraceparent: true });
+    const integration = new NetworkBreadcrumbs({
+      propagateTraceparent: true,
+      tracePropagationTargets: ['api.example.com'],
+    });
     integration.setupOnce();
 
     const miniappSdk = crossPlatform.sdk();
@@ -504,6 +519,27 @@ describe('NetworkBreadcrumbs Integration', () => {
       Traceparent: '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01',
     });
     expect(requestOptions.header.traceparent).toBeUndefined();
+  });
+
+  it('preserves existing trace headers case-insensitively', () => {
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
+    });
+    integration.setupOnce();
+
+    crossPlatform.sdk().request({
+      url: 'https://api.example.com/users',
+      headers: {
+        'Sentry-Trace': 'existing-trace',
+        Baggage: 'tenant=demo,sentry-trace_id=existing',
+      },
+    });
+
+    const forwarded = requestMock.mock.calls[0]![0];
+    expect(forwarded.header['Sentry-Trace']).toBe('existing-trace');
+    expect(forwarded.header['sentry-trace']).toBeUndefined();
+    expect(forwarded.header.Baggage).toBe('tenant=demo,sentry-trace_id=existing');
+    expect(forwarded.header.baggage).toBeUndefined();
   });
 
   it('should only inject trace headers for matching tracePropagationTargets', () => {
@@ -605,7 +641,9 @@ describe('NetworkBreadcrumbs Integration', () => {
   });
 
   it('should preserve existing non-Sentry baggage when injecting trace headers', () => {
-    const integration = new NetworkBreadcrumbs();
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
+    });
     integration.setupOnce();
 
     const miniappSdk = crossPlatform.sdk();
@@ -625,7 +663,9 @@ describe('NetworkBreadcrumbs Integration', () => {
   });
 
   it('should preserve baggage that already contains Sentry entries', () => {
-    const integration = new NetworkBreadcrumbs();
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
+    });
     integration.setupOnce();
 
     crossPlatform.sdk().request({
@@ -639,7 +679,9 @@ describe('NetworkBreadcrumbs Integration', () => {
   });
 
   it('should normalize array baggage values before injecting Sentry baggage', () => {
-    const integration = new NetworkBreadcrumbs();
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
+    });
     integration.setupOnce();
 
     crossPlatform.sdk().request({
@@ -744,7 +786,9 @@ describe('NetworkBreadcrumbs Integration', () => {
     mockGetTraceData.mockReturnValueOnce({});
     const unusualRequestMock = vi.fn(options => options.success(null));
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: unusualRequestMock });
-    const integration = new NetworkBreadcrumbs();
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
+    });
     integration.setupOnce();
 
     expect(() =>
@@ -770,23 +814,51 @@ describe('NetworkBreadcrumbs Integration', () => {
     ).not.toThrow();
   });
 
-  it('handles malformed DSN values without breaking requests', () => {
-    (getClient as Mock).mockReturnValueOnce({
-      getOptions: () => ({
-        dsn: {
-          match: () => {
-            throw new Error('invalid DSN object');
-          },
-        },
-      }),
+  it('does not mutate caller request options or header objects', () => {
+    const success = vi.fn();
+    const header = { Authorization: 'Bearer secret' };
+    const requestOptions = {
+      url: 'https://api.example.com/users',
+      header,
+      success,
+    };
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
     });
-    const integration = new NetworkBreadcrumbs();
     integration.setupOnce();
 
-    expect(() =>
-      crossPlatform.sdk().request({ url: 'https://api.example.com/users' }),
-    ).not.toThrow();
-    expect(addBreadcrumb).toHaveBeenCalledTimes(1);
+    crossPlatform.sdk().request(requestOptions);
+
+    const forwarded = requestMock.mock.calls[0]![0];
+    expect(forwarded).not.toBe(requestOptions);
+    expect(forwarded.header).not.toBe(header);
+    expect(forwarded.header).toEqual(
+      expect.objectContaining({
+        Authorization: 'Bearer secret',
+        'sentry-trace': 'trace-id-span-id-1',
+      }),
+    );
+    expect(requestOptions).toEqual({
+      url: 'https://api.example.com/users',
+      header: { Authorization: 'Bearer secret' },
+      success,
+    });
+  });
+
+  it('injects scope trace headers without creating a standalone request transaction', () => {
+    mockGetActiveSpan.mockReturnValueOnce(undefined);
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
+    });
+    integration.setupOnce();
+
+    crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
+
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    expect(mockGetTraceData).toHaveBeenCalledWith({});
+    expect(requestMock.mock.calls[0]![0].header).toEqual(
+      expect.objectContaining({ 'sentry-trace': 'trace-id-span-id-1' }),
+    );
   });
 
   it('forwards non-object request options without instrumentation', () => {
@@ -860,12 +932,16 @@ describe('NetworkBreadcrumbs Integration', () => {
     mockStartInactiveSpan.mockImplementationOnce(() => {
       throw new Error('span unavailable');
     });
-    const integration = new NetworkBreadcrumbs();
+    const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
+    });
     integration.setupOnce();
     const miniappSdk = crossPlatform.sdk();
 
     expect(() => miniappSdk.request({ url: 'https://api.example.com/no-span' })).not.toThrow();
-    expect(requestMock.mock.calls[0]![0].header).toBeUndefined();
+    expect(requestMock.mock.calls[0]![0].header).toEqual(
+      expect.objectContaining({ 'sentry-trace': 'trace-id-span-id-1' }),
+    );
 
     mockGetTraceData.mockImplementationOnce(() => {
       throw new Error('trace data unavailable');

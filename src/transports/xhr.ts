@@ -109,13 +109,16 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
           settle(() => {
             // Alipay uses `status` instead of `statusCode`, and `headers` instead of `header`
             const status = res.statusCode ?? res.status;
-            const resHeaders = res.header || res.headers || {};
+            const resHeaders = {
+              ...(res.headers || {}),
+              ...(res.header || {}),
+            };
 
             resolve({
               statusCode: status,
               headers: {
-                'x-sentry-rate-limits': resHeaders['x-sentry-rate-limits'],
-                'retry-after': resHeaders['retry-after'],
+                'x-sentry-rate-limits': getHeaderValue(resHeaders, 'x-sentry-rate-limits'),
+                'retry-after': getHeaderValue(resHeaders, 'retry-after'),
               },
             });
           });
@@ -176,4 +179,11 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
   }
 
   return createTransport(options, makeRequest);
+}
+
+function getHeaderValue(headers: Record<string, unknown>, name: string): string | null {
+  const normalizedName = name.toLowerCase();
+  const key = Object.keys(headers).find((candidate) => candidate.toLowerCase() === normalizedName);
+  const value = key === undefined ? undefined : headers[key];
+  return typeof value === 'string' ? value : null;
 }
