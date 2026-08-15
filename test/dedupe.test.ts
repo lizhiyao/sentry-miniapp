@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Dedupe, dedupeIntegration } from '../src/integrations/dedupe';
+import { Dedupe, dedupeIntegration } from '../src/integrations/index';
 import type { Event } from '@sentry/core';
 
 describe('Dedupe Integration', () => {

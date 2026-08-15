@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
-import { Router, routerIntegration } from '../src/integrations/router';
+import { Router } from '../src/integrations/router';
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
 
 // Mock Sentry core functions
@@ -93,6 +93,20 @@ describe('Router Integration', () => {
 
     it('should have setupOnce method', () => {
       expect(typeof router.setupOnce).toBe('function');
+    });
+
+    it('should clear its route monitor during cleanup', () => {
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval').mockImplementation(() => {});
+      ((global as any).setInterval as Mock).mockReturnValue(123 as any);
+
+      try {
+        router.setupOnce();
+        router.cleanup();
+
+        expect(clearIntervalSpy).toHaveBeenCalledWith(123);
+      } finally {
+        clearIntervalSpy.mockRestore();
+      }
     });
   });
 
@@ -347,6 +361,17 @@ describe('Router Integration', () => {
       });
     });
 
+    it('should handle a current page without route metadata', () => {
+      ((globalThis as any).getCurrentPages as Mock).mockReturnValue([{}]);
+
+      router.setupOnce();
+      const setIntervalMock = (global as any).setInterval as Mock;
+      const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
+
+      expect(() => intervalCallback()).not.toThrow();
+      expect(addBreadcrumb).not.toHaveBeenCalled();
+    });
+
     it('should handle missing getCurrentPages function', () => {
       delete (globalThis as any).getCurrentPages;
 
@@ -433,19 +458,4 @@ describe('Router Integration', () => {
     });
   });
 
-  describe('routerIntegration factory', () => {
-    it('should create a new Router instance', () => {
-      const integration = routerIntegration();
-      expect(integration).toBeInstanceOf(Router);
-      expect(integration.name).toBe('Router');
-    });
-
-    it('should create different instances on multiple calls', () => {
-      const integration1 = routerIntegration();
-      const integration2 = routerIntegration();
-      expect(integration1).not.toBe(integration2);
-      expect(integration1).toBeInstanceOf(Router);
-      expect(integration2).toBeInstanceOf(Router);
-    });
-  });
 });

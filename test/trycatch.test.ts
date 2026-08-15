@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TryCatch, tryCatchIntegration } from '../src/integrations/trycatch';
+import { TryCatch, tryCatchIntegration } from '../src/integrations/index';
 
 // Mock @sentry/core
 vi.mock('@sentry/core', () => ({

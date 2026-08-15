@@ -194,6 +194,34 @@ describe('MinigameIntegration', () => {
     );
   });
 
+  it('onShow 缺少参数时仍记录安全的生命周期面包屑', () => {
+    new MinigameIntegration().setupOnce();
+
+    expect(() => showCb!()).not.toThrow();
+    expect(mockAddBreadcrumb).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        category: 'minigame.lifecycle',
+        data: { scene: undefined },
+      }),
+    );
+  });
+
+  it('启动参数为空或读取失败时安全降级', () => {
+    const miniappSdk = crossPlatform.sdk() as any;
+    miniappSdk.getLaunchOptionsSync = vi.fn(() => undefined);
+
+    expect(() => new MinigameIntegration().setupOnce()).not.toThrow();
+    expect(mockSetContext).toHaveBeenCalledWith(
+      'minigame',
+      expect.objectContaining({ runtime: 'minigame', scene: undefined }),
+    );
+
+    miniappSdk.getLaunchOptionsSync = vi.fn(() => {
+      throw new Error('launch options unavailable');
+    });
+    expect(() => new MinigameIntegration().setupOnce()).not.toThrow();
+  });
+
   it('cleanup 调用 offShow / offHide', () => {
     const integration = new MinigameIntegration();
     integration.setupOnce();
@@ -201,6 +229,25 @@ describe('MinigameIntegration', () => {
     const miniappSdk = crossPlatform.sdk();
     expect(miniappSdk.offShow).toHaveBeenCalled();
     expect(miniappSdk.offHide).toHaveBeenCalled();
+  });
+
+  it('cleanup 包含宿主取消监听异常', () => {
+    const miniappSdk = crossPlatform.sdk() as any;
+    miniappSdk.offShow = vi.fn(() => {
+      throw new Error('offShow failed');
+    });
+    const integration = new MinigameIntegration();
+    integration.setupOnce();
+
+    expect(() => integration.cleanup()).not.toThrow();
+  });
+
+  it('平台 SDK 不可用时 setup 与 cleanup 均安全降级', () => {
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue(null as any);
+    const integration = new MinigameIntegration();
+
+    expect(() => integration.setupOnce()).not.toThrow();
+    expect(() => integration.cleanup()).not.toThrow();
   });
 
   it('无 requestAnimationFrame 时不报错', () => {

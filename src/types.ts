@@ -1,5 +1,4 @@
 import type {
-  ClientOptions,
   Event,
   EventHint,
   TransactionEvent,
@@ -242,13 +241,6 @@ export interface MiniappOptions {
 
   /** Default core integrations. Set to false to skip core defaults. */
   defaultIntegrations?: false | Integration[];
-}
-
-/**
- * Client options for the Miniapp SDK.
- */
-export interface MiniappClientOptions extends ClientOptions<MiniappTransportOptions> {
-  options?: MiniappOptions;
 }
 
 /** `Sentry.getDiagnostics()` 返回的 DSN 摘要。不会暴露完整 DSN。 */

@@ -8,6 +8,7 @@ describe('getDiagnostics', () => {
   afterEach(async () => {
     await close(0);
     getCurrentScope().setClient(undefined);
+    delete (global as any).GameGlobal;
     resetConsentState();
     resetPlatformCache();
   });
@@ -153,6 +154,34 @@ describe('getDiagnostics', () => {
     expect(getDiagnostics().options?.defaultIntegrations).toBe('custom');
   });
 
+  it('reports explicit standard-runtime minigame opt-ins and a custom stack parser', () => {
+    init({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      enableMinigameLifecycle: true,
+      enableMinigameFrameRate: true,
+      stackParser: () => [],
+    });
+
+    expect(getDiagnostics().options).toMatchObject({
+      enableMinigameLifecycle: true,
+      enableMinigameFrameRate: true,
+      customStackParser: true,
+    });
+  });
+
+  it('reports minigame integrations as enabled by default in a minigame runtime', () => {
+    (global as any).GameGlobal = {};
+    resetPlatformCache();
+    init({ dsn: 'https://public@example.ingest.sentry.io/123' });
+
+    expect(getDiagnostics().options).toMatchObject({
+      enableMinigameLifecycle: true,
+      enableMinigameFrameRate: true,
+    });
+
+    delete (global as any).GameGlobal;
+  });
+
   it('uses minigame defaults and respects explicit lifecycle opt-outs', () => {
     (global as any).GameGlobal = {};
     resetPlatformCache();
@@ -191,5 +220,19 @@ describe('getDiagnostics', () => {
     expect(warningCodes).toEqual(
       expect.arrayContaining(['not_miniapp_environment', 'client_not_initialized']),
     );
+  });
+
+  it('warns when another Sentry client type is bound', () => {
+    getCurrentScope().setClient({
+      getOptions: () => ({ enabled: true }),
+      getTransport: () => ({}),
+      close: async () => true,
+    } as any);
+
+    const diagnostics = getDiagnostics();
+
+    expect(diagnostics.client).toMatchObject({ initialized: true, miniappClient: false });
+    expect(diagnostics.options).toBeNull();
+    expect(diagnostics.warnings.map(warning => warning.code)).toContain('non_miniapp_client');
   });
 });

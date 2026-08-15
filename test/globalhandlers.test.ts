@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { captureException, getCurrentScope } from '@sentry/core';
-import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/globalhandlers';
+import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/index';
 import { ignoreNextOnErrorCall } from '../src/helpers';
 
 // Mock @sentry/core

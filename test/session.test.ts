@@ -143,4 +143,21 @@ describe('SessionIntegration', () => {
     integration.cleanup();
     expect((globalThis as any).App).toBe(originalApp);
   });
+
+  it('contains session start and end failures from core', () => {
+    mockStartSession.mockImplementationOnce(() => {
+      throw new Error('start failed');
+    });
+    mockEndSession.mockImplementationOnce(() => {
+      throw new Error('end failed');
+    });
+    const integration = new SessionIntegration();
+    integration.setupOnce();
+    (globalThis as any).App({ onLaunch: vi.fn(), onHide: vi.fn() });
+
+    expect(() => capturedAppOptions.onLaunch()).not.toThrow();
+    expect(() => capturedAppOptions.onHide()).not.toThrow();
+    expect(mockStartSession).toHaveBeenCalled();
+    expect(mockEndSession).toHaveBeenCalled();
+  });
 });

@@ -17,6 +17,7 @@ import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
 import { shouldIgnoreOnError } from '../src/helpers';
+import { resetPlatformCache } from '../src/crossPlatform';
 
 describe('SDK', () => {
   beforeEach(() => {
@@ -90,6 +91,21 @@ describe('SDK', () => {
     it('should handle missing DSN gracefully', () => {
       const client = init({} as MiniappOptions);
       expect(client).toBeInstanceOf(MiniappClient);
+    });
+
+    it('returns undefined with a warning outside supported miniapp runtimes', () => {
+      delete (global as any).wx;
+      resetPlatformCache();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        expect(init({ dsn: 'https://test@sentry.io/123' })).toBeUndefined();
+        expect(warnSpy).toHaveBeenCalledWith(
+          '[sentry-miniapp] Not running in a supported miniapp environment',
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it('should use default integrations when not specified', () => {
@@ -234,10 +250,12 @@ describe('SDK', () => {
       expect(client).toBeInstanceOf(MiniappClient);
     });
 
-    it('should pass propagateTraceparent to NetworkBreadcrumbs', () => {
+    it('should pass trace propagation options to NetworkBreadcrumbs', () => {
       const client = init({
         dsn: 'https://test@sentry.io/123',
         integrations: [],
+        enableTracePropagation: false,
+        tracePropagationTargets: [/api\.example\.com/],
         propagateTraceparent: true,
       });
 
@@ -247,6 +265,24 @@ describe('SDK', () => {
 
       expect(networkBreadcrumbs).toBeDefined();
       expect(networkBreadcrumbs._propagateTraceparent).toBe(true);
+      expect(networkBreadcrumbs._enableTracePropagation).toBe(false);
+      expect(networkBreadcrumbs._tracePropagationTargets).toEqual([/api\.example\.com/]);
+    });
+
+    it('passes all inbound filter options to the default EventFilters integration', () => {
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        integrations: [],
+        allowUrls: [/trusted\.example\.com/],
+        denyUrls: [/blocked\.example\.com/],
+        ignoreErrors: ['expected failure'],
+      });
+
+      expect(
+        client?.getOptions().integrations.some((integration: any) =>
+          ['EventFilters', 'InboundFilters'].includes(integration.name),
+        ),
+      ).toBe(true);
     });
 
     it('用户已传入 EventFilters / InboundFilters 时不重复追加过滤集成', () => {

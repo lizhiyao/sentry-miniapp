@@ -1,5 +1,5 @@
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
+import type { Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 
 /**
@@ -168,10 +168,3 @@ export class Router implements Integration {
     });
   }
 }
-
-/**
- * Router integration
- */
-export const routerIntegration: IntegrationFn = () => {
-  return new Router();
-};

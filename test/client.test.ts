@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { MiniappClient } from '../src/client';
+import { getConfiguredDefaultIntegrationsMode, MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { SeverityLevel, getCurrentScope } from '@sentry/core';
@@ -104,6 +104,14 @@ describe('MiniappClient', () => {
 
       expect(preparedEvent?.contexts?.['device']).toBeDefined();
       expect(preparedEvent?.contexts?.['os']).toBeDefined();
+    });
+
+    it('initializes missing contexts when filling default system information', () => {
+      const event = client['_fillDefaultContexts']({ message: 'test' } as any);
+
+      expect(event?.contexts?.device).toBeDefined();
+      expect(event?.contexts?.os).toBeDefined();
+      expect(event?.contexts?.app).toBeDefined();
     });
 
     it('should skip system information when enableSystemInfo is false', async () => {
@@ -333,6 +341,51 @@ describe('MiniappClient', () => {
       }
     });
 
+    it('warns in debug mode when Debug ID synchronization fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: new Proxy(
+          {},
+          {
+            get: () => {
+              throw new Error('debug ID map unavailable');
+            },
+          },
+        ),
+      });
+
+      try {
+        const c = new MiniappClient({
+          debug: true,
+          integrations: [],
+          stackParser: miniappStackParser,
+        });
+        await c['_prepareEvent']({ message: 'test' }, {});
+      } finally {
+        if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
+        else Reflect.deleteProperty(globalThis, 'window');
+      }
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] Debug ID 全局同步失败:',
+        expect.any(Error),
+      );
+    });
+
+    it('logs the scope fallback in debug mode', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const c = new MiniappClient({ debug: true });
+
+      await c['_prepareEvent']({ message: 'test' }, {});
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:',
+        expect.any(Error),
+      );
+    });
+
     // F3：SDK 的 device/os/app 应为「缺省填充」，不得覆盖用户显式设置。
     it('fill-only：不覆盖 per-event 显式设置的 os（F3）', async () => {
       (global as any).wx = {
@@ -395,6 +448,41 @@ describe('MiniappClient', () => {
       );
 
       consoleWarnSpy.mockRestore();
+    });
+  });
+
+  describe('client configuration and cleanup', () => {
+    it('derives the default integration mode for clients outside the constructor cache', () => {
+      const fakeClient = {
+        getOptions: () => ({ defaultIntegrations: false }),
+      } as MiniappClient;
+
+      expect(getConfiguredDefaultIntegrationsMode(fakeClient)).toBe('disabled');
+    });
+
+    it('warns in debug mode when integration cleanup fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const brokenIntegration = {
+        name: 'BrokenIntegration',
+        cleanup: () => {
+          throw new Error('cleanup failed');
+        },
+      };
+      const c = new MiniappClient({
+        debug: true,
+        integrations: [brokenIntegration as any],
+        transport: () => ({
+          send: async () => ({}),
+          flush: async () => true,
+        }),
+      });
+
+      await c.close(0);
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] 集成 BrokenIntegration cleanup 失败:',
+        expect.any(Error),
+      );
     });
   });
 });

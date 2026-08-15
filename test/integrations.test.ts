@@ -2,8 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GlobalHandlers } from '../src/integrations/globalhandlers';
 import { TryCatch } from '../src/integrations/trycatch';
 import { System } from '../src/integrations/system';
-import { HttpContext, httpContextIntegration } from '../src/integrations/httpcontext';
-import { LinkedErrors, linkedErrorsIntegration } from '../src/integrations/linkederrors';
+import {
+  HttpContext,
+  httpContextIntegration,
+  LinkedErrors,
+  linkedErrorsIntegration,
+} from '../src/integrations/index';
 
 describe('Integrations', () => {
   beforeEach(() => {

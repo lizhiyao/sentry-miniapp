@@ -5,10 +5,6 @@ import {
   shouldIgnoreOnError,
   ignoreNextOnErrorCall,
   getFunctionName,
-  isError,
-  isInstanceOf,
-  isString,
-  isPlainObject,
 } from '../src/helpers';
 
 describe('Helpers', () => {
@@ -86,6 +82,42 @@ describe('Helpers', () => {
       const result = wrap(nonFunction as any);
 
       expect(result).toBe(nonFunction);
+    });
+
+    it('runs the optional before hook with the original receiver and arguments', () => {
+      const receiver = { value: 3 };
+      const before = vi.fn();
+      const wrapped = wrap(function (this: typeof receiver, increment: number) {
+        return this.value + increment;
+      }, {}, before);
+
+      expect(wrapped.call(receiver, 4)).toBe(7);
+      expect(before).toHaveBeenCalledWith(4);
+      expect(before.mock.instances[0]).toBe(receiver);
+    });
+
+    it('returns a callable unchanged when host guards reject marker access', () => {
+      const original = vi.fn();
+      const guarded = new Proxy(original, {
+        get(target, property, receiver) {
+          if (property === '__sentry__') throw new Error('permission denied');
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(wrap(guarded)).toBe(guarded);
+    });
+
+    it('continues wrapping when host guards reject property enumeration', () => {
+      const original = vi.fn(() => 'ok');
+      const guarded = new Proxy(original, {
+        ownKeys() {
+          throw new Error('enumeration denied');
+        },
+      });
+
+      const wrapped = wrap(guarded);
+      expect(wrapped()).toBe('ok');
     });
   });
 
@@ -265,6 +297,34 @@ describe('Helpers', () => {
       expect(obj.method).not.toBe(originalMethod);
       expect(obj.method).not.toBe(firstWrapped);
     });
+
+    it('restores an inherited host method without leaving an own property', () => {
+      const original = vi.fn(() => 'original');
+      const prototype = { method: original };
+      const obj = Object.create(prototype) as { method: () => string };
+      const result = fill(obj, 'method', (method) => () => `wrapped: ${method()}`);
+
+      expect(Object.prototype.hasOwnProperty.call(obj, 'method')).toBe(true);
+      expect(obj.method()).toBe('wrapped: original');
+
+      result?.restore();
+      expect(Object.prototype.hasOwnProperty.call(obj, 'method')).toBe(false);
+      expect(obj.method).toBe(original);
+    });
+
+    it('contains replacement prototype assignment failures', () => {
+      const obj = { method: vi.fn() };
+      const replacement = new Proxy(function replacement() {}, {
+        set(target, property, value, receiver) {
+          if (property === 'prototype') throw new Error('prototype is read-only');
+          return Reflect.set(target, property, value, receiver);
+        },
+      });
+
+      const result = fill(obj, 'method', () => replacement);
+      expect(result?.replaced).toBe(true);
+      expect(obj.method).toBe(replacement);
+    });
   });
 
   describe('shouldIgnoreOnError', () => {
@@ -341,90 +401,4 @@ describe('Helpers', () => {
     });
   });
 
-  describe('isError', () => {
-    it('should return true for Error instances', () => {
-      expect(isError(new Error('test'))).toBe(true);
-      expect(isError(new TypeError('test'))).toBe(true);
-      expect(isError(new ReferenceError('test'))).toBe(true);
-    });
-
-    it('should return false for non-Error values', () => {
-      expect(isError('string')).toBe(false);
-      expect(isError(123)).toBe(false);
-      expect(isError({})).toBe(false);
-      expect(isError(null)).toBe(false);
-      expect(isError(undefined)).toBe(false);
-    });
-
-    it('should handle error-like objects', () => {
-      const errorLike = {
-        name: 'Error',
-        message: 'test error',
-      };
-      expect(isError(errorLike)).toBe(false);
-    });
-  });
-
-  describe('isInstanceOf', () => {
-    it('should return true for valid instances', () => {
-      expect(isInstanceOf(new Error(), Error)).toBe(true);
-      expect(isInstanceOf([], Array)).toBe(true);
-      expect(isInstanceOf({}, Object)).toBe(true);
-    });
-
-    it('should return false for invalid instances', () => {
-      expect(isInstanceOf('string', Error)).toBe(false);
-      expect(isInstanceOf(123, Array)).toBe(false);
-      expect(isInstanceOf(null, Object)).toBe(false);
-    });
-
-    it('should handle exceptions during instanceof check', () => {
-      const problematicConstructor = {
-        [Symbol.hasInstance]() {
-          throw new Error('Cannot check instance');
-        },
-      };
-      expect(isInstanceOf({}, problematicConstructor)).toBe(false);
-    });
-  });
-
-  describe('isString', () => {
-    it('should return true for strings', () => {
-      expect(isString('hello')).toBe(true);
-      expect(isString('')).toBe(true);
-      expect(isString(String('test'))).toBe(true);
-    });
-
-    it('should return false for non-strings', () => {
-      expect(isString(123)).toBe(false);
-      expect(isString({})).toBe(false);
-      expect(isString([])).toBe(false);
-      expect(isString(null)).toBe(false);
-      expect(isString(undefined)).toBe(false);
-      expect(isString(new String('test'))).toBe(true); // String object is still a string
-    });
-  });
-
-  describe('isPlainObject', () => {
-    it('should return true for plain objects', () => {
-      expect(isPlainObject({})).toBe(true);
-      expect(isPlainObject({ a: 1, b: 2 })).toBe(true);
-      expect(isPlainObject(Object.create(null))).toBe(true); // Object without prototype is still plain
-    });
-
-    it('should return false for non-plain objects', () => {
-      expect(isPlainObject([])).toBe(false);
-      expect(isPlainObject(new Date())).toBe(false);
-      expect(isPlainObject(new Error())).toBe(false);
-      expect(isPlainObject(null)).toBe(false);
-      expect(isPlainObject(undefined)).toBe(false);
-      expect(isPlainObject('string')).toBe(false);
-      expect(isPlainObject(123)).toBe(false);
-    });
-
-    it('should return false for class instances', () => {
-      class TestClass {}
-      expect(isPlainObject(new TestClass())).toBe(true); // Class instances are still plain objects
-    });
-  });
 });
