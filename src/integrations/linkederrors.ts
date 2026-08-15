@@ -95,8 +95,7 @@ export class LinkedErrors implements Integration {
 }
 
 /**
- * Checks whether given value's type is one of a few Error or Error-like
- * {@link isError}.
+ * Safely checks whether a value is an instance of the requested constructor.
  *
  * @param wat A value to be checked.
  * @returns A boolean representing the result.

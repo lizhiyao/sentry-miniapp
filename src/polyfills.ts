@@ -155,15 +155,16 @@ function getGlobalObject(): any {
   if (typeof globalThis !== 'undefined') {
     return globalThis;
   }
-  try {
-    return Function('return this')();
-  } catch (_e) {
-    // 某些严格 CSP 环境下 Function 构造器不可用，继续按下方兜底
-  }
   if (typeof window !== 'undefined') return window;
   if (typeof global !== 'undefined') return global;
   if (typeof self !== 'undefined') return self;
-  return undefined;
+
+  try {
+    return Function('return this')();
+  } catch (_e) {
+    // 某些严格 CSP 环境下 Function 构造器不可用
+    return undefined;
+  }
 }
 
 /**
@@ -185,19 +186,6 @@ export function installPolyfills(): void {
     if (typeof globalObj.URLSearchParams === 'undefined') {
       globalObj.URLSearchParams = URLSearchParamsPolyfill;
     }
-
-    // Also install to the global scope for direct access
-    // 同时安装到全局作用域以便直接访问
-    const globalScope = Function('return this')();
-    if (globalScope && typeof globalScope.URLSearchParams === 'undefined') {
-      globalScope.URLSearchParams = URLSearchParamsPolyfill as any;
-    }
-
-    // For environments where Function('return this')() doesn't work
-    // 对于 Function('return this')() 不起作用的环境
-    if (typeof globalThis !== 'undefined' && typeof globalThis.URLSearchParams === 'undefined') {
-      (globalThis as any).URLSearchParams = URLSearchParamsPolyfill;
-    }
   } catch (error) {
     console.warn('[sentry-miniapp] Failed to install polyfills:', error);
   }
@@ -211,19 +199,6 @@ export function ensurePolyfills(): void {
   // Always install polyfills regardless of environment to ensure compatibility
   // This ensures URLSearchParams is always available when needed
   installPolyfills();
-}
-
-/**
- * Check if URLSearchParams is available in the current environment
- * 检查当前环境是否支持 URLSearchParams
- */
-export function isURLSearchParamsSupported(): boolean {
-  try {
-    const globalObj = getGlobalObject();
-    return globalObj && typeof globalObj.URLSearchParams !== 'undefined';
-  } catch {
-    return false;
-  }
 }
 
 // Auto-install polyfills immediately when this module is loaded

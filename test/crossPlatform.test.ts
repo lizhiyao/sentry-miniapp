@@ -263,6 +263,10 @@ describe('CrossPlatform', () => {
       const result = getSDK();
       expect(result).toBeDefined();
       expect(typeof result.request).toBe('function');
+      expect(() => result.request?.({})).not.toThrow();
+      expect(() => result.httpRequest?.({})).not.toThrow();
+      expect(result.getSystemInfoSync?.()).toEqual({});
+      expect(() => result.URLSearchParams?.()).not.toThrow();
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('未检测到已支持的小程序平台'),
       );

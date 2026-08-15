@@ -82,6 +82,19 @@ describe('PageBreadcrumbs Integration', () => {
       );
     });
 
+    it('uses an unknown route when lifecycle handlers have no page instance', () => {
+      (globalThis as any).Page = vi.fn((options: any) => options);
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+      const page = (globalThis as any).Page({ onShow: vi.fn() });
+
+      page.onShow.call(null);
+
+      expect(addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'onShow: unknown' }),
+      );
+    });
+
     it('should wrap onLoad and onUnload', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
@@ -205,6 +218,31 @@ describe('PageBreadcrumbs Integration', () => {
       expect(clickSpy).toHaveBeenCalled();
       expect(changeSpy).toHaveBeenCalled();
       expect(submitSpy).toHaveBeenCalled();
+    });
+
+    it.each([
+      'itemTap',
+      'buttonClick',
+      'valueChange',
+      'formSubmit',
+      'pageScroll',
+      'textInput',
+    ])('should recognize the %s suffix as an interaction handler', handlerName => {
+      (globalThis as any).Page = vi.fn((options: any) => options);
+      const handler = vi.fn();
+      const integration = new PageBreadcrumbs();
+      integration.setupOnce();
+
+      const page = (globalThis as any).Page({ [handlerName]: handler });
+      page[handlerName].call({}, null);
+
+      expect(handler).toHaveBeenCalledWith(null);
+      expect(addBreadcrumb).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'user.interaction',
+          message: `${handlerName} on unknown`,
+        }),
+      );
     });
 
     it('captures interaction coordinates and touch details', () => {

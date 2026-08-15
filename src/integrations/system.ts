@@ -1,5 +1,5 @@
 import { getCurrentScope, addBreadcrumb } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
+import type { Integration } from '@sentry/core';
 
 import { getSystemInfo, sdk } from '../crossPlatform';
 
@@ -209,10 +209,3 @@ export class System implements Integration {
     }
   }
 }
-
-/**
- * System integration
- */
-export const systemIntegration: IntegrationFn = () => {
-  return new System();
-};

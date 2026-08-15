@@ -273,6 +273,103 @@ describe('Transport', () => {
       await expect(transport.send(envelope as any)).rejects.toBeDefined();
     });
 
+    it.each([
+      ['string', 'host offline', 'host offline'],
+      ['Alipay errorMessage', { errorMessage: 'alipay timeout' }, 'alipay timeout'],
+      ['standard message', { message: 'socket closed' }, 'socket closed'],
+      ['unknown object', {}, 'Unknown error'],
+    ])('normalizes %s request failures', async (_label, failure, expectedMessage) => {
+      const mockRequest = vi.fn((options: any) => options.fail(failure));
+      (global as any).wx = { request: mockRequest };
+      resetPlatformCache();
+
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/envelope/',
+        recordDroppedEvent: () => {},
+      });
+      const envelope: Envelope = [
+        { event_id: 'normalized-failure' },
+        [[{ type: 'event' }, { event_id: 'normalized-failure' }]],
+      ];
+
+      await expect(transport.send(envelope as any)).rejects.toThrow(
+        `Network request failed: ${expectedMessage}`,
+      );
+    });
+
+    it('contains a synchronous host request exception', async () => {
+      (global as any).wx = {
+        request: vi.fn(() => {
+          throw new Error('request API crashed');
+        }),
+      };
+      resetPlatformCache();
+
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/envelope/',
+        recordDroppedEvent: () => {},
+      });
+      const envelope: Envelope = [
+        { event_id: 'sync-failure' },
+        [[{ type: 'event' }, { event_id: 'sync-failure' }]],
+      ];
+
+      await expect(transport.send(envelope as any)).rejects.toThrow(
+        'Network request failed: request API crashed',
+      );
+    });
+
+    it('rejects when the detected host exposes no request method', async () => {
+      (global as any).wx = {};
+      resetPlatformCache();
+
+      const transport = createMiniappTransport({
+        url: 'https://sentry.io/api/123/envelope/',
+        recordDroppedEvent: () => {},
+      });
+      const envelope: Envelope = [
+        { event_id: 'missing-request' },
+        [[{ type: 'event' }, { event_id: 'missing-request' }]],
+      ];
+
+      await expect(transport.send(envelope as any)).rejects.toThrow(
+        'No request method available in current miniapp environment',
+      );
+    });
+
+    it('still rejects a timeout when the host abort method throws', async () => {
+      vi.useFakeTimers();
+      (global as any).wx = {
+        request: vi.fn(() => ({
+          abort: () => {
+            throw new Error('abort failed');
+          },
+        })),
+      };
+      resetPlatformCache();
+
+      try {
+        const transport = createMiniappTransport({
+          url: 'https://sentry.io/api/123/envelope/',
+          recordDroppedEvent: () => {},
+          requestTimeout: 10,
+        });
+        const envelope: Envelope = [
+          { event_id: 'abort-failure' },
+          [[{ type: 'event' }, { event_id: 'abort-failure' }]],
+        ];
+
+        const rejection = expect(transport.send(envelope as any)).rejects.toThrow(
+          'Sentry request timed out after 10ms',
+        );
+        await vi.advanceTimersByTimeAsync(10);
+        await rejection;
+      } finally {
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
+      }
+    });
+
     it('429 + X-Sentry-Rate-Limits 后，后续同类 envelope 被丢弃（不再发起底层请求）', async () => {
       // setup.ts 已冻结 Date.now（恒定值），限流窗口在两次发送间不会过期。
       const mockRequest = vi.fn().mockImplementation((options) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { installPolyfills, ensurePolyfills, isURLSearchParamsSupported } from '../src/polyfills';
+import { installPolyfills, ensurePolyfills } from '../src/polyfills';
 
 describe('Polyfills', () => {
   let originalGlobal: any;
@@ -113,6 +113,23 @@ describe('Polyfills', () => {
         expect(params.get('key2')).toBe('value2');
       });
 
+      it('should normalize missing array values and ignore non-pairs', () => {
+        const params = new URLSearchParamsPolyfill([
+          ['', ''],
+          [undefined, undefined],
+          'not-a-pair',
+        ] as any);
+
+        expect(params.getAll('')).toEqual(['', '']);
+        expect(params.size).toBe(2);
+      });
+
+      it('should ignore empty query segments and keys', () => {
+        const params = new URLSearchParamsPolyfill('&&=ignored&valid=value');
+
+        expect(params.toString()).toBe('valid=value');
+      });
+
       it('should create from another URLSearchParamsPolyfill instance', () => {
         const original = new URLSearchParamsPolyfill('key=value');
         const copy = new URLSearchParamsPolyfill(original);
@@ -201,6 +218,15 @@ describe('Polyfills', () => {
         expect(params.get('key')).toBe('newvalue');
       });
 
+      it('should replace the first value and remove duplicate values', () => {
+        const params = new URLSearchParamsPolyfill('key=first&other=value&key=second');
+
+        params.set('key', 'replacement');
+
+        expect(params.getAll('key')).toEqual(['replacement']);
+        expect(params.toString()).toBe('key=replacement&other=value');
+      });
+
       it('should convert value to string', () => {
         const params = new URLSearchParamsPolyfill();
         params.set('key', 123 as any);
@@ -219,6 +245,14 @@ describe('Polyfills', () => {
         const params = new URLSearchParamsPolyfill();
         params.sort();
         expect(params.toString()).toBe('');
+      });
+
+      it('should preserve duplicate-key order', () => {
+        const params = new URLSearchParamsPolyfill('b=1&a=first&a=second');
+
+        params.sort();
+
+        expect(params.toString()).toBe('a=first&a=second&b=1');
       });
     });
 
@@ -343,13 +377,21 @@ describe('Polyfills', () => {
 
     it('should handle errors gracefully', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'URLSearchParams');
 
-      // Mock Function to throw error
-      (global as any).Function = vi.fn().mockImplementation(() => {
-        throw new Error('Function error');
-      }) as any;
+      Object.defineProperty(globalThis, 'URLSearchParams', {
+        configurable: true,
+        get: () => {
+          throw new Error('URLSearchParams access error');
+        },
+      });
 
-      expect(() => installPolyfills()).not.toThrow();
+      try {
+        expect(() => installPolyfills()).not.toThrow();
+      } finally {
+        if (descriptor) Object.defineProperty(globalThis, 'URLSearchParams', descriptor);
+        else Reflect.deleteProperty(globalThis, 'URLSearchParams');
+      }
       expect(consoleSpy).toHaveBeenCalledWith(
         '[sentry-miniapp] Failed to install polyfills:',
         expect.any(Error),
@@ -367,32 +409,33 @@ describe('Polyfills', () => {
     });
   });
 
-  describe('isURLSearchParamsSupported', () => {
-    it('should return true when URLSearchParams is available', () => {
-      (globalThis as any).URLSearchParams = class MockURLSearchParams {};
-
-      expect(isURLSearchParamsSupported()).toBe(true);
-    });
-
-    it('should return false when URLSearchParams is not available', () => {
-      delete (globalThis as any).URLSearchParams;
-
-      // Mock getGlobalObject to return object without URLSearchParams
-      (global as any).Function = vi.fn().mockReturnValue({}) as any;
-
-      expect(isURLSearchParamsSupported()).toBe(false);
-    });
-
-    it('should return false when getGlobalObject throws', () => {
-      (global as any).Function = vi.fn().mockImplementation(() => {
-        throw new Error('Function error');
-      }) as any;
-
-      expect(isURLSearchParamsSupported()).toBe(false);
-    });
-  });
-
   describe('getGlobalObject detection', () => {
+    const withoutGlobalNames = <T>(
+      configure: (root: any) => void,
+      callback: (root: any) => T,
+    ): T => {
+      const root = globalThis as any;
+      const descriptors = new Map(
+        ['globalThis', 'window', 'global', 'self', 'Function'].map(name => [
+          name,
+          Object.getOwnPropertyDescriptor(root, name),
+        ]),
+      );
+
+      try {
+        for (const name of ['globalThis', 'window', 'global', 'self']) {
+          Reflect.deleteProperty(root, name);
+        }
+        configure(root);
+        return callback(root);
+      } finally {
+        for (const [name, descriptor] of descriptors) {
+          if (descriptor) Object.defineProperty(root, name, descriptor);
+          else Reflect.deleteProperty(root, name);
+        }
+      }
+    };
+
     it('should detect wx global object', () => {
       const mockWx = { request: vi.fn() };
       (global as any).Function = vi.fn().mockReturnValue({ wx: mockWx }) as any;
@@ -441,16 +484,49 @@ describe('Polyfills', () => {
 
     it('should handle case when no global object is detected', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      (global as any).Function = vi.fn().mockReturnValue(null) as any;
 
-      installPolyfills();
+      withoutGlobalNames(
+        root => {
+          root.Function = vi.fn(() => {
+            throw new Error('Function blocked by CSP');
+          });
+        },
+        () => installPolyfills(),
+      );
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[sentry-miniapp] Failed to install polyfills:',
-        expect.any(Error),
+        '[sentry-miniapp] Unable to detect global object, polyfills may not work correctly',
       );
 
       consoleSpy.mockRestore();
+    });
+
+    it.each(['window', 'global', 'self'] as const)(
+      'should use the %s fallback when newer global names are unavailable',
+      fallbackName => {
+        let fallback: any;
+        withoutGlobalNames(
+          root => {
+            fallback = {};
+            root[fallbackName] = fallback;
+          },
+          () => installPolyfills(),
+        );
+
+        expect(fallback.URLSearchParams).toBeDefined();
+      },
+    );
+
+    it('should use Function as the final global fallback', () => {
+      const installed = withoutGlobalNames(
+        () => {},
+        root => {
+          installPolyfills();
+          return typeof root.URLSearchParams === 'function';
+        },
+      );
+
+      expect(installed).toBe(true);
     });
   });
 });

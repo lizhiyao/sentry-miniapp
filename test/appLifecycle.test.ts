@@ -66,6 +66,15 @@ describe('appLifecycle（单一 App 包装）', () => {
     expect((globalThis as any).App).toBe(realApp); // 无订阅者，还原
   });
 
+  it('重复退订同一个订阅者是幂等操作', () => {
+    const unsubscribe = subscribeAppLifecycle({});
+
+    unsubscribe();
+    expect((globalThis as any).App).toBe(realApp);
+    expect(() => unsubscribe()).not.toThrow();
+    expect((globalThis as any).App).toBe(realApp);
+  });
+
   it('安全还原：他人后续替换了 App 时，退订不覆盖', () => {
     const un = subscribeAppLifecycle({});
     const someoneElse = vi.fn();

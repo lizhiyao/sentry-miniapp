@@ -134,6 +134,12 @@ describe('NetworkStatusIntegration', () => {
       type: 'none',
       isConnected: false,
     });
+
+    networkChangeCallback!({});
+    expect(mockSetContext).toHaveBeenLastCalledWith('network', {
+      type: 'unknown',
+      isConnected: true,
+    });
   });
 
   it('contains host API and flush errors during setup, reconnect, and cleanup', () => {

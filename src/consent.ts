@@ -62,11 +62,6 @@ export function isConsentRequired(): boolean {
   return _config.required;
 }
 
-/** 读取当前 consent 配置（供 transport / store 取上限）。 */
-export function getConsentConfig(): ConsentConfig {
-  return _config;
-}
-
 /**
  * 通知一次缓存丢弃，转发给接入方的 `onConsentCacheDrop` 回调。
  * 仅在门禁开启时上报。requireConsent 模式下 consent 缓冲与后续重试复用同一个 store，

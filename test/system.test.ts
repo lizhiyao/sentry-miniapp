@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { addBreadcrumb, getCurrentScope } from '@sentry/core';
-import { System, systemIntegration } from '../src/integrations/system';
+import { System } from '../src/integrations/system';
 import { getSystemInfo, sdk } from '../src/crossPlatform';
 
 // Mock @sentry/core
@@ -314,8 +314,5 @@ describe('System', () => {
       expect(System.id).toBe('System');
     });
 
-    it('creates the compatibility integration through its factory', () => {
-      expect(systemIntegration()).toBeInstanceOf(System);
-    });
   });
 });

@@ -149,6 +149,10 @@ console.log(Sentry.getDiagnostics());
 | `miniappStackParser` | 默认小程序堆栈解析器 |
 | `wrap(fn)` | 包裹函数，捕获后继续抛出异常 |
 
+`Integrations` 同时提供类构造器与函数式工厂。核心集成可使用
+`globalHandlersIntegration()`、`tryCatchIntegration()`、`linkedErrorsIntegration()`、
+`httpContextIntegration()` 和 `dedupeIntegration()`；两种形式都会创建独立实例。
+
 传入 `integrations` 会替换核心默认集成，通常不需要设置。需要在默认能力上追加时：
 
 ```js

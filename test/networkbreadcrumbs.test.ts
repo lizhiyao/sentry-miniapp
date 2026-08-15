@@ -164,6 +164,25 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(miniappSdk.request).toBe(requestMock);
   });
 
+  it('warns when host request APIs are non-configurable', () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const miniappSdk = {} as any;
+    for (const name of ['request', 'httpRequest']) {
+      Object.defineProperty(miniappSdk, name, {
+        configurable: false,
+        value: vi.fn(),
+        writable: false,
+      });
+    }
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue(miniappSdk);
+
+    new NetworkBreadcrumbs().setupOnce();
+
+    expect(consoleSpy).toHaveBeenCalledTimes(2);
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('request API'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('httpRequest API'));
+  });
+
   it('should sanitize query and fragment from request span name', () => {
     const integration = new NetworkBreadcrumbs();
     integration.setupOnce();
@@ -180,6 +199,24 @@ describe('NetworkBreadcrumbs Integration', () => {
           'url.full': 'https://api.example.com/users?token=secret#profile',
         }),
       }),
+    );
+  });
+
+  it('should remove data URL payloads from span names', () => {
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+    const miniappSdk = crossPlatform.sdk();
+
+    miniappSdk.request({ url: 'data:image/png;base64,very-large-image-data' });
+    miniappSdk.request({ url: 'data:,plain-text-payload' });
+
+    expect(mockStartInactiveSpan).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ name: 'GET data:image/png' }),
+    );
+    expect(mockStartInactiveSpan).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ name: 'GET data:text/plain' }),
     );
   });
 
@@ -210,6 +247,34 @@ describe('NetworkBreadcrumbs Integration', () => {
         response_size: 15,
       },
     });
+  });
+
+  it('should replace cyclic request and response bodies with serialization markers', () => {
+    const cyclicRequest: Record<string, any> = {};
+    cyclicRequest.self = cyclicRequest;
+    const cyclicResponse: Record<string, any> = {};
+    cyclicResponse.self = cyclicResponse;
+    const cyclicRequestMock = vi.fn((options) => {
+      options.success({ statusCode: 200, data: cyclicResponse });
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: cyclicRequestMock });
+    const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
+    integration.setupOnce();
+
+    crossPlatform.sdk().request({
+      url: 'https://api.example.com/cyclic',
+      method: 'POST',
+      data: cyclicRequest,
+    });
+
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          request_body: '[Cannot serialize request body]',
+          response_body: '[Cannot serialize response body]',
+        }),
+      }),
+    );
   });
 
   it('should ignore sentry.io requests', () => {
@@ -322,6 +387,52 @@ describe('NetworkBreadcrumbs Integration', () => {
       message: 'request:fail timeout',
     });
     expect(mockSpanEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes missing and Alipay-style failure details', () => {
+    const failRequestMock = vi.fn((options) => {
+      if (options.url.includes('alipay')) {
+        options.fail({ errorMessage: 'alipay network error' });
+      } else {
+        options.fail(undefined);
+      }
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: failRequestMock });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+    const miniappSdk = crossPlatform.sdk();
+
+    miniappSdk.request({ url: 'https://api.example.com/missing-error' });
+    miniappSdk.request({ url: 'https://api.example.com/alipay-error' });
+
+    expect(addBreadcrumb).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({ error: 'Network request failed' }),
+      }),
+    );
+    expect(addBreadcrumb).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({ error: 'alipay network error' }),
+      }),
+    );
+  });
+
+  it('preserves the failure callback return value', () => {
+    const fail = vi.fn(() => 'handled');
+    const failRequestMock = vi.fn(options => options.fail({ errMsg: 'request:fail' }));
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: failRequestMock });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    const result = crossPlatform.sdk().request({
+      url: 'https://api.example.com/fail',
+      fail,
+    });
+
+    expect(result).toBe('handled');
+    expect(fail).toHaveBeenCalledWith({ errMsg: 'request:fail' });
   });
 
   it('should not inject trace headers when trace propagation is disabled', () => {
@@ -513,6 +624,36 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
   });
 
+  it('should preserve baggage that already contains Sentry entries', () => {
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    crossPlatform.sdk().request({
+      url: 'https://api.example.com/users',
+      header: { baggage: 'tenant=demo,sentry-trace_id=existing' },
+    });
+
+    expect(requestMock.mock.calls[0]![0].header.baggage).toBe(
+      'tenant=demo,sentry-trace_id=existing',
+    );
+  });
+
+  it('should normalize array baggage values before injecting Sentry baggage', () => {
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    crossPlatform.sdk().request({
+      url: 'https://api.example.com/users',
+      header: {
+        baggage: ['tenant=demo', 42, 'region=cn'],
+      },
+    });
+
+    expect(requestMock.mock.calls[0]![0].header.baggage).toBe(
+      'tenant=demo,region=cn,sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
+    );
+  });
+
   it('recursively filters sensitive fields from request and response bodies', () => {
     const bodyRequestMock = vi.fn((options) => {
       options.success({
@@ -599,6 +740,91 @@ describe('NetworkBreadcrumbs Integration', () => {
     );
   });
 
+  it('handles non-object responses and missing trace data', () => {
+    mockGetTraceData.mockReturnValueOnce({});
+    const unusualRequestMock = vi.fn(options => options.success(null));
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: unusualRequestMock });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    expect(() =>
+      crossPlatform.sdk().request({ url: 'https://api.example.com/no-response' }),
+    ).not.toThrow();
+
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status_code: undefined }) }),
+    );
+    expect(mockSpanSetStatus).toHaveBeenCalledWith({ code: 1, message: 'ok' });
+    expect(unusualRequestMock.mock.calls[0]![0].header).toBeUndefined();
+  });
+
+  it('keeps the request working when finishing a span throws', () => {
+    mockSetHttpStatus.mockImplementationOnce(() => {
+      throw new Error('span status failed');
+    });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    expect(() =>
+      crossPlatform.sdk().request({ url: 'https://api.example.com/span-finish-error' }),
+    ).not.toThrow();
+  });
+
+  it('handles malformed DSN values without breaking requests', () => {
+    (getClient as Mock).mockReturnValueOnce({
+      getOptions: () => ({
+        dsn: {
+          match: () => {
+            throw new Error('invalid DSN object');
+          },
+        },
+      }),
+    });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    expect(() =>
+      crossPlatform.sdk().request({ url: 'https://api.example.com/users' }),
+    ).not.toThrow();
+    expect(addBreadcrumb).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards non-object request options without instrumentation', () => {
+    const passthroughRequest = vi.fn((options) => options);
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: passthroughRequest });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    expect(crossPlatform.sdk().request(null as any)).toBeNull();
+    expect(passthroughRequest).toHaveBeenCalledWith(null);
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    expect(addBreadcrumb).not.toHaveBeenCalled();
+  });
+
+  it('normalizes missing and null URLs to an empty string', () => {
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+    const miniappSdk = crossPlatform.sdk();
+
+    miniappSdk.request({});
+    miniappSdk.request({ url: null });
+
+    expect(mockStartInactiveSpan).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        name: 'GET ',
+        attributes: expect.objectContaining({ 'url.full': '' }),
+      }),
+    );
+    expect(mockStartInactiveSpan).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        name: 'GET ',
+        attributes: expect.objectContaining({ 'url.full': '' }),
+      }),
+    );
+  });
+
   it('handles string error statuses and marks slow successful requests as warnings', () => {
     const responseRequestMock = vi.fn((options) => {
       options.success({ statusCode: options.url.includes('error') ? '503' : 200 });
@@ -661,5 +887,19 @@ describe('NetworkBreadcrumbs Integration', () => {
     ).toThrow('request crashed');
     expect(mockSpanSetAttribute).toHaveBeenCalledWith('error.message', 'request crashed');
     expect(mockSpanEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes non-Error synchronous host failures', () => {
+    const throwingRequest = vi.fn(() => {
+      throw 'request crashed';
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: throwingRequest });
+    const integration = new NetworkBreadcrumbs();
+    integration.setupOnce();
+
+    expect(() =>
+      crossPlatform.sdk().request({ url: 'https://api.example.com/crash' }),
+    ).toThrow('request crashed');
+    expect(mockSpanSetAttribute).toHaveBeenCalledWith('error.message', 'request crashed');
   });
 });

@@ -42,7 +42,7 @@ describe('Consent gate state', () => {
   });
 
   it('starts blocked when requireConsent is enabled and follows setConsentGranted', () => {
-    configureConsent({ required: true });
+    configureConsent({ required: true, cacheLimit: 25 });
     expect(isConsentGranted()).toBe(false);
 
     setConsentGranted(true);
@@ -66,6 +66,14 @@ describe('Consent gate state', () => {
     setConsentGranted(true);
     notifyConsentDrop('age', 1);
     expect(onDrop).toHaveBeenLastCalledWith({ reason: 'age', dropped: 1 });
+
+    configureConsent({
+      required: true,
+      onDrop: () => {
+        throw new Error('observer failed');
+      },
+    });
+    expect(() => notifyConsentDrop('bytes', 1)).not.toThrow();
   });
 });
 

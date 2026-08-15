@@ -123,6 +123,10 @@ describe('miniappStackParser', () => {
       expect(frames[0]!.lineno).toBe(15);
       expect(frames[0]!.colno).toBeUndefined();
     });
+
+    it('should reject Safari-looking frames without a source filename', () => {
+      expect(miniappStackParser('handler@anonymous:15', 0)).toEqual([]);
+    });
   });
 
   describe('simple stack format', () => {
@@ -134,6 +138,10 @@ describe('miniappStackParser', () => {
       expect(frames[0]!.filename).toBe('pages/index/index.js');
       expect(frames[0]!.lineno).toBe(42);
       expect(frames[0]!.colno).toBe(13);
+    });
+
+    it('should reject simplified frames without a source filename', () => {
+      expect(miniappStackParser('anonymous:42:13', 0)).toEqual([]);
     });
   });
 
@@ -186,6 +194,16 @@ describe('miniappStackParser', () => {
       expect(waFrame!.in_app).toBe(false);
       expect(userFrame!.in_app).toBe(true);
     });
+
+    it.each(['@sentry/core.js', 'WASubContext.js', 'aframeworkx.js', '__dev__.js'])(
+      'should mark %s frames as not in_app',
+      filename => {
+        const frames = miniappStackParser(`    at internal (${filename}:1:1)`, 0);
+
+        expect(frames).toHaveLength(1);
+        expect(frames[0]!.in_app).toBe(false);
+      },
+    );
 
     it('should skip lines over 1024 chars gracefully', () => {
       const longLine = '    at func (' + 'a'.repeat(2000) + ':1:1)';
