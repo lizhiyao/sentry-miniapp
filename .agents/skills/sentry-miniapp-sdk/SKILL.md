@@ -175,7 +175,7 @@ Sentry.init({
 });
 ```
 
-The configured value is used as the default top-level event `platform` and is written to `contexts.miniapp.platform`. It does not switch the underlying runtime API: error handlers, requests, and storage continue using the compatible global detected automatically. If Source Map processing requires top-level `event.platform = 'javascript'`, set that in `beforeSend`; the miniapp context keeps the configured platform.
+The configured value is written to `contexts.miniapp.platform`; it does not switch the underlying runtime API. The top-level Sentry event `platform` always remains the standard value `javascript` so stack parsing, grouping, and Source Maps follow official JavaScript SDK semantics. Error handlers, requests, and storage continue using the compatible global detected automatically.
 
 ### Step 4: Add User Context
 
@@ -244,7 +244,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `consentCacheMaxAge` | `number` | `86400000` | Drop consent-buffered events older than this (ms); default 24h |
 | `onConsentCacheDrop` | `function` | — | Called with `{ reason, dropped }` when consent buffer drops events |
 | `enableTracePropagation` | `boolean` | `true` | Inject distributed tracing headers (`sentry-trace`/`baggage`, plus optional `traceparent`) in outgoing requests |
-| `tracePropagationTargets` | `Array` | `[]` | URL patterns for trace header injection (empty = all) |
+| `tracePropagationTargets` | `Array` | `[]` | URL allowlist for trace header injection; empty means no injection because mini programs have no reliable same-origin baseline |
 | `propagateTraceparent` | `boolean` | `false` | Also inject W3C `traceparent` for OpenTelemetry / W3C Trace Context compatible backends |
 | `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | Capture console.log/warn/error as breadcrumbs |
@@ -318,7 +318,9 @@ Sentry.captureException(new Error('Test error from mini program'));
    - Go to your Sentry project → Issues
    - You should see the test error with:
      - Device info (brand, model, OS)
-     - Mini program context (platform, SDK version)
+     - Top-level `platform: javascript`
+     - Mini program context (host platform and host SDK version)
+     - App context (`app_version` from `miniProgram.version` when available)
      - Breadcrumbs (page navigation, network requests)
 
 3. **Verify automatic capture works:**

@@ -72,13 +72,13 @@ await Sentry.startSpan(
 
 ## 串联小程序与服务端
 
-开启 tracing 后，SDK 默认可向非 Sentry 请求注入：
+开启 tracing 后，SDK 可向 `tracePropagationTargets` 明确匹配的请求注入：
 
 - `sentry-trace`：trace id、span id 与采样状态；
 - `baggage`：Sentry Dynamic Sampling Context；
 - `traceparent`：仅在 `propagateTraceparent: true` 时额外注入，用于兼容 W3C Trace Context / OpenTelemetry 后端。
 
-生产环境建议用 `tracePropagationTargets` 限制只向自己的 API 域名发送追踪头：
+小程序没有浏览器可靠的 same-origin 基准，因此 `tracePropagationTargets` 默认为空时**不注入任何追踪头**。只把自己控制的 API 域名加入白名单：
 
 ```js
 Sentry.init({
@@ -94,7 +94,7 @@ Sentry.init({
 
 只有后端网关或 OpenTelemetry 链路明确需要 W3C `traceparent` 时才打开 `propagateTraceparent`。Sentry 原生服务只需要默认的 `sentry-trace` 与 `baggage`。
 
-`enableTracePropagation: false` 只停止追踪头注入，不会关闭本地 `http.client` span。要停止性能采集，应移除性能采样配置。
+`enableTracePropagation: false` 只停止追踪头注入，不会关闭已有 transaction 下的 `http.client` 子 span。与官方 Browser SDK 一致，SDK 不会为每个无父请求制造孤立根 transaction；需要追踪一段业务流程时，用 `Sentry.startSpan()` 包住该流程。
 
 ## 请求名称基数
 
@@ -103,11 +103,11 @@ Sentry.init({
 ## 验证链路
 
 1. 测试环境临时设置 `tracesSampleRate: 1.0`。
-2. 发起一次目标 API 请求，在 Sentry Performance / Traces 中确认 `http.client` span。
+2. 在 `Sentry.startSpan()` 管理的业务流程内发起一次目标 API 请求，在 Sentry Performance / Traces 中确认 `http.client` 子 span。
 3. 在真机网络面板或服务端日志中确认预期追踪头存在。
 4. 确认第三方域名没有收到不必要的追踪头。
 5. 打印 `Sentry.getDiagnostics()`，检查采样率、传播开关和 warnings。
 
-没有 span 时，先确认性能采样已开启；本地 span 正常但服务端没有串联时，再检查 `tracePropagationTargets`、网关透传和后端 Sentry / OpenTelemetry 配置。
+没有 span 时，先确认性能采样已开启且请求发生在活跃 transaction 内；本地 span 正常但服务端没有串联时，再检查 `tracePropagationTargets`、网关透传和后端 Sentry / OpenTelemetry 配置。
 
 所有相关选项见[配置项参考 · 采样](/guide/configuration#采样)与[配置项参考 · 分布式追踪](/guide/configuration#分布式追踪)。

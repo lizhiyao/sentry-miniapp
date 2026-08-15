@@ -12,14 +12,14 @@
 | `release` | `string` | — | 版本号；**Source Map 解析的关键**，需与上传时的 release 完全一致 |
 | `environment` | `string` | — | 环境标识，如 `production` / `staging` |
 | `debug` | `boolean` | `false` | 开启 SDK 调试日志 |
-| `platform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 事件的平台标记，作为顶层 `platform` 的默认值并写入 `contexts.miniapp.platform`。SDK 会结合平台对象、宿主名称、数据路径和 AppID 尽量消除 `wx` / `tt` 等多对象歧义；仅在宿主信息缺失或冲突时需要手动指定。该选项不切换底层运行时 API。百度小程序使用 `swan`，没有单独的 `baidu` |
+| `platform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 小程序宿主标记，写入 `contexts.miniapp.platform`。事件顶层 `platform` 固定为 Sentry 标准值 `javascript`，以保持 JavaScript 堆栈解析与聚合语义。SDK 会结合平台对象、宿主名称、数据路径和 AppID 消除歧义；仅在信息缺失或冲突时手动指定。该选项不切换底层运行时 API。百度小程序使用 `swan` |
 
 ## 采样
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `sampleRate` | `number` | `1.0` | 错误事件采样率（0.0–1.0） |
-| `tracesSampleRate` | `number` | 未设 | 性能采样率；**开启后** API 请求作为 `http.client` span 上报。不设则不采集性能 |
+| `tracesSampleRate` | `number` | 未设 | 性能采样率。API 请求在存在活跃 transaction 时记为 `http.client` 子 span，不为孤立请求制造根 transaction |
 | `tracesSampler` | `function` | — | 动态采样回调，按页面 / 场景返回采样率。**设置后 `tracesSampleRate` 被忽略**（优先级更高） |
 
 ```js
@@ -145,8 +145,8 @@ Sentry.setConsent(false);
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `enableTracePropagation` | `boolean` | `true` | 是否注入分布式追踪头（`sentry-trace` / `baggage`，以及可选 `traceparent`）。只控制传播，不关闭本地 API 请求 span |
-| `tracePropagationTargets` | `Array<string｜RegExp>` | 空（全部注入） | 仅匹配的请求才注入追踪头；为空则对所有非 Sentry 请求注入 |
+| `enableTracePropagation` | `boolean` | `true` | 是否允许向 `tracePropagationTargets` 匹配的请求注入追踪头（`sentry-trace` / `baggage`，以及可选 `traceparent`）。只控制传播，不关闭活跃 transaction 下的请求子 span |
+| `tracePropagationTargets` | `Array<string｜RegExp>` | `[]`（不注入） | 追踪头域名白名单。小程序没有可靠的 same-origin，未配置时不向任意业务域名注入；仅添加自己控制的 API |
 | `propagateTraceparent` | `boolean` | `false` | 额外注入 W3C `traceparent` 头，用于和 OpenTelemetry / W3C Trace Context 兼容的后端链路串联 |
 
 ## Session 与网络
@@ -209,7 +209,7 @@ Sentry.init({
 | `integrations` | `Integration[]｜(defaults) => Integration[]` | — | 数组会追加到默认集合，同名时用户实例优先；函数接收默认集合并返回最终集合，可用于过滤或改写 |
 | `defaultIntegrations` | `false｜Integration[]` | 全部内置默认集成 | 设为 `false` 可关闭全部默认集成；自定义数组会替换默认集合基底 |
 
-默认初始化路径已含自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session、页面面包屑和网络状态监控。这些能力统一由 `getDefaultIntegrations(options)` 按顶层开关构造，不存在绕过 `defaultIntegrations` 的额外默认追加。
+默认集成包含 `FunctionToString`、`HttpContext`、`GlobalHandlers`、`TryCatch`、`LinkedErrors`、`Dedupe`、`PerformanceAPI`、`RewriteFrames`、`NetworkBreadcrumbs`、`Session`、`PageBreadcrumbs`、`NetworkStatus` 和 `EventFilters`（部分受顶层开关或运行时影响）。`Dedupe` / `LinkedErrors` / `RewriteFrames` / `FunctionToString` 直接复用 `@sentry/core` 官方实现。所有默认能力统一由 `getDefaultIntegrations(options)` 构造，不存在绕过 `defaultIntegrations` 的额外追加。
 
 ```js
 // 在默认集合上追加；同名集成会覆盖默认实例

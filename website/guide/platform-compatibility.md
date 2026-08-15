@@ -35,7 +35,7 @@ Sentry.init({
 });
 ```
 
-显式配置会作为事件顶层 `platform` 的默认值，并覆盖 `contexts.miniapp.platform`，但不会切换底层宿主对象。异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API，避免改变原本可用的上报链路。如果需要让 Sentry 按 JavaScript 事件处理 Source Map，可继续在 `beforeSend` 中将顶层 `event.platform` 改为 `javascript`；`contexts.miniapp.platform` 仍会保留真实小游戏平台。
+显式配置只覆盖 `contexts.miniapp.platform`，不会切换底层宿主对象。事件顶层 `platform` 始终是 `javascript`，与 Sentry 官方 JavaScript SDK 的堆栈解析和 Source Map 语义保持一致；异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API。
 
 ## 网络请求差异
 

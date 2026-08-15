@@ -149,6 +149,7 @@ Sentry.setConsent(true);
 - **初始化后 Sentry 里没有事件？** 先用 `captureException` 主动发一个测试事件，再检查 DSN、`request` 合法域名、`Sentry.init` 是否在 `App()` 前执行、`sampleRate` 是否过低，以及是否只调用了 `addBreadcrumb`。面包屑不会单独上报，只会随下一次事件发送。
 - **必须在 `onError` 里手动上报吗？** 不用。`Sentry.init` 会注册平台全局错误监听；前提是它在 `App()` 前执行。若初始化太晚，启动阶段生命周期、Session 和部分面包屑会降级。
 - **网络请求会随错误上报吗？** 会。默认记录 `url`、`method`、状态码、耗时等摘要，并作为面包屑随事件上报；默认不记录请求 / 响应体，需要时再开启 `traceNetworkBody` 并做好脱敏。
+- **会默认向所有 API 发追踪头吗？** 不会。小程序没有可靠的 same-origin，`tracePropagationTargets` 默认为空时不注入；请只白名单自己控制的后端域名。
 - **uni-app / Taro 组件错误为什么还要额外接？** 框架可能先接住组件错误，不一定冒泡到平台全局 `onError`。Vue 用 `app.config.errorHandler` / `Vue.config.errorHandler`，Taro React 建议加 Error Boundary。
 - **隐私协议同意前会发请求吗？** 默认会按 SDK 配置正常上报；如果业务要求同意前禁止出网，请开启 `requireConsent`，并在用户同意后调用 `Sentry.setConsent(true)`。
 - **支持 Session Replay 或 H5 端吗？** 小程序没有 DOM，暂不支持官方 Session Replay；H5 端请用官方 [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser)，小程序端继续用 `sentry-miniapp`。

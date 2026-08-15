@@ -95,7 +95,7 @@ Cocos、私有引擎、Debug ID 或特殊堆栈解析属于进阶场景，请看
 
 ## 验证清单
 
-1. 在真机主动发送测试错误，确认 Issues 中的 `platform` 与 release 正确。
+1. 在真机主动发送测试错误，确认 Issues 中顶层 `platform=javascript`、`contexts.miniapp.platform` 与 release 正确。
 2. 将 `tracesSampleRate` 临时设为 `1.0`，完整启动并运行一段时间。
 3. 退到后台，确认出现 `minigame.coldstart` 和 `minigame.framerate.summary`。
 4. 检查 summary 是否包含 FPS 与 jank measurements。
