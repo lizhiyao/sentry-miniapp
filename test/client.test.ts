@@ -573,5 +573,23 @@ describe('MiniappClient', () => {
         expect.any(Error),
       );
     });
+
+    it('runs cleanup callbacks even when transport flush rejects', async () => {
+      const cleanup = vi.fn();
+      const c = new MiniappClient({
+        dsn: 'https://test@sentry.io/123',
+        transport: () => ({
+          send: async () => ({}),
+          flush: async () => {
+            throw new Error('flush failed');
+          },
+        }),
+      });
+      c.registerCleanup(cleanup);
+
+      await expect(c.close(0)).rejects.toThrow('flush failed');
+
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    });
   });
 });

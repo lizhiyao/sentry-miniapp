@@ -320,11 +320,12 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   /**
    * 关闭客户端并执行集成通过 `setup(client)` 注册的清理回调。
    */
-  public override close(timeout?: number): PromiseLike<boolean> {
-    return Promise.resolve(super.close(timeout)).then((result) => {
+  public override async close(timeout?: number): Promise<boolean> {
+    try {
+      return await super.close(timeout);
+    } finally {
       this.dispose();
-      return result;
-    });
+    }
   }
 
   /**
