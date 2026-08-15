@@ -20,7 +20,7 @@
     "sourcemap:doctor": "node scripts/doctor-sourcemap.mjs",
     "lint": "eslint src test --ext .ts",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
+    "test": "vitest run",
     "prepublishOnly": "npm run build",
     "prepare": "husky",
     "release": "commit-and-tag-version"
@@ -57,25 +57,23 @@
     "@babel/plugin-transform-regenerator": "^7.29.8",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
-    "@jest/globals": "^30.0.4",
-    "@types/jest": "^30.0.0",
     "@types/node": "^20.19.11",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
+    "@vitest/coverage-v8": "^3.2.4",
     "@vue/language-core": "^3.2.6",
     "commit-and-tag-version": "^12.7.1",
     "eslint": "^8.57.1",
     "husky": "^9.1.7",
-    "jest": "^29.0.0",
     "js-yaml": "4.3.1",
     "lint-staged": "^16.4.0",
     "lodash": "4.18.1",
     "prettier": "^3.8.1",
-    "ts-jest": "^29.4.0",
     "typescript": "^5.8.3",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.5.4",
-    "vitepress": "^1.6.4"
+    "vitepress": "^1.6.4",
+    "vitest": "^3.2.6"
   },
   "dependencies": {
     "@sentry/core": "10.69.0"

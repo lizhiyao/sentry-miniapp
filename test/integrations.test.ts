@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GlobalHandlers } from '../src/integrations/globalhandlers';
 import { TryCatch } from '../src/integrations/trycatch';
 import { System } from '../src/integrations/system';
@@ -7,7 +7,7 @@ import { LinkedErrors } from '../src/integrations/linkederrors';
 
 describe('Integrations', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('GlobalHandlers', () => {
@@ -22,8 +22,8 @@ describe('Integrations', () => {
     });
 
     it('should setup error handlers', () => {
-      const mockOnError = jest.fn();
-      const mockOnUnhandledRejection = jest.fn();
+      const mockOnError = vi.fn();
+      const mockOnUnhandledRejection = vi.fn();
       (global as any).wx.onError = mockOnError;
       (global as any).wx.onUnhandledRejection = mockOnUnhandledRejection;
 
@@ -34,13 +34,13 @@ describe('Integrations', () => {
     });
 
     it('should handle wx.onError callback', () => {
-      (global as any).wx.onError = jest.fn();
+      (global as any).wx.onError = vi.fn();
 
       expect(() => integration.setupOnce()).not.toThrow();
     });
 
     it('should handle wx.onUnhandledRejection callback', () => {
-      (global as any).wx.onUnhandledRejection = jest.fn();
+      (global as any).wx.onUnhandledRejection = vi.fn();
 
       expect(() => integration.setupOnce()).not.toThrow();
     });

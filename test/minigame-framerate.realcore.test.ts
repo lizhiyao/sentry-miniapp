@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import * as crossPlatform from '../src/crossPlatform';
 import { init } from '../src/index';
 import { getClient, captureException, flush } from '@sentry/core';
@@ -30,36 +30,36 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     captured = [];
 
     savedRaf = g.requestAnimationFrame;
-    g.requestAnimationFrame = jest.fn((cb: () => void) => {
+    g.requestAnimationFrame = vi.fn((cb: () => void) => {
       rafCallback = cb;
       return 1;
     });
 
     // 平台 sdk：通过环境检测、捕获 onHide、提供默认集成所需的 wx.* API。
     g.wx = {
-      request: jest.fn(),
-      getSystemInfo: jest.fn(),
-      getNetworkType: jest.fn(),
-      onError: jest.fn(),
-      onUnhandledRejection: jest.fn(),
-      onMemoryWarning: jest.fn(),
-      onHide: jest.fn((cb: any) => {
+      request: vi.fn(),
+      getSystemInfo: vi.fn(),
+      getNetworkType: vi.fn(),
+      onError: vi.fn(),
+      onUnhandledRejection: vi.fn(),
+      onMemoryWarning: vi.fn(),
+      onHide: vi.fn((cb: any) => {
         hideCb = cb;
       }),
-      onShow: jest.fn(),
-      offHide: jest.fn(),
-      offShow: jest.fn(),
+      onShow: vi.fn(),
+      offHide: vi.fn(),
+      offShow: vi.fn(),
     };
 
-    jest.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
-    jest.spyOn(crossPlatform, 'epochNow').mockReturnValue(1700000000000);
+    vi.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
+    vi.spyOn(crossPlatform, 'epochNow').mockReturnValue(1700000000000);
   });
 
   afterEach(async () => {
     const client = getClient();
     if (client) await client.close(0);
     g.requestAnimationFrame = savedRaf;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     delete g.wx;
   });
 
@@ -122,7 +122,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
   });
 
   it('client.close() 经公开 getOptions().integrations 调到集成 cleanup', async () => {
-    const cleanupSpy = jest.fn();
+    const cleanupSpy = vi.fn();
     const probe = {
       name: 'CleanupProbe',
       setupOnce() {},

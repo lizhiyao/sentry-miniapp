@@ -1,16 +1,28 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-const mockAddBreadcrumb = jest.fn();
-const mockSetContext = jest.fn();
-const mockSpanEnd = jest.fn((..._args: any[]) => {});
-const mockSpanSetAttributes = jest.fn((..._args: any[]) => {});
-const mockStartInactiveSpan = jest.fn((..._args: any[]) => ({
-  setAttributes: mockSpanSetAttributes,
-  end: mockSpanEnd,
-}));
-const mockSetMeasurement = jest.fn((..._args: any[]) => {});
+const {
+  mockAddBreadcrumb,
+  mockSetContext,
+  mockSpanEnd,
+  mockStartInactiveSpan,
+  mockSetMeasurement,
+} = vi.hoisted(() => {
+  const mockSpanEnd = vi.fn((..._args: any[]) => {});
+  const mockSpanSetAttributes = vi.fn((..._args: any[]) => {});
 
-jest.mock('@sentry/core', () => ({
+  return {
+    mockAddBreadcrumb: vi.fn(),
+    mockSetContext: vi.fn(),
+    mockSpanEnd,
+    mockStartInactiveSpan: vi.fn((..._args: any[]) => ({
+      setAttributes: mockSpanSetAttributes,
+      end: mockSpanEnd,
+    })),
+    mockSetMeasurement: vi.fn((..._args: any[]) => {}),
+  };
+});
+
+vi.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
   setContext: mockSetContext,
   startInactiveSpan: mockStartInactiveSpan,
@@ -29,36 +41,36 @@ describe('MinigameIntegration', () => {
   let savedRaf: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     rafCallback = null;
     showCb = null;
     hideCb = null;
     clock = 1000;
 
     savedRaf = g.requestAnimationFrame;
-    g.requestAnimationFrame = jest.fn((cb: () => void) => {
+    g.requestAnimationFrame = vi.fn((cb: () => void) => {
       rafCallback = cb;
       return 1;
     });
 
-    jest.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
-    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
-      request: jest.fn(),
+    vi.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
+      request: vi.fn(),
       getLaunchOptionsSync: () => ({ scene: 1001, path: 'game.js', query: { a: '1' } }),
-      onShow: jest.fn((cb: any) => {
+      onShow: vi.fn((cb: any) => {
         showCb = cb;
       }),
-      onHide: jest.fn((cb: any) => {
+      onHide: vi.fn((cb: any) => {
         hideCb = cb;
       }),
-      offShow: jest.fn(),
-      offHide: jest.fn(),
+      offShow: vi.fn(),
+      offHide: vi.fn(),
     } as any);
   });
 
   afterEach(() => {
     g.requestAnimationFrame = savedRaf;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('记录启动场景上下文与冷启动面包屑', () => {

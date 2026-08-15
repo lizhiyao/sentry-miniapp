@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { getClient, flush, installedIntegrations } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
@@ -36,12 +36,12 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     installedIntegrations.length = 0;
     onErrorHandler = undefined;
     g.wx = {
-      request: jest.fn(),
+      request: vi.fn(),
       getSystemInfoSync: () => ({ brand: 'Apple', SDKVersion: '3' }),
-      onError: jest.fn((h: (e: string | Error) => void) => {
+      onError: vi.fn((h: (e: string | Error) => void) => {
         onErrorHandler = h;
       }),
-      onUnhandledRejection: jest.fn(),
+      onUnhandledRejection: vi.fn(),
     };
   });
 

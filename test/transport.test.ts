@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   createMiniappTransport,
   DEFAULT_TRANSPORT_MAX_CONCURRENT_REQUESTS,
@@ -11,12 +11,12 @@ const SENTRY_ENVELOPE_CONTENT_TYPE = 'application/x-sentry-envelope';
 
 describe('Transport', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('createMiniappTransport', () => {
     it('should create transport that makes successful HTTP request', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
+      const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',
@@ -59,9 +59,9 @@ describe('Transport', () => {
     });
 
     it('aborts a hanging request at the default timeout to release the network slot', async () => {
-      jest.useFakeTimers();
-      const abort = jest.fn();
-      const mockRequest = jest.fn(() => ({ abort }));
+      vi.useFakeTimers();
+      const abort = vi.fn();
+      const mockRequest = vi.fn(() => ({ abort }));
       (global as any).wx = { request: mockRequest };
       resetPlatformCache();
 
@@ -78,21 +78,21 @@ describe('Transport', () => {
         const rejection = expect(transport.send(envelope as any)).rejects.toThrow(
           `Sentry request timed out after ${DEFAULT_TRANSPORT_REQUEST_TIMEOUT}ms`,
         );
-        await jest.advanceTimersByTimeAsync(DEFAULT_TRANSPORT_REQUEST_TIMEOUT);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TRANSPORT_REQUEST_TIMEOUT);
 
         await rejection;
         expect(abort).toHaveBeenCalledTimes(1);
       } finally {
-        jest.runOnlyPendingTimers();
-        jest.useRealTimers();
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
       }
     });
 
     it('uses a custom request timeout and ignores the fail callback triggered by abort', async () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
       let requestOptions: any;
-      const abort = jest.fn(() => requestOptions.fail({ errMsg: 'request:fail abort' }));
-      const mockRequest = jest.fn((options) => {
+      const abort = vi.fn(() => requestOptions.fail({ errMsg: 'request:fail abort' }));
+      const mockRequest = vi.fn((options) => {
         requestOptions = options;
         return { abort };
       });
@@ -114,21 +114,21 @@ describe('Transport', () => {
           'Sentry request timed out after 1200ms',
         );
         expect(requestOptions.timeout).toBe(1200);
-        await jest.advanceTimersByTimeAsync(1200);
+        await vi.advanceTimersByTimeAsync(1200);
 
         await rejection;
         expect(abort).toHaveBeenCalledTimes(1);
       } finally {
-        jest.runOnlyPendingTimers();
-        jest.useRealTimers();
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
       }
     });
 
     it('falls back to safe transport limits for invalid values', async () => {
       const pendingRequests: any[] = [];
-      const mockRequest = jest.fn((options) => {
+      const mockRequest = vi.fn((options) => {
         pendingRequests.push(options);
-        return { abort: jest.fn() };
+        return { abort: vi.fn() };
       });
       (global as any).wx = { request: mockRequest };
       resetPlatformCache();
@@ -165,9 +165,9 @@ describe('Transport', () => {
 
     it('queues envelopes while limiting requests that occupy host network slots', async () => {
       const pendingRequests: any[] = [];
-      const mockRequest = jest.fn((options) => {
+      const mockRequest = vi.fn((options) => {
         pendingRequests.push(options);
-        return { abort: jest.fn() };
+        return { abort: vi.fn() };
       });
       (global as any).wx = { request: mockRequest };
       resetPlatformCache();
@@ -207,7 +207,7 @@ describe('Transport', () => {
     });
 
     it('should send envelope as newline-delimited text with Sentry envelope content type', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
+      const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',
@@ -248,7 +248,7 @@ describe('Transport', () => {
     });
 
     it('should handle request failure', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
+      const mockRequest = vi.fn().mockImplementation((options) => {
         setTimeout(() => {
           (options as any).fail({ errMsg: 'request:fail timeout' });
         }, 0);
@@ -275,7 +275,7 @@ describe('Transport', () => {
 
     it('429 + X-Sentry-Rate-Limits 后，后续同类 envelope 被丢弃（不再发起底层请求）', async () => {
       // setup.ts 已冻结 Date.now（恒定值），限流窗口在两次发送间不会过期。
-      const mockRequest = jest.fn().mockImplementation((options) => {
+      const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 429,
           data: 'Rate limited',
@@ -308,7 +308,7 @@ describe('Transport', () => {
     });
 
     it('should handle non-200 status codes', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
+      const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 400,
         });
@@ -337,13 +337,13 @@ describe('Transport', () => {
 
   describe('createMiniappTransport', () => {
     beforeEach(() => {
-      jest.resetModules();
+      vi.resetModules();
     });
 
     it('should create transport with correct configuration', () => {
       const options = {
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: jest.fn(),
+        recordDroppedEvent: vi.fn(),
       };
 
       const transport = createMiniappTransport(options);
@@ -351,7 +351,7 @@ describe('Transport', () => {
     });
 
     it('should send envelope successfully', async () => {
-      const mockRequest = jest.fn((requestOptions: any) => {
+      const mockRequest = vi.fn((requestOptions: any) => {
         requestOptions.success({ statusCode: 200, header: {} });
       });
       (global as any).wx = { request: mockRequest };
@@ -359,7 +359,7 @@ describe('Transport', () => {
 
       const options = {
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: jest.fn(),
+        recordDroppedEvent: vi.fn(),
       };
 
       const transport = createMiniappTransport(options);
@@ -375,56 +375,56 @@ describe('Transport', () => {
     });
 
     it('should handle transport configuration', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
+      const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',
           header: {},
         });
       });
-      // We must set it to a fresh object to clear the memoized _sdk in crossPlatform
-      jest.isolateModules(async () => {
-        (global as any).wx = { request: mockRequest };
-        const { createMiniappTransport } = await import('../src/transports');
+      // Set a fresh platform object, then import a fresh module graph after resetModules().
+      (global as any).wx = { request: mockRequest };
+      const { createMiniappTransport: createFreshMiniappTransport } = await import(
+        '../src/transports'
+      );
 
-        const transport = createMiniappTransport({
+      const transport = createFreshMiniappTransport({
           url: 'https://sentry.io/api/123/store/',
-          recordDroppedEvent: jest.fn(),
+          recordDroppedEvent: vi.fn(),
           headers: {
             'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
             'X-Custom-Header': 'value',
           },
-        });
+      });
 
-        const envelope = [
+      const envelope = [
           { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
           [[{ type: 'event' }, { message: 'test message', event_id: 'test-id' }]],
-        ];
+      ];
 
-        const response = await transport.send(envelope as any);
+      const response = await transport.send(envelope as any);
 
-        expect(mockRequest).toHaveBeenCalled();
-        const callArgs = (mockRequest.mock.calls as any)[0][0] as any;
+      expect(mockRequest).toHaveBeenCalled();
+      const callArgs = (mockRequest.mock.calls as any)[0][0] as any;
 
-        expect(callArgs.url).toBe('https://sentry.io/api/123/store/');
-        expect(callArgs.method).toBe('POST');
-        expect(callArgs.header).toMatchObject({
-          'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
-          'X-Custom-Header': 'value',
-        });
-        expect(callArgs.headers).toMatchObject({
-          'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
-          'X-Custom-Header': 'value',
-        });
-
-        expect(response.statusCode).toBe(200);
+      expect(callArgs.url).toBe('https://sentry.io/api/123/store/');
+      expect(callArgs.method).toBe('POST');
+      expect(callArgs.header).toMatchObject({
+        'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+        'X-Custom-Header': 'value',
       });
+      expect(callArgs.headers).toMatchObject({
+        'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+        'X-Custom-Header': 'value',
+      });
+
+      expect(response.statusCode).toBe(200);
     });
 
     it('should create transport with default options', () => {
       const options = {
         url: 'https://sentry.io/api/123/store/',
-        recordDroppedEvent: jest.fn(),
+        recordDroppedEvent: vi.fn(),
       };
 
       const transport = createMiniappTransport(options);
@@ -438,7 +438,7 @@ describe('Transport', () => {
 
   describe('Alipay/DingTalk transport differences', () => {
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       // Clear the memoized SDK cache so each test picks up the new global
       resetPlatformCache();
       delete (global as any).wx;
@@ -447,7 +447,7 @@ describe('Transport', () => {
     });
 
     it('should work with httpRequest instead of request (DingTalk style)', async () => {
-      const mockHttpRequest = jest.fn().mockImplementation((options) => {
+      const mockHttpRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',
@@ -474,9 +474,9 @@ describe('Transport', () => {
     });
 
     it('aborts a hanging httpRequest after the configured timeout', async () => {
-      jest.useFakeTimers();
-      const abort = jest.fn();
-      const mockHttpRequest = jest.fn(() => ({ abort }));
+      vi.useFakeTimers();
+      const abort = vi.fn();
+      const mockHttpRequest = vi.fn(() => ({ abort }));
       (global as any).dd = { httpRequest: mockHttpRequest };
       resetPlatformCache();
 
@@ -494,19 +494,19 @@ describe('Transport', () => {
         const rejection = expect(transport.send(envelope as any)).rejects.toThrow(
           'Sentry request timed out after 800ms',
         );
-        await jest.advanceTimersByTimeAsync(800);
+        await vi.advanceTimersByTimeAsync(800);
 
         await rejection;
         expect(mockHttpRequest).toHaveBeenCalledTimes(1);
         expect(abort).toHaveBeenCalledTimes(1);
       } finally {
-        jest.runOnlyPendingTimers();
-        jest.useRealTimers();
+        vi.runOnlyPendingTimers();
+        vi.useRealTimers();
       }
     });
 
     it('should handle response with status instead of statusCode (Alipay style)', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
+      const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           status: 200,
           data: 'OK',
@@ -532,7 +532,7 @@ describe('Transport', () => {
     });
 
     it('should handle response with headers instead of header (Alipay style)', async () => {
-      const mockRequest = jest.fn().mockImplementation((options) => {
+      const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import {
   configureConsent,
   isConsentGranted,
@@ -9,8 +9,8 @@ import {
 import { createMiniappOfflineStore } from '../src/transports/offlineStore';
 import { sdk } from '../src/crossPlatform';
 
-jest.mock('../src/crossPlatform', () => ({
-  sdk: jest.fn(),
+vi.mock('../src/crossPlatform', () => ({
+  sdk: vi.fn(),
 }));
 
 const OFFLINE_KEY = 'sentry_offline_store';
@@ -53,7 +53,7 @@ describe('Consent gate state', () => {
   });
 
   it('notifies consent cache drops only when the consent gate is enabled', () => {
-    const onDrop = jest.fn();
+    const onDrop = vi.fn();
 
     configureConsent({ required: false, onDrop });
     notifyConsentDrop('count', 1);
@@ -80,23 +80,23 @@ describe('Consent cache store behavior', () => {
 
   beforeEach(() => {
     mockStorage = {};
-    (sdk as jest.Mock).mockReturnValue({
-      getStorageSync: jest.fn((key: string) => mockStorage[key]),
-      setStorageSync: jest.fn((key: string, value: string) => {
+    (sdk as Mock).mockReturnValue({
+      getStorageSync: vi.fn((key: string) => mockStorage[key]),
+      setStorageSync: vi.fn((key: string, value: string) => {
         mockStorage[key] = value;
       }),
-      removeStorageSync: jest.fn((key: string) => {
+      removeStorageSync: vi.fn((key: string) => {
         delete mockStorage[key];
       }),
     });
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('preserves the oldest envelopes and drops the newest when count is exceeded', async () => {
-    const onDrop = jest.fn();
+    const onDrop = vi.fn();
     const store = createMiniappOfflineStore({
       offlineCacheLimit: 2,
       evictionMode: 'preserve-oldest',
@@ -112,7 +112,7 @@ describe('Consent cache store behavior', () => {
   });
 
   it('uses the configurable byte limit and reports byte drops', async () => {
-    const onDrop = jest.fn();
+    const onDrop = vi.fn();
     const store = createMiniappOfflineStore({
       offlineCacheLimit: 10,
       maxBytes: 120,
@@ -127,7 +127,7 @@ describe('Consent cache store behavior', () => {
   });
 
   it('drops expired entries, reports age drops, and clears stale storage on shift', async () => {
-    const onDrop = jest.fn();
+    const onDrop = vi.fn();
     mockStorage[OFFLINE_KEY] = JSON.stringify([
       { envelope: makeEnvelope('expired'), timestamp: 0 },
     ]);

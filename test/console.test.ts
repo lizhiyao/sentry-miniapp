@@ -1,7 +1,9 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { ConsoleBreadcrumbs } from '../src/integrations/console';
 
-jest.mock('@sentry/core', () => ({
-  addBreadcrumb: jest.fn(),
+vi.mock('@sentry/core', () => ({
+  addBreadcrumb: vi.fn(),
 }));
 
 import { addBreadcrumb } from '@sentry/core';
@@ -10,7 +12,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
   const originalConsole: Record<string, any> = {};
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Save original console methods
     for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
       originalConsole[level] = console[level as keyof Console];

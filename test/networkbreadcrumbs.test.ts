@@ -1,27 +1,46 @@
-const mockSpanSetAttribute = jest.fn();
-const mockSpanSetStatus = jest.fn();
-const mockSpanEnd = jest.fn();
-const mockSpan = {
-  setAttribute: mockSpanSetAttribute,
-  setStatus: mockSpanSetStatus,
-  end: mockSpanEnd,
-};
-const mockStartInactiveSpan = jest.fn(() => mockSpan);
-const mockGetTraceData = jest.fn(() => ({
-  'sentry-trace': 'trace-id-span-id-1',
-  baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
-}));
-const mockTraceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
-const mockSetHttpStatus = jest.fn((span, statusCode) => {
-  span.setAttribute('http.response.status_code', statusCode);
-  span.setStatus({ code: statusCode >= 400 ? 2 : 1 });
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+
+const {
+  mockSpanSetAttribute,
+  mockSpanSetStatus,
+  mockSpanEnd,
+  mockSpan,
+  mockStartInactiveSpan,
+  mockGetTraceData,
+  mockSetHttpStatus,
+} = vi.hoisted(() => {
+  const mockSpanSetAttribute = vi.fn();
+  const mockSpanSetStatus = vi.fn();
+  const mockSpanEnd = vi.fn();
+  const mockSpan = {
+    setAttribute: mockSpanSetAttribute,
+    setStatus: mockSpanSetStatus,
+    end: mockSpanEnd,
+  };
+
+  return {
+    mockSpanSetAttribute,
+    mockSpanSetStatus,
+    mockSpanEnd,
+    mockSpan,
+    mockStartInactiveSpan: vi.fn(() => mockSpan),
+    mockGetTraceData: vi.fn(() => ({
+      'sentry-trace': 'trace-id-span-id-1',
+      baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
+    })),
+    mockSetHttpStatus: vi.fn((span, statusCode) => {
+      span.setAttribute('http.response.status_code', statusCode);
+      span.setStatus({ code: statusCode >= 400 ? 2 : 1 });
+    }),
+  };
 });
+const mockTraceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
 
 // Mock the core module to avoid redefine property errors
-jest.mock('@sentry/core', () => {
+vi.mock('@sentry/core', () => {
   return {
-    addBreadcrumb: jest.fn(),
-    getClient: jest.fn(() => ({
+    addBreadcrumb: vi.fn(),
+    getClient: vi.fn(() => ({
       getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
     })),
     getTraceData: mockGetTraceData,
@@ -36,24 +55,24 @@ import * as crossPlatform from '../src/crossPlatform';
 import { addBreadcrumb, getClient } from '@sentry/core';
 
 describe('NetworkBreadcrumbs Integration', () => {
-  let requestMock: jest.Mock;
+  let requestMock: Mock;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
-    requestMock = jest.fn((options) => {
+    requestMock = vi.fn((options) => {
       if (options.success) {
         options.success({ statusCode: 200, data: { status: 'ok' } });
       }
     });
 
-    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
       request: requestMock,
     });
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('should patch request and add breadcrumb without body by default', () => {
@@ -105,8 +124,8 @@ describe('NetworkBreadcrumbs Integration', () => {
   });
 
   it('should patch a configurable request accessor and restore its descriptor on cleanup', () => {
-    const getter = jest.fn(() => requestMock);
-    const setter = jest.fn();
+    const getter = vi.fn(() => requestMock);
+    const setter = vi.fn();
     const miniappSdk = {} as { request: Function };
 
     Object.defineProperty(miniappSdk, 'request', {
@@ -115,7 +134,7 @@ describe('NetworkBreadcrumbs Integration', () => {
       get: getter,
       set: setter,
     });
-    jest.spyOn(crossPlatform, 'sdk').mockReturnValue(miniappSdk as any);
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue(miniappSdk as any);
 
     const integration = new NetworkBreadcrumbs();
     integration.setupOnce();
@@ -221,7 +240,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
     expect(addBreadcrumb).toHaveBeenCalledTimes(1);
 
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // sentry.io.evil.com should NOT be filtered
     miniappSdk.request({
@@ -248,7 +267,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('should ignore self-hosted sentry requests based on DSN', () => {
     // Override the getClient mock for this test
-    (getClient as jest.Mock).mockReturnValueOnce({
+    (getClient as Mock).mockReturnValueOnce({
       getOptions: () => ({ dsn: 'http://mykey@sentry.mycompany.com:9000/1' }),
     });
 
@@ -267,13 +286,13 @@ describe('NetworkBreadcrumbs Integration', () => {
   });
 
   it('should capture failure and add error breadcrumb', () => {
-    const failRequestMock = jest.fn((options) => {
+    const failRequestMock = vi.fn((options) => {
       if (options.fail) {
         options.fail({ errMsg: 'request:fail timeout' });
       }
     });
 
-    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
       request: failRequestMock,
     });
 
@@ -417,13 +436,13 @@ describe('NetworkBreadcrumbs Integration', () => {
   });
 
   it('should finish request span from complete callback when success/fail are not called', () => {
-    const completeOnlyRequestMock = jest.fn((options) => {
+    const completeOnlyRequestMock = vi.fn((options) => {
       if (options.complete) {
         options.complete({ statusCode: 204 });
       }
     });
 
-    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
       request: completeOnlyRequestMock,
     });
 
@@ -443,14 +462,14 @@ describe('NetworkBreadcrumbs Integration', () => {
   });
 
   it('should wrap Alipay httpRequest and create request span', () => {
-    const httpRequestMock = jest.fn((options) => {
+    const httpRequestMock = vi.fn((options) => {
       if (options.success) {
         options.success({ status: 201, data: { status: 'ok' } });
       }
     });
 
-    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
-      request: jest.fn(),
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
+      request: vi.fn(),
       httpRequest: httpRequestMock,
     } as any);
 

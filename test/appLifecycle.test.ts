@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { subscribeAppLifecycle, _resetAppLifecycle } from '../src/appLifecycle';
 
 describe('appLifecycle（单一 App 包装）', () => {
@@ -10,7 +10,7 @@ describe('appLifecycle（单一 App 包装）', () => {
     _resetAppLifecycle();
     savedApp = (globalThis as any).App;
     captured = null;
-    realApp = jest.fn((options: any) => {
+    realApp = vi.fn((options: any) => {
       captured = options;
       return options;
     });
@@ -36,7 +36,7 @@ describe('appLifecycle（单一 App 包装）', () => {
     subscribeAppLifecycle({ onShow: () => order.push('subA') });
     subscribeAppLifecycle({ onShow: () => order.push('subB') });
 
-    const userOnShow = jest.fn(() => order.push('user'));
+    const userOnShow = vi.fn(() => order.push('user'));
     (globalThis as any).App({ onShow: userOnShow });
     captured.onShow();
 
@@ -45,7 +45,7 @@ describe('appLifecycle（单一 App 包装）', () => {
   });
 
   it('未定义的生命周期回调也会被注入并广播', () => {
-    const onHide = jest.fn();
+    const onHide = vi.fn();
     subscribeAppLifecycle({ onHide });
 
     (globalThis as any).App({}); // 业务没写 onHide
@@ -68,7 +68,7 @@ describe('appLifecycle（单一 App 包装）', () => {
 
   it('安全还原：他人后续替换了 App 时，退订不覆盖', () => {
     const un = subscribeAppLifecycle({});
-    const someoneElse = jest.fn();
+    const someoneElse = vi.fn();
     (globalThis as any).App = someoneElse; // 第三方又包了一层
 
     un();
@@ -82,23 +82,23 @@ describe('appLifecycle（单一 App 包装）', () => {
     un();
     expect((globalThis as any).App).toBe(realApp);
 
-    expect(() => wrapper({ onShow: jest.fn() })).not.toThrow();
+    expect(() => wrapper({ onShow: vi.fn() })).not.toThrow();
     expect(realApp).toHaveBeenCalled();
   });
 
   it('App 不存在时安全降级：不抛、不注册（避免订阅者泄漏）', () => {
     delete (globalThis as any).App;
 
-    const orphan = jest.fn();
+    const orphan = vi.fn();
     const unsub = subscribeAppLifecycle({ onShow: orphan });
     expect(typeof unsub).toBe('function');
     expect((globalThis as any).App).toBeUndefined();
 
     // App 之后才出现：新订阅者正常工作，但此前「无 App」时的订阅不应被注册 / 广播。
     (globalThis as any).App = realApp;
-    const live = jest.fn();
+    const live = vi.fn();
     subscribeAppLifecycle({ onShow: live });
-    (globalThis as any).App({ onShow: jest.fn() });
+    (globalThis as any).App({ onShow: vi.fn() });
     captured.onShow();
 
     expect(live).toHaveBeenCalled();
@@ -107,8 +107,8 @@ describe('appLifecycle（单一 App 包装）', () => {
   });
 
   it('单个订阅者异常不影响其他订阅者与业务回调', () => {
-    const good = jest.fn();
-    const user = jest.fn();
+    const good = vi.fn();
+    const user = vi.fn();
     subscribeAppLifecycle({
       onLaunch: () => {
         throw new Error('boom');

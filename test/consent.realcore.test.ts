@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { makeOfflineTransport } from '@sentry/core';
 import { configureConsent, isConsentGranted, resetConsentState, setConsentGranted } from '../src/consent';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -24,14 +24,14 @@ describe('Consent gate with real makeOfflineTransport', () => {
   beforeEach(() => {
     mem = {};
     g.wx = {
-      setStorageSync: jest.fn((key: string, value: string) => {
+      setStorageSync: vi.fn((key: string, value: string) => {
         mem[key] = value;
       }),
-      getStorageSync: jest.fn((key: string) => mem[key]),
-      removeStorageSync: jest.fn((key: string) => {
+      getStorageSync: vi.fn((key: string) => mem[key]),
+      removeStorageSync: vi.fn((key: string) => {
         delete mem[key];
       }),
-      request: jest.fn(),
+      request: vi.fn(),
     };
     resetPlatformCache();
     configureConsent({ required: true });
@@ -44,7 +44,7 @@ describe('Consent gate with real makeOfflineTransport', () => {
   });
 
   it('queues before consent, flushes after consent, and blocks again when consent is revoked', async () => {
-    const baseSend = jest.fn((_: any) => Promise.resolve({ statusCode: 200 }));
+    const baseSend = vi.fn((_: any) => Promise.resolve({ statusCode: 200 }));
     const makeBase = () => ({ send: baseSend, flush: () => Promise.resolve(true) });
 
     const transport = makeOfflineTransport(makeBase as any)({

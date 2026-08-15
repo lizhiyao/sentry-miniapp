@@ -1,4 +1,6 @@
-// Jest setup file for Sentry Miniapp SDK tests
+// Vitest setup file for Sentry Miniapp SDK tests
+import { afterEach, beforeEach, vi } from 'vitest';
+
 import { resetPlatformCache } from '../src/crossPlatform';
 
 // 所有平台全局：每个用例前后统一清理，杜绝跨用例残留导致 detectPlatform 串味。
@@ -8,9 +10,9 @@ const PLATFORM_GLOBALS = ['wx', 'my', 'tt', 'dd', 'qq', 'swan', 'ks'];
 // 会按 PLATFORMS 顺序回退到 wx。要隔离验证非 wx 路径，测试仍应清掉默认 wx。
 function makeDefaultWx(): any {
   return {
-    request: jest.fn(),
-    getSystemInfo: jest.fn(),
-    getSystemInfoSync: jest.fn(() => ({
+    request: vi.fn(),
+    getSystemInfo: vi.fn(),
+    getSystemInfoSync: vi.fn(() => ({
       // 已弃用，保留兼容性
       platform: 'devtools',
       version: '8.0.5',
@@ -19,13 +21,13 @@ function makeDefaultWx(): any {
       model: 'iPhone 13',
     })),
     // 新的 API
-    getDeviceInfo: jest.fn(() => ({
+    getDeviceInfo: vi.fn(() => ({
       brand: 'Apple',
       model: 'iPhone 13',
       system: 'iOS 15.0',
       platform: 'ios',
     })),
-    getWindowInfo: jest.fn(() => ({
+    getWindowInfo: vi.fn(() => ({
       pixelRatio: 3,
       screenWidth: 390,
       screenHeight: 844,
@@ -33,27 +35,27 @@ function makeDefaultWx(): any {
       windowHeight: 844,
       statusBarHeight: 44,
     })),
-    getAppBaseInfo: jest.fn(() => ({
+    getAppBaseInfo: vi.fn(() => ({
       SDKVersion: '2.19.4',
       version: '8.0.5',
       language: 'zh_CN',
       fontSizeSetting: 16,
     })),
-    getSystemSetting: jest.fn(() => ({
+    getSystemSetting: vi.fn(() => ({
       bluetoothEnabled: true,
       locationEnabled: true,
       wifiEnabled: true,
     })),
-    getAppAuthorizeSetting: jest.fn(() => ({
+    getAppAuthorizeSetting: vi.fn(() => ({
       albumAuthorized: 'authorized',
       cameraAuthorized: 'authorized',
       locationAuthorized: 'authorized',
       microphoneAuthorized: 'authorized',
       notificationAuthorized: 'authorized',
     })),
-    onError: jest.fn(),
-    onUnhandledRejection: jest.fn(),
-    showModal: jest.fn(),
+    onError: vi.fn(),
+    onUnhandledRejection: vi.fn(),
+    showModal: vi.fn(),
   };
 }
 
@@ -77,16 +79,16 @@ afterEach(() => {
 // Mock console methods to avoid noise in tests
 global.console = {
   ...console,
-  warn: jest.fn(),
-  error: jest.fn(),
-  log: jest.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  log: vi.fn(),
 };
 
 // Mock performance API
 global.performance = {
-  now: jest.fn(() => Date.now()),
+  now: vi.fn(() => Date.now()),
 } as any;
 
 // Mock Date.now for consistent timestamps in tests
-const mockDateNow = jest.fn(() => 1640995200000); // 2022-01-01 00:00:00 UTC
+const mockDateNow = vi.fn(() => 1640995200000); // 2022-01-01 00:00:00 UTC
 Date.now = mockDateNow;

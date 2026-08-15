@@ -1,4 +1,4 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { makeOfflineTransport } from '@sentry/core';
 import { createMiniappOfflineStore } from '../src/transports/offlineStore';
 import { createMiniappTransport } from '../src/transports/xhr';
@@ -25,14 +25,14 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
   beforeEach(() => {
     mem = {};
     g.wx = {
-      setStorageSync: jest.fn((k: string, v: string) => {
+      setStorageSync: vi.fn((k: string, v: string) => {
         mem[k] = v;
       }),
-      getStorageSync: jest.fn((k: string) => mem[k]),
-      removeStorageSync: jest.fn((k: string) => {
+      getStorageSync: vi.fn((k: string) => mem[k]),
+      removeStorageSync: vi.fn((k: string) => {
         delete mem[k];
       }),
-      request: jest.fn(),
+      request: vi.fn(),
     };
     resetPlatformCache();
   });
@@ -43,7 +43,7 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
   });
 
   it('底层 send 失败 → envelope 落入小程序 storage', async () => {
-    const baseSend = jest.fn(() => Promise.reject(new Error('network down')));
+    const baseSend = vi.fn(() => Promise.reject(new Error('network down')));
     const makeBase = () => ({ send: baseSend, flush: () => Promise.resolve(true) });
 
     const offline = makeOfflineTransport(makeBase as any)({
@@ -63,8 +63,8 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
   });
 
   it('内置请求超时并 abort 后，envelope 落入小程序 storage', async () => {
-    const abort = jest.fn();
-    g.wx.request = jest.fn(() => ({ abort }));
+    const abort = vi.fn();
+    g.wx.request = vi.fn(() => ({ abort }));
     resetPlatformCache();
 
     const offline = makeOfflineTransport((options: any) =>
@@ -90,7 +90,7 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
     ]);
 
     const sent: any[] = [];
-    const baseSend = jest.fn((env: any) => {
+    const baseSend = vi.fn((env: any) => {
       sent.push(env);
       return Promise.resolve({ statusCode: 200 });
     });

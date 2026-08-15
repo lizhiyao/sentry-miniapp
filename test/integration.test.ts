@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { init, captureException, captureMessage, addBreadcrumb, logger } from '../src/index';
 import { getClient, getCurrentScope, flush, installedIntegrations } from '@sentry/core';
 import { MiniappClient } from '../src/client';
@@ -134,7 +134,7 @@ describe('Integration（真 @sentry/core 端到端）', () => {
   });
 
   it('transportOptions.headers 端到端：透传到默认小程序 transport 请求头', async () => {
-    const mockRequest = jest.fn().mockImplementation((options) => {
+    const mockRequest = vi.fn().mockImplementation((options) => {
       (options as any).success({
         statusCode: 200,
         data: 'OK',
@@ -218,13 +218,13 @@ describe('Integration（真 @sentry/core 端到端）', () => {
   });
 
   it('tracesSampler 透传到 client 选项', () => {
-    const tracesSampler = jest.fn<() => number>().mockReturnValue(0.5);
+    const tracesSampler = vi.fn<() => number>().mockReturnValue(0.5);
     const client = initWithCapture({ tracesSampler, integrations: [] });
     expect(client?.getOptions().tracesSampler).toBe(tracesSampler);
   });
 
   it('非法 DSN：不抛错但记录错误日志', () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => init({ dsn: 'invalid-dsn', debug: true } as any)).not.toThrow();
     expect(consoleSpy).toHaveBeenCalled();
     consoleSpy.mockRestore();

@@ -1,17 +1,32 @@
-import { describe, expect, it, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, expect, it, vi, beforeEach, afterEach, type Mock } from 'vitest';
 
-const mockAddBreadcrumb = jest.fn();
-const mockSetContext = jest.fn();
-const mockSpanEnd = jest.fn((..._args: any[]) => {});
-const mockSpanSetAttributes = jest.fn((..._args: any[]) => {});
-const mockStartInactiveSpan = jest.fn((..._args: any[]) => ({
-  setAttributes: mockSpanSetAttributes,
-  end: mockSpanEnd,
-}));
-const mockSetMeasurement = jest.fn((..._args: any[]) => {});
-const mockFlush = jest.fn((_timeout?: number) => Promise.resolve(true));
+const {
+  mockAddBreadcrumb,
+  mockSetContext,
+  mockSpanEnd,
+  mockSpanSetAttributes,
+  mockStartInactiveSpan,
+  mockSetMeasurement,
+  mockFlush,
+} = vi.hoisted(() => {
+  const mockSpanEnd = vi.fn((..._args: any[]) => {});
+  const mockSpanSetAttributes = vi.fn((..._args: any[]) => {});
 
-jest.mock('@sentry/core', () => ({
+  return {
+    mockAddBreadcrumb: vi.fn(),
+    mockSetContext: vi.fn(),
+    mockSpanEnd,
+    mockSpanSetAttributes,
+    mockStartInactiveSpan: vi.fn((..._args: any[]) => ({
+      setAttributes: mockSpanSetAttributes,
+      end: mockSpanEnd,
+    })),
+    mockSetMeasurement: vi.fn((..._args: any[]) => {}),
+    mockFlush: vi.fn((_timeout?: number) => Promise.resolve(true)),
+  };
+});
+
+vi.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
   flush: mockFlush,
   setContext: mockSetContext,
@@ -50,35 +65,35 @@ describe('MinigameFrameRateIntegration', () => {
   });
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     rafCallback = null;
     clock = 0;
     hideCb = null;
     showCb = null;
 
     savedRaf = g.requestAnimationFrame;
-    g.requestAnimationFrame = jest.fn((cb: () => void) => {
+    g.requestAnimationFrame = vi.fn((cb: () => void) => {
       rafCallback = cb;
       return 1;
     });
 
-    jest.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
-    jest.spyOn(crossPlatform, 'sdk').mockReturnValue({
-      request: jest.fn(),
-      onHide: jest.fn((cb: any) => {
+    vi.spyOn(crossPlatform, 'now').mockImplementation(() => clock);
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
+      request: vi.fn(),
+      onHide: vi.fn((cb: any) => {
         hideCb = cb;
       }),
-      onShow: jest.fn((cb: any) => {
+      onShow: vi.fn((cb: any) => {
         showCb = cb;
       }),
-      offHide: jest.fn(),
-      offShow: jest.fn(),
+      offHide: vi.fn(),
+      offShow: vi.fn(),
     } as any);
   });
 
   afterEach(() => {
     g.requestAnimationFrame = savedRaf;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('长帧触发 jank 面包屑，周期到达时上报 framerate', () => {
@@ -217,7 +232,7 @@ describe('MinigameFrameRateIntegration', () => {
     frame(20); // 退后台前最后一帧
     hideCb!(); // 退后台（RAF 在真机会暂停）
 
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // 后台经过很久（10 分钟）后回前台
     clock = 600000;
     showCb!(); // onShow：基线对齐到 600000，排除后台间隔
@@ -262,11 +277,11 @@ describe('MinigameFrameRateIntegration', () => {
     integration.setupOnce();
     integration.cleanup();
 
-    const rafCalls = (g.requestAnimationFrame as jest.Mock).mock.calls.length;
+    const rafCalls = (g.requestAnimationFrame as Mock).mock.calls.length;
     // 调用已捕获的 loop：因 _running=false，应立即返回且不再注册新帧
     clock = 10;
     if (rafCallback) rafCallback();
-    expect((g.requestAnimationFrame as jest.Mock).mock.calls.length).toBe(rafCalls);
+    expect((g.requestAnimationFrame as Mock).mock.calls.length).toBe(rafCalls);
   });
 
   it('无 requestAnimationFrame 时安全降级（不报错、不注册）', () => {
@@ -383,7 +398,7 @@ describe('MinigameFrameRateIntegration', () => {
   });
 
   it('jankLevels 非单调（名实不符）时 warn 并回退单档', () => {
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const integration = new MinigameFrameRateIntegration({
       reportInterval: 10000,
       longFrameThresholdMs: 50,
@@ -408,7 +423,7 @@ describe('MinigameFrameRateIntegration', () => {
   });
 
   it('jankLevels 阈值相等（非严格递增）时 warn 并回退单档', () => {
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const integration = new MinigameFrameRateIntegration({
       reportInterval: 10000,
       jankLevels: { minor: 33, major: 33 }, // 相等 → 非严格递增

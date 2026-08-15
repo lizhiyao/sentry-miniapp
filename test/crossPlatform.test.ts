@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 describe('CrossPlatform', () => {
   let originalGlobal: any;
@@ -25,9 +25,9 @@ describe('CrossPlatform', () => {
     delete (global as any).ks;
 
     // 重置缓存的 appName - 通过重新导入模块来清理缓存
-    jest.resetModules();
+    vi.resetModules();
 
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -44,9 +44,9 @@ describe('CrossPlatform', () => {
   describe('getSDK', () => {
     it('should return wx SDK when available', async () => {
       const mockWx = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(),
-        onError: jest.fn(),
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(),
+        onError: vi.fn(),
       };
       (global as any).wx = mockWx;
 
@@ -56,8 +56,8 @@ describe('CrossPlatform', () => {
     });
 
     it('多个平台全局对象共存时，按 PLATFORMS 顺序 first-match（wx 优先于 my）', async () => {
-      const mockWx = { request: jest.fn() };
-      const mockMy = { request: jest.fn() };
+      const mockWx = { request: vi.fn() };
+      const mockMy = { request: vi.fn() };
       (global as any).wx = mockWx;
       (global as any).my = mockMy;
 
@@ -68,10 +68,10 @@ describe('CrossPlatform', () => {
     });
 
     it('wx / tt 共存时根据抖音宿主 appName 自动识别为 bytedance', async () => {
-      const mockWx = { request: jest.fn(), getSystemInfoSync: jest.fn(() => ({})) };
+      const mockWx = { request: vi.fn(), getSystemInfoSync: vi.fn(() => ({})) };
       const mockTt = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(() => ({ appName: 'Douyin' })),
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(() => ({ appName: 'Douyin' })),
       };
       (global as any).wx = mockWx;
       (global as any).tt = mockTt;
@@ -84,11 +84,11 @@ describe('CrossPlatform', () => {
 
     it('兼容对象返回抖音 hostName 时选择同名 tt 对象，避免 SDK 与平台名称错配', async () => {
       const compatibleWx = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(() => ({ hostName: 'Douyin' })),
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(() => ({ hostName: 'Douyin' })),
       };
       (global as any).wx = compatibleWx;
-      const mockTt = { request: jest.fn() };
+      const mockTt = { request: vi.fn() };
       (global as any).tt = mockTt;
 
       const { getSDK, appName } = await import('../src/crossPlatform');
@@ -97,10 +97,10 @@ describe('CrossPlatform', () => {
     });
 
     it('通过抖音环境数据路径识别 bytedance', async () => {
-      (global as any).wx = { request: jest.fn() };
+      (global as any).wx = { request: vi.fn() };
       const mockTt = {
-        request: jest.fn(),
-        getEnvInfoSync: jest.fn(() => ({
+        request: vi.fn(),
+        getEnvInfoSync: vi.fn(() => ({
           common: { USER_DATA_PATH: 'ttfile://user' },
         })),
       };
@@ -115,8 +115,8 @@ describe('CrossPlatform', () => {
       ['getAccountInfoSync', () => ({ miniProgram: { appId: 'tt1234567890' } })],
       ['getLaunchOptionsSync', () => ({ extra: { appId: 'tt1234567890' } })],
     ])('通过 %s 返回的抖音 AppID 识别 bytedance', async (method, getInfo) => {
-      (global as any).wx = { request: jest.fn() };
-      const mockTt = { request: jest.fn(), [method]: jest.fn(getInfo) };
+      (global as any).wx = { request: vi.fn() };
+      const mockTt = { request: vi.fn(), [method]: vi.fn(getInfo) };
       (global as any).tt = mockTt;
 
       const { detectPlatform } = await import('../src/crossPlatform');
@@ -125,13 +125,13 @@ describe('CrossPlatform', () => {
 
     it('宿主信息 API 抛错或没有明确证据时保留历史 first-match', async () => {
       const mockWx = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(() => {
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(() => {
           throw new Error('not ready');
         }),
       };
       (global as any).wx = mockWx;
-      (global as any).tt = { request: jest.fn(), getSystemInfoSync: jest.fn(() => ({})) };
+      (global as any).tt = { request: vi.fn(), getSystemInfoSync: vi.fn(() => ({})) };
 
       const { getSDK, appName } = await import('../src/crossPlatform');
       expect(getSDK()).toBe(mockWx);
@@ -139,14 +139,14 @@ describe('CrossPlatform', () => {
     });
 
     it('宿主信息 API getter 抛错时保留历史 first-match', async () => {
-      const mockWx = { request: jest.fn() };
+      const mockWx = { request: vi.fn() };
       Object.defineProperty(mockWx, 'getSystemInfoSync', {
         get: () => {
           throw new Error('unsupported getter');
         },
       });
       (global as any).wx = mockWx;
-      (global as any).tt = { request: jest.fn() };
+      (global as any).tt = { request: vi.fn() };
 
       const { getSDK, appName } = await import('../src/crossPlatform');
       expect(getSDK()).toBe(mockWx);
@@ -155,13 +155,13 @@ describe('CrossPlatform', () => {
 
     it('不同候选对象返回冲突平台信号时保留历史 first-match', async () => {
       const mockWx = {
-        request: jest.fn(),
-        getEnvInfoSync: jest.fn(() => ({ common: { USER_DATA_PATH: 'wxfile://user' } })),
+        request: vi.fn(),
+        getEnvInfoSync: vi.fn(() => ({ common: { USER_DATA_PATH: 'wxfile://user' } })),
       };
       (global as any).wx = mockWx;
       (global as any).tt = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(() => ({ appName: 'Douyin' })),
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(() => ({ appName: 'Douyin' })),
       };
 
       const { getSDK, appName } = await import('../src/crossPlatform');
@@ -170,14 +170,14 @@ describe('CrossPlatform', () => {
     });
 
     it('sdk 与 appName 共享同一次平台解析结果', async () => {
-      (global as any).wx = { request: jest.fn() };
-      const getSystemInfoSync = jest
+      (global as any).wx = { request: vi.fn() };
+      const getSystemInfoSync = vi
         .fn<() => Record<string, string>>()
         .mockReturnValueOnce({ appName: 'Douyin' })
         .mockImplementation(() => {
           throw new Error('transient failure');
         });
-      const mockTt = { request: jest.fn(), getSystemInfoSync };
+      const mockTt = { request: vi.fn(), getSystemInfoSync };
       (global as any).tt = mockTt;
 
       const { getSDK, appName } = await import('../src/crossPlatform');
@@ -188,8 +188,8 @@ describe('CrossPlatform', () => {
 
     it('should return my SDK when wx not available but my is', async () => {
       const mockMy = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(),
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(),
       };
       (global as any).my = mockMy;
 
@@ -200,8 +200,8 @@ describe('CrossPlatform', () => {
 
     it('should return tt SDK when wx and my not available but tt is', async () => {
       const mockTt = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(),
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(),
       };
       (global as any).tt = mockTt;
 
@@ -212,8 +212,8 @@ describe('CrossPlatform', () => {
 
     it('should return dd SDK when others not available but dd is', async () => {
       const mockDd = {
-        httpRequest: jest.fn(),
-        getSystemInfoSync: jest.fn(),
+        httpRequest: vi.fn(),
+        getSystemInfoSync: vi.fn(),
       };
       (global as any).dd = mockDd;
 
@@ -224,8 +224,8 @@ describe('CrossPlatform', () => {
 
     it('should return qq SDK when others not available but qq is', async () => {
       const mockQq = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(),
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(),
       };
       (global as any).qq = mockQq;
 
@@ -236,8 +236,8 @@ describe('CrossPlatform', () => {
 
     it('should return swan SDK when others not available but swan is', async () => {
       const mockSwan = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(),
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(),
       };
       (global as any).swan = mockSwan;
 
@@ -248,7 +248,7 @@ describe('CrossPlatform', () => {
 
     it('should return ks SDK when others not available but ks is', async () => {
       const mockKs = {
-        request: jest.fn(),
+        request: vi.fn(),
       };
       (global as any).ks = mockKs;
 
@@ -258,7 +258,7 @@ describe('CrossPlatform', () => {
     });
 
     it('should return fallback SDK when no platform available', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const { getSDK } = await import('../src/crossPlatform');
       const result = getSDK();
       expect(result).toBeDefined();
@@ -275,7 +275,7 @@ describe('CrossPlatform', () => {
       (global as any).window = {};
       (global as any).document = {};
 
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
         const { getSDK } = await import('../src/crossPlatform');
         const result = getSDK();
@@ -322,7 +322,7 @@ describe('CrossPlatform', () => {
       };
 
       (global as any).wx = {
-        getSystemInfoSync: jest.fn().mockReturnValue(mockSystemInfo),
+        getSystemInfoSync: vi.fn().mockReturnValue(mockSystemInfo),
       };
 
       const { getSystemInfo } = await import('../src/crossPlatform');
@@ -355,10 +355,10 @@ describe('CrossPlatform', () => {
       };
 
       (global as any).wx = {
-        getDeviceInfo: jest.fn().mockReturnValue(mockDeviceInfo),
-        getWindowInfo: jest.fn().mockReturnValue(mockWindowInfo),
-        getAppBaseInfo: jest.fn().mockReturnValue(mockAppBaseInfo),
-        getSystemSetting: jest.fn().mockReturnValue(mockSystemSetting),
+        getDeviceInfo: vi.fn().mockReturnValue(mockDeviceInfo),
+        getWindowInfo: vi.fn().mockReturnValue(mockWindowInfo),
+        getAppBaseInfo: vi.fn().mockReturnValue(mockAppBaseInfo),
+        getSystemSetting: vi.fn().mockReturnValue(mockSystemSetting),
       };
 
       const { getSystemInfo } = await import('../src/crossPlatform');
@@ -391,7 +391,7 @@ describe('CrossPlatform', () => {
 
     it('should handle errors gracefully', async () => {
       (global as any).wx = {
-        getSystemInfoSync: jest.fn().mockImplementation(() => {
+        getSystemInfoSync: vi.fn().mockImplementation(() => {
           throw new Error('System info error');
         }),
       };
@@ -402,7 +402,7 @@ describe('CrossPlatform', () => {
     });
 
     it('记忆化：多次调用只计算一次，resetPlatformCache 后重新计算', async () => {
-      const sync = jest.fn().mockReturnValue({ brand: 'X', SDKVersion: '1' });
+      const sync = vi.fn().mockReturnValue({ brand: 'X', SDKVersion: '1' });
       (global as any).wx = { getSystemInfoSync: sync };
 
       const { getSystemInfo, resetPlatformCache } = await import('../src/crossPlatform');
@@ -417,7 +417,7 @@ describe('CrossPlatform', () => {
 
     it('null 结果不缓存：下次调用重试（瞬时失败可自愈）', async () => {
       let call = 0;
-      const sync = jest.fn().mockImplementation(() => {
+      const sync = vi.fn().mockImplementation(() => {
         call += 1;
         if (call === 1) throw new Error('transient'); // 首次失败 → computeSystemInfo 返回 null
         return { brand: 'Y', SDKVersion: '2' };
@@ -431,7 +431,7 @@ describe('CrossPlatform', () => {
     });
 
     it('新分体 API 返回空壳（无 brand/model/system）时回退 getSystemInfoSync', async () => {
-      const sync = jest.fn().mockReturnValue({
+      const sync = vi.fn().mockReturnValue({
         brand: 'Xiaomi',
         model: 'MI 9',
         system: 'Android 10',
@@ -440,9 +440,9 @@ describe('CrossPlatform', () => {
       });
       (global as any).wx = {
         // 部分非微信端：方法存在却返回空壳 {}
-        getDeviceInfo: jest.fn().mockReturnValue({}),
-        getWindowInfo: jest.fn().mockReturnValue({}),
-        getAppBaseInfo: jest.fn().mockReturnValue({}),
+        getDeviceInfo: vi.fn().mockReturnValue({}),
+        getWindowInfo: vi.fn().mockReturnValue({}),
+        getAppBaseInfo: vi.fn().mockReturnValue({}),
         getSystemInfoSync: sync,
       };
 
@@ -457,7 +457,7 @@ describe('CrossPlatform', () => {
 
   describe('getAccountInfo', () => {
     it('记忆化：多次调用只取一次 getAccountInfoSync，resetPlatformCache 后重新取', async () => {
-      const getAccountInfoSync = jest.fn().mockReturnValue({
+      const getAccountInfoSync = vi.fn().mockReturnValue({
         miniProgram: { appId: 'wxabc', version: '1.2.3' },
       });
       (global as any).wx = { getAccountInfoSync };
@@ -476,7 +476,7 @@ describe('CrossPlatform', () => {
 
     it('全 unknown 不缓存：下次调用重试（API 未就绪可自愈）', async () => {
       let call = 0;
-      const getAccountInfoSync = jest.fn().mockImplementation(() => {
+      const getAccountInfoSync = vi.fn().mockImplementation(() => {
         call += 1;
         if (call === 1) throw new Error('not ready');
         return { miniProgram: { appId: 'wxnew', version: '9' } };
@@ -492,43 +492,43 @@ describe('CrossPlatform', () => {
 
   describe('isMiniappEnvironment', () => {
     it('should return true when wx is available', async () => {
-      (global as any).wx = { request: jest.fn() };
+      (global as any).wx = { request: vi.fn() };
       const { isMiniappEnvironment } = await import('../src/crossPlatform');
       expect(isMiniappEnvironment()).toBe(true);
     });
 
     it('should return true when my is available', async () => {
-      (global as any).my = { request: jest.fn() };
+      (global as any).my = { request: vi.fn() };
       const { isMiniappEnvironment } = await import('../src/crossPlatform');
       expect(isMiniappEnvironment()).toBe(true);
     });
 
     it('should return true when tt is available', async () => {
-      (global as any).tt = { request: jest.fn() };
+      (global as any).tt = { request: vi.fn() };
       const { isMiniappEnvironment } = await import('../src/crossPlatform');
       expect(isMiniappEnvironment()).toBe(true);
     });
 
     it('should return true when dd is available', async () => {
-      (global as any).dd = { httpRequest: jest.fn() };
+      (global as any).dd = { httpRequest: vi.fn() };
       const { isMiniappEnvironment } = await import('../src/crossPlatform');
       expect(isMiniappEnvironment()).toBe(true);
     });
 
     it('should return true when qq is available', async () => {
-      (global as any).qq = { request: jest.fn() };
+      (global as any).qq = { request: vi.fn() };
       const { isMiniappEnvironment } = await import('../src/crossPlatform');
       expect(isMiniappEnvironment()).toBe(true);
     });
 
     it('should return true when swan is available', async () => {
-      (global as any).swan = { request: jest.fn() };
+      (global as any).swan = { request: vi.fn() };
       const { isMiniappEnvironment } = await import('../src/crossPlatform');
       expect(isMiniappEnvironment()).toBe(true);
     });
 
     it('should return true when ks is available', async () => {
-      (global as any).ks = { request: jest.fn() };
+      (global as any).ks = { request: vi.fn() };
       const { isMiniappEnvironment } = await import('../src/crossPlatform');
       expect(isMiniappEnvironment()).toBe(true);
     });
@@ -541,7 +541,7 @@ describe('CrossPlatform', () => {
 
   describe('sdk', () => {
     it('should return cached SDK', async () => {
-      const mockWx = { request: jest.fn() };
+      const mockWx = { request: vi.fn() };
       (global as any).wx = mockWx;
 
       const { sdk } = await import('../src/crossPlatform');
@@ -557,8 +557,8 @@ describe('CrossPlatform', () => {
     it('返回 Date.now()，完全不受 getPerformance().now() 单位影响', async () => {
       // 真机 perf.now() 可能返回微秒（5_000_000）、开发者工具返回毫秒——一律忽略，避免 1000× 偏差。
       (global as any).wx = {
-        request: jest.fn(),
-        getPerformance: jest.fn(() => ({ now: jest.fn(() => 5_000_000) })),
+        request: vi.fn(),
+        getPerformance: vi.fn(() => ({ now: vi.fn(() => 5_000_000) })),
       };
 
       const { now } = await import('../src/crossPlatform');
@@ -567,7 +567,7 @@ describe('CrossPlatform', () => {
     });
 
     it('与 epochNow() 一致（均为墙钟 epoch 毫秒）', async () => {
-      (global as any).wx = { request: jest.fn() };
+      (global as any).wx = { request: vi.fn() };
 
       const { now, epochNow } = await import('../src/crossPlatform');
       expect(now()).toBe(epochNow());
@@ -576,43 +576,43 @@ describe('CrossPlatform', () => {
 
   describe('appName', () => {
     it('should return "wechat" for wx', async () => {
-      (global as any).wx = { request: jest.fn() };
+      (global as any).wx = { request: vi.fn() };
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('wechat');
     });
 
     it('should return "alipay" for my', async () => {
-      (global as any).my = { request: jest.fn() };
+      (global as any).my = { request: vi.fn() };
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('alipay');
     });
 
     it('should return "bytedance" for tt', async () => {
-      (global as any).tt = { request: jest.fn() };
+      (global as any).tt = { request: vi.fn() };
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('bytedance');
     });
 
     it('should return "dingtalk" for dd', async () => {
-      (global as any).dd = { httpRequest: jest.fn() };
+      (global as any).dd = { httpRequest: vi.fn() };
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('dingtalk');
     });
 
     it('should return "qq" for qq', async () => {
-      (global as any).qq = { request: jest.fn() };
+      (global as any).qq = { request: vi.fn() };
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('qq');
     });
 
     it('should return "swan" for swan', async () => {
-      (global as any).swan = { request: jest.fn() };
+      (global as any).swan = { request: vi.fn() };
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('swan');
     });
 
     it('should return "kuaishou" for ks', async () => {
-      (global as any).ks = { request: jest.fn() };
+      (global as any).ks = { request: vi.fn() };
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('kuaishou');
     });
@@ -623,7 +623,7 @@ describe('CrossPlatform', () => {
     });
 
     it('should cache app name', async () => {
-      (global as any).wx = { request: jest.fn() };
+      (global as any).wx = { request: vi.fn() };
 
       const { appName } = await import('../src/crossPlatform');
       const result1 = appName();
@@ -637,13 +637,13 @@ describe('CrossPlatform', () => {
 
   describe('Storage API wrapping for Alipay/DingTalk', () => {
     it('should wrap getStorageSync for Alipay (my)', async () => {
-      const originalGet = jest.fn().mockImplementation((opts: any) => {
+      const originalGet = vi.fn().mockImplementation((opts: any) => {
         return { data: `value_for_${opts.key}` };
       });
-      const originalSet = jest.fn();
-      const originalRemove = jest.fn();
+      const originalSet = vi.fn();
+      const originalRemove = vi.fn();
       (global as any).my = {
-        request: jest.fn(),
+        request: vi.fn(),
         getStorageSync: originalGet,
         setStorageSync: originalSet,
         removeStorageSync: originalRemove,
@@ -658,9 +658,9 @@ describe('CrossPlatform', () => {
     });
 
     it('should wrap setStorageSync for Alipay (my)', async () => {
-      const originalSet = jest.fn();
+      const originalSet = vi.fn();
       (global as any).my = {
-        request: jest.fn(),
+        request: vi.fn(),
         setStorageSync: originalSet,
       };
 
@@ -672,9 +672,9 @@ describe('CrossPlatform', () => {
     });
 
     it('should wrap removeStorageSync for Alipay (my)', async () => {
-      const originalRemove = jest.fn();
+      const originalRemove = vi.fn();
       (global as any).my = {
-        request: jest.fn(),
+        request: vi.fn(),
         removeStorageSync: originalRemove,
       };
 
@@ -686,12 +686,12 @@ describe('CrossPlatform', () => {
     });
 
     it('should wrap storage APIs for DingTalk (dd)', async () => {
-      const originalGet = jest.fn().mockImplementation((opts: any) => {
+      const originalGet = vi.fn().mockImplementation((opts: any) => {
         return { data: `dd_value_for_${opts.key}` };
       });
-      const originalSet = jest.fn();
+      const originalSet = vi.fn();
       (global as any).dd = {
-        httpRequest: jest.fn(),
+        httpRequest: vi.fn(),
         getStorageSync: originalGet,
         setStorageSync: originalSet,
       };
@@ -710,12 +710,12 @@ describe('CrossPlatform', () => {
       // 用内存 store 模拟支付宝对象参数式存储，验证 round-trip
       const store: Record<string, any> = {};
       (global as any).my = {
-        request: jest.fn(),
-        getSystemInfoSync: jest.fn(() => ({ brand: 'X', version: '1' })),
-        getStorageSync: jest.fn((opts: any) =>
+        request: vi.fn(),
+        getSystemInfoSync: vi.fn(() => ({ brand: 'X', version: '1' })),
+        getStorageSync: vi.fn((opts: any) =>
           opts.key in store ? { data: store[opts.key] } : null,
         ),
-        setStorageSync: jest.fn((opts: any) => {
+        setStorageSync: vi.fn((opts: any) => {
           store[opts.key] = opts.data;
         }),
       };

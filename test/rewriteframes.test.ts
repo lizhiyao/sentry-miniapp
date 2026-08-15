@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
 import { Event } from '@sentry/core';
 import { RewriteFrames } from '../src/integrations/rewriteframes';
 

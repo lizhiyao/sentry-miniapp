@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { getCurrentScope } from '@sentry/core';
 import { System } from '../src/integrations/system';
 import { getSystemInfo } from '../src/crossPlatform';
 
 // Mock @sentry/core
-jest.mock('@sentry/core', () => ({
-  getCurrentScope: jest.fn(),
+vi.mock('@sentry/core', () => ({
+  getCurrentScope: vi.fn(),
 }));
 
 // Mock crossPlatform
@@ -28,21 +28,21 @@ const mockSystemInfo: any = {
 
 const mockSdk: any = {};
 
-jest.mock('../src/crossPlatform', () => ({
-  getSystemInfo: jest.fn(() => mockSystemInfo),
-  sdk: jest.fn(() => mockSdk),
+vi.mock('../src/crossPlatform', () => ({
+  getSystemInfo: vi.fn(() => mockSystemInfo),
+  sdk: vi.fn(() => mockSdk),
 }));
 
 describe('System', () => {
   let mockScope: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockScope = {
-      setContext: jest.fn(),
-      setTag: jest.fn(),
+      setContext: vi.fn(),
+      setTag: vi.fn(),
     };
-    (getCurrentScope as jest.Mock).mockReturnValue(mockScope);
+    (getCurrentScope as Mock).mockReturnValue(mockScope);
 
     // 重置 mockSdk
     Object.keys(mockSdk).forEach((key) => delete mockSdk[key]);
@@ -117,7 +117,7 @@ describe('System', () => {
 
   describe('network context', () => {
     it('should fetch network type when getNetworkType is available', () => {
-      mockSdk.getNetworkType = jest.fn();
+      mockSdk.getNetworkType = vi.fn();
 
       const integration = new System();
       integration.setupOnce();
@@ -131,7 +131,7 @@ describe('System', () => {
     });
 
     it('should set network context on success', () => {
-      mockSdk.getNetworkType = jest.fn((opts: any) => {
+      mockSdk.getNetworkType = vi.fn((opts: any) => {
         opts.success({ networkType: 'wifi', isConnected: true });
       });
 
@@ -149,7 +149,7 @@ describe('System', () => {
     });
 
     it('should handle network type failure gracefully', () => {
-      mockSdk.getNetworkType = jest.fn((opts: any) => {
+      mockSdk.getNetworkType = vi.fn((opts: any) => {
         opts.fail();
       });
 
@@ -165,7 +165,7 @@ describe('System', () => {
 
   describe('location context', () => {
     it('should fetch location when getLocation is available', () => {
-      mockSdk.getLocation = jest.fn();
+      mockSdk.getLocation = vi.fn();
 
       const integration = new System();
       integration.setupOnce();
@@ -180,7 +180,7 @@ describe('System', () => {
     });
 
     it('should set location context on success', () => {
-      mockSdk.getLocation = jest.fn((opts: any) => {
+      mockSdk.getLocation = vi.fn((opts: any) => {
         opts.success({ latitude: 39.9, longitude: 116.4, accuracy: 30 });
       });
 
@@ -198,7 +198,7 @@ describe('System', () => {
     });
 
     it('should handle location failure gracefully', () => {
-      mockSdk.getLocation = jest.fn((opts: any) => {
+      mockSdk.getLocation = vi.fn((opts: any) => {
         opts.fail();
       });
 
@@ -209,14 +209,14 @@ describe('System', () => {
 
   describe('error handling', () => {
     it('should handle getSystemInfo returning null', () => {
-      (getSystemInfo as jest.Mock).mockReturnValueOnce(null);
+      (getSystemInfo as Mock).mockReturnValueOnce(null);
 
       const integration = new System();
       expect(() => integration.setupOnce()).not.toThrow();
     });
 
     it('should handle system without OS separator', () => {
-      (getSystemInfo as jest.Mock).mockReturnValueOnce({
+      (getSystemInfo as Mock).mockReturnValueOnce({
         ...mockSystemInfo,
         system: 'Android',
       });

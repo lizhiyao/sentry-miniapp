@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flush, getClient } from '@sentry/core';
 import { init } from '../src/index';
 
@@ -16,28 +16,28 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     captured = [];
 
     g.wx = {
-      request: jest.fn(),
-      getSystemInfo: jest.fn(),
-      getSystemInfoSync: jest.fn(() => ({ platform: 'ios' })),
-      getPerformance: jest.fn(() => ({
-        getEntries: jest.fn(() => []),
-        getEntriesByType: jest.fn(() => []),
-        getEntriesByName: jest.fn(() => []),
-        mark: jest.fn(),
-        measure: jest.fn(),
-        clearMarks: jest.fn(),
-        clearMeasures: jest.fn(),
-        createObserver: jest.fn((callback: (entries: any[]) => void) => {
+      request: vi.fn(),
+      getSystemInfo: vi.fn(),
+      getSystemInfoSync: vi.fn(() => ({ platform: 'ios' })),
+      getPerformance: vi.fn(() => ({
+        getEntries: vi.fn(() => []),
+        getEntriesByType: vi.fn(() => []),
+        getEntriesByName: vi.fn(() => []),
+        mark: vi.fn(),
+        measure: vi.fn(),
+        clearMarks: vi.fn(),
+        clearMeasures: vi.fn(),
+        createObserver: vi.fn((callback: (entries: any[]) => void) => {
           observerCallback = callback;
           return {
-            observe: jest.fn(),
-            disconnect: jest.fn(),
+            observe: vi.fn(),
+            disconnect: vi.fn(),
           };
         }),
       })),
-      onError: jest.fn(),
-      onUnhandledRejection: jest.fn(),
-      onMemoryWarning: jest.fn(),
+      onError: vi.fn(),
+      onUnhandledRejection: vi.fn(),
+      onMemoryWarning: vi.fn(),
     };
   });
 
@@ -48,7 +48,7 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
   });
 
   it('默认集成接收微信性能条目后会发送 transaction', async () => {
-    const beforeSendTransaction = jest.fn((event: any) => event);
+    const beforeSendTransaction = vi.fn((event: any) => event);
 
     const client = init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
