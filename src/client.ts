@@ -17,9 +17,41 @@ import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
 
 const clientsWithCustomTransport = new WeakSet<MiniappClient>();
+type DefaultIntegrationsMode = 'enabled' | 'disabled' | 'custom';
+const clientDefaultIntegrationsModes = new WeakMap<MiniappClient, DefaultIntegrationsMode>();
+
+function resolveDefaultIntegrationsMode(
+  configured: MiniappOptions['defaultIntegrations'],
+): DefaultIntegrationsMode {
+  if (configured === false) {
+    return 'disabled';
+  }
+  if (Array.isArray(configured)) {
+    return 'custom';
+  }
+  return 'enabled';
+}
 
 export function usesCustomTransport(client: MiniappClient): boolean {
   return clientsWithCustomTransport.has(client);
+}
+
+/** 读取用户传入的 defaultIntegrations 模式，而不是 core 归一化后的空数组。 */
+export function getConfiguredDefaultIntegrationsMode(
+  client: MiniappClient,
+): DefaultIntegrationsMode {
+  return (
+    clientDefaultIntegrationsModes.get(client) ??
+    resolveDefaultIntegrationsMode(client.getOptions().defaultIntegrations)
+  );
+}
+
+/** init() 会把 defaultIntegrations 归一化为空数组；在绑定后恢复诊断所需的原始语义。 */
+export function setConfiguredDefaultIntegrationsMode(
+  client: MiniappClient,
+  configured: MiniappOptions['defaultIntegrations'],
+): void {
+  clientDefaultIntegrationsModes.set(client, resolveDefaultIntegrationsMode(configured));
 }
 
 /**
@@ -37,6 +69,7 @@ export class MiniappClient extends Client<any> {
    */
   public constructor(options: MiniappOptions = {}) {
     const usesCustomTransport = typeof options.transport === 'function';
+    const defaultIntegrationsMode = resolveDefaultIntegrationsMode(options.defaultIntegrations);
 
     // 配置隐私合规「同意门禁」。必须在 super() 之前——transport 工厂在 super() 执行期间被 core
     // 调用建立，其 shouldSend / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
@@ -103,6 +136,7 @@ export class MiniappClient extends Client<any> {
     if (usesCustomTransport) {
       clientsWithCustomTransport.add(this);
     }
+    clientDefaultIntegrationsModes.set(this, defaultIntegrationsMode);
   }
 
   /**

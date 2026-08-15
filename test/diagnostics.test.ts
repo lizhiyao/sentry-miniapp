@@ -44,6 +44,7 @@ describe('getDiagnostics', () => {
       tracesSampleRate: 0.5,
       propagateTraceparent: true,
       tracePropagationTargetsCount: 1,
+      defaultIntegrations: 'enabled',
     });
     expect(diagnostics.transport).toMatchObject({
       custom: false,
@@ -125,7 +126,7 @@ describe('getDiagnostics', () => {
     );
   });
 
-  it('reports missing DSN and disabled source maps after options are resolved', () => {
+  it('reports missing DSN, disabled source maps, and disabled default integrations', () => {
     init({
       release: 'miniapp@1.0.0',
       enableSourceMap: false,
@@ -138,7 +139,7 @@ describe('getDiagnostics', () => {
     expect(diagnostics.options).toMatchObject({
       dsn: { configured: false, valid: false, host: null },
       enableSourceMap: false,
-      defaultIntegrations: 'custom',
+      defaultIntegrations: 'disabled',
     });
     expect(warningCodes).toEqual(expect.arrayContaining(['missing_dsn', 'source_map_disabled']));
   });

@@ -11,7 +11,7 @@ import { miniappStackParser } from './stacktrace';
 import { setConsentGranted, isConsentGranted } from './consent';
 export { getDiagnostics } from './diagnostics';
 
-import { MiniappClient } from './client';
+import { MiniappClient, setConfiguredDefaultIntegrationsMode } from './client';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
 import { ignoreNextOnErrorCall } from './helpers';
 import {
@@ -189,7 +189,11 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   // 故此处保留 as any。opts 在运行时即合法 ClientOptions（含 stackParser/transport/integrations）。
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initAndBind(MiniappClient as any, opts as any);
-  return getCurrentScope().getClient() as MiniappClient;
+  const client = getCurrentScope().getClient() as MiniappClient | undefined;
+  if (client) {
+    setConfiguredDefaultIntegrationsMode(client, options.defaultIntegrations);
+  }
+  return client;
 }
 
 /**

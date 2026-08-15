@@ -1,7 +1,7 @@
 import { getClient, isEnabled } from '@sentry/core';
 import { isConsentGranted, isConsentRequired } from './consent';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
-import { MiniappClient, usesCustomTransport } from './client';
+import { getConfiguredDefaultIntegrationsMode, MiniappClient, usesCustomTransport } from './client';
 import { miniappStackParser } from './stacktrace';
 import { normalizeMaxConcurrentRequests, normalizeRequestTimeout } from './transports/xhr';
 import type {
@@ -20,7 +20,14 @@ export function getDiagnostics(): MiniappDiagnostics {
   const options = isMiniappClient ? (client.getOptions() as MiniappOptions) : null;
   const customTransport = isMiniappClient ? usesCustomTransport(client) : false;
   const transport = options ? buildTransportDiagnostics(options, customTransport) : null;
-  const diagnosticsOptions = options ? buildOptionsDiagnostics(options, customTransport) : null;
+  const diagnosticsOptions =
+    options && isMiniappClient
+      ? buildOptionsDiagnostics(
+          options,
+          customTransport,
+          getConfiguredDefaultIntegrationsMode(client),
+        )
+      : null;
   const diagnostics: MiniappDiagnostics = {
     sdk: {
       name: SDK_NAME,
@@ -50,6 +57,7 @@ export function getDiagnostics(): MiniappDiagnostics {
 function buildOptionsDiagnostics(
   options: MiniappOptions,
   customTransport: boolean,
+  defaultIntegrations: MiniappDiagnosticsOptions['defaultIntegrations'],
 ): MiniappDiagnosticsOptions {
   const dsn = normalizeDsn(options.dsn);
   return {
@@ -83,7 +91,7 @@ function buildOptionsDiagnostics(
     customTransport,
     customStackParser:
       typeof options.stackParser === 'function' && options.stackParser !== miniappStackParser,
-    defaultIntegrations: getDefaultIntegrationsMode(options.defaultIntegrations),
+    defaultIntegrations,
   };
 }
 
@@ -128,18 +136,6 @@ function normalizeDsn(dsn: string | undefined): MiniappDiagnosticsOptions['dsn']
       host: null,
     };
   }
-}
-
-function getDefaultIntegrationsMode(
-  defaultIntegrations: MiniappOptions['defaultIntegrations'],
-): MiniappDiagnosticsOptions['defaultIntegrations'] {
-  if (defaultIntegrations === false) {
-    return 'disabled';
-  }
-  if (Array.isArray(defaultIntegrations)) {
-    return 'custom';
-  }
-  return 'enabled';
 }
 
 function buildWarnings(diagnostics: MiniappDiagnostics): MiniappDiagnosticsWarning[] {
