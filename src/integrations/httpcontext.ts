@@ -42,12 +42,12 @@ export class HttpContext implements Integration {
         version: miniappVersion,
       },
       app: {
-        ...(event.contexts?.['app'] || {}),
         app_identifier: account.appId,
         app_version: account.version,
         // 兼容 1.x 已有的非标准字段，2.0 再移除。
         name: account.appId,
         version: account.version,
+        ...(event.contexts?.['app'] || {}),
       },
     };
 
