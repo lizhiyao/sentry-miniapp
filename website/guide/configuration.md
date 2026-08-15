@@ -206,7 +206,29 @@ Sentry.init({
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `integrations` | `Integration[]` | 默认核心集成 | **传入会替换核心默认集成**（如 `GlobalHandlers` / `TryCatch` / `PerformanceIntegration`）。通常无需设置；如需在默认之上追加，用 `[...Sentry.getDefaultIntegrations(), new Sentry.Integrations.XXX()]` |
-| `defaultIntegrations` | `false｜Integration[]` | 内置核心集成 | 底层兼容字段；设为 `false` 可跳过核心默认集成，自定义数组会替换核心默认集成基底 |
+| `integrations` | `Integration[]｜(defaults) => Integration[]` | — | 数组会追加到默认集合，同名时用户实例优先；函数接收默认集合并返回最终集合，可用于过滤或改写 |
+| `defaultIntegrations` | `false｜Integration[]` | 全部内置默认集成 | 设为 `false` 可关闭全部默认集成；自定义数组会替换默认集合基底 |
 
-> 默认初始化路径已含：自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session 与网络状态监控。其中 Source Map / 网络 / Session / 页面面包屑 / 网络状态等集成会根据顶层开关在 `init` 时追加。
+默认初始化路径已含自动异常捕获、性能监控、Source Map 路径归一化、网络面包屑、Session、页面面包屑和网络状态监控。这些能力统一由 `getDefaultIntegrations(options)` 按顶层开关构造，不存在绕过 `defaultIntegrations` 的额外默认追加。
+
+```js
+// 在默认集合上追加；同名集成会覆盖默认实例
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  integrations: [new Sentry.Integrations.ConsoleBreadcrumbs()],
+});
+
+// 过滤默认集合
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  integrations: (defaults) =>
+    defaults.filter((integration) => integration.name !== 'PerformanceAPI'),
+});
+
+// 关闭全部默认集成，只安装显式提供的集成
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  defaultIntegrations: false,
+  integrations: [Sentry.globalHandlersIntegration()],
+});
+```

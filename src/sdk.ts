@@ -1,6 +1,7 @@
 import {
   getClient,
   getCurrentScope,
+  getIntegrationsToSetup,
   initAndBind,
   setContext,
   withScope,
@@ -40,8 +41,8 @@ import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './
  * client.close() 清 core 的 setupOnce 门禁（按 name）互补——name 门禁放行后，全新实例才能干净
  * 地重新 setupOnce。
  */
-export function getDefaultIntegrations(): Integration[] {
-  return [
+export function getDefaultIntegrations(options: MiniappOptions = {}): Integration[] {
+  const integrations: Integration[] = [
     // Core integrations
     new HttpContext(),
     new Dedupe(),
@@ -58,24 +59,100 @@ export function getDefaultIntegrations(): Integration[] {
       reportInterval: 30000,
     }),
   ];
+
+  if (options.enableSourceMap !== false) {
+    integrations.push(new RewriteFrames());
+  }
+
+  const networkOptions: Record<string, any> = { traceNetworkBody: options.traceNetworkBody };
+  if (options.enableTracePropagation !== undefined) {
+    networkOptions['enableTracePropagation'] = options.enableTracePropagation;
+  }
+  if (options.tracePropagationTargets !== undefined) {
+    networkOptions['tracePropagationTargets'] = options.tracePropagationTargets;
+  }
+  if (options.propagateTraceparent !== undefined) {
+    networkOptions['propagateTraceparent'] = options.propagateTraceparent;
+  }
+  integrations.push(new NetworkBreadcrumbs(networkOptions));
+
+  if (options.enableAutoSessionTracking !== false) {
+    integrations.push(new SessionIntegration());
+  }
+
+  const enablePageLifecycleBreadcrumbs = options.enableNavigationBreadcrumbs !== false;
+  const enableUserInteractionBreadcrumbs = options.enableUserInteractionBreadcrumbs !== false;
+  if (enablePageLifecycleBreadcrumbs || enableUserInteractionBreadcrumbs) {
+    integrations.push(
+      new PageBreadcrumbs({
+        enableLifecycle: enablePageLifecycleBreadcrumbs,
+        enableUserInteraction: enableUserInteractionBreadcrumbs,
+      }),
+    );
+  }
+
+  if (options.enableNetworkStatusMonitoring !== false) {
+    integrations.push(new NetworkStatusIntegration());
+  }
+
+  if (options.enableConsoleBreadcrumbs) {
+    integrations.push(new ConsoleBreadcrumbs());
+  }
+
+  const filterOptions: {
+    allowUrls?: Array<string | RegExp>;
+    denyUrls?: Array<string | RegExp>;
+    ignoreErrors?: Array<string | RegExp>;
+  } = {};
+  if (options.allowUrls) filterOptions.allowUrls = options.allowUrls;
+  if (options.denyUrls) filterOptions.denyUrls = options.denyUrls;
+  if (options.ignoreErrors) filterOptions.ignoreErrors = options.ignoreErrors;
+  integrations.push(eventFiltersIntegration(filterOptions));
+
+  // 两个小游戏开关都显式配置后，无需读取运行时环境。这也让下面的兼容快照可以在模块导入时
+  // 保持纯构造，不会提前填充平台检测缓存。
+  const minigame =
+    options.enableMinigameLifecycle === undefined || options.enableMinigameFrameRate === undefined
+      ? isMinigame()
+      : false;
+  if (
+    options.enableMinigameLifecycle === true ||
+    (minigame && options.enableMinigameLifecycle !== false)
+  ) {
+    integrations.push(new MinigameIntegration());
+  }
+  if (
+    options.enableMinigameFrameRate === true ||
+    (minigame && options.enableMinigameFrameRate !== false)
+  ) {
+    integrations.push(new MinigameFrameRateIntegration(options.minigameFrameRateOptions));
+  }
+
+  return integrations;
 }
 
 /**
  * @deprecated 直接复用本数组的实例，会在多次 init / 多 client 间共享 setupOnce 状态、互相踩补丁。
  * 请改用 {@link getDefaultIntegrations}（每次返回全新实例）。导出仅为向后兼容保留。
+ * 静态快照不包含依赖运行时检测的小游戏默认集成，以免模块导入阶段提前缓存平台状态。
  */
-export const defaultIntegrations: Integration[] = getDefaultIntegrations();
+export const defaultIntegrations: Integration[] = getDefaultIntegrations({
+  enableMinigameLifecycle: false,
+  enableMinigameFrameRate: false,
+});
 
-function getConfiguredDefaultIntegrations(
-  configuredDefaultIntegrations: MiniappOptions['defaultIntegrations'],
+function removeGeneratedEventFiltersWhenInboundFiltersIsConfigured(
+  integrations: Integration[],
+  generatedEventFilters: Integration | undefined,
 ): Integration[] {
-  if (configuredDefaultIntegrations === false) {
-    return [];
+  if (
+    !generatedEventFilters ||
+    !integrations.some((integration) => integration.name === 'InboundFilters')
+  ) {
+    return integrations;
   }
-  if (Array.isArray(configuredDefaultIntegrations)) {
-    return [...configuredDefaultIntegrations];
-  }
-  return getDefaultIntegrations();
+
+  return integrations.filter((integration) => integration !== generatedEventFilters);
 }
 
 /**
@@ -88,9 +165,27 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     return undefined;
   }
 
-  const integrations = [
-    ...(options.integrations || getConfiguredDefaultIntegrations(options.defaultIntegrations)),
-  ];
+  let configuredDefaultIntegrations: false | Integration[];
+  let generatedEventFilters: Integration | undefined;
+  if (options.defaultIntegrations == null) {
+    configuredDefaultIntegrations = getDefaultIntegrations(options);
+    generatedEventFilters = configuredDefaultIntegrations.find(
+      (integration) => integration.name === 'EventFilters',
+    );
+  } else {
+    configuredDefaultIntegrations = options.defaultIntegrations;
+  }
+  const integrationOptions: {
+    defaultIntegrations: false | Integration[];
+    integrations?: Integration[] | ((integrations: Integration[]) => Integration[]);
+  } = { defaultIntegrations: configuredDefaultIntegrations };
+  if (options.integrations !== undefined) {
+    integrationOptions.integrations = options.integrations;
+  }
+  const integrations = removeGeneratedEventFiltersWhenInboundFiltersIsConfigured(
+    getIntegrationsToSetup(integrationOptions),
+    generatedEventFilters,
+  );
 
   const opts = {
     ...options,
@@ -99,84 +194,6 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     stackParser: options.stackParser ?? miniappStackParser,
     transport: options.transport,
   };
-
-  if (opts.enableSourceMap !== false) {
-    opts.integrations.push(new RewriteFrames());
-  }
-
-  const networkOptions: Record<string, any> = { traceNetworkBody: opts.traceNetworkBody };
-  if (opts.enableTracePropagation !== undefined) {
-    networkOptions['enableTracePropagation'] = opts.enableTracePropagation;
-  }
-  if (opts.tracePropagationTargets !== undefined) {
-    networkOptions['tracePropagationTargets'] = opts.tracePropagationTargets;
-  }
-  if (opts.propagateTraceparent !== undefined) {
-    networkOptions['propagateTraceparent'] = opts.propagateTraceparent;
-  }
-  opts.integrations.push(new NetworkBreadcrumbs(networkOptions));
-
-  // 自动 Session 管理（默认启用）
-  if (opts.enableAutoSessionTracking !== false) {
-    opts.integrations.push(new SessionIntegration());
-  }
-
-  // 页面生命周期和用户交互面包屑（默认启用，可分别关闭）
-  const enablePageLifecycleBreadcrumbs = opts.enableNavigationBreadcrumbs !== false;
-  const enableUserInteractionBreadcrumbs = opts.enableUserInteractionBreadcrumbs !== false;
-  if (enablePageLifecycleBreadcrumbs || enableUserInteractionBreadcrumbs) {
-    opts.integrations.push(
-      new PageBreadcrumbs({
-        enableLifecycle: enablePageLifecycleBreadcrumbs,
-        enableUserInteraction: enableUserInteractionBreadcrumbs,
-      }),
-    );
-  }
-
-  // 网络状态实时监控（默认启用）
-  if (opts.enableNetworkStatusMonitoring !== false) {
-    opts.integrations.push(new NetworkStatusIntegration());
-  }
-
-  // Console 面包屑（默认禁用，需手动开启）
-  if (opts.enableConsoleBreadcrumbs) {
-    opts.integrations.push(new ConsoleBreadcrumbs());
-  }
-
-  // 小游戏专属能力：纯增量，仅在检测到小游戏（或显式开启）时追加。
-  // 小游戏无 App()/Page()，PageBreadcrumbs / SessionIntegration 已安全 no-op，这里不删除它们。
-  // 若用户已通过 integrations 自行传入同名集成，则不再自动追加，避免默认实例覆盖用户配置。
-  const minigame = isMinigame();
-  const hasIntegration = (id: string): boolean =>
-    opts.integrations.some((integration) => integration && integration.name === id);
-
-  // 入站过滤：让 allowUrls / denyUrls / ignoreErrors 真正生效（此前是声明了却无人消费的死选项）。
-  // 仅在用户未自行传入同名集成时追加；按 exactOptionalPropertyTypes 只填已定义的键。
-  if (!hasIntegration('EventFilters') && !hasIntegration('InboundFilters')) {
-    const filterOptions: {
-      allowUrls?: Array<string | RegExp>;
-      denyUrls?: Array<string | RegExp>;
-      ignoreErrors?: Array<string | RegExp>;
-    } = {};
-    if (opts.allowUrls) filterOptions.allowUrls = opts.allowUrls;
-    if (opts.denyUrls) filterOptions.denyUrls = opts.denyUrls;
-    if (opts.ignoreErrors) filterOptions.ignoreErrors = opts.ignoreErrors;
-    opts.integrations.push(eventFiltersIntegration(filterOptions));
-  }
-
-  if (
-    !hasIntegration(MinigameIntegration.id) &&
-    (opts.enableMinigameLifecycle === true || (minigame && opts.enableMinigameLifecycle !== false))
-  ) {
-    opts.integrations.push(new MinigameIntegration());
-  }
-  if (
-    !hasIntegration(MinigameFrameRateIntegration.id) &&
-    (opts.enableMinigameFrameRate === true || (minigame && opts.enableMinigameFrameRate !== false))
-  ) {
-    // 细调通过 minigameFrameRateOptions 传入（见 MiniappOptions）。
-    opts.integrations.push(new MinigameFrameRateIntegration(opts.minigameFrameRateOptions));
-  }
 
   // 平台标记。device / os / app context 由 MiniappClient._prepareEvent 在每个事件上统一写入
   // （唯一权威），此处不再重复设置，避免字段不一致与覆盖歧义（见架构 review P2-b）。

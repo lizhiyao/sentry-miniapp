@@ -142,7 +142,7 @@ console.log(Sentry.getDiagnostics());
 
 | API / 导出 | 用途 |
 |------------|------|
-| `getDefaultIntegrations()` | 获取一份新的默认集成列表 |
+| `getDefaultIntegrations(options?)` | 根据初始化选项获取一份新的完整默认集成列表 |
 | `addIntegration(integration)` | 初始化后追加集成 |
 | `Integrations` | 小程序集成命名空间 |
 | `Transports` | 内置 transport 与离线 store 命名空间 |
@@ -153,17 +153,25 @@ console.log(Sentry.getDiagnostics());
 `globalHandlersIntegration()`、`tryCatchIntegration()`、`linkedErrorsIntegration()`、
 `httpContextIntegration()` 和 `dedupeIntegration()`；两种形式都会创建独立实例。
 
-传入 `integrations` 会替换核心默认集成，通常不需要设置。需要在默认能力上追加时：
+`integrations` 数组会追加到默认集合，同名时用户实例优先。因此自定义默认性能集成时无需手动展开默认集合：
 
 ```js
 Sentry.init({
   dsn: 'YOUR_DSN',
   integrations: [
-    ...Sentry.getDefaultIntegrations(),
-    new Sentry.Integrations.ConsoleBreadcrumbs(),
+    Sentry.performanceIntegration({
+      enableNavigation: true,
+      enableRender: true,
+      enableResource: true,
+      enableUserTiming: true,
+      sampleRate: 1,
+      reportInterval: 30000,
+    }),
   ],
 });
 ```
+
+需要删除某个默认集成时，传入函数并返回修改后的集合；需要完全关闭默认集合时，使用 `defaultIntegrations: false`。这与 Sentry 官方 JavaScript SDK 的配置语义一致。
 
 自定义 transport、集成或 `stackParser` 会扩大维护范围，只有默认能力无法覆盖目标运行时时再使用。相关配置见[配置项参考 · 集成](/guide/configuration#集成)与 [Source Map 进阶](/guide/sourcemap-advanced#debug-id-与自定义-stackparser)。
 

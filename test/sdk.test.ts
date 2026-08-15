@@ -10,7 +10,7 @@ import {
   getConsent,
 } from '../src/sdk';
 // flush / close / lastEventId 是 SDK 从 @sentry/core 透传的公开 API（sdk.ts 不再自定义重复实现）
-import { lastEventId, flush, close } from '@sentry/core';
+import { lastEventId, flush, close, getCurrentScope } from '@sentry/core';
 import { eventFiltersIntegration, inboundFiltersIntegration } from '@sentry/core';
 import type { StackParser } from '@sentry/core';
 import { MiniappClient } from '../src/client';
@@ -125,21 +125,28 @@ describe('SDK', () => {
       expect(performance?.setupOnce).toEqual(expect.any(Function));
     });
 
-    it('defaultIntegrations=false 时跳过核心默认集成', () => {
+    it('defaultIntegrations=false 时关闭全部默认集成', () => {
       const client = init({
         dsn: 'https://test@sentry.io/123',
         defaultIntegrations: false,
       });
 
       const names = client?.getOptions().integrations.map((integration: any) => integration.name);
-      expect(names).not.toContain('GlobalHandlers');
-      expect(names).not.toContain('TryCatch');
-      expect(names).not.toContain('LinkedErrors');
-      expect(names).not.toContain('Dedupe');
-      expect(names).toContain('NetworkBreadcrumbs');
+      expect(names).toEqual([]);
     });
 
-    it('defaultIntegrations 数组会替换核心默认集成基底', () => {
+    it('defaultIntegrations=false 时仍安装显式传入的用户集成', () => {
+      const userIntegration = { name: 'UserIntegration' };
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        defaultIntegrations: false,
+        integrations: [userIntegration],
+      });
+
+      expect(client?.getOptions().integrations).toEqual([userIntegration]);
+    });
+
+    it('defaultIntegrations 数组会替换完整默认集成基底', () => {
       const customDefault = {
         name: 'CustomDefaultIntegration',
         setupOnce: vi.fn(),
@@ -151,17 +158,75 @@ describe('SDK', () => {
       });
 
       const names = client?.getOptions().integrations.map((integration: any) => integration.name);
-      expect(names).toContain('CustomDefaultIntegration');
-      expect(names).not.toContain('GlobalHandlers');
-      expect(names).toContain('NetworkBreadcrumbs');
+      expect(names).toEqual(['CustomDefaultIntegration']);
     });
 
-    it('should use provided custom integrations', () => {
+    it('integrations 数组追加到默认集合', () => {
+      const userIntegration = { name: 'UserIntegration' };
       const client = init({
         dsn: 'https://test@sentry.io/123',
-        integrations: [],
+        integrations: [userIntegration],
       });
-      expect(client).toBeInstanceOf(MiniappClient);
+
+      const integrations = client?.getOptions().integrations ?? [];
+      expect(integrations).toContain(userIntegration);
+      expect(integrations.some((integration: any) => integration.name === 'GlobalHandlers')).toBe(
+        true,
+      );
+      expect(
+        integrations.some((integration: any) => integration.name === 'NetworkBreadcrumbs'),
+      ).toBe(true);
+    });
+
+    it('integrations 中的同名用户实例覆盖默认实例', () => {
+      const userDedupe = { name: 'Dedupe' };
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        integrations: [userDedupe],
+      });
+
+      expect(
+        client?.getOptions().integrations.filter((integration) => integration.name === 'Dedupe'),
+      ).toEqual([userDedupe]);
+    });
+
+    it('integrations 函数接收默认集合并返回最终集合', () => {
+      let receivedDefaults: any[] = [];
+      const userIntegration = { name: 'UserIntegration' };
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        integrations: (defaults) => {
+          receivedDefaults = defaults;
+          return [
+            ...defaults.filter((integration) => integration.name !== 'GlobalHandlers'),
+            userIntegration,
+          ];
+        },
+      });
+
+      expect(receivedDefaults.some((integration) => integration.name === 'GlobalHandlers')).toBe(
+        true,
+      );
+      expect(client?.getOptions().integrations).toContain(userIntegration);
+      expect(
+        client
+          ?.getOptions()
+          .integrations.some((integration) => integration.name === 'GlobalHandlers'),
+      ).toBe(false);
+    });
+
+    it('defaultIntegrations=false 时 integrations 函数接收空集合', () => {
+      const integrations = vi.fn(() => [{ name: 'UserIntegration' }]);
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        defaultIntegrations: false,
+        integrations,
+      });
+
+      expect(integrations).toHaveBeenCalledWith([]);
+      expect(client?.getOptions().integrations.map((integration) => integration.name)).toEqual([
+        'UserIntegration',
+      ]);
     });
 
     it('should add RewriteFrames when enableSourceMap is not false', () => {
@@ -169,7 +234,7 @@ describe('SDK', () => {
         dsn: 'https://test@sentry.io/123',
         integrations: [],
       });
-      expect(client).toBeInstanceOf(MiniappClient);
+      expect(client?.getIntegrationByName?.('RewriteFrames')).toBeDefined();
     });
 
     it('should skip RewriteFrames when enableSourceMap is false', () => {
@@ -178,7 +243,7 @@ describe('SDK', () => {
         integrations: [],
         enableSourceMap: false,
       });
-      expect(client).toBeInstanceOf(MiniappClient);
+      expect(client?.getIntegrationByName?.('RewriteFrames')).toBeUndefined();
     });
 
     it('should add PageBreadcrumbs by default', () => {
@@ -186,7 +251,7 @@ describe('SDK', () => {
         dsn: 'https://test@sentry.io/123',
         integrations: [],
       });
-      expect(client).toBeInstanceOf(MiniappClient);
+      expect(client?.getIntegrationByName?.('PageBreadcrumbs')).toBeDefined();
     });
 
     it('should keep lifecycle breadcrumbs when only user interaction breadcrumbs are disabled', () => {
@@ -195,8 +260,6 @@ describe('SDK', () => {
         integrations: [],
         enableUserInteractionBreadcrumbs: false,
       });
-      expect(client).toBeInstanceOf(MiniappClient);
-
       const pageBreadcrumbs = client
         ?.getOptions()
         .integrations?.find((integration: any) => integration.name === 'PageBreadcrumbs') as any;
@@ -215,8 +278,6 @@ describe('SDK', () => {
         enableNavigationBreadcrumbs: false,
         enableUserInteractionBreadcrumbs: false,
       });
-      expect(client).toBeInstanceOf(MiniappClient);
-
       const pageBreadcrumbs = client
         ?.getOptions()
         .integrations?.find((integration: any) => integration.name === 'PageBreadcrumbs');
@@ -230,7 +291,7 @@ describe('SDK', () => {
         integrations: [],
         enableConsoleBreadcrumbs: true,
       });
-      expect(client).toBeInstanceOf(MiniappClient);
+      expect(client?.getIntegrationByName?.('ConsoleBreadcrumbs')).toBeDefined();
     });
 
     it('should skip ConsoleBreadcrumbs by default', () => {
@@ -238,7 +299,7 @@ describe('SDK', () => {
         dsn: 'https://test@sentry.io/123',
         integrations: [],
       });
-      expect(client).toBeInstanceOf(MiniappClient);
+      expect(client?.getIntegrationByName?.('ConsoleBreadcrumbs')).toBeUndefined();
     });
 
     it('should add NetworkBreadcrumbs with traceNetworkBody option', () => {
@@ -247,7 +308,9 @@ describe('SDK', () => {
         integrations: [],
         traceNetworkBody: true,
       });
-      expect(client).toBeInstanceOf(MiniappClient);
+      const networkBreadcrumbs = client?.getIntegrationByName?.('NetworkBreadcrumbs') as any;
+      expect(networkBreadcrumbs).toBeDefined();
+      expect(networkBreadcrumbs._traceNetworkBody).toBe(true);
     });
 
     it('should pass trace propagation options to NetworkBreadcrumbs', () => {
@@ -279,9 +342,11 @@ describe('SDK', () => {
       });
 
       expect(
-        client?.getOptions().integrations.some((integration: any) =>
-          ['EventFilters', 'InboundFilters'].includes(integration.name),
-        ),
+        client
+          ?.getOptions()
+          .integrations.some((integration: any) =>
+            ['EventFilters', 'InboundFilters'].includes(integration.name),
+          ),
       ).toBe(true);
     });
 
@@ -292,9 +357,11 @@ describe('SDK', () => {
         integrations: [eventFilters],
       });
       expect(
-        clientWithEventFilters?.getOptions().integrations.filter((integration: any) =>
-          ['EventFilters', 'InboundFilters'].includes(integration.name),
-        ),
+        clientWithEventFilters
+          ?.getOptions()
+          .integrations.filter((integration: any) =>
+            ['EventFilters', 'InboundFilters'].includes(integration.name),
+          ),
       ).toEqual([eventFilters]);
 
       const inboundFilters = inboundFiltersIntegration({ ignoreErrors: ['legacy'] });
@@ -303,19 +370,78 @@ describe('SDK', () => {
         integrations: [inboundFilters],
       });
       expect(
-        clientWithInboundFilters?.getOptions().integrations.filter((integration: any) =>
-          ['EventFilters', 'InboundFilters'].includes(integration.name),
-        ),
+        clientWithInboundFilters
+          ?.getOptions()
+          .integrations.filter((integration: any) =>
+            ['EventFilters', 'InboundFilters'].includes(integration.name),
+          ),
       ).toEqual([inboundFilters]);
+    });
+
+    it('保留 defaultIntegrations 中用户明确配置的两个过滤集成', () => {
+      const eventFilters = eventFiltersIntegration({ ignoreErrors: ['event'] });
+      const inboundFilters = inboundFiltersIntegration({ ignoreErrors: ['inbound'] });
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        defaultIntegrations: [eventFilters, inboundFilters],
+      });
+
+      expect(
+        client
+          ?.getOptions()
+          .integrations.filter((integration: any) =>
+            ['EventFilters', 'InboundFilters'].includes(integration.name),
+          ),
+      ).toEqual([eventFilters, inboundFilters]);
     });
   });
 
   describe('getDefaultIntegrations', () => {
-    it('should return a copy of default integrations', () => {
+    it('旧 defaultIntegrations 导出是快照，函数调用返回新集合', () => {
       const integrations = getDefaultIntegrations();
       expect(Array.isArray(integrations)).toBe(true);
       expect(integrations).not.toBe(defaultIntegrations);
-      expect(integrations.length).toBe(defaultIntegrations.length);
+      expect(integrations.map((integration) => integration.name)).toEqual(
+        expect.arrayContaining(defaultIntegrations.map((integration) => integration.name)),
+      );
+      const snapshotNames = defaultIntegrations.map((integration) => integration.name);
+      expect(snapshotNames).not.toContain('Minigame');
+      expect(snapshotNames).not.toContain('MinigameFrameRate');
+    });
+
+    it('根据初始化选项构造完整的条件默认集成集合', () => {
+      const integrations = getDefaultIntegrations({
+        enableSourceMap: false,
+        enableAutoSessionTracking: false,
+        enableNavigationBreadcrumbs: false,
+        enableUserInteractionBreadcrumbs: false,
+        enableNetworkStatusMonitoring: false,
+        enableConsoleBreadcrumbs: true,
+        enableMinigameLifecycle: false,
+        enableMinigameFrameRate: false,
+      });
+      const names = integrations.map((integration) => integration.name);
+
+      expect(names).toContain('GlobalHandlers');
+      expect(names).toContain('PerformanceAPI');
+      expect(names).toContain('NetworkBreadcrumbs');
+      expect(names).toContain('EventFilters');
+      expect(names).toContain('ConsoleBreadcrumbs');
+      expect(names).not.toContain('RewriteFrames');
+      expect(names).not.toContain('Session');
+      expect(names).not.toContain('PageBreadcrumbs');
+      expect(names).not.toContain('NetworkStatus');
+      expect(names).not.toContain('Minigame');
+      expect(names).not.toContain('MinigameFrameRate');
+    });
+
+    it('显式开启时将小游戏条件集成加入默认集合', () => {
+      const names = getDefaultIntegrations({
+        enableMinigameLifecycle: true,
+        enableMinigameFrameRate: true,
+      }).map((integration) => integration.name);
+
+      expect(names).toEqual(expect.arrayContaining(['Minigame', 'MinigameFrameRate']));
     });
 
     it('每次返回全新实例，不跨调用共享单例（多 init / 多 client 不互踩补丁状态）', () => {
@@ -513,10 +639,13 @@ describe('SDK', () => {
     });
 
     it('should warn and return empty string when no client', () => {
-      // 这取决于是否有前序 init 调用，主要测试函数不抛异常
+      getCurrentScope().setClient(undefined);
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const result = captureFeedback({ message: 'feedback' });
-      expect(typeof result === 'string').toBe(true);
+      expect(result).toBe('');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[sentry-miniapp] No client available for captureFeedback',
+      );
       consoleSpy.mockRestore();
     });
   });
