@@ -1,13 +1,4 @@
-import type {
-  Event,
-  EventHint,
-  TransactionEvent,
-  Integration,
-  Transport,
-  Breadcrumb,
-  Log,
-  StackParser,
-} from '@sentry/core';
+import type { Options as CoreOptions } from '@sentry/core';
 import type { MiniappTransportOptions } from './transports';
 import type { AppName } from './crossPlatform';
 
@@ -53,86 +44,7 @@ export interface MinigameFrameRateOptions {
 /**
  * Configuration options for the Sentry Miniapp SDK.
  */
-export interface MiniappOptions {
-  /** Sentry DSN */
-  dsn?: string;
-
-  /** Environment */
-  environment?: string;
-
-  /** Debug mode */
-  debug?: boolean;
-
-  /** Sample rate */
-  sampleRate?: number;
-
-  /** Release version */
-  release?: string;
-
-  /** Maximum number of breadcrumbs */
-  maxBreadcrumbs?: number;
-
-  /** Performance tracing sample rate. API request timing is reported as http.client spans when sampled. */
-  tracesSampleRate?: number;
-
-  /**
-   * 动态采样函数，根据上下文决定每个 trace 的采样率。
-   * 优先级高于 tracesSampleRate，设置后 tracesSampleRate 将被忽略。
-   *
-   * @param samplingContext - 采样上下文信息
-   * @returns 0~1 之间的数字（采样概率），或 true（100% 采样）/ false（丢弃）
-   *
-   * @example
-   * ```typescript
-   * Sentry.init({
-   *   tracesSampler: ({ name, inheritOrSampleWith }) => {
-   *     if (name.includes('pages/index')) return 1;    // 首页 100% 采样
-   *     if (name.includes('pages/about')) return 0.1;  // 关于页 10% 采样
-   *     return inheritOrSampleWith(0.5);                // 其他默认 50%
-   *   },
-   * });
-   * ```
-   */
-  tracesSampler?: (samplingContext: {
-    /** span 名称 */
-    name: string;
-    /** span 初始属性 */
-    attributes?: Record<string, unknown>;
-    /** 父级 span 是否被采样 */
-    parentSampled?: boolean;
-    /** 来自上游 trace 的采样率 */
-    parentSampleRate?: number;
-    /** 继承父级采样决策或使用回退采样率 */
-    inheritOrSampleWith: (fallbackSampleRate: number) => number;
-  }) => number | boolean;
-
-  /** Transport function */
-  transport?: (transportOptions: MiniappTransportOptions) => Transport;
-
-  /**
-   * Built-in transport options, including custom headers, request timeout (default 3000 ms),
-   * and maximum concurrent host requests (maxConcurrentRequests, default 2).
-   */
-  transportOptions?: Partial<MiniappTransportOptions>;
-
-  /** Before send hook */
-  beforeSend?: (event: Event, hint?: EventHint) => Event | null | PromiseLike<Event | null>;
-
-  /** Before send hook for transaction events */
-  beforeSendTransaction?: (
-    event: TransactionEvent,
-    hint: EventHint,
-  ) => TransactionEvent | null | PromiseLike<TransactionEvent | null>;
-
-  /** Before breadcrumb hook */
-  beforeBreadcrumb?: (breadcrumb: Breadcrumb, hint?: Record<string, unknown>) => Breadcrumb | null;
-
-  /** Whether to enable Sentry Logs (`Sentry.logger.*`). Disabled by default. */
-  enableLogs?: boolean;
-
-  /** Hook to filter or mutate logs before they are sent. Return null to drop the log. */
-  beforeSendLog?: (log: Log) => Log | null;
-
+export interface MiniappOptions extends CoreOptions<MiniappTransportOptions> {
   /**
    * 事件的小程序平台标记，作为顶层 `platform` 的默认值并写入 `contexts.miniapp.platform`。
    * 默认按宿主全局对象及平台专属宿主信息自动识别；无法消除多对象歧义时可显式指定。
@@ -154,9 +66,6 @@ export interface MiniappOptions {
 
   /** Whether to enable automatic source map path rewrite */
   enableSourceMap?: boolean;
-
-  /** Custom stack parser. Defaults to the built-in miniapp stack parser. */
-  stackParser?: StackParser;
 
   /** Whether to capture and record request and response body in network breadcrumbs */
   traceNetworkBody?: boolean;
@@ -202,12 +111,6 @@ export interface MiniappOptions {
   /** 是否启用分布式追踪头注入（默认 true）。只控制 sentry-trace/baggage，以及 propagateTraceparent 开启后的 traceparent 传播，不关闭本地 API 请求 span。 */
   enableTracePropagation?: boolean;
 
-  /** 追踪目标 URL 白名单，仅匹配的请求才注入 sentry-trace/baggage，以及可选 traceparent 头。为空则对所有非 Sentry 请求注入；API 请求 span 仍按 tracing 采样记录 */
-  tracePropagationTargets?: Array<string | RegExp>;
-
-  /** 是否额外注入 W3C `traceparent` 头（默认 false）。用于和 OpenTelemetry / W3C Trace Context 兼容的后端链路串联。 */
-  propagateTraceparent?: boolean;
-
   /** 是否启用自动 Session 管理（默认 true），为 Sentry Release Health 提供会话数据 */
   enableAutoSessionTracking?: boolean;
 
@@ -235,15 +138,6 @@ export interface MiniappOptions {
 
   /** Array of strings or regexes; matching error messages/types are dropped before sending */
   ignoreErrors?: Array<string | RegExp>;
-
-  /**
-   * 追加到默认集合的集成，或接收默认集合并返回最终集合的函数。
-   * 同名集成以用户传入的实例为准，与 Sentry 官方 JavaScript SDK 语义一致。
-   */
-  integrations?: Integration[] | ((integrations: Integration[]) => Integration[]);
-
-  /** 默认集成集合。设为 false 可关闭全部默认集成；自定义数组会替换默认集合基底。 */
-  defaultIntegrations?: false | Integration[];
 }
 
 /** `Sentry.getDiagnostics()` 返回的 DSN 摘要。不会暴露完整 DSN。 */

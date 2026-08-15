@@ -1,12 +1,23 @@
 import {
   Client,
   Scope,
+  captureFeedback as captureFeedbackCore,
+  eventFromMessage as eventFromMessageCore,
+  eventFromUnknownInput,
   getIsolationScope,
   getCurrentScope,
   makeOfflineTransport,
+  stackParserFromStackParserOptions,
   installedIntegrations,
 } from '@sentry/core';
-import type { BaseTransportOptions, Event, EventHint } from '@sentry/core';
+import type {
+  BaseTransportOptions,
+  ClientOptions,
+  Event,
+  EventHint,
+  ParameterizedString,
+  SeverityLevel,
+} from '@sentry/core';
 
 import { appName, getSystemInfo } from './crossPlatform';
 import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent';
@@ -15,6 +26,13 @@ import { createMiniappTransport, createMiniappOfflineStore } from './transports'
 import type { MiniappTransportOptions } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
+import { miniappStackParser } from './stacktrace';
+
+export type MiniappClientOptions = Omit<
+  MiniappOptions,
+  'integrations' | 'stackParser' | 'transport'
+> &
+  ClientOptions<MiniappTransportOptions>;
 
 const clientsWithCustomTransport = new WeakSet<MiniappClient>();
 type DefaultIntegrationsMode = 'enabled' | 'disabled' | 'custom';
@@ -60,14 +78,13 @@ export function setConfiguredDefaultIntegrationsMode(
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export class MiniappClient extends Client<any> {
+export class MiniappClient extends Client<MiniappClientOptions> {
   /**
    * Creates a new Miniapp SDK instance.
    *
    * @param options Configuration options for this SDK.
    */
-  public constructor(options: MiniappOptions = {}) {
+  public constructor(options: MiniappOptions | MiniappClientOptions = {}) {
     const usesCustomTransport = typeof options.transport === 'function';
     const defaultIntegrationsMode = resolveDefaultIntegrationsMode(options.defaultIntegrations);
 
@@ -82,8 +99,10 @@ export class MiniappClient extends Client<any> {
       onDrop: options.onConsentCacheDrop,
     });
 
-    super({
+    const clientOptions: MiniappClientOptions = {
       ...options,
+      integrations: Array.isArray(options.integrations) ? options.integrations : [],
+      stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
       transport: (transportOptions: BaseTransportOptions) => {
         const miniappTransportOptions = transportOptions as MiniappTransportOptions;
         const baseTransport = options.transport
@@ -131,7 +150,9 @@ export class MiniappClient extends Client<any> {
 
         return baseTransport;
       },
-    });
+    };
+
+    super(clientOptions);
 
     if (usesCustomTransport) {
       clientsWithCustomTransport.add(this);
@@ -142,36 +163,26 @@ export class MiniappClient extends Client<any> {
   /**
    * @inheritDoc
    */
-  public eventFromException(exception: any): PromiseLike<Event> {
-    const exceptionValue: Record<string, any> = {
-      type: exception.name || 'Error',
-      value: exception.message || String(exception),
-    };
-
-    // 使用 stackParser 解析堆栈信息
-    if (exception.stack) {
-      const stackParser = this.getOptions().stackParser;
-      if (stackParser && typeof stackParser === 'function') {
-        const frames = stackParser(exception.stack, 1);
-        if (frames.length) {
-          exceptionValue['stacktrace'] = { frames };
-        }
-      }
-    }
-
-    return Promise.resolve({
-      exception: {
-        values: [exceptionValue],
-      },
-      level: 'error',
-    } as Event);
+  public eventFromException(exception: unknown, hint?: EventHint): PromiseLike<Event> {
+    const event = eventFromUnknownInput(this, this.getOptions().stackParser, exception, hint);
+    event.level = 'error';
+    return Promise.resolve(event);
   }
 
-  public eventFromMessage(message: string, level: any = 'info'): PromiseLike<Event> {
-    return Promise.resolve({
-      message: message,
-      level,
-    } as Event);
+  public eventFromMessage(
+    message: ParameterizedString,
+    level: SeverityLevel = 'info',
+    hint?: EventHint,
+  ): PromiseLike<Event> {
+    return Promise.resolve(
+      eventFromMessageCore(
+        this.getOptions().stackParser,
+        message,
+        level,
+        hint,
+        this.getOptions().attachStacktrace,
+      ),
+    );
   }
 
   protected override _prepareEvent(
@@ -207,13 +218,11 @@ export class MiniappClient extends Client<any> {
     try {
       // @sentry/core 只读取 globalThis 上的 Debug ID maps。微信小游戏可能由 sentry-cli
       // 注入到 global / window / self，因此在 core 准备事件前合并一次候选全局。
-      if (this.getOptions().stackParser) {
-        try {
-          syncDebugIdsToCoreGlobal();
-        } catch (error) {
-          if (this.getOptions().debug) {
-            console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
-          }
+      try {
+        syncDebugIdsToCoreGlobal();
+      } catch (error) {
+        if (this.getOptions().debug) {
+          console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
         }
       }
 
@@ -326,23 +335,6 @@ export class MiniappClient extends Client<any> {
    * @returns Event ID
    */
   public captureFeedback(params: SendFeedbackParams): string {
-    const feedbackEvent: Event = {
-      contexts: {
-        feedback: {
-          contact_email: params.email,
-          name: params.name,
-          message: params.message,
-          url: params.url,
-          source: params.source,
-          associated_event_id: params.associatedEventId,
-        },
-      },
-      type: 'feedback',
-      level: 'info',
-      tags: params.tags || {},
-    };
-
-    const scope = getCurrentScope();
-    return scope.captureEvent(feedbackEvent);
+    return captureFeedbackCore(params, {}, getCurrentScope());
   }
 }

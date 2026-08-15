@@ -230,7 +230,10 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     );
     expect(ev).toBeDefined();
     // 不被上一次 wrap 的 mechanism / arguments 污染
-    expect(ev.exception.values[0].mechanism).toBeUndefined();
+    expect(ev.exception.values[0].mechanism).toEqual({
+      handled: true,
+      type: 'generic',
+    });
     expect(ev.extra?.arguments).toBeUndefined();
   });
 });

@@ -628,23 +628,42 @@ describe('SDK', () => {
   });
 
   describe('captureFeedback', () => {
-    it('should capture feedback when client is available', () => {
-      init({ dsn: 'https://test@sentry.io/123' });
+    it('uses the core feedback pipeline and emits beforeSendFeedback', () => {
+      const client = init({ dsn: 'https://test@sentry.io/123' });
+      const beforeSendFeedback = vi.fn();
+      client?.on('beforeSendFeedback', beforeSendFeedback);
+
       const result = captureFeedback({
         message: 'Great app!',
         name: 'Test User',
         email: 'test@example.com',
       });
-      expect(typeof result === 'string').toBe(true);
+
+      expect(result).toMatch(/^[a-f0-9]{32}$/);
+      expect(beforeSendFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'feedback',
+          contexts: expect.objectContaining({
+            feedback: expect.objectContaining({
+              message: 'Great app!',
+              name: 'Test User',
+              contact_email: 'test@example.com',
+            }),
+          }),
+        }),
+        {},
+      );
     });
 
-    it('should warn and return empty string when no client', () => {
+    it('matches core semantics without a client', () => {
       getCurrentScope().setClient(undefined);
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const result = captureFeedback({ message: 'feedback' });
-      expect(result).toBe('');
+
+      expect(result).toMatch(/^[a-f0-9]{32}$/);
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[sentry-miniapp] No client available for captureFeedback',
+        'Sentry Logger [warn]:',
+        'No client configured on scope - will not capture event!',
       );
       consoleSpy.mockRestore();
     });

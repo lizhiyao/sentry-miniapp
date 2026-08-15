@@ -1,9 +1,11 @@
 import {
+  captureFeedback as captureFeedbackCore,
   getClient,
   getCurrentScope,
   getIntegrationsToSetup,
   initAndBind,
   setContext,
+  stackParserFromStackParserOptions,
   withScope,
   eventFiltersIntegration,
 } from '@sentry/core';
@@ -191,7 +193,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     ...options,
     defaultIntegrations: [],
     integrations,
-    stackParser: options.stackParser ?? miniappStackParser,
+    stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
     transport: options.transport,
   };
 
@@ -275,11 +277,5 @@ export function getConsent(): boolean {
  * @returns Event ID
  */
 export function captureFeedback(params: SendFeedbackParams): string {
-  const client = getCurrentScope().getClient() as MiniappClient | undefined;
-  if (client) {
-    return client.captureFeedback(params);
-  } else {
-    console.warn('[sentry-miniapp] No client available for captureFeedback');
-    return '';
-  }
+  return captureFeedbackCore(params);
 }
