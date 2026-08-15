@@ -141,19 +141,18 @@ export const defaultIntegrations: Integration[] = getDefaultIntegrations({
   enableMinigameFrameRate: false,
 });
 
-type DefaultIntegration = Integration & { isDefaultInstance?: true };
-
-function removeDefaultEventFiltersWhenInboundFiltersIsConfigured(
+function removeGeneratedEventFiltersWhenInboundFiltersIsConfigured(
   integrations: Integration[],
+  generatedEventFilters: Integration | undefined,
 ): Integration[] {
-  if (!integrations.some((integration) => integration.name === 'InboundFilters')) {
+  if (
+    !generatedEventFilters ||
+    !integrations.some((integration) => integration.name === 'InboundFilters')
+  ) {
     return integrations;
   }
 
-  return integrations.filter(
-    (integration: DefaultIntegration) =>
-      integration.name !== 'EventFilters' || integration.isDefaultInstance !== true,
-  );
+  return integrations.filter((integration) => integration !== generatedEventFilters);
 }
 
 /**
@@ -166,10 +165,16 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     return undefined;
   }
 
-  const configuredDefaultIntegrations =
-    options.defaultIntegrations == null
-      ? getDefaultIntegrations(options)
-      : options.defaultIntegrations;
+  let configuredDefaultIntegrations: false | Integration[];
+  let generatedEventFilters: Integration | undefined;
+  if (options.defaultIntegrations == null) {
+    configuredDefaultIntegrations = getDefaultIntegrations(options);
+    generatedEventFilters = configuredDefaultIntegrations.find(
+      (integration) => integration.name === 'EventFilters',
+    );
+  } else {
+    configuredDefaultIntegrations = options.defaultIntegrations;
+  }
   const integrationOptions: {
     defaultIntegrations: false | Integration[];
     integrations?: Integration[] | ((integrations: Integration[]) => Integration[]);
@@ -177,8 +182,9 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   if (options.integrations !== undefined) {
     integrationOptions.integrations = options.integrations;
   }
-  const integrations = removeDefaultEventFiltersWhenInboundFiltersIsConfigured(
+  const integrations = removeGeneratedEventFiltersWhenInboundFiltersIsConfigured(
     getIntegrationsToSetup(integrationOptions),
+    generatedEventFilters,
   );
 
   const opts = {

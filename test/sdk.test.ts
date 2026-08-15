@@ -377,6 +377,23 @@ describe('SDK', () => {
           ),
       ).toEqual([inboundFilters]);
     });
+
+    it('保留 defaultIntegrations 中用户明确配置的两个过滤集成', () => {
+      const eventFilters = eventFiltersIntegration({ ignoreErrors: ['event'] });
+      const inboundFilters = inboundFiltersIntegration({ ignoreErrors: ['inbound'] });
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        defaultIntegrations: [eventFilters, inboundFilters],
+      });
+
+      expect(
+        client
+          ?.getOptions()
+          .integrations.filter((integration: any) =>
+            ['EventFilters', 'InboundFilters'].includes(integration.name),
+          ),
+      ).toEqual([eventFilters, inboundFilters]);
+    });
   });
 
   describe('getDefaultIntegrations', () => {
