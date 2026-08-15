@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { close, getCurrentScope } from '@sentry/core';
 import { getDiagnostics, init, setConsent } from '../src/index';
+import { MiniappClient } from '../src/client';
 import { resetConsentState } from '../src/consent';
 import { resetPlatformCache } from '../src/crossPlatform';
 
@@ -152,6 +153,16 @@ describe('getDiagnostics', () => {
     });
 
     expect(getDiagnostics().options?.defaultIntegrations).toBe('custom');
+  });
+
+  it('handles an unnormalized client integration callback defensively', () => {
+    const client = new MiniappClient({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      integrations: (defaults) => defaults,
+    });
+    getCurrentScope().setClient(client);
+
+    expect(getDiagnostics().integrations).toEqual([]);
   });
 
   it('reports explicit standard-runtime minigame opt-ins and a custom stack parser', () => {

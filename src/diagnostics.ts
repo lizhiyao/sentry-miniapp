@@ -45,7 +45,9 @@ export function getDiagnostics(): MiniappDiagnostics {
     },
     options: diagnosticsOptions,
     transport,
-    integrations: options?.integrations?.map((integration) => integration.name) ?? [],
+    integrations: Array.isArray(options?.integrations)
+      ? options.integrations.map((integration) => integration.name)
+      : [],
     warnings: [],
     timestamp: Date.now(),
   };

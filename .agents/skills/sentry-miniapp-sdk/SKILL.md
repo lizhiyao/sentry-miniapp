@@ -257,7 +257,8 @@ Walk through features one at a time. Load the corresponding reference file:
 | `denyUrls` | `Array<string\|RegExp>` | — | Drop errors whose URL matches |
 | `ignoreErrors` | `Array<string\|RegExp>` | — | Drop errors whose message/type matches |
 | `transportOptions` | `object` | see below | Built-in transport safeguards and headers |
-| `defaultIntegrations` | `false\|Integration[]` | built-in core integrations | Set `false` to skip core defaults; custom array replaces the core-default base |
+| `defaultIntegrations` | `false\|Integration[]` | all built-in default integrations | Set `false` to disable every default integration; a custom array replaces the default base |
+| `integrations` | `Integration[]\|(defaults) => Integration[]` | — | An array appends to defaults (user instances win by name); a function receives defaults and returns the final list |
 | `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | Minigame cold-start + scene + show/hide breadcrumbs |
 | `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
 | `beforeSend` | `function` | — | Event processor for filtering/modifying events |

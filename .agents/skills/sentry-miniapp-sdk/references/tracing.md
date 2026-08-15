@@ -27,7 +27,6 @@ Sentry.init({
   dsn: '...',
   tracesSampleRate: 1.0,
   integrations: [
-    ...Sentry.getDefaultIntegrations(),
     Sentry.performanceIntegration({
       enableNavigation: true,
       enableRender: true,

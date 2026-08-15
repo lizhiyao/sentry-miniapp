@@ -236,10 +236,13 @@ export interface MiniappOptions {
   /** Array of strings or regexes; matching error messages/types are dropped before sending */
   ignoreErrors?: Array<string | RegExp>;
 
-  /** Integrations */
-  integrations?: Integration[];
+  /**
+   * 追加到默认集合的集成，或接收默认集合并返回最终集合的函数。
+   * 同名集成以用户传入的实例为准，与 Sentry 官方 JavaScript SDK 语义一致。
+   */
+  integrations?: Integration[] | ((integrations: Integration[]) => Integration[]);
 
-  /** Default core integrations. Set to false to skip core defaults. */
+  /** 默认集成集合。设为 false 可关闭全部默认集成；自定义数组会替换默认集合基底。 */
   defaultIntegrations?: false | Integration[];
 }
 
