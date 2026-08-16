@@ -1,9 +1,11 @@
 import {
+  captureFeedback as captureFeedbackCore,
   getClient,
   getCurrentScope,
   getIntegrationsToSetup,
   initAndBind,
   setContext,
+  stackParserFromStackParserOptions,
   withScope,
   eventFiltersIntegration,
 } from '@sentry/core';
@@ -18,11 +20,11 @@ import { ignoreNextOnErrorCall } from './helpers';
 import {
   GlobalHandlers,
   TryCatch,
-  LinkedErrors,
+  linkedErrorsIntegration,
   HttpContext,
-  Dedupe,
+  dedupeIntegration,
   performanceIntegration,
-  RewriteFrames,
+  rewriteFramesIntegration,
   NetworkBreadcrumbs,
   PageBreadcrumbs,
   ConsoleBreadcrumbs,
@@ -31,24 +33,25 @@ import {
   MinigameIntegration,
   MinigameFrameRateIntegration,
 } from './integrations/index';
+import { functionToStringIntegration } from '@sentry/core';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 
 /**
  * 构造一组**全新**的默认集成实例。
  *
- * 必须每次 init 现造新实例：集成的 setupOnce/cleanup 会把补丁状态留在实例上，跨多次 init 或
- * 多 client 复用同一批单例会让状态互踩（close 后再 init、或并存两个 client 时尤甚）。这与
- * client.close() 清 core 的 setupOnce 门禁（按 name）互补——name 门禁放行后，全新实例才能干净
- * 地重新 setupOnce。
+ * 必须每次 init 现造新实例：有全局副作用的集成会在实例上保存补丁与订阅状态。
+ * core 的 `setupOnce` 只负责进程级初始化；每个 client 的安装与回收由 `setup(client)` /
+ * `client.registerCleanup()` 配对，不再修改 core 内部的全局门禁。
  */
 export function getDefaultIntegrations(options: MiniappOptions = {}): Integration[] {
   const integrations: Integration[] = [
     // Core integrations
+    functionToStringIntegration(),
     new HttpContext(),
-    new Dedupe(),
     new GlobalHandlers(),
     new TryCatch(),
-    new LinkedErrors(),
+    linkedErrorsIntegration(),
+    dedupeIntegration(),
     // Performance monitoring
     performanceIntegration({
       enableNavigation: true,
@@ -61,7 +64,7 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   ];
 
   if (options.enableSourceMap !== false) {
-    integrations.push(new RewriteFrames());
+    integrations.push(rewriteFramesIntegration());
   }
 
   const networkOptions: Record<string, any> = { traceNetworkBody: options.traceNetworkBody };
@@ -191,19 +194,20 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     ...options,
     defaultIntegrations: [],
     integrations,
-    stackParser: options.stackParser ?? miniappStackParser,
+    stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
     transport: options.transport,
   };
+  const miniappPlatform = options.platform || appName();
 
   // 平台标记。device / os / app context 由 MiniappClient._prepareEvent 在每个事件上统一写入
   // （唯一权威），此处不再重复设置，避免字段不一致与覆盖歧义（见架构 review P2-b）。
   setContext('miniapp', {
-    platform: opts.platform || appName(),
+    platform: miniappPlatform,
     environment: 'miniapp',
   });
 
-  // @sentry/core 未公开导出 ClientClass 类型，且 MiniappClient 用 Client<any>（见 client.ts），
-  // 故此处保留 as any。opts 在运行时即合法 ClientOptions（含 stackParser/transport/integrations）。
+  // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
+  // 更宽的公开 MiniappOptions，并在构造期间补齐 transport / stackParser，因此这里仅作边界适配。
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initAndBind(MiniappClient as any, opts as any);
   const client = getCurrentScope().getClient() as MiniappClient | undefined;
@@ -275,11 +279,5 @@ export function getConsent(): boolean {
  * @returns Event ID
  */
 export function captureFeedback(params: SendFeedbackParams): string {
-  const client = getCurrentScope().getClient() as MiniappClient | undefined;
-  if (client) {
-    return client.captureFeedback(params);
-  } else {
-    console.warn('[sentry-miniapp] No client available for captureFeedback');
-    return '';
-  }
+  return captureFeedbackCore(params);
 }

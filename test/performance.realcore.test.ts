@@ -70,7 +70,8 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
       {
         name: 'appLaunch',
         entryType: 'navigation',
-        startTime: 1640995200000,
+        // 微信 PerformanceEntry 通常是相对运行时起点，不是 epoch 毫秒。
+        startTime: 250,
         duration: 120,
       },
     ]);
@@ -84,6 +85,19 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     );
 
     expect(beforeSendTransaction).toHaveBeenCalled();
-    expect(transactions.some((event) => event.transaction === 'Navigation: appLaunch')).toBe(true);
+    const transaction = transactions.find(
+      (event) => event.transaction === 'Navigation: appLaunch',
+    );
+    expect(transaction).toBeDefined();
+    expect(transaction.start_timestamp).toBeGreaterThan(1_000_000_000);
+    expect(transaction.timestamp).toBeGreaterThanOrEqual(transaction.start_timestamp);
+    expect(transaction.spans).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          op: 'navigation',
+          start_timestamp: expect.any(Number),
+        }),
+      ]),
+    );
   });
 });

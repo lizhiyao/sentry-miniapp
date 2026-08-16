@@ -49,7 +49,13 @@ sentry-miniapp（init + 默认集成）
 
 ### 网络面包屑与追踪
 
-默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API，无需额外配置）。开启 `tracesSampleRate` 后，请求耗时还会作为 `http.client` span，并注入 `sentry-trace` / `baggage` 头串联后端；需要接入 OpenTelemetry / W3C Trace Context 时，可再开启 `propagateTraceparent` 追加 `traceparent` 头。
+默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API）。开启性能采样后，活跃 transaction 内的请求会记为 `http.client` 子 span。仅对 `tracePropagationTargets` 明确授权的域名注入 `sentry-trace` / `baggage`；需要 OpenTelemetry / W3C Trace Context 时再开启 `propagateTraceparent`。
+
+### 多次初始化与全局 instrumentation
+
+`request`、`Page`、`console` 等宿主全局函数由 SDK 的共享 instrumentation 层统一包装一次；每个 Sentry client 只注册自己的处理器。调用发生时只分发给当前 scope 绑定的 client，client 关闭时也只退订自己的处理器。因此在热更新、微前端容器或测试环境中发生重叠 `init()` 时，旧 client 的请求体采集 / 追踪白名单不会穿透到新 client，乱序 `close()` 也不会拆掉仍在工作的全局监控。平台提供独立 `on*` / `off*` 的监听和 Performance Observer 则由各 client 自己持有，并使用同样的当前-client 门禁。
+
+业务代码仍应在启动阶段只初始化一次；上述隔离用于保证重入和清理安全，不是鼓励为同一个小程序长期维护多个并行 client。
 
 ### Logs 与合规门禁
 

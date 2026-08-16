@@ -605,18 +605,18 @@ describe('Dedupe Integration', () => {
   });
 
   describe('dedupeIntegration factory', () => {
-    it('should create a new Dedupe instance', () => {
+    it('should create an official core Dedupe integration', () => {
       const integration = dedupeIntegration();
-      expect(integration).toBeInstanceOf(Dedupe);
       expect(integration.name).toBe('Dedupe');
+      expect(integration.processEvent).toEqual(expect.any(Function));
     });
 
     it('should create different instances on multiple calls', () => {
       const integration1 = dedupeIntegration();
       const integration2 = dedupeIntegration();
       expect(integration1).not.toBe(integration2);
-      expect(integration1).toBeInstanceOf(Dedupe);
-      expect(integration2).toBeInstanceOf(Dedupe);
+      expect(integration1.name).toBe('Dedupe');
+      expect(integration2.name).toBe('Dedupe');
     });
   });
 });

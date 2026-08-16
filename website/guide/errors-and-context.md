@@ -37,6 +37,13 @@ Sentry.captureMessage('库存接口连续降级', 'warning');
 
 ## 给事件补充排查上下文
 
+SDK 会自动补充设备、系统、应用和小程序宿主 context：
+
+- 顶层 `event.platform` 是 Sentry 标准值 `javascript`；真实宿主在 `contexts.miniapp.platform`。
+- `contexts.app.app_version` 来自 `getAccountInfoSync().miniProgram.version`，`app_identifier` 来自 AppID。
+- 宿主客户端 / 基础库版本在 `contexts.miniapp.host_version` 和 `host_sdk_version`，不会冒充小程序发布版本。
+- `onPageNotFound` / `onMemoryWarning` 附加的 tag 和 context 只属于当次事件，不会污染后续错误。
+
 ### 用户、标签与业务数据
 
 ```js

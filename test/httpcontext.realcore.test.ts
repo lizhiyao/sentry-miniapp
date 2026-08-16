@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { captureException, flush, getClient } from '@sentry/core';
+import { captureException, flush, getClient, withScope } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { init } from '../src/index';
 
@@ -84,9 +84,48 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
     });
     expect(event.contexts.app).toEqual(
       expect.objectContaining({
-        app_version: '3.1.0',
+        app_identifier: 'wx-app-id',
+        app_version: '1.2.3',
         name: 'wx-app-id',
         version: '1.2.3',
+      }),
+    );
+  });
+
+  it('不覆盖用户显式设置的 app context', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      transport: () => ({
+        send: (envelope: any) => {
+          captured.push(envelope);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    withScope((scope) => {
+      scope.setContext('app', {
+        app_identifier: 'custom-app-id',
+        app_version: '9.9.9',
+        name: 'custom-name',
+        version: 'custom-version',
+      });
+      captureException(new Error('HttpContext custom app'));
+    });
+    await flush(2000);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const event = collectErrors().find((item) =>
+      item.exception?.values?.[0]?.value?.includes('HttpContext custom app'),
+    );
+
+    expect(event.contexts.app).toEqual(
+      expect.objectContaining({
+        app_identifier: 'custom-app-id',
+        app_version: '9.9.9',
+        name: 'custom-name',
+        version: 'custom-version',
       }),
     );
   });

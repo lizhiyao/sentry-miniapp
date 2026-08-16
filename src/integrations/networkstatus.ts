@@ -1,5 +1,5 @@
 import { addBreadcrumb, setContext, getClient } from '@sentry/core';
-import type { Integration } from '@sentry/core';
+import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 
 /**
@@ -12,8 +12,23 @@ export class NetworkStatusIntegration implements Integration {
 
   private _statusChangeHandler: ((res: any) => void) | null = null;
   private _lastConnected: boolean | null = null;
+  private _isSetup: boolean = false;
+  private _client: Client | undefined;
 
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._client = client;
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
+
     const miniappSdk = sdk();
     if (!miniappSdk) return;
 
@@ -22,6 +37,7 @@ export class NetworkStatusIntegration implements Integration {
       try {
         miniappSdk.getNetworkType({
           success: (res: any) => {
+            if (this._client && getClient() !== this._client) return;
             const networkType = res.networkType || 'unknown';
             this._lastConnected = networkType !== 'none';
             setContext('network', {
@@ -38,6 +54,7 @@ export class NetworkStatusIntegration implements Integration {
     // 监听网络状态变化
     if (typeof miniappSdk.onNetworkStatusChange === 'function') {
       this._statusChangeHandler = (res: any) => {
+        if (this._client && getClient() !== this._client) return;
         const networkType = res.networkType || 'unknown';
         const isConnected =
           res.isConnected !== undefined ? res.isConnected : networkType !== 'none';
@@ -85,5 +102,8 @@ export class NetworkStatusIntegration implements Integration {
       }
       this._statusChangeHandler = null;
     }
+    this._lastConnected = null;
+    this._isSetup = false;
+    this._client = undefined;
   }
 }

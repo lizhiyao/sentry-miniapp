@@ -152,6 +152,8 @@ console.log(Sentry.getDiagnostics());
 `Integrations` 同时提供类构造器与函数式工厂。核心集成可使用
 `globalHandlersIntegration()`、`tryCatchIntegration()`、`linkedErrorsIntegration()`、
 `httpContextIntegration()` 和 `dedupeIntegration()`；两种形式都会创建独立实例。
+旧的 `new Integrations.Dedupe({ fuzzyMatch: true })` 仅为 1.x 历史兼容保留，已弃用并计划在
+2.0 移除；新代码应使用复用 `@sentry/core` 官方实现的 `dedupeIntegration()`。
 
 `integrations` 数组会追加到默认集合，同名时用户实例优先。因此自定义默认性能集成时无需手动展开默认集合：
 

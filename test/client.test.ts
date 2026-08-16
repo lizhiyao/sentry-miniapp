@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getConfiguredDefaultIntegrationsMode, MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
-import { SeverityLevel, getCurrentScope } from '@sentry/core';
+import { SeverityLevel, getCurrentScope, parameterize } from '@sentry/core';
 import { miniappStackParser } from '../src/stacktrace';
 
 describe('MiniappClient', () => {
@@ -42,12 +42,45 @@ describe('MiniappClient', () => {
       expect(event.level).toBe('error');
     });
 
-    it('should handle custom hint', async () => {
+    it('preserves the event id and mechanism from the hint', async () => {
       const error = new Error('Test error');
+      const event = await client.eventFromException(error, {
+        event_id: '0123456789abcdef0123456789abcdef',
+        data: {
+          mechanism: {
+            handled: false,
+            type: 'auto.miniapp.test',
+          },
+        },
+      });
+
+      expect(event.event_id).toBe('0123456789abcdef0123456789abcdef');
+      expect(event.exception?.values?.[0]?.mechanism).toEqual({
+        handled: false,
+        type: 'auto.miniapp.test',
+      });
+    });
+
+    it('serializes non-Error objects instead of collapsing them to a string', async () => {
+      const event = await client.eventFromException({ code: 401, reason: 'expired' });
+
+      expect(event.exception?.values?.[0]?.value).toContain('code, reason');
+      expect(event.extra?.['__serialized__']).toEqual({ code: 401, reason: 'expired' });
+      expect(event.exception?.values?.[0]?.mechanism?.synthetic).toBe(true);
+    });
+
+    it('does not discard the first parsed stack frame', async () => {
+      const error = new Error('top frame');
+      error.stack = [
+        'Error: top frame',
+        '    at first (pages/index/index.js:10:2)',
+        '    at second (pages/app.js:20:3)',
+      ].join('\n');
+
       const event = await client.eventFromException(error);
 
-      expect(event.exception).toBeDefined();
-      expect(event.level).toBe('error');
+      expect(event.exception?.values?.[0]?.stacktrace?.frames).toHaveLength(2);
+      expect(event.exception?.values?.[0]?.stacktrace?.frames?.[1]?.function).toBe('first');
     });
   });
 
@@ -69,13 +102,48 @@ describe('MiniappClient', () => {
       expect(event.level).toBe('info');
     });
 
-    it('should handle custom hint', async () => {
+    it('preserves a custom event id', async () => {
       const message = 'Test message';
       const level: SeverityLevel = 'warning';
-      const event = await client.eventFromMessage(message, level);
+      const event = await client.eventFromMessage(message, level, {
+        event_id: 'fedcba9876543210fedcba9876543210',
+      });
 
       expect(event.message).toBe(message);
       expect(event.level).toBe(level);
+      expect(event.event_id).toBe('fedcba9876543210fedcba9876543210');
+    });
+
+    it('supports parameterized messages', async () => {
+      const message = parameterize`order ${42} failed`;
+
+      const event = await client.eventFromMessage(message);
+
+      expect(event.message).toBeUndefined();
+      expect(event.logentry).toEqual({
+        message: 'order %s failed',
+        params: [42],
+      });
+    });
+
+    it('attaches a synthetic stack when attachStacktrace is enabled', async () => {
+      const c = new MiniappClient({
+        attachStacktrace: true,
+        stackParser: miniappStackParser,
+      });
+      const syntheticException = new Error('synthetic');
+      syntheticException.stack = [
+        'Error: synthetic',
+        '    at caller (pages/index/index.js:7:8)',
+      ].join('\n');
+
+      const event = await c.eventFromMessage('with stack', 'info', { syntheticException });
+
+      expect(event.exception?.values?.[0]?.stacktrace?.frames?.[0]).toMatchObject({
+        filename: 'pages/index/index.js',
+        lineno: 7,
+        colno: 8,
+      });
     });
   });
 
@@ -87,6 +155,10 @@ describe('MiniappClient', () => {
       expect(preparedEvent?.sdk).toBeDefined();
       expect(preparedEvent?.sdk?.name).toBe('sentry.javascript.miniapp');
       expect(preparedEvent?.sdk?.version).toBeDefined();
+      expect(preparedEvent?.sdk?.packages).toContainEqual({
+        name: 'npm:sentry-miniapp',
+        version: preparedEvent?.sdk?.version,
+      });
     });
 
     it('should add miniapp context', async () => {
@@ -96,6 +168,7 @@ describe('MiniappClient', () => {
       expect(preparedEvent?.contexts).toBeDefined();
       expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
       expect(preparedEvent?.contexts?.['miniapp']?.['platform']).toBe('wechat');
+      expect(preparedEvent?.platform).toBe('javascript');
     });
 
     it('should add system information', async () => {
@@ -146,6 +219,9 @@ describe('MiniappClient', () => {
           version: '8.0.0',
           SDKVersion: '2.19.4',
         }),
+        getAccountInfoSync: () => ({
+          miniProgram: { appId: 'wx-test-app', version: '1.2.3' },
+        }),
       };
 
       const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
@@ -167,8 +243,15 @@ describe('MiniappClient', () => {
       });
 
       expect(event?.contexts?.app).toEqual({
-        app_version: '2.19.4',
+        app_identifier: 'wx-test-app',
+        app_version: '1.2.3',
       });
+      expect(event?.contexts?.miniapp).toEqual(
+        expect.objectContaining({
+          host_version: '8.0.0',
+          host_sdk_version: '2.19.4',
+        }),
+      );
     });
 
     it('should handle undefined system info fields gracefully', async () => {
@@ -211,6 +294,7 @@ describe('MiniappClient', () => {
       });
 
       expect(event?.contexts?.app).toEqual({
+        app_identifier: 'unknown',
         app_version: 'unknown',
       });
 
@@ -244,6 +328,7 @@ describe('MiniappClient', () => {
       });
 
       expect(event?.contexts?.app).toEqual({
+        app_identifier: 'unknown',
         app_version: 'unknown',
       });
 
@@ -261,12 +346,19 @@ describe('MiniappClient', () => {
         message: 'test',
         contexts: {
           custom: { data: 'value' },
+          miniapp: { environment: 'custom-environment', tenant: 'tenant-a' },
         },
       };
       const preparedEvent = await client['_prepareEvent'](event, {});
 
       expect(preparedEvent?.contexts?.['custom']).toEqual({ data: 'value' });
-      expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
+      expect(preparedEvent?.contexts?.['miniapp']).toEqual(
+        expect.objectContaining({
+          environment: 'custom-environment',
+          tenant: 'tenant-a',
+          platform: 'wechat',
+        }),
+      );
     });
 
     it('should read Debug IDs from non-globalThis miniapp globals', async () => {
@@ -374,15 +466,16 @@ describe('MiniappClient', () => {
       );
     });
 
-    it('logs the scope fallback in debug mode', async () => {
+    it('normalizes direct client construction so event preparation does not need a fallback', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const c = new MiniappClient({ debug: true });
 
-      await c['_prepareEvent']({ message: 'test' }, {});
+      const event = await c['_prepareEvent']({ message: 'test' }, {});
 
-      expect(consoleSpy).toHaveBeenCalledWith(
+      expect(event?.message).toBe('test');
+      expect(consoleSpy).not.toHaveBeenCalledWith(
         '[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:',
-        expect.any(Error),
+        expect.anything(),
       );
     });
 
@@ -460,29 +553,43 @@ describe('MiniappClient', () => {
       expect(getConfiguredDefaultIntegrationsMode(fakeClient)).toBe('disabled');
     });
 
-    it('warns in debug mode when integration cleanup fails', async () => {
+    it('warns in debug mode when a registered cleanup callback fails', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const brokenIntegration = {
-        name: 'BrokenIntegration',
-        cleanup: () => {
-          throw new Error('cleanup failed');
-        },
-      };
       const c = new MiniappClient({
         debug: true,
-        integrations: [brokenIntegration as any],
         transport: () => ({
           send: async () => ({}),
           flush: async () => true,
         }),
       });
+      c.registerCleanup(() => {
+        throw new Error('cleanup failed');
+      });
 
       await c.close(0);
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        '[sentry-miniapp] 集成 BrokenIntegration cleanup 失败:',
+        '[sentry-miniapp] 集成资源清理失败:',
         expect.any(Error),
       );
+    });
+
+    it('runs cleanup callbacks even when transport flush rejects', async () => {
+      const cleanup = vi.fn();
+      const c = new MiniappClient({
+        dsn: 'https://test@sentry.io/123',
+        transport: () => ({
+          send: async () => ({}),
+          flush: async () => {
+            throw new Error('flush failed');
+          },
+        }),
+      });
+      c.registerCleanup(cleanup);
+
+      await expect(c.close(0)).rejects.toThrow('flush failed');
+
+      expect(cleanup).toHaveBeenCalledTimes(1);
     });
   });
 });

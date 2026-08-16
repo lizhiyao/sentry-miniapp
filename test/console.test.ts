@@ -4,15 +4,26 @@ import { ConsoleBreadcrumbs, consoleBreadcrumbsIntegration } from '../src/integr
 
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
+  getClient: vi.fn(() => undefined),
 }));
 
-import { addBreadcrumb } from '@sentry/core';
+import { addBreadcrumb, getClient } from '@sentry/core';
+
+const activeIntegrations = new Set<ConsoleBreadcrumbs>();
+
+function setupIntegration(integration: ConsoleBreadcrumbs): void {
+  const client = { registerCleanup: vi.fn() } as any;
+  vi.mocked(getClient).mockReturnValue(client);
+  integration.setup(client);
+  activeIntegrations.add(integration);
+}
 
 describe('ConsoleBreadcrumbs Integration', () => {
   const originalConsole: Record<string, any> = {};
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getClient).mockReturnValue(undefined);
     // Save original console methods
     for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
       originalConsole[level] = console[level as keyof Console];
@@ -20,6 +31,8 @@ describe('ConsoleBreadcrumbs Integration', () => {
   });
 
   afterEach(() => {
+    for (const integration of activeIntegrations) integration.cleanup();
+    activeIntegrations.clear();
     // Restore original console methods
     for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
       (console as any)[level] = originalConsole[level];
@@ -28,7 +41,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
   it('should capture console.log as breadcrumb', () => {
     const integration = new ConsoleBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     console.log('test message');
 
@@ -39,9 +52,18 @@ describe('ConsoleBreadcrumbs Integration', () => {
     });
   });
 
+  it('setupOnce only installs neutral wrappers', () => {
+    const integration = new ConsoleBreadcrumbs({ levels: ['log'] });
+
+    integration.setupOnce();
+    console.log('not captured');
+
+    expect(addBreadcrumb).not.toHaveBeenCalled();
+  });
+
   it('should capture console.error with error level', () => {
     const integration = new ConsoleBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     console.error('something failed');
 
@@ -54,7 +76,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
   it('should capture console.warn with warning level', () => {
     const integration = new ConsoleBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     console.warn('deprecation warning');
 
@@ -67,7 +89,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
   it('should capture console.debug with debug level', () => {
     const integration = new ConsoleBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     console.debug('debug info');
 
@@ -80,7 +102,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
   it('should join multiple arguments', () => {
     const integration = new ConsoleBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     console.log('user', 'logged in', 'successfully');
 
@@ -93,7 +115,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
   it('should serialize objects', () => {
     const integration = new ConsoleBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     console.log('data:', { id: 1, name: 'test' });
 
@@ -108,7 +130,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
     // Restore and reinstall to test preservation
     (console as any).log = originalConsole['log'];
     const integration = new ConsoleBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     console.log('test');
     expect(addBreadcrumb).toHaveBeenCalled();
@@ -116,7 +138,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
   it('should only capture specified levels', () => {
     const integration = new ConsoleBreadcrumbs({ levels: ['error', 'warn'] });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     console.log('ignored');
     console.error('captured');
@@ -134,7 +156,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
   it('should handle circular references gracefully', () => {
     const integration = new ConsoleBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const circular: any = { a: 1 };
     circular.self = circular;
@@ -147,11 +169,48 @@ describe('ConsoleBreadcrumbs Integration', () => {
     const originalLog = console.log;
     const integration = new ConsoleBreadcrumbs({ levels: ['log'] });
 
-    integration.setupOnce();
+    setupIntegration(integration);
     expect(console.log).not.toBe(originalLog);
 
     integration.cleanup();
     expect(console.log).toBe(originalLog);
+  });
+
+  it('registers and idempotently executes client-specific cleanup', () => {
+    const registerCleanup = vi.fn();
+    const integration = new ConsoleBreadcrumbs({ levels: ['error'] });
+
+    integration.setup({ registerCleanup } as any);
+    const cleanup = registerCleanup.mock.calls[0][0];
+    integration.cleanup();
+    cleanup();
+    cleanup();
+
+    expect(registerCleanup).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it('client setup skips unavailable levels and detached calls preserve console as this', () => {
+    const savedError = console.error;
+    const savedWarn = console.warn;
+    const original = vi.fn(function (this: unknown) {
+      return this;
+    });
+    try {
+      (console as any).error = undefined;
+      (console as any).warn = original;
+      const registerCleanup = vi.fn();
+      const client = { registerCleanup } as any;
+      vi.mocked(getClient).mockReturnValue(client);
+      const integration = new ConsoleBreadcrumbs({ levels: ['error', 'warn'] });
+      integration.setup(client);
+
+      const detached = console.warn;
+      expect(detached()).toBe(console);
+      integration.cleanup();
+    } finally {
+      console.error = savedError;
+      console.warn = savedWarn;
+    }
   });
 
   it('skips unavailable console methods', () => {

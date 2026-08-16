@@ -1,15 +1,21 @@
 import {
   addBreadcrumb,
+  getActiveSpan,
   getClient,
+  hasSpansEnabled,
+  isSentryRequestUrl,
   SPAN_STATUS_OK,
   SPAN_STATUS_ERROR,
   getTraceData,
   setHttpStatus,
   startInactiveSpan,
 } from '@sentry/core';
-import type { Integration, Span } from '@sentry/core';
-import { fill } from '../helpers';
+import type { Client, Integration, Span } from '@sentry/core';
 import { sdk } from '../crossPlatform';
+import {
+  addFunctionInstrumentationHandler,
+  ensureFunctionInstrumentation,
+} from '../instrumentation';
 
 /**
  * Network Breadcrumbs Integration.
@@ -34,8 +40,8 @@ export class NetworkBreadcrumbs implements Integration {
   private readonly _enableTracePropagation: boolean;
   private readonly _tracePropagationTargets: Array<string | RegExp>;
   private readonly _propagateTraceparent: boolean;
-  private _restoreRequest: (() => void) | null = null;
-  private _restoreHttpRequest: (() => void) | null = null;
+  private readonly _cleanupCallbacks = new Set<() => void>();
+  private readonly _requestWrappers = new WeakMap<Function, Function>();
 
   public constructor(
     options: {
@@ -85,40 +91,61 @@ export class NetworkBreadcrumbs implements Integration {
    */
   public setupOnce(): void {
     const miniappSdk = sdk();
+    this._ensureInstrumentation(miniappSdk, 'request');
+    this._ensureInstrumentation(miniappSdk, 'httpRequest');
+  }
 
-    // Intercept standard request (WeChat, ByteDance, Swan, etc.)
-    if (miniappSdk && typeof miniappSdk.request === 'function') {
-      const result = fill(miniappSdk, 'request', this._createRequestWrapper.bind(this));
-      if (result?.replaced) {
-        this._restoreRequest = result.restore;
-      } else {
-        console.warn(
-          '[sentry-miniapp] 无法包装当前平台的 request API，网络面包屑和请求追踪将不可用',
-        );
-      }
+  public setup(client: Client): void {
+    const miniappSdk = sdk();
+    const cleanups: Array<() => void> = [];
+    for (const name of ['request', 'httpRequest'] as const) {
+      if (typeof miniappSdk[name] !== 'function') continue;
+      cleanups.push(
+        addFunctionInstrumentationHandler(miniappSdk, name, client, (original, thisArg, args) =>
+          this._invokeRequestWrapper(original, thisArg, args),
+        ),
+      );
     }
-
-    // Intercept Alipay request
-    if (miniappSdk && typeof miniappSdk.httpRequest === 'function') {
-      const result = fill(miniappSdk, 'httpRequest', this._createRequestWrapper.bind(this));
-      if (result?.replaced) {
-        this._restoreHttpRequest = result.restore;
-      } else {
-        console.warn(
-          '[sentry-miniapp] 无法包装当前平台的 httpRequest API，网络面包屑和请求追踪将不可用',
-        );
-      }
-    }
+    const cleanup = this._trackCleanup(cleanups);
+    client.registerCleanup(cleanup);
   }
 
   /**
    * 清理集成，恢复原始网络请求方法
    */
   public cleanup(): void {
-    this._restoreRequest?.();
-    this._restoreHttpRequest?.();
-    this._restoreRequest = null;
-    this._restoreHttpRequest = null;
+    for (const cleanup of [...this._cleanupCallbacks]) cleanup();
+  }
+
+  private _ensureInstrumentation(
+    miniappSdk: Partial<Record<'request' | 'httpRequest', unknown>>,
+    name: 'request' | 'httpRequest',
+  ): void {
+    if (typeof miniappSdk[name] !== 'function') return;
+    if (!ensureFunctionInstrumentation(miniappSdk, name)) {
+      console.warn(`[sentry-miniapp] 无法包装当前平台的 ${name} API，网络面包屑和请求追踪将不可用`);
+    }
+  }
+
+  private _trackCleanup(cleanups: Array<() => void>): () => void {
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      for (const callback of cleanups.reverse()) callback();
+      this._cleanupCallbacks.delete(cleanup);
+    };
+    this._cleanupCallbacks.add(cleanup);
+    return cleanup;
+  }
+
+  private _invokeRequestWrapper(original: Function, thisArg: unknown, args: unknown[]): unknown {
+    let wrapper = this._requestWrappers.get(original);
+    if (!wrapper) {
+      wrapper = this._createRequestWrapper(original);
+      this._requestWrappers.set(original, wrapper);
+    }
+    return wrapper.apply(thisArg, args);
   }
 
   /**
@@ -139,33 +166,14 @@ export class NetworkBreadcrumbs implements Integration {
 
       const url = normalizeUrl(options.url);
 
-      // Get the configured DSN/Transport URL from the current client
       const client = getClient();
-      let dsnUrl = '';
-      if (client) {
-        const dsn = client.getOptions().dsn;
-        if (dsn) {
-          try {
-            const dsnMatch = dsn.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?([^:/\n]+)/i);
-            if (dsnMatch && dsnMatch[1]) {
-              dsnUrl = dsnMatch[1];
-            }
-          } catch (_e) {
-            // fallback
-          }
-        }
-      }
-
-      // Ignore Sentry's own requests to prevent infinite loops
-      const hostMatch = url.match(/^https?:\/\/([^:/\n]+)/i);
-      const requestHost = hostMatch && hostMatch[1] ? hostMatch[1] : '';
-      const isSentryRequest =
-        (dsnUrl && requestHost === dsnUrl) ||
-        requestHost === 'sentry.io' ||
-        requestHost.endsWith('.sentry.io');
-      if (isSentryRequest) {
+      // 使用 core 的 DSN/tunnel 规则识别 SDK 自身 envelope，避免将同域业务请求误排除。
+      if (isSentryRequestUrl(url, client)) {
         return originalRequest.call(this, options);
       }
+
+      // 浅拷贝 options，后续回调包装与 header 注入不污染调用方对象。
+      const requestOptions = { ...options };
 
       // 注入分布式追踪头
       const method = normalizeMethod(options.method);
@@ -180,7 +188,7 @@ export class NetworkBreadcrumbs implements Integration {
       };
 
       if (enableTracePropagation && shouldPropagateTrace(url)) {
-        injectTraceHeaders(options, requestSpan, propagateTraceparent);
+        injectTraceHeaders(requestOptions, requestSpan, propagateTraceparent);
       }
 
       const breadcrumbData: Record<string, any> = {
@@ -203,7 +211,7 @@ export class NetworkBreadcrumbs implements Integration {
       const originalComplete = options.complete;
 
       // Wrap success callback
-      options.success = function (this: any, ...args: any[]) {
+      requestOptions.success = function (this: any, ...args: any[]) {
         const res = args[0] || {};
         const statusCode = getResponseStatusCode(res);
         const duration = Date.now() - startTime;
@@ -244,7 +252,7 @@ export class NetworkBreadcrumbs implements Integration {
       };
 
       // Wrap fail callback
-      options.fail = function (this: any, ...args: any[]) {
+      requestOptions.fail = function (this: any, ...args: any[]) {
         const err = args[0] || {};
         const duration = Date.now() - startTime;
         const errorMessage = err.errMsg || err.errorMessage || 'Network request failed';
@@ -267,7 +275,7 @@ export class NetworkBreadcrumbs implements Integration {
         }
       };
 
-      options.complete = function (this: any, ...args: any[]) {
+      requestOptions.complete = function (this: any, ...args: any[]) {
         const res = args[0] || {};
         const statusCode = getResponseStatusCode(res);
         finishSpanOnce({
@@ -281,7 +289,7 @@ export class NetworkBreadcrumbs implements Integration {
       };
 
       try {
-        return originalRequest.call(this, options);
+        return originalRequest.call(this, requestOptions);
       } catch (error) {
         finishSpanOnce({
           status: 'error',
@@ -297,7 +305,8 @@ export class NetworkBreadcrumbs implements Integration {
    */
   private _shouldPropagateTrace(url: string): boolean {
     if (this._tracePropagationTargets.length === 0) {
-      return true; // 无白名单则全部注入
+      // 小程序没有可靠的“same-origin”概念。未配置白名单时不向任意域名泄露追踪头。
+      return false;
     }
     return this._tracePropagationTargets.some((target) => {
       if (typeof target === 'string') {
@@ -361,6 +370,9 @@ type RequestSpanFinishOptions = {
 
 function startRequestSpan(method: string, url: string): Span | null {
   try {
+    // 与官方 Browser SDK 一致：普通请求只作为已有 transaction 的子 span，
+    // 不为每个孤立请求制造一条根 transaction。
+    if (!hasSpansEnabled() || !getActiveSpan()) return null;
     const serverAddress = extractHost(url);
     return startInactiveSpan({
       name: `${method} ${sanitizeSpanNameUrl(url)}`,
@@ -409,11 +421,15 @@ function stripDataUrlContent(url: string): string {
 }
 
 function injectTraceHeaders(options: any, span: Span | null, propagateTraceparent: boolean): void {
-  if (!span) return;
-
   try {
     const traceData = getTraceData(
-      propagateTraceparent ? { span, propagateTraceparent: true } : { span },
+      span
+        ? propagateTraceparent
+          ? { span, propagateTraceparent: true }
+          : { span }
+        : propagateTraceparent
+          ? { propagateTraceparent: true }
+          : {},
     );
     const sentryTrace = traceData['sentry-trace'];
     if (!sentryTrace) return;
@@ -422,12 +438,13 @@ function injectTraceHeaders(options: any, span: Span | null, propagateTraceparen
       ...(isRecord(options.headers) ? options.headers : {}),
       ...(isRecord(options.header) ? options.header : {}),
     };
-    if (!header['sentry-trace']) {
+    if (!hasHeader(header, 'sentry-trace')) {
       header['sentry-trace'] = sentryTrace;
     }
 
     if (traceData.baggage) {
-      header['baggage'] = mergeBaggageHeader(header['baggage'], traceData.baggage);
+      const baggageKey = findHeaderKey(header, 'baggage') || 'baggage';
+      header[baggageKey] = mergeBaggageHeader(header[baggageKey], traceData.baggage);
     }
 
     if (propagateTraceparent && traceData.traceparent && !hasHeader(header, 'traceparent')) {
@@ -502,8 +519,12 @@ function isRecord(value: unknown): value is Record<string, any> {
 }
 
 function hasHeader(header: Record<string, any>, name: string): boolean {
+  return findHeaderKey(header, name) !== undefined;
+}
+
+function findHeaderKey(header: Record<string, any>, name: string): string | undefined {
   const normalizedName = name.toLowerCase();
-  return Object.keys(header).some((key) => key.toLowerCase() === normalizedName);
+  return Object.keys(header).find((key) => key.toLowerCase() === normalizedName);
 }
 
 function mergeBaggageHeader(existingBaggage: unknown, sentryBaggage: string): string {

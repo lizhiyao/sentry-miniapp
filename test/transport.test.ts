@@ -376,7 +376,7 @@ describe('Transport', () => {
         (options as any).success({
           statusCode: 429,
           data: 'Rate limited',
-          header: { 'x-sentry-rate-limits': '60::organization' },
+          header: { 'X-Sentry-Rate-Limits': '60::organization' },
         });
       });
       (global as any).wx = { request: mockRequest };
@@ -628,15 +628,15 @@ describe('Transport', () => {
       expect(response.statusCode).toBe(200);
     });
 
-    it('should handle response with headers instead of header (Alipay style)', async () => {
+    it('should merge Alipay-style headers and read rate-limit names case-insensitively', async () => {
       const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
           statusCode: 200,
           data: 'OK',
           headers: {
-            'x-sentry-rate-limits': '60::organization:key',
-            'retry-after': '30',
+            'X-Sentry-Rate-Limits': '60::organization:key',
           },
+          header: { 'Retry-After': '30' },
         });
       });
       (global as any).wx = { request: mockRequest };

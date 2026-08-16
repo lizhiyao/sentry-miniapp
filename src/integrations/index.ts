@@ -8,7 +8,11 @@ export { System } from './system';
 /** @deprecated 被 PageBreadcrumbs 取代，将在 2.0 移除。 */
 export { Router } from './router';
 export { PerformanceIntegration, performanceIntegration } from './performance';
-export { RewriteFrames } from './rewriteframes';
+export {
+  RewriteFrames,
+  normalizeMiniappFrameFilename,
+  rewriteFramesIntegration,
+} from './rewriteframes';
 export { NetworkBreadcrumbs } from './networkbreadcrumbs';
 export { PageBreadcrumbs, pageBreadcrumbsIntegration } from './pagebreadcrumbs';
 export { ConsoleBreadcrumbs, consoleBreadcrumbsIntegration } from './console';

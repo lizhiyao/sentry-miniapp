@@ -9,9 +9,15 @@ import {
   type Mocked,
   type MockedFunction,
 } from 'vitest';
-import { addBreadcrumb, getCurrentScope, startSpan } from '@sentry/core';
+import {
+  addBreadcrumb,
+  getClient,
+  getCurrentScope,
+  startInactiveSpan,
+  startSpan,
+} from '@sentry/core';
 import { PerformanceIntegration, performanceIntegration } from '../src/integrations/performance';
-import { getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
+import { epochNow, getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type {
   PerformanceEntry,
   PerformanceManager,
@@ -21,8 +27,11 @@ import type {
 // Mock Sentry core functions
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
+  getClient: vi.fn(),
   getCurrentScope: vi.fn(),
+  startInactiveSpan: vi.fn(),
   startSpan: vi.fn(),
+  withActiveSpan: vi.fn((_span, callback) => callback()),
   withScope: vi.fn(),
   getCurrentHub: vi.fn(() => ({
     getClient: vi.fn(() => ({
@@ -39,6 +48,7 @@ vi.mock('../src/crossPlatform', () => ({
   sdk: vi.fn(() => ({
     getPerformance: vi.fn(),
   })),
+  epochNow: vi.fn(() => 1_700_000_000_000),
 }));
 
 // Mock startTransaction since it's not available in v9
@@ -340,6 +350,7 @@ describe('PerformanceIntegration', () => {
 
     (getPerformanceManager as Mock).mockReturnValue(mockPerformanceManager);
     (getCurrentScope as Mock).mockReturnValue(mockScope);
+    (startInactiveSpan as Mock).mockReturnValue(mockSpan);
     (startSpan as Mock).mockImplementation((_options: unknown, callback: (span: any) => unknown) =>
       callback(mockSpan),
     );
@@ -568,7 +579,7 @@ describe('PerformanceIntegration', () => {
       expect(mockSpan.setAttributes).toHaveBeenCalledWith(
         expect.objectContaining({ 'render.duration': 100 }),
       );
-      expect(mockSpan.end).toHaveBeenCalledWith(2.1);
+      expect(mockSpan.end).toHaveBeenCalledWith(1_700_000_000);
     });
 
     it('should reject primitive entry formats safely', () => {
@@ -852,6 +863,32 @@ describe('PerformanceIntegration', () => {
   });
 
   describe('cleanup', () => {
+    it('ignores observer data and buffered summaries owned by an inactive client', () => {
+      const oldClient = { registerCleanup: vi.fn() };
+      (getClient as Mock).mockReturnValue({});
+      integration.setup(oldClient as any);
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      vi.mocked(startInactiveSpan).mockClear();
+
+      observerCallback?.([
+        { name: 'stale', entryType: 'navigation', startTime: 0, duration: 100 },
+      ]);
+      (integration as any)._entryBuffer.push({
+        name: 'stale-buffer',
+        entryType: 'navigation',
+        startTime: 0,
+        duration: 100,
+      });
+      integration.cleanup();
+
+      expect(startInactiveSpan).not.toHaveBeenCalled();
+      expect((integration as any)._entryBuffer).toEqual([]);
+      expect(mockScope.setContext).not.toHaveBeenCalledWith(
+        'performance_summary',
+        expect.anything(),
+      );
+    });
+
     it('should disconnect observers and clear timers', () => {
       integration.setupOnce();
       integration.cleanup();
@@ -920,7 +957,7 @@ describe('PerformanceIntegration', () => {
         'resource.response_end': 700,
         'resource.network_time': 190,
       });
-      expect(mockSpan.end).toHaveBeenCalledWith(0.7);
+      expect(mockSpan.end).toHaveBeenCalledWith(1_700_000_000);
     });
 
     it('should use resource defaults when optional timing data is absent', () => {
@@ -1005,6 +1042,118 @@ describe('PerformanceIntegration', () => {
   });
 
   describe('entry formats', () => {
+    it('normalizes epoch, invalid, and negative timing values conservatively', () => {
+      const epochEntry = {
+        name: 'epoch-entry',
+        entryType: 'navigation',
+        startTime: 1_700_000_000_000,
+        duration: Number.NaN,
+      } as PerformanceEntry;
+
+      (integration as any)._initializeRelativeTimeOrigin([epochEntry]);
+      expect((integration as any)._relativeTimeOrigin).toBeNull();
+      expect((integration as any)._entryTimes(epochEntry)).toEqual({
+        start: 1_700_000_000,
+        end: 1_700_000_000,
+      });
+
+      const invalidEntry = {
+        name: 'invalid-entry',
+        entryType: 'render',
+        startTime: Number.NaN,
+        duration: -10,
+      } as PerformanceEntry;
+      expect((integration as any)._entryTimes(invalidEntry)).toEqual({
+        start: 1_700_000_000,
+        end: 1_700_000_000,
+      });
+
+      const relativeEntry = {
+        name: 'relative-entry',
+        entryType: 'render',
+        startTime: 100,
+        duration: Number.NaN,
+      } as PerformanceEntry;
+      (integration as any)._initializeRelativeTimeOrigin([relativeEntry]);
+      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
+
+      (integration as any)._initializeRelativeTimeOrigin([
+        { ...relativeEntry, startTime: 500 },
+      ]);
+      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
+    });
+
+    it('keeps delayed first-batch entries anchored no later than SDK setup', () => {
+      (integration as any)._setupEpochMilliseconds = 1_699_999_999_000;
+      vi.mocked(epochNow).mockReturnValue(1_700_000_000_000);
+
+      (integration as any)._initializeRelativeTimeOrigin([
+        { name: 'stale', entryType: 'render', startTime: 50, duration: 50 },
+        {
+          name: 'absolute',
+          entryType: 'resource',
+          startTime: 1_699_999_999_500,
+          duration: 10,
+        },
+      ]);
+
+      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_000);
+    });
+
+    it('drops implausible relative entries before creating spans', () => {
+      integration.setupOnce();
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+
+      observerCallback?.([
+        {
+          name: 'implausible-runtime',
+          entryType: 'render',
+          startTime: 31 * 24 * 60 * 60 * 1000,
+          duration: 0,
+        },
+      ]);
+
+      expect((integration as any)._relativeTimeOrigin).toBeNull();
+      expect(startInactiveSpan).not.toHaveBeenCalled();
+      expect(mockSpan.end).not.toHaveBeenCalled();
+    });
+
+    it('rejects absolute entries outside the plausible runtime window', () => {
+      const now = 1_700_000_000_000;
+      const isPlausible = (integration as any)._isPlausiblePerformanceEntry.bind(integration);
+
+      expect(
+        isPlausible(
+          { name: 'old', entryType: 'resource', startTime: now - 31 * 86_400_000, duration: 0 },
+          now,
+        ),
+      ).toBe(false);
+      expect(
+        isPlausible(
+          { name: 'future', entryType: 'resource', startTime: now + 60_001, duration: 0 },
+          now,
+        ),
+      ).toBe(false);
+      expect(
+        isPlausible(
+          { name: 'current', entryType: 'resource', startTime: now - 1_000, duration: 500 },
+          now,
+        ),
+      ).toBe(true);
+      expect(
+        isPlausible(
+          { name: 'invalid', entryType: 'resource', startTime: Number.NaN, duration: 0 },
+          now,
+        ),
+      ).toBe(false);
+      expect(
+        isPlausible(
+          { name: 'relative', entryType: 'render', startTime: 100, duration: Number.NaN },
+          now,
+        ),
+      ).toBe(true);
+    });
+
     it('should handle PerformanceObserverEntryList format', () => {
       integration.setupOnce();
 

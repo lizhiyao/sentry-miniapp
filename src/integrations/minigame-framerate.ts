@@ -1,5 +1,12 @@
-import { addBreadcrumb, flush, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
+import {
+  addBreadcrumb,
+  flush,
+  getClient,
+  setContext,
+  startInactiveSpan,
+  setMeasurement,
+} from '@sentry/core';
+import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 import type { MinigameFrameRateOptions, MinigameJankLevels } from '../types';
 
@@ -119,6 +126,8 @@ export class MinigameFrameRateIntegration implements Integration {
   private _fpsSamples: number[] = [];
   private _showHandler: ((res: any) => void) | null = null;
   private _hideHandler: (() => void) | null = null;
+  private _isSetup: boolean = false;
+  private _client: Client | undefined;
 
   constructor(options: MinigameFrameRateOptions = {}) {
     this._options = {
@@ -139,6 +148,19 @@ export class MinigameFrameRateIntegration implements Integration {
   }
 
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._client = client;
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
+
     const raf = (globalThis as any).requestAnimationFrame;
     if (typeof raf !== 'function') {
       console.warn(
@@ -155,7 +177,9 @@ export class MinigameFrameRateIntegration implements Integration {
     const loop = (): void => {
       if (!this._running) return;
       const t = now();
-      this._onFrame(t - this._lastFrameTs);
+      if (this._isActiveClient()) {
+        this._onFrame(t - this._lastFrameTs);
+      }
       this._lastFrameTs = t;
       raf(loop);
     };
@@ -165,6 +189,7 @@ export class MinigameFrameRateIntegration implements Integration {
     const miniappSdk = sdk();
     if (miniappSdk && typeof miniappSdk.onHide === 'function') {
       this._hideHandler = () => {
+        if (!this._isActiveClient()) return;
         if (this._flushSummary()) {
           this._flushPendingEvents();
         }
@@ -172,7 +197,9 @@ export class MinigameFrameRateIntegration implements Integration {
       miniappSdk.onHide(this._hideHandler);
     }
     if (miniappSdk && typeof miniappSdk.onShow === 'function') {
-      this._showHandler = () => this._restartOnResume();
+      this._showHandler = () => {
+        if (this._isActiveClient()) this._restartOnResume();
+      };
       miniappSdk.onShow(this._showHandler);
     }
   }
@@ -377,8 +404,11 @@ export class MinigameFrameRateIntegration implements Integration {
     this._running = false;
     // 会话结束兜底：再发一次汇总；发出了就把传输 flush 掉（与 onHide 路径一致，
     // 避免集成关闭/客户端拆除时这条汇总 transaction 还滞留在传输队列里没发出）。
-    if (this._flushSummary()) {
-      this._flushPendingEvents();
+    if (this._isActiveClient()) {
+      if (this._flushSummary()) this._flushPendingEvents();
+    } else {
+      this._resetWindow();
+      this._resetSession();
     }
     const miniappSdk = sdk();
     if (miniappSdk) {
@@ -395,6 +425,12 @@ export class MinigameFrameRateIntegration implements Integration {
     }
     this._hideHandler = null;
     this._showHandler = null;
+    this._isSetup = false;
+    this._client = undefined;
+  }
+
+  private _isActiveClient(): boolean {
+    return !this._client || getClient() === this._client;
   }
 }
 

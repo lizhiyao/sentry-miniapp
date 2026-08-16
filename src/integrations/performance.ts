@@ -1,11 +1,17 @@
-import { getCurrentScope } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
-import { startSpan } from '@sentry/core';
+import {
+  getClient,
+  getCurrentScope,
+  startInactiveSpan,
+  startSpan,
+  withActiveSpan,
+} from '@sentry/core';
+import type { Client, Integration, IntegrationFn } from '@sentry/core';
 
 import {
   getPerformanceManager,
   getSystemInfo,
   sdk,
+  epochNow,
   type PerformanceEntry,
   type NavigationPerformanceEntry,
   type RenderPerformanceEntry,
@@ -14,6 +20,10 @@ import {
   type PerformanceManager,
   type PerformanceObserver,
 } from '../crossPlatform';
+
+const EPOCH_TIMESTAMP_THRESHOLD = 100_000_000_000;
+const MAX_PLAUSIBLE_RELATIVE_RUNTIME = 30 * 24 * 60 * 60 * 1000;
+const MAX_FUTURE_CLOCK_SKEW = 60 * 1000;
 
 /**
  * Performance API 集成配置
@@ -65,6 +75,10 @@ export class PerformanceIntegration implements Integration {
   private _observers: PerformanceObserver[] = [];
   private _entryBuffer: PerformanceEntry[] = [];
   private _reportTimer: ReturnType<typeof setInterval> | null = null;
+  private _isSetup: boolean = false;
+  private _relativeTimeOrigin: number | null = null;
+  private _setupEpochMilliseconds: number | null = null;
+  private _client: Client | undefined;
 
   constructor(options: PerformanceIntegrationOptions = {}) {
     this._options = {
@@ -91,6 +105,19 @@ export class PerformanceIntegration implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._client = client;
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
+    this._setupEpochMilliseconds = epochNow();
     this._initializePerformanceManager();
     this._setupPerformanceObservers();
     this._startAutoReporting();
@@ -228,7 +255,7 @@ export class PerformanceIntegration implements Integration {
    * 处理性能条目
    */
   private _handlePerformanceEntries(entries: PerformanceEntry[] | any): void {
-    if (!entries) {
+    if (!this._isActiveClient() || !entries) {
       return;
     }
 
@@ -251,19 +278,101 @@ export class PerformanceIntegration implements Integration {
       return;
     }
 
+    const currentEpoch = epochNow();
+    entriesArray = entriesArray.filter((entry) =>
+      this._isPlausiblePerformanceEntry(entry, currentEpoch),
+    );
+    if (entriesArray.length === 0) return;
+
     // 采样控制
     if (Math.random() > this._options.sampleRate) {
       return;
     }
 
-    entriesArray.forEach((entry) => {
-      try {
-        this._processPerformanceEntry(entry);
-        this._addToBuffer(entry);
-      } catch (error) {
-        console.warn('[sentry-miniapp] Failed to process performance entry:', error);
-      }
+    this._initializeRelativeTimeOrigin(entriesArray);
+    const rootStart = Math.min(...entriesArray.map((entry) => this._entryTimes(entry).start));
+    const rootEnd = Math.max(...entriesArray.map((entry) => this._entryTimes(entry).end));
+    const navigation = entriesArray.find((entry) => entry.entryType === 'navigation');
+    const rootSpan = startInactiveSpan({
+      name: navigation ? `Navigation: ${navigation.name}` : 'Miniapp Performance',
+      op: navigation ? 'navigation' : 'miniapp.performance',
+      forceTransaction: true,
+      startTime: rootStart,
     });
+    rootSpan.setAttributes({
+      'performance.entry_count': entriesArray.length,
+      'performance.entry_types': Array.from(
+        new Set(entriesArray.map((entry) => entry.entryType)),
+      ).join(','),
+    });
+
+    withActiveSpan(rootSpan, () => {
+      entriesArray.forEach((entry) => {
+        try {
+          this._processPerformanceEntry(entry);
+          this._addToBuffer(entry);
+        } catch (error) {
+          console.warn('[sentry-miniapp] Failed to process performance entry:', error);
+        }
+      });
+    });
+    rootSpan.end(rootEnd);
+  }
+
+  /**
+   * 小程序 PerformanceEntry.startTime 通常是相对运行时起点的毫秒数，不是 Unix epoch。
+   * 第一批条目用“最晚结束点 ≈ 当前时间”建立稳定锚点；已是 epoch 毫秒的宿主值则原样使用。
+   * 锚点不得晚于 SDK setup 时刻，否则延迟送达的陈旧首批数据会被错误平移到当前甚至未来。
+   */
+  private _initializeRelativeTimeOrigin(entries: PerformanceEntry[]): void {
+    if (this._relativeTimeOrigin !== null) return;
+    const currentEpoch = epochNow();
+    const relativeEnds = entries
+      .filter(
+        (entry) => Number.isFinite(entry.startTime) && entry.startTime < EPOCH_TIMESTAMP_THRESHOLD,
+      )
+      .map(
+        (entry) =>
+          Math.max(0, entry.startTime) +
+          (Number.isFinite(entry.duration) ? Math.max(0, entry.duration) : 0),
+      )
+      .filter((relativeEnd) => relativeEnd <= MAX_PLAUSIBLE_RELATIVE_RUNTIME);
+    if (relativeEnds.length === 0) return;
+
+    const candidate = currentEpoch - Math.max(0, ...relativeEnds);
+    const latestPlausibleOrigin = this._setupEpochMilliseconds ?? currentEpoch;
+    const earliestPlausibleOrigin = currentEpoch - MAX_PLAUSIBLE_RELATIVE_RUNTIME;
+    this._relativeTimeOrigin = Math.min(
+      latestPlausibleOrigin,
+      Math.max(earliestPlausibleOrigin, candidate),
+    );
+  }
+
+  private _isPlausiblePerformanceEntry(entry: PerformanceEntry, currentEpoch: number): boolean {
+    if (!Number.isFinite(entry.startTime)) return false;
+    const start = Math.max(0, entry.startTime);
+    const duration = Number.isFinite(entry.duration) ? Math.max(0, entry.duration) : 0;
+    const end = start + duration;
+
+    if (start < EPOCH_TIMESTAMP_THRESHOLD) {
+      return end <= MAX_PLAUSIBLE_RELATIVE_RUNTIME;
+    }
+
+    return (
+      start >= currentEpoch - MAX_PLAUSIBLE_RELATIVE_RUNTIME &&
+      end <= currentEpoch + MAX_FUTURE_CLOCK_SKEW
+    );
+  }
+
+  private _entryTimes(entry: PerformanceEntry): { start: number; end: number } {
+    const validStart = Number.isFinite(entry.startTime) ? entry.startTime : 0;
+    const startMilliseconds =
+      validStart >= EPOCH_TIMESTAMP_THRESHOLD
+        ? validStart
+        : (this._relativeTimeOrigin ?? epochNow()) + Math.max(0, validStart);
+    const endMilliseconds =
+      startMilliseconds + (Number.isFinite(entry.duration) ? Math.max(0, entry.duration) : 0);
+    return { start: startMilliseconds / 1000, end: endMilliseconds / 1000 };
   }
 
   /**
@@ -293,6 +402,7 @@ export class PerformanceIntegration implements Integration {
    * 处理导航性能条目
    */
   private _processNavigationEntry(entry: NavigationPerformanceEntry): void {
+    const times = this._entryTimes(entry);
     // 添加面包屑
     const scope = getCurrentScope();
     scope.addBreadcrumb({
@@ -310,7 +420,7 @@ export class PerformanceIntegration implements Integration {
       {
         name: `Navigation: ${entry.name}`,
         op: 'navigation',
-        startTime: entry.startTime / 1000, // 转换为秒
+        startTime: times.start,
       },
       (span) => {
         span.setAttributes({
@@ -321,7 +431,7 @@ export class PerformanceIntegration implements Integration {
           'navigation.first_render_time': entry.firstRenderTime || 0,
         });
 
-        span.end((entry.startTime + entry.duration) / 1000);
+        span.end(times.end);
       },
     );
   }
@@ -330,11 +440,12 @@ export class PerformanceIntegration implements Integration {
    * 处理渲染性能条目
    */
   private _processRenderEntry(entry: RenderPerformanceEntry): void {
+    const times = this._entryTimes(entry);
     startSpan(
       {
         name: `Render: ${entry.name}`,
         op: 'render',
-        startTime: entry.startTime / 1000,
+        startTime: times.start,
       },
       (span) => {
         span.setAttributes({
@@ -346,7 +457,7 @@ export class PerformanceIntegration implements Integration {
           'render.script_end': entry.scriptEnd || 0,
         });
 
-        span.end((entry.startTime + entry.duration) / 1000);
+        span.end(times.end);
       },
     );
 
@@ -375,11 +486,12 @@ export class PerformanceIntegration implements Integration {
    * 处理资源加载性能条目
    */
   private _processResourceEntry(entry: ResourcePerformanceEntry): void {
+    const times = this._entryTimes(entry);
     startSpan(
       {
         name: `Resource: ${entry.name}`,
         op: 'resource',
-        startTime: entry.startTime / 1000,
+        startTime: times.start,
       },
       (span) => {
         span.setAttributes({
@@ -400,7 +512,7 @@ export class PerformanceIntegration implements Integration {
           });
         }
 
-        span.end((entry.startTime + entry.duration) / 1000);
+        span.end(times.end);
       },
     );
   }
@@ -409,12 +521,13 @@ export class PerformanceIntegration implements Integration {
    * 处理用户自定义性能条目
    */
   private _processUserTimingEntry(entry: UserTimingPerformanceEntry): void {
+    const times = this._entryTimes(entry);
     if (entry.entryType === 'measure') {
       startSpan(
         {
           name: `Measure: ${entry.name}`,
           op: 'measure',
-          startTime: entry.startTime / 1000,
+          startTime: times.start,
         },
         (span) => {
           span.setAttributes({
@@ -423,7 +536,7 @@ export class PerformanceIntegration implements Integration {
             'measure.detail': entry.detail ? JSON.stringify(entry.detail) : undefined,
           });
 
-          span.end((entry.startTime + entry.duration) / 1000);
+          span.end(times.end);
         },
       );
     } else if (entry.entryType === 'mark') {
@@ -434,7 +547,7 @@ export class PerformanceIntegration implements Integration {
         category: 'performance.mark',
         level: 'info',
         data: {
-          timestamp: entry.startTime,
+          timestamp: times.start * 1000,
           detail: entry.detail,
         },
       });
@@ -466,7 +579,7 @@ export class PerformanceIntegration implements Integration {
 
   /** 汇总缓冲的性能条目，并写入当前 Sentry scope */
   private _reportBufferedEntries(): void {
-    if (this._entryBuffer.length === 0) {
+    if (!this._isActiveClient() || this._entryBuffer.length === 0) {
       return;
     }
 
@@ -673,8 +786,21 @@ export class PerformanceIntegration implements Integration {
       this._reportTimer = null;
     }
 
-    // 最后一次汇总
-    this._reportBufferedEntries();
+    // 旧 client 乱序关闭时不能把它的历史缓冲写入当前 client 的 scope。
+    if (this._isActiveClient()) {
+      this._reportBufferedEntries();
+    } else {
+      this._entryBuffer = [];
+    }
+    this._performanceManager = null;
+    this._relativeTimeOrigin = null;
+    this._setupEpochMilliseconds = null;
+    this._isSetup = false;
+    this._client = undefined;
+  }
+
+  private _isActiveClient(): boolean {
+    return !this._client || getClient() === this._client;
   }
 }
 

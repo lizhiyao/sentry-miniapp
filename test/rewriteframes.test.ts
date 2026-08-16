@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { Event } from '@sentry/core';
-import { RewriteFrames } from '../src/integrations/rewriteframes';
+import {
+  RewriteFrames,
+  rewriteFramesIntegration,
+} from '../src/integrations/rewriteframes';
 
 describe('RewriteFrames Integration', () => {
   let rewriteFrames: RewriteFrames;
@@ -113,5 +116,27 @@ describe('RewriteFrames Integration', () => {
 
     const processed = rewriteFrames.processEvent(event);
     expect(processed.message).toBe('test');
+  });
+
+  it('uses the official processor and leaves frames without filenames untouched', () => {
+    const integration = rewriteFramesIntegration({ prefix: 'miniapp:///' });
+    const frameWithoutFilename = { function: 'anonymous' };
+    const event: Event = {
+      exception: {
+        values: [
+          {
+            stacktrace: {
+              frames: [frameWithoutFilename, { filename: '/pages/index.js' }],
+            },
+          },
+        ],
+      },
+    };
+
+    const processed = (integration as any).processEvent(event);
+    const frames = processed.exception.values[0].stacktrace.frames;
+
+    expect(frames[0]).toBe(frameWithoutFilename);
+    expect(frames[1].filename).toBe('miniapp:///pages/index.js');
   });
 });

@@ -64,6 +64,7 @@ export default defineConfig({
         {
           text: '生产上线',
           items: [
+            { text: '从 1.18 升级到 1.19', link: '/guide/migration-1.19' },
             { text: '配置项参考', link: '/guide/configuration' },
             { text: 'Source Map 上线指南', link: '/guide/sourcemap' },
             { text: 'Source Map 进阶与排障', link: '/guide/sourcemap-advanced' },

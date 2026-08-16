@@ -1,20 +1,41 @@
 import {
   Client,
   Scope,
+  captureFeedback as captureFeedbackCore,
+  eventFromMessage as eventFromMessageCore,
+  eventFromUnknownInput,
   getIsolationScope,
   getCurrentScope,
   makeOfflineTransport,
-  installedIntegrations,
+  stackParserFromStackParserOptions,
 } from '@sentry/core';
-import type { BaseTransportOptions, Event, EventHint } from '@sentry/core';
+import type {
+  BaseTransportOptions,
+  ClientOptions,
+  Event,
+  EventHint,
+  ParameterizedString,
+  SeverityLevel,
+} from '@sentry/core';
 
-import { appName, getSystemInfo } from './crossPlatform';
+import { appName, getAccountInfo, getSystemInfo } from './crossPlatform';
 import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
 import type { MiniappTransportOptions } from './transports';
 import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
+import { miniappStackParser } from './stacktrace';
+
+export type MiniappClientOptions = Omit<
+  MiniappOptions,
+  'integrations' | 'platform' | 'stackParser' | 'transport'
+> &
+  ClientOptions<MiniappTransportOptions> & {
+    platform: string;
+    /** 小程序宿主标识；与 Sentry 顶层 event.platform 分离。 */
+    miniappPlatform?: string | undefined;
+  };
 
 const clientsWithCustomTransport = new WeakSet<MiniappClient>();
 type DefaultIntegrationsMode = 'enabled' | 'disabled' | 'custom';
@@ -60,16 +81,19 @@ export function setConfiguredDefaultIntegrationsMode(
  * @see MiniappOptions for documentation on configuration options.
  * @see SentryClient for usage documentation.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export class MiniappClient extends Client<any> {
+export class MiniappClient extends Client<MiniappClientOptions> {
+  private readonly _disposeCallbacks: Array<() => void> = [];
+
   /**
    * Creates a new Miniapp SDK instance.
    *
    * @param options Configuration options for this SDK.
    */
-  public constructor(options: MiniappOptions = {}) {
+  public constructor(options: MiniappOptions | MiniappClientOptions = {}) {
     const usesCustomTransport = typeof options.transport === 'function';
     const defaultIntegrationsMode = resolveDefaultIntegrationsMode(options.defaultIntegrations);
+    const miniappPlatform =
+      ('miniappPlatform' in options && options.miniappPlatform) || options.platform;
 
     // 配置隐私合规「同意门禁」。必须在 super() 之前——transport 工厂在 super() 执行期间被 core
     // 调用建立，其 shouldSend / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
@@ -82,8 +106,14 @@ export class MiniappClient extends Client<any> {
       onDrop: options.onConsentCacheDrop,
     });
 
-    super({
+    const clientOptions: MiniappClientOptions = {
       ...options,
+      // Sentry 后端按顶层 platform 选择 JavaScript 栈解析与聚合逻辑。
+      // 小程序宿主类型单独放在 contexts.miniapp.platform。
+      platform: 'javascript',
+      miniappPlatform,
+      integrations: Array.isArray(options.integrations) ? options.integrations : [],
+      stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
       transport: (transportOptions: BaseTransportOptions) => {
         const miniappTransportOptions = transportOptions as MiniappTransportOptions;
         const baseTransport = options.transport
@@ -131,7 +161,9 @@ export class MiniappClient extends Client<any> {
 
         return baseTransport;
       },
-    });
+    };
+
+    super(clientOptions);
 
     if (usesCustomTransport) {
       clientsWithCustomTransport.add(this);
@@ -142,36 +174,26 @@ export class MiniappClient extends Client<any> {
   /**
    * @inheritDoc
    */
-  public eventFromException(exception: any): PromiseLike<Event> {
-    const exceptionValue: Record<string, any> = {
-      type: exception.name || 'Error',
-      value: exception.message || String(exception),
-    };
-
-    // 使用 stackParser 解析堆栈信息
-    if (exception.stack) {
-      const stackParser = this.getOptions().stackParser;
-      if (stackParser && typeof stackParser === 'function') {
-        const frames = stackParser(exception.stack, 1);
-        if (frames.length) {
-          exceptionValue['stacktrace'] = { frames };
-        }
-      }
-    }
-
-    return Promise.resolve({
-      exception: {
-        values: [exceptionValue],
-      },
-      level: 'error',
-    } as Event);
+  public eventFromException(exception: unknown, hint?: EventHint): PromiseLike<Event> {
+    const event = eventFromUnknownInput(this, this.getOptions().stackParser, exception, hint);
+    event.level = 'error';
+    return Promise.resolve(event);
   }
 
-  public eventFromMessage(message: string, level: any = 'info'): PromiseLike<Event> {
-    return Promise.resolve({
-      message: message,
-      level,
-    } as Event);
+  public eventFromMessage(
+    message: ParameterizedString,
+    level: SeverityLevel = 'info',
+    hint?: EventHint,
+  ): PromiseLike<Event> {
+    return Promise.resolve(
+      eventFromMessageCore(
+        this.getOptions().stackParser,
+        message,
+        level,
+        hint,
+        this.getOptions().attachStacktrace,
+      ),
+    );
   }
 
   protected override _prepareEvent(
@@ -179,41 +201,29 @@ export class MiniappClient extends Client<any> {
     hint?: EventHint,
     scope?: Scope,
   ): PromiseLike<Event | null> {
-    event.platform = event.platform || this.getOptions().platform || 'javascript';
+    event.platform = event.platform || 'javascript';
 
     // Add SDK information
     event.sdk = {
       ...event.sdk,
       name: SDK_NAME,
       packages: [
-        ...((event.sdk && event.sdk.packages) || []),
-        {
-          name: 'npm:@sentry/miniapp',
-          version: SDK_VERSION,
-        },
+        ...((event.sdk && event.sdk.packages) || []).filter(
+          (pkg) => pkg.name !== 'npm:sentry-miniapp',
+        ),
+        { name: 'npm:sentry-miniapp', version: SDK_VERSION },
       ],
       version: SDK_VERSION,
-    };
-
-    // miniapp 标记是 SDK 自有的身份信息，始终写（无用户覆盖语义）。
-    if (!event.contexts) {
-      event.contexts = {};
-    }
-    event.contexts['miniapp'] = {
-      platform: this.getOptions().platform || appName(),
-      sdk_version: SDK_VERSION,
     };
 
     try {
       // @sentry/core 只读取 globalThis 上的 Debug ID maps。微信小游戏可能由 sentry-cli
       // 注入到 global / window / self，因此在 core 准备事件前合并一次候选全局。
-      if (this.getOptions().stackParser) {
-        try {
-          syncDebugIdsToCoreGlobal();
-        } catch (error) {
-          if (this.getOptions().debug) {
-            console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
-          }
+      try {
+        syncDebugIdsToCoreGlobal();
+      } catch (error) {
+        if (this.getOptions().debug) {
+          console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
         }
       }
 
@@ -240,14 +250,31 @@ export class MiniappClient extends Client<any> {
    * 自动值会盖掉用户的 setContext('device'/'os'/'app')。放到 super 之后按缺失填充即可两头兼顾。
    */
   private _fillDefaultContexts(event: Event | null): Event | null {
-    if (!event || this.getOptions().enableSystemInfo === false) {
+    if (!event) {
       return event;
     }
-    const info = getSystemInfo();
     if (!event.contexts) {
       event.contexts = {};
     }
     const contexts = event.contexts;
+    contexts['miniapp'] = {
+      environment: 'miniapp',
+      ...contexts['miniapp'],
+      platform: this.getOptions().miniappPlatform || appName(),
+      sdk_version: SDK_VERSION,
+    };
+
+    if (this.getOptions().enableSystemInfo === false) {
+      return event;
+    }
+
+    const info = getSystemInfo();
+    const account = getAccountInfo();
+    contexts['miniapp'] = {
+      ...contexts['miniapp'],
+      host_version: info?.version || 'unknown',
+      host_sdk_version: info?.SDKVersion || 'unknown',
+    };
     contexts.device = {
       brand: info?.brand || 'unknown',
       model: info?.model || 'unknown',
@@ -264,46 +291,41 @@ export class MiniappClient extends Client<any> {
       ...contexts.os,
     };
     contexts.app = {
-      app_version: info?.SDKVersion || 'unknown',
+      app_identifier: account.appId,
+      app_version: account.version,
       ...contexts.app,
     };
     return event;
   }
 
-  /**
-   * 关闭客户端，清理所有集成资源。
-   *
-   * 用公开的 `getOptions().integrations`（装配后的集成实例数组）遍历，而非基类内部的
-   * `_integrations` 字段——后者是 protected、非公开契约，@sentry/core 升级若改名/改结构会
-   * 静默失效。`cleanup()` 是本 SDK 集成的自定义方法（非 core Integration 接口的一部分），故做窄类型断言。
-   */
-  public override close(timeout?: number): PromiseLike<boolean> {
-    const integrations = this.getOptions().integrations;
-    if (Array.isArray(integrations)) {
-      for (const integration of integrations) {
-        const cleanup = (integration as unknown as { cleanup?: () => void }).cleanup;
-        if (typeof cleanup === 'function') {
-          try {
-            cleanup.call(integration);
-          } catch (e) {
-            if (this.getOptions().debug) {
-              console.warn(`[sentry-miniapp] 集成 ${integration.name} cleanup 失败:`, e);
-            }
-          }
-        }
+  /** @inheritDoc */
+  public override registerCleanup(callback: () => void): void {
+    this._disposeCallbacks.push(callback);
+  }
 
-        // 从 core 的进程级 setupOnce 门禁里移除本集成名，让后续 init() 能重新 setupOnce。
-        // core 用 installedIntegrations（按 name 记、从不清除）守卫 setupOnce：cleanup 还原了
-        // 补丁、门禁却仍记着该名，二次 init 会跳过 setup → 全局错误处理/面包屑等静默哑火（F2）。
-        if (Array.isArray(installedIntegrations)) {
-          const idx = installedIntegrations.indexOf(integration.name);
-          if (idx !== -1) {
-            installedIntegrations.splice(idx, 1);
-          }
+  /** @inheritDoc */
+  public override dispose(): void {
+    for (const callback of this._disposeCallbacks.splice(0)) {
+      try {
+        callback();
+      } catch (error) {
+        if (this.getOptions().debug) {
+          console.warn('[sentry-miniapp] 集成资源清理失败:', error);
         }
       }
     }
-    return super.close(timeout);
+    super.dispose();
+  }
+
+  /**
+   * 关闭客户端并执行集成通过 `setup(client)` 注册的清理回调。
+   */
+  public override async close(timeout?: number): Promise<boolean> {
+    try {
+      return await super.close(timeout);
+    } finally {
+      this.dispose();
+    }
   }
 
   /**
@@ -326,23 +348,6 @@ export class MiniappClient extends Client<any> {
    * @returns Event ID
    */
   public captureFeedback(params: SendFeedbackParams): string {
-    const feedbackEvent: Event = {
-      contexts: {
-        feedback: {
-          contact_email: params.email,
-          name: params.name,
-          message: params.message,
-          url: params.url,
-          source: params.source,
-          associated_event_id: params.associatedEventId,
-        },
-      },
-      type: 'feedback',
-      level: 'info',
-      tags: params.tags || {},
-    };
-
-    const scope = getCurrentScope();
-    return scope.captureEvent(feedbackEvent);
+    return captureFeedbackCore(params, {}, getCurrentScope());
   }
 }

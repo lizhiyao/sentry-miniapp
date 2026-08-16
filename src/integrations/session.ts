@@ -1,5 +1,5 @@
-import { startSession, endSession, captureSession } from '@sentry/core';
-import type { Integration } from '@sentry/core';
+import { startSession, endSession, captureSession, getClient } from '@sentry/core';
+import type { Client, Integration } from '@sentry/core';
 import { subscribeAppLifecycle } from '../appLifecycle';
 
 /**
@@ -22,8 +22,22 @@ export class SessionIntegration implements Integration {
 
   private _isSessionActive: boolean = false;
   private _unsubscribe: (() => void) | null = null;
+  private _isSetup: boolean = false;
+  private _client: Client | undefined;
 
   public setupOnce(): void {
+    this._setup();
+  }
+
+  public setup(client: Client): void {
+    this._client = client;
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
+    if (this._isSetup) return;
+    this._isSetup = true;
     this._unsubscribe = subscribeAppLifecycle({
       onLaunch: () => this._startSession(),
       onShow: () => {
@@ -36,6 +50,7 @@ export class SessionIntegration implements Integration {
   }
 
   private _startSession(): void {
+    if (this._client && getClient() !== this._client) return;
     try {
       startSession({ ignoreDuration: true });
       captureSession();
@@ -46,6 +61,7 @@ export class SessionIntegration implements Integration {
   }
 
   private _endSession(): void {
+    if (this._client && getClient() !== this._client) return;
     try {
       endSession();
       captureSession();
@@ -61,5 +77,7 @@ export class SessionIntegration implements Integration {
       this._unsubscribe = null;
     }
     this._isSessionActive = false;
+    this._isSetup = false;
+    this._client = undefined;
   }
 }

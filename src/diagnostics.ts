@@ -1,4 +1,4 @@
-import { getClient, isEnabled } from '@sentry/core';
+import { getClient, isEnabled, makeDsn } from '@sentry/core';
 import { isConsentGranted, isConsentRequired } from './consent';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
 import { getConfiguredDefaultIntegrationsMode, MiniappClient, usesCustomTransport } from './client';
@@ -124,20 +124,12 @@ function normalizeDsn(dsn: string | undefined): MiniappDiagnosticsOptions['dsn']
     };
   }
 
-  try {
-    const parsed = new URL(dsn);
-    return {
-      configured: true,
-      valid: !!parsed.host,
-      host: parsed.host || null,
-    };
-  } catch (_e) {
-    return {
-      configured: true,
-      valid: false,
-      host: null,
-    };
-  }
+  const parsed = makeDsn(dsn);
+  return {
+    configured: true,
+    valid: !!parsed,
+    host: parsed?.host || null,
+  };
 }
 
 function buildWarnings(diagnostics: MiniappDiagnostics): MiniappDiagnosticsWarning[] {

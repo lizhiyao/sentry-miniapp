@@ -81,7 +81,7 @@ Sentry.measurePerformance('checkout-flow', 'checkout-start', 'checkout-end');
 
 ## Distributed Tracing
 
-Automatically inject `sentry-trace` and `baggage` headers into outgoing network requests to link frontend and backend spans:
+Inject `sentry-trace` and `baggage` headers only into explicitly allowlisted outgoing requests to link frontend and backend spans:
 
 ```javascript
 Sentry.init({
@@ -91,9 +91,10 @@ Sentry.init({
 });
 ```
 
-- When `tracePropagationTargets` is empty (default), headers are injected into all non-Sentry requests
-- When specified, only matching URLs receive trace headers
+- When `tracePropagationTargets` is empty (default), no business request receives trace headers
+- Only matching URLs receive trace headers; allowlist only API origins controlled by the application owner
 - Backend must have Sentry SDK with tracing enabled to complete the trace
+- An outgoing request becomes an `http.client` child span only when an active transaction exists; the SDK does not create one root transaction per parentless request
 
 ## Dynamic Sampling
 

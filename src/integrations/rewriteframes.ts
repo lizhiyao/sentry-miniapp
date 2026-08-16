@@ -1,4 +1,35 @@
+import { rewriteFramesIntegration as coreRewriteFramesIntegration } from '@sentry/core';
 import type { Event, Integration, Exception, StackFrame } from '@sentry/core';
+
+const DEFAULT_PREFIX = 'app:///';
+
+/** 将各小程序宿主的虚拟路径归一化为 sentry-cli 可匹配的 app:/// 路径。 */
+export function normalizeMiniappFrameFilename(
+  filename: string,
+  prefix: string = DEFAULT_PREFIX,
+): string {
+  if (filename.startsWith(prefix)) return filename;
+
+  const normalized = filename
+    .replace(/^(appservice|app-service|WAService)\//i, '')
+    .replace(/^https?:\/\/[^/]+\//i, '')
+    .replace(/^chunks:\/\/\/?/i, 'chunks/')
+    .replace(/^[a-z]+:\/\//i, '')
+    .replace(/^\//, '');
+
+  return `${prefix}${normalized}`;
+}
+
+/** 官方 RewriteFrames 处理器 + 小程序路径归一化规则。 */
+export const rewriteFramesIntegration = (options: { prefix?: string } = {}): Integration => {
+  const prefix = options.prefix || DEFAULT_PREFIX;
+  return coreRewriteFramesIntegration({
+    iteratee: (frame) =>
+      frame.filename
+        ? { ...frame, filename: normalizeMiniappFrameFilename(frame.filename, prefix) }
+        : frame,
+  });
+};
 
 /**
  * Normalize miniapp stack trace paths to a standard format for source map resolution.
@@ -21,7 +52,7 @@ export class RewriteFrames implements Integration {
   private readonly _prefix: string;
 
   public constructor(options: { prefix?: string } = {}) {
-    this._prefix = options.prefix || 'app:///';
+    this._prefix = options.prefix || DEFAULT_PREFIX;
   }
 
   /**
@@ -55,25 +86,6 @@ export class RewriteFrames implements Integration {
    * Normalizes a filename from various miniapp platforms
    */
   private _normalizeFilename(filename: string): string {
-    let normalized = filename;
-
-    // Prevent double prefixing if it's already an absolute path
-    if (normalized.startsWith(this._prefix)) {
-      return normalized;
-    }
-
-    // Remove common platform prefixes
-    // WeChat: appservice/, app-service/, WAService.js
-    // Alipay: https://appx/...
-    // ByteDance: tt://...
-    // ByteDance/Cocos virtual chunks: chunks:///_virtual/xxx.js -> chunks/_virtual/xxx.js
-    normalized = normalized
-      .replace(/^(appservice|app-service|WAService)\//i, '')
-      .replace(/^https?:\/\/[^/]+\//i, '') // Remove alipay http(s) protocol and domain
-      .replace(/^chunks:\/\/\/?/i, 'chunks/')
-      .replace(/^[a-z]+:\/\//i, '') // Remove other protocols like tt://, swan://
-      .replace(/^\//, ''); // Remove leading slash if any
-
-    return `${this._prefix}${normalized}`;
+    return normalizeMiniappFrameFilename(filename, this._prefix);
   }
 }

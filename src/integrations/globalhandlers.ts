@@ -1,5 +1,5 @@
-import { captureException, getCurrentScope } from '@sentry/core';
-import type { Integration, IntegrationFn } from '@sentry/core';
+import { captureException, getClient, withScope } from '@sentry/core';
+import type { Client, Integration, IntegrationFn } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
 import { shouldIgnoreOnError } from '../helpers';
@@ -52,6 +52,7 @@ export class GlobalHandlers implements Integration {
     | ((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => void)
     | null = null;
   private _memoryWarningHandler: ((res: { level: number }) => void) | null = null;
+  private _client: Client | undefined;
 
   /** JSDoc */
   public constructor(options?: Partial<GlobalHandlersIntegrations>) {
@@ -68,6 +69,17 @@ export class GlobalHandlers implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
+    this._setup();
+  }
+
+  /** 按 core 官方生命周期在每个 client 上安装，并由 client 统一回收。 */
+  public setup(client: Client): void {
+    this._client = client;
+    this._setup();
+    client.registerCleanup(() => this.cleanup());
+  }
+
+  private _setup(): void {
     Error.stackTraceLimit = 50;
 
     if (this._options.onerror) {
@@ -95,6 +107,7 @@ export class GlobalHandlers implements Integration {
 
     if (sdk().onError) {
       this._errorHandler = (err: string | Error) => {
+        if (this._client && getClient() !== this._client) return;
         if (shouldIgnoreOnError()) {
           return;
         }
@@ -127,6 +140,7 @@ export class GlobalHandlers implements Integration {
         reason: string | Error;
         promise: Promise<any>;
       }) => {
+        if (this._client && getClient() !== this._client) return;
         const error = typeof reason === 'string' ? new Error(reason) : reason;
         captureException(error, {
           mechanism: {
@@ -156,21 +170,23 @@ export class GlobalHandlers implements Integration {
         query: Record<string, any>;
         isEntryPage: boolean;
       }) => {
-        const scope = getCurrentScope();
+        if (this._client && getClient() !== this._client) return;
         const url = res.path.split('?')[0];
 
-        scope.setTag('pagenotfound', url);
-        scope.setContext('page_not_found', {
-          path: res.path,
-          query: res.query,
-          isEntryPage: res.isEntryPage,
-        });
+        withScope((scope) => {
+          scope.setTag('pagenotfound', url);
+          scope.setContext('page_not_found', {
+            path: res.path,
+            query: res.query,
+            isEntryPage: res.isEntryPage,
+          });
 
-        captureException(new Error(`页面无法找到: ${url}`), {
-          mechanism: {
-            type: 'onpagenotfound',
-            handled: true,
-          },
+          captureException(new Error(`页面无法找到: ${url}`), {
+            mechanism: {
+              type: 'onpagenotfound',
+              handled: true,
+            },
+          });
         });
       };
       sdk().onPageNotFound?.(this._pageNotFoundHandler);
@@ -187,6 +203,7 @@ export class GlobalHandlers implements Integration {
 
     if (sdk().onMemoryWarning) {
       this._memoryWarningHandler = ({ level = -1 }: { level: number }) => {
+        if (this._client && getClient() !== this._client) return;
         let levelMessage = '没有获取到告警级别信息';
 
         switch (level) {
@@ -203,18 +220,19 @@ export class GlobalHandlers implements Integration {
             return;
         }
 
-        const scope = getCurrentScope();
-        scope.setTag('memory-warning', String(level));
-        scope.setContext('memory_warning', {
-          level,
-          message: levelMessage,
-        });
+        withScope((scope) => {
+          scope.setTag('memory-warning', String(level));
+          scope.setContext('memory_warning', {
+            level,
+            message: levelMessage,
+          });
 
-        captureException(new Error('内存不足告警'), {
-          mechanism: {
-            type: 'onmemorywarning',
-            handled: true,
-          },
+          captureException(new Error('内存不足告警'), {
+            mechanism: {
+              type: 'onmemorywarning',
+              handled: true,
+            },
+          });
         });
       };
       sdk().onMemoryWarning?.(this._memoryWarningHandler);

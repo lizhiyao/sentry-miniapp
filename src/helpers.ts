@@ -194,7 +194,10 @@ export function fill(
   name: string,
   replacementFactory: (...args: any[]) => any,
 ): FillResult | undefined {
-  if (!(name in source)) {
+  try {
+    if (!(name in source)) return undefined;
+  } catch (_e) {
+    // 宿主 Proxy 可能拒绝 has 检查；无法确认属性存在时不尝试修改。
     return undefined;
   }
 
@@ -208,7 +211,13 @@ export function fill(
   } catch (_e) {
     // 宿主代理可能不允许读取 descriptor；仍可继续尝试普通赋值。
   }
-  const original = source[name] as () => any;
+  let original: () => any;
+  try {
+    original = source[name] as () => any;
+  } catch (_e) {
+    // 无法安全读取原值时不能建立可恢复的包装。
+    return undefined;
+  }
   const wrapped = replacementFactory(original);
 
   if (typeof wrapped === 'function') {
@@ -227,6 +236,14 @@ export function fill(
     replaced,
     restore: () => {
       if (!replaced) return;
+
+      // 身份读取失败时无法证明当前属性仍由我们拥有。此时宁可保留透明 wrapper，
+      // 也不能进入恢复 fallback 覆盖宿主或第三方后来安装的实现。
+      try {
+        if (source[name] !== wrapped) return;
+      } catch (_e) {
+        return;
+      }
 
       try {
         if (!descriptorInspected) {

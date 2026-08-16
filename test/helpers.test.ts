@@ -222,6 +222,66 @@ describe('Helpers', () => {
       expect(proxy.method).toBe(originalMethod);
     });
 
+    it('contains host getter errors while checking whether restore still owns the wrapper', () => {
+      const originalMethod = vi.fn(() => 'original');
+      const target = { method: originalMethod };
+      let rejectReads = false;
+      const proxy = new Proxy(target, {
+        get(targetObject, property, receiver) {
+          if (rejectReads && property === 'method') throw new Error('read denied');
+          return Reflect.get(targetObject, property, receiver);
+        },
+      });
+      const result = fill(proxy, 'method', () => vi.fn(() => 'wrapped'));
+      const wrappedMethod = target.method;
+
+      rejectReads = true;
+      expect(() => result?.restore()).not.toThrow();
+      rejectReads = false;
+      expect(target.method).toBe(wrappedMethod);
+      expect(target.method).not.toBe(originalMethod);
+    });
+
+    it('does not restore over a host method replaced after fill', () => {
+      const original = vi.fn(() => 'original');
+      const replacement = vi.fn(() => 'replacement');
+      const thirdParty = vi.fn(() => 'third-party');
+      const target = { method: original };
+      const result = fill(target, 'method', () => replacement);
+      target.method = thirdParty;
+
+      result?.restore();
+
+      expect(target.method).toBe(thirdParty);
+    });
+
+    it('does not attempt to wrap a host property whose value cannot be read', () => {
+      const target = { method: vi.fn() };
+      const proxy = new Proxy(target, {
+        get(targetObject, property, receiver) {
+          if (property === 'method') throw new Error('read denied');
+          return Reflect.get(targetObject, property, receiver);
+        },
+      });
+
+      expect(() => fill(proxy, 'method', () => vi.fn())).not.toThrow();
+      expect(fill(proxy, 'method', () => vi.fn())).toBeUndefined();
+    });
+
+    it('does not attempt to wrap a host proxy which rejects property checks', () => {
+      const proxy = new Proxy(
+        { method: vi.fn() },
+        {
+          has() {
+            throw new Error('has denied');
+          },
+        },
+      );
+
+      expect(() => fill(proxy, 'method', () => vi.fn())).not.toThrow();
+      expect(fill(proxy, 'method', () => vi.fn())).toBeUndefined();
+    });
+
     it('should handle non-existent property', () => {
       const obj = {} as any;
 

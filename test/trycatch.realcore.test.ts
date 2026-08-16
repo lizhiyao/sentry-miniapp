@@ -97,7 +97,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     // 而非容器级 exception.mechanism——后者后端读不到，等于没标记。
     const val = errEvent.exception.values.find((v: any) => v.value?.includes('timer boom'));
     expect(val.mechanism?.type).toBe('instrument');
-    expect(val.mechanism?.handled).toBe(true);
+    expect(val.mechanism?.handled).toBe(false);
     expect((errEvent.exception as any).mechanism).toBeUndefined(); // 不再误挂容器级
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
@@ -139,14 +139,14 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(events).toHaveLength(1);
     expect(events[0].exception.values[0].mechanism).toMatchObject({
       type: 'instrument',
-      handled: true,
+      handled: false,
     });
   });
 
-  it('Error.cause 链存在时，instrument mechanism 标在原始抛错而非 cause', async () => {
-    // LinkedErrors 是 client event processor，会先把 cause 链 prepend 到 exception.values。
-    // wrap() 的 mechanism 必须经 captureException hint 交给 core 在这之前处理；若在 scope
-    // processor 阶段手写 values[0]，这里会误标到 root cause 上。
+  it('Error.cause 链按官方 LinkedErrors 语义保留未处理标记', async () => {
+    // 官方 LinkedErrors 在 preprocessEvent 阶段把 cause prepend 到 exception.values；
+    // core 随后把 capture hint 的 instrument mechanism 施加到 values[0]（root cause）。
+    // 父异常保留 generic / linked-errors 元数据，但整个事件仍有 handled=false，会被计为 crash。
     g.setTimeout = (cb: (...a: any[]) => any) => {
       cb();
       return 0 as any;
@@ -187,9 +187,10 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     const outer = values.find((v: any) => v.value?.includes('outer timer boom'));
     expect(root).toBeDefined();
     expect(outer).toBeDefined();
-    expect(outer.mechanism?.type).toBe('instrument');
+    expect(outer.mechanism?.type).toBe('generic');
     expect(outer.mechanism?.handled).toBe(true);
-    expect(root.mechanism?.type).not.toBe('instrument');
+    expect(root.mechanism?.type).toBe('instrument');
+    expect(root.mechanism?.handled).toBe(false);
   });
 
   it('包装处理器不泄漏：后续 unrelated 错误不被误标 instrument', async () => {
@@ -230,7 +231,10 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     );
     expect(ev).toBeDefined();
     // 不被上一次 wrap 的 mechanism / arguments 污染
-    expect(ev.exception.values[0].mechanism).toBeUndefined();
+    expect(ev.exception.values[0].mechanism).toEqual({
+      handled: true,
+      type: 'generic',
+    });
     expect(ev.extra?.arguments).toBeUndefined();
   });
 });

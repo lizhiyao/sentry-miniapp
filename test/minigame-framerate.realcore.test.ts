@@ -121,12 +121,14 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     expect(m.fps_avg).toBeDefined();
   });
 
-  it('client.close() 经公开 getOptions().integrations 调到集成 cleanup', async () => {
+  it('client.close() 执行集成通过 setup(client) 注册的 cleanup', async () => {
     const cleanupSpy = vi.fn();
     const probe = {
       name: 'CleanupProbe',
       setupOnce() {},
-      cleanup: cleanupSpy,
+      setup(client: { registerCleanup: (callback: () => void) => void }) {
+        client.registerCleanup(cleanupSpy);
+      },
     };
     const client = init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
