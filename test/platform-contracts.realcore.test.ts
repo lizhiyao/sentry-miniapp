@@ -31,13 +31,18 @@ const PLATFORM_CONTRACTS: PlatformContract[] = [
   { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', objectStorage: false },
 ];
 
-function collectEvents(captured: any[]): any[] {
+function collectEvents(capturedRequests: Array<Record<string, any>>): any[] {
   const events: any[] = [];
-  for (const envelope of captured) {
-    const items = envelope[1];
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      if (item[0]?.type === 'event') events.push(item[1]);
+  for (const request of capturedRequests) {
+    const body =
+      typeof request.data === 'string'
+        ? request.data
+        : new TextDecoder().decode(request.data as Uint8Array);
+    const lines = body.split('\n');
+    for (let index = 1; index + 1 < lines.length; index += 2) {
+      const itemHeader = JSON.parse(lines[index]!);
+      const payload = JSON.parse(lines[index + 1]!);
+      if (itemHeader.type === 'event') events.push(payload);
     }
   }
   return events;
@@ -47,22 +52,21 @@ describe.each(PLATFORM_CONTRACTS)(
   '$platform ($globalName) 宿主契约',
   ({ globalName, platform, requestMethod, objectStorage }) => {
     const g = globalThis as any;
-    const captured: any[] = [];
+    const capturedRequests: Array<Record<string, any>> = [];
     const errorHandlers = new Set<(error: string | Error) => void>();
+    const rejectionHandlers = new Set<
+      (payload: { reason: string | Error; promise: Promise<unknown> }) => void
+    >();
+    const pageNotFoundHandlers = new Set<
+      (payload: { path: string; query: Record<string, unknown>; isEntryPage: boolean }) => void
+    >();
+    const memoryWarningHandlers = new Set<(payload: { level: number }) => void>();
     const networkHandlers = new Set<(status: unknown) => void>();
     const storage = new Map<string, unknown>();
     let originalApp: unknown;
     let originalPage: unknown;
     let host: Record<string, any>;
     let originalRequest: ReturnType<typeof vi.fn>;
-
-    const transport = () => ({
-      send: (envelope: any) => {
-        captured.push(envelope);
-        return Promise.resolve({ statusCode: 200 });
-      },
-      flush: () => Promise.resolve(true),
-    });
 
     const initClient = () =>
       init({
@@ -71,12 +75,14 @@ describe.each(PLATFORM_CONTRACTS)(
         enableOfflineCache: false,
         enableMinigameLifecycle: false,
         enableMinigameFrameRate: false,
-        transport,
       });
 
     beforeEach(() => {
-      captured.length = 0;
+      capturedRequests.length = 0;
       errorHandlers.clear();
+      rejectionHandlers.clear();
+      pageNotFoundHandlers.clear();
+      memoryWarningHandlers.clear();
       networkHandlers.clear();
       storage.clear();
       installedIntegrations.length = 0;
@@ -92,8 +98,16 @@ describe.each(PLATFORM_CONTRACTS)(
       g.Page = vi.fn((options: unknown) => options);
 
       originalRequest = vi.fn(function (this: unknown, options: Record<string, any>) {
-        options.success?.({ statusCode: 200, data: { ok: true } });
-        options.complete?.({ statusCode: 200 });
+        const contentType = options.header?.['Content-Type'] ?? options.headers?.['Content-Type'];
+        const isSentryEnvelope = contentType === 'application/x-sentry-envelope';
+        if (isSentryEnvelope) capturedRequests.push(options);
+
+        const response =
+          globalName === 'my'
+            ? { status: 200, data: { ok: true }, headers: {} }
+            : { statusCode: 200, data: { ok: true }, header: {} };
+        options.success?.(response);
+        options.complete?.(response);
         return { abort: vi.fn() };
       });
 
@@ -132,12 +146,54 @@ describe.each(PLATFORM_CONTRACTS)(
         offError: vi.fn((handler: (error: string | Error) => void) => {
           errorHandlers.delete(handler);
         }),
-        onUnhandledRejection: vi.fn(),
-        offUnhandledRejection: vi.fn(),
-        onPageNotFound: vi.fn(),
-        offPageNotFound: vi.fn(),
-        onMemoryWarning: vi.fn(),
-        offMemoryWarning: vi.fn(),
+        onUnhandledRejection: vi.fn(
+          (
+            handler: (payload: {
+              reason: string | Error;
+              promise: Promise<unknown>;
+            }) => void,
+          ) => {
+            rejectionHandlers.add(handler);
+          },
+        ),
+        offUnhandledRejection: vi.fn(
+          (
+            handler: (payload: {
+              reason: string | Error;
+              promise: Promise<unknown>;
+            }) => void,
+          ) => {
+            rejectionHandlers.delete(handler);
+          },
+        ),
+        onPageNotFound: vi.fn(
+          (
+            handler: (payload: {
+              path: string;
+              query: Record<string, unknown>;
+              isEntryPage: boolean;
+            }) => void,
+          ) => {
+            pageNotFoundHandlers.add(handler);
+          },
+        ),
+        offPageNotFound: vi.fn(
+          (
+            handler: (payload: {
+              path: string;
+              query: Record<string, unknown>;
+              isEntryPage: boolean;
+            }) => void,
+          ) => {
+            pageNotFoundHandlers.delete(handler);
+          },
+        ),
+        onMemoryWarning: vi.fn((handler: (payload: { level: number }) => void) => {
+          memoryWarningHandlers.add(handler);
+        }),
+        offMemoryWarning: vi.fn((handler: (payload: { level: number }) => void) => {
+          memoryWarningHandlers.delete(handler);
+        }),
         getNetworkType: vi.fn(({ success }: { success?: (value: unknown) => void }) => {
           success?.({ networkType: 'wifi' });
         }),
@@ -172,6 +228,9 @@ describe.each(PLATFORM_CONTRACTS)(
       const client = initClient();
       expect(client).toBeDefined();
       expect(errorHandlers.size).toBe(1);
+      expect(rejectionHandlers.size).toBe(1);
+      expect(pageNotFoundHandlers.size).toBe(1);
+      expect(memoryWarningHandlers.size).toBe(1);
       expect(networkHandlers.size).toBe(1);
       expect(host[requestMethod]).not.toBe(originalRequest);
 
@@ -203,17 +262,77 @@ describe.each(PLATFORM_CONTRACTS)(
       expect(success).toHaveBeenCalledTimes(1);
       expect(complete).toHaveBeenCalledTimes(1);
 
-      const appOptions = g.App({ onLaunch: vi.fn(), onShow: vi.fn(), onHide: vi.fn() });
-      appOptions.onLaunch({ scene: 1001 });
-      appOptions.onShow({ scene: 1001 });
-      const pageOptions = g.Page({ onLoad: vi.fn(), onShow: vi.fn() });
-      pageOptions.onLoad.call({ route: 'pages/contract/index' }, { source: platform });
-      pageOptions.onShow.call({ route: 'pages/contract/index' });
+      const launchOptions = { scene: 1001 };
+      const appContext = { kind: 'app-context' };
+      const appOnLaunch = vi.fn(function (this: unknown, options: unknown) {
+        expect(this).toBe(appContext);
+        expect(options).toBe(launchOptions);
+        return 'app-launch-result';
+      });
+      const appOnShow = vi.fn(function (this: unknown, options: unknown) {
+        expect(this).toBe(appContext);
+        expect(options).toBe(launchOptions);
+        return 'app-show-result';
+      });
+      const appOnHide = vi.fn(function (this: unknown) {
+        expect(this).toBe(appContext);
+        return 'app-hide-result';
+      });
+      const appOptions = g.App({ onLaunch: appOnLaunch, onShow: appOnShow, onHide: appOnHide });
+      expect(appOptions.onLaunch.call(appContext, launchOptions)).toBe('app-launch-result');
+      expect(appOptions.onShow.call(appContext, launchOptions)).toBe('app-show-result');
+      expect(appOptions.onHide.call(appContext)).toBe('app-hide-result');
+      expect(appOnLaunch).toHaveBeenCalledTimes(1);
+      expect(appOnShow).toHaveBeenCalledTimes(1);
+      expect(appOnHide).toHaveBeenCalledTimes(1);
+
+      const pageQuery = { source: platform };
+      const pageContext = { route: 'pages/contract/index' };
+      const pageOnLoad = vi.fn(function (this: unknown, query: unknown) {
+        expect(this).toBe(pageContext);
+        expect(query).toBe(pageQuery);
+        return 'page-load-result';
+      });
+      const pageOnShow = vi.fn(function (this: unknown) {
+        expect(this).toBe(pageContext);
+        return 'page-show-result';
+      });
+      const pageOptions = g.Page({ onLoad: pageOnLoad, onShow: pageOnShow });
+      expect(pageOptions.onLoad.call(pageContext, pageQuery)).toBe('page-load-result');
+      expect(pageOptions.onShow.call(pageContext)).toBe('page-show-result');
+      expect(pageOnLoad).toHaveBeenCalledTimes(1);
+      expect(pageOnShow).toHaveBeenCalledTimes(1);
 
       for (const handler of errorHandlers) handler(`contract error: ${platform}`);
+      for (const handler of rejectionHandlers) {
+        handler({
+          reason: new Error(`contract rejection: ${platform}`),
+          promise: Promise.resolve(),
+        });
+      }
+      for (const handler of pageNotFoundHandlers) {
+        handler({
+          path: `pages/missing/index?platform=${platform}`,
+          query: { platform },
+          isEntryPage: false,
+        });
+      }
+      for (const handler of memoryWarningHandlers) handler({ level: 10 });
       await client!.flush(2000);
 
-      const event = collectEvents(captured).find((candidate) =>
+      expect(capturedRequests.length).toBeGreaterThan(0);
+      expect(capturedRequests).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            method: 'POST',
+            header: expect.objectContaining({
+              'Content-Type': 'application/x-sentry-envelope',
+            }),
+          }),
+        ]),
+      );
+      const events = collectEvents(capturedRequests);
+      const event = events.find((candidate) =>
         candidate.exception?.values?.some((value: any) =>
           value.value?.includes(`contract error: ${platform}`),
         ),
@@ -233,22 +352,64 @@ describe.each(PLATFORM_CONTRACTS)(
           expect.objectContaining({ category: 'page.lifecycle' }),
         ]),
       );
+      const rejectionEvent = events.find((candidate) =>
+        candidate.exception?.values?.some((value: any) =>
+          value.value?.includes(`contract rejection: ${platform}`),
+        ),
+      );
+      expect(rejectionEvent?.exception?.values?.[0]?.mechanism).toEqual({
+        type: 'onunhandledrejection',
+        handled: false,
+      });
+      const pageNotFoundEvent = events.find((candidate) =>
+        candidate.exception?.values?.some((value: any) =>
+          value.value?.includes('页面无法找到: pages/missing/index'),
+        ),
+      );
+      expect(pageNotFoundEvent?.exception?.values?.[0]?.mechanism).toEqual({
+        type: 'onpagenotfound',
+        handled: true,
+      });
+      expect(pageNotFoundEvent?.contexts?.page_not_found).toEqual({
+        path: `pages/missing/index?platform=${platform}`,
+        query: { platform },
+        isEntryPage: false,
+      });
+      const memoryWarningEvent = events.find((candidate) =>
+        candidate.exception?.values?.some((value: any) =>
+          value.value?.includes('内存不足告警'),
+        ),
+      );
+      expect(memoryWarningEvent?.exception?.values?.[0]?.mechanism).toEqual({
+        type: 'onmemorywarning',
+        handled: true,
+      });
+      expect(memoryWarningEvent?.contexts?.memory_warning).toEqual({
+        level: 10,
+        message: 'TRIM_MEMORY_RUNNING_LOW',
+      });
 
       await client!.close(2000);
       expect(errorHandlers.size).toBe(0);
+      expect(rejectionHandlers.size).toBe(0);
+      expect(pageNotFoundHandlers.size).toBe(0);
+      expect(memoryWarningHandlers.size).toBe(0);
       expect(networkHandlers.size).toBe(0);
       expect(host[requestMethod]).toBe(originalRequest);
       expect(g.App).toBe(originalHostApp);
       expect(g.Page).toBe(originalHostPage);
 
-      captured.length = 0;
+      capturedRequests.length = 0;
       const nextClient = initClient();
       expect(nextClient).toBeDefined();
       expect(errorHandlers.size).toBe(1);
+      expect(rejectionHandlers.size).toBe(1);
+      expect(pageNotFoundHandlers.size).toBe(1);
+      expect(memoryWarningHandlers.size).toBe(1);
       for (const handler of errorHandlers) handler(`reinitialized error: ${platform}`);
       await nextClient!.flush(2000);
       expect(
-        collectEvents(captured).some((candidate) =>
+        collectEvents(capturedRequests).some((candidate) =>
           candidate.exception?.values?.some((value: any) =>
             value.value?.includes(`reinitialized error: ${platform}`),
           ),
@@ -268,7 +429,7 @@ describe.each(PLATFORM_CONTRACTS)(
       captureException(new Error(`minimal host: ${platform}`));
       await client!.flush(2000);
 
-      const event = collectEvents(captured).find((candidate) =>
+      const event = collectEvents(capturedRequests).find((candidate) =>
         candidate.exception?.values?.some((value: any) =>
           value.value?.includes(`minimal host: ${platform}`),
         ),
