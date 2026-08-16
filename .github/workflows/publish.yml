@@ -55,6 +55,11 @@ jobs:
       run: |
         VERSION="${TAG_NAME#v}"
         PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+        PUBLISH_TAG="latest"
+
+        if [[ "$VERSION" == *-* ]]; then
+          PUBLISH_TAG="next"
+        fi
 
         if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
           echo "package.json version ($PACKAGE_VERSION) does not match tag ($TAG_NAME)"
@@ -64,13 +69,15 @@ jobs:
         if npm view "sentry-miniapp@$VERSION" version >/dev/null 2>&1; then
           echo "sentry-miniapp@$VERSION is already published; skipping npm publish."
         else
-          npm publish --access public --provenance
+          echo "Publishing sentry-miniapp@$VERSION with dist-tag $PUBLISH_TAG"
+          npm publish --access public --provenance --tag "$PUBLISH_TAG"
         fi
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v3
       with:
         generate_release_notes: true
+        prerelease: ${{ contains(github.ref_name, '-') }}
         fail_on_unmatched_files: true
         files: |
           dist/sentry-miniapp.umd.js
