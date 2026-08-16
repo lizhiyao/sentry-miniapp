@@ -21,6 +21,9 @@ import {
   type PerformanceObserver,
 } from '../crossPlatform';
 
+const EPOCH_TIMESTAMP_THRESHOLD = 100_000_000_000;
+const MAX_PLAUSIBLE_RELATIVE_RUNTIME = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Performance API 集成配置
  */
@@ -73,6 +76,7 @@ export class PerformanceIntegration implements Integration {
   private _reportTimer: ReturnType<typeof setInterval> | null = null;
   private _isSetup: boolean = false;
   private _relativeTimeOrigin: number | null = null;
+  private _setupEpochMilliseconds: number | null = null;
   private _client: Client | undefined;
 
   constructor(options: PerformanceIntegrationOptions = {}) {
@@ -112,6 +116,7 @@ export class PerformanceIntegration implements Integration {
   private _setup(): void {
     if (this._isSetup) return;
     this._isSetup = true;
+    this._setupEpochMilliseconds = epochNow();
     this._initializePerformanceManager();
     this._setupPerformanceObservers();
     this._startAutoReporting();
@@ -310,24 +315,36 @@ export class PerformanceIntegration implements Integration {
   /**
    * 小程序 PerformanceEntry.startTime 通常是相对运行时起点的毫秒数，不是 Unix epoch。
    * 第一批条目用“最晚结束点 ≈ 当前时间”建立稳定锚点；已是 epoch 毫秒的宿主值则原样使用。
+   * 锚点不得晚于 SDK setup 时刻，否则延迟送达的陈旧首批数据会被错误平移到当前甚至未来。
    */
   private _initializeRelativeTimeOrigin(entries: PerformanceEntry[]): void {
     if (this._relativeTimeOrigin !== null) return;
+    const currentEpoch = epochNow();
     const relativeEnds = entries
-      .filter((entry) => Number.isFinite(entry.startTime) && entry.startTime < 100_000_000_000)
+      .filter(
+        (entry) => Number.isFinite(entry.startTime) && entry.startTime < EPOCH_TIMESTAMP_THRESHOLD,
+      )
       .map(
         (entry) =>
           Math.max(0, entry.startTime) +
           (Number.isFinite(entry.duration) ? Math.max(0, entry.duration) : 0),
-      );
+      )
+      .filter((relativeEnd) => relativeEnd <= MAX_PLAUSIBLE_RELATIVE_RUNTIME);
     if (relativeEnds.length === 0) return;
-    this._relativeTimeOrigin = epochNow() - Math.max(0, ...relativeEnds);
+
+    const candidate = currentEpoch - Math.max(0, ...relativeEnds);
+    const latestPlausibleOrigin = this._setupEpochMilliseconds ?? currentEpoch;
+    const earliestPlausibleOrigin = currentEpoch - MAX_PLAUSIBLE_RELATIVE_RUNTIME;
+    this._relativeTimeOrigin = Math.min(
+      latestPlausibleOrigin,
+      Math.max(earliestPlausibleOrigin, candidate),
+    );
   }
 
   private _entryTimes(entry: PerformanceEntry): { start: number; end: number } {
     const validStart = Number.isFinite(entry.startTime) ? entry.startTime : 0;
     const startMilliseconds =
-      validStart >= 100_000_000_000
+      validStart >= EPOCH_TIMESTAMP_THRESHOLD
         ? validStart
         : (this._relativeTimeOrigin ?? epochNow()) + Math.max(0, validStart);
     const endMilliseconds =
@@ -754,6 +771,7 @@ export class PerformanceIntegration implements Integration {
     }
     this._performanceManager = null;
     this._relativeTimeOrigin = null;
+    this._setupEpochMilliseconds = null;
     this._isSetup = false;
     this._client = undefined;
   }

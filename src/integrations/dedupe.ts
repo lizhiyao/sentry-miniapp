@@ -1,7 +1,12 @@
 import { dedupeIntegration as coreDedupeIntegration } from '@sentry/core';
 import type { Event, EventHint, Integration } from '@sentry/core';
 
-/** Deduplication filter */
+/**
+ * Deduplication filter.
+ *
+ * @deprecated 仅保留给依赖 `fuzzyMatch` 的 1.x 历史用法，将在 2.0 移除。
+ * 新代码请使用 `dedupeIntegration()`，它直接复用 `@sentry/core` 官方实现。
+ */
 export class Dedupe implements Integration {
   /**
    * @inheritDoc

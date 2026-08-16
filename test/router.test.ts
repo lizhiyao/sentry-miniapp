@@ -20,10 +20,13 @@ vi.mock('../src/crossPlatform', () => ({
 
 import { sdk as sdkFn } from '../src/crossPlatform';
 
+const activeRouters = new Set<Router>();
+
 function setupRouter(router: Router): void {
   const client = { registerCleanup: vi.fn() } as any;
   vi.mocked(getClient).mockReturnValue(client);
   router.setup(client);
+  activeRouters.add(router);
 }
 
 describe('Router Integration', () => {
@@ -83,6 +86,8 @@ describe('Router Integration', () => {
   });
 
   afterEach(() => {
+    for (const activeRouter of activeRouters) activeRouter.cleanup();
+    activeRouters.clear();
     // Restore original setInterval and clean up
     delete (globalThis as any).getCurrentPages;
     (global as any).setInterval = originalSetInterval;

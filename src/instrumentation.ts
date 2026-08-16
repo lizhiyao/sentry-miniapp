@@ -26,16 +26,27 @@ function getStateMap(source: object): Map<string, FunctionInstrumentationState> 
   return stateMap;
 }
 
-function createState(source: object, name: string): FunctionInstrumentationState | undefined {
+function createState(
+  source: object,
+  name: string,
+  existingState?: FunctionInstrumentationState,
+): FunctionInstrumentationState | undefined {
   const stateMap = getStateMap(source);
-  const handlers = new Map<Client, FunctionInstrumentationHandler>();
-  const state = { handlers } as FunctionInstrumentationState;
+  const state =
+    existingState ??
+    ({
+      handlers: new Map<Client, FunctionInstrumentationHandler>(),
+    } as FunctionInstrumentationState);
   const target = source as Record<string, unknown>;
 
   const result = fill(target, name, (original: Function) => {
     const wrapper = function (this: unknown, ...args: unknown[]): unknown {
+      // 宿主 API 被第三方重包后，旧 wrapper 可能仍位于新调用链内部。状态迁移到新 wrapper
+      // 后旧层必须透明转发，否则同一 handler 会递归或重复执行。
+      if (state.wrapper !== wrapper) return original.apply(this, args);
+
       const activeClient = getClient();
-      const handler = activeClient ? handlers.get(activeClient) : undefined;
+      const handler = activeClient ? state.handlers.get(activeClient) : undefined;
       return handler ? handler(original, this, args) : original.apply(this, args);
     };
 
@@ -59,9 +70,23 @@ function ensureState(source: object, name: string): FunctionInstrumentationState
     return existing;
   }
 
-  // 宿主 API 被外部重新赋值后，不再复用已经脱离调用链的旧状态。
+  // 宿主 API 被外部重新赋值后，在新调用链上重装 wrapper，同时保留所有 client handler。
+  // cleanup 闭包继续引用同一个 state，仍能正确退订并恢复最新宿主函数。
   if (existing) {
-    stateMap.delete(name);
+    const debugEnabled = [...existing.handlers.keys()].some((client) => {
+      try {
+        return client.getOptions().debug === true;
+      } catch (_e) {
+        return false;
+      }
+    });
+    if (debugEnabled) {
+      console.warn(`[sentry-miniapp] 检测到宿主 API ${name} 被外部替换，正在重新安装监控包装`);
+    }
+
+    const reinstalled = createState(source, name, existing);
+    if (!reinstalled) stateMap.delete(name);
+    return reinstalled;
   }
   return createState(source, name);
 }

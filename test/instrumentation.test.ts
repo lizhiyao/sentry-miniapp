@@ -100,6 +100,31 @@ describe('共享函数 instrumentation', () => {
     expect(source.run).toBe(thirdPartyWrapper);
   });
 
+  it('宿主函数被外部重包后保留已有 handler，且旧 wrapper 只透明转发', () => {
+    const original = vi.fn(() => 'original');
+    const source = { run: original };
+    const client = { getOptions: () => ({ debug: true }) } as any;
+    const handler = vi.fn((fn: Function, thisArg: unknown, args: unknown[]) =>
+      fn.apply(thisArg, args),
+    );
+    const unsubscribe = addFunctionInstrumentationHandler(source, 'run', client, handler);
+    const sentryWrapper = source.run;
+    const thirdPartyWrapper = vi.fn(() => sentryWrapper());
+    source.run = thirdPartyWrapper;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(ensureFunctionInstrumentation(source, 'run')).toBe(true);
+    mockGetClient.mockReturnValue(client);
+    expect(source.run()).toBe('original');
+    expect(handler).toHaveBeenCalledOnce();
+    expect(thirdPartyWrapper).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('run'));
+
+    unsubscribe();
+    expect(source.run).toBe(thirdPartyWrapper);
+    warn.mockRestore();
+  });
+
   it('宿主属性不可包装时安全返回 no-op cleanup', () => {
     const source: Record<string, unknown> = {};
     Object.defineProperty(source, 'run', {

@@ -63,6 +63,8 @@ import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
 import * as crossPlatform from '../src/crossPlatform';
 import { addBreadcrumb } from '@sentry/core';
 
+const activeIntegrations = new Set<NetworkBreadcrumbs>();
+
 function setupIntegration(integration: NetworkBreadcrumbs): void {
   const client = {
     getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
@@ -70,6 +72,7 @@ function setupIntegration(integration: NetworkBreadcrumbs): void {
   } as any;
   mockGetClient.mockReturnValue(client);
   integration.setup(client);
+  activeIntegrations.add(integration);
 }
 
 describe('NetworkBreadcrumbs Integration', () => {
@@ -91,6 +94,8 @@ describe('NetworkBreadcrumbs Integration', () => {
   });
 
   afterEach(() => {
+    for (const integration of activeIntegrations) integration.cleanup();
+    activeIntegrations.clear();
     vi.restoreAllMocks();
   });
 

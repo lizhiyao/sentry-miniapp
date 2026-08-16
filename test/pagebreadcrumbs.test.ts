@@ -14,10 +14,13 @@ vi.mock('@sentry/core', () => ({
 
 import { addBreadcrumb, getClient, setContext } from '@sentry/core';
 
+const activeIntegrations = new Set<PageBreadcrumbs>();
+
 function setupIntegration(integration: PageBreadcrumbs): void {
   const client = { registerCleanup: vi.fn() } as any;
   vi.mocked(getClient).mockReturnValue(client);
   integration.setup(client);
+  activeIntegrations.add(integration);
 }
 
 describe('PageBreadcrumbs Integration', () => {
@@ -33,6 +36,8 @@ describe('PageBreadcrumbs Integration', () => {
   });
 
   afterEach(() => {
+    for (const integration of activeIntegrations) integration.cleanup();
+    activeIntegrations.clear();
     (globalThis as any).Page = originalPage;
     (globalThis as any).App = originalApp;
     _resetAppLifecycle();

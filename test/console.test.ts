@@ -9,10 +9,13 @@ vi.mock('@sentry/core', () => ({
 
 import { addBreadcrumb, getClient } from '@sentry/core';
 
+const activeIntegrations = new Set<ConsoleBreadcrumbs>();
+
 function setupIntegration(integration: ConsoleBreadcrumbs): void {
   const client = { registerCleanup: vi.fn() } as any;
   vi.mocked(getClient).mockReturnValue(client);
   integration.setup(client);
+  activeIntegrations.add(integration);
 }
 
 describe('ConsoleBreadcrumbs Integration', () => {
@@ -28,6 +31,8 @@ describe('ConsoleBreadcrumbs Integration', () => {
   });
 
   afterEach(() => {
+    for (const integration of activeIntegrations) integration.cleanup();
+    activeIntegrations.clear();
     // Restore original console methods
     for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
       (console as any)[level] = originalConsole[level];

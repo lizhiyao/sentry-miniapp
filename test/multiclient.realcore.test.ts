@@ -6,6 +6,7 @@ import { _resetAppLifecycle } from '../src/appLifecycle';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
 import { PageBreadcrumbs } from '../src/integrations/pagebreadcrumbs';
+import { GlobalHandlers } from '../src/integrations/globalhandlers';
 import { SessionIntegration } from '../src/integrations/session';
 import { init } from '../src/sdk';
 
@@ -166,5 +167,37 @@ describe('重叠 client 的全局 instrumentation 所有权', () => {
     appOptions.onHide();
     await Promise.resolve();
     expect(secondSends).toBe(2);
+  });
+
+  it('GlobalHandlers 订阅共存，旧 client 关闭不影响当前 client', async () => {
+    const errorHandlers = new Set<(error: string | Error) => void>();
+    g.wx = {
+      getSystemInfoSync: () => ({}),
+      getAccountInfoSync: () => ({ miniProgram: {} }),
+      onError: (handler: (error: string | Error) => void) => errorHandlers.add(handler),
+      offError: (handler: (error: string | Error) => void) => errorHandlers.delete(handler),
+    };
+    g.App = vi.fn();
+    g.Page = vi.fn();
+    let firstSends = 0;
+    let secondSends = 0;
+
+    const first = start([new GlobalHandlers()], makeTransport(() => firstSends++));
+    const second = start([new GlobalHandlers()], makeTransport(() => secondSends++));
+    expect(errorHandlers).toHaveLength(2);
+
+    for (const handler of errorHandlers) handler(new Error('current client failure'));
+    await second.flush(100);
+    expect(firstSends).toBe(0);
+    expect(secondSends).toBe(1);
+
+    await first.close(0);
+    expect(errorHandlers).toHaveLength(1);
+    for (const handler of errorHandlers) handler(new Error('after old client close'));
+    await second.flush(100);
+    expect(secondSends).toBe(2);
+
+    await second.close(0);
+    expect(errorHandlers).toHaveLength(0);
   });
 });

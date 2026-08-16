@@ -222,6 +222,24 @@ describe('Helpers', () => {
       expect(proxy.method).toBe(originalMethod);
     });
 
+    it('contains host getter errors while checking whether restore still owns the wrapper', () => {
+      const originalMethod = vi.fn(() => 'original');
+      const target = { method: originalMethod };
+      let rejectReads = false;
+      const proxy = new Proxy(target, {
+        get(targetObject, property, receiver) {
+          if (rejectReads && property === 'method') throw new Error('read denied');
+          return Reflect.get(targetObject, property, receiver);
+        },
+      });
+      const result = fill(proxy, 'method', () => vi.fn(() => 'wrapped'));
+
+      rejectReads = true;
+      expect(() => result?.restore()).not.toThrow();
+      rejectReads = false;
+      expect(target.method).toBe(originalMethod);
+    });
+
     it('should handle non-existent property', () => {
       const obj = {} as any;
 

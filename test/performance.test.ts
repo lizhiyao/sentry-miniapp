@@ -17,7 +17,7 @@ import {
   startSpan,
 } from '@sentry/core';
 import { PerformanceIntegration, performanceIntegration } from '../src/integrations/performance';
-import { getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
+import { epochNow, getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type {
   PerformanceEntry,
   PerformanceManager,
@@ -1081,6 +1081,36 @@ describe('PerformanceIntegration', () => {
         { ...relativeEntry, startTime: 500 },
       ]);
       expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
+    });
+
+    it('keeps delayed first-batch entries anchored no later than SDK setup', () => {
+      (integration as any)._setupEpochMilliseconds = 1_699_999_999_000;
+      vi.mocked(epochNow).mockReturnValue(1_700_000_000_000);
+
+      (integration as any)._initializeRelativeTimeOrigin([
+        { name: 'stale', entryType: 'render', startTime: 50, duration: 50 },
+        {
+          name: 'absolute',
+          entryType: 'resource',
+          startTime: 1_699_999_999_500,
+          duration: 10,
+        },
+      ]);
+
+      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_000);
+    });
+
+    it('ignores implausibly large relative values when selecting the time origin', () => {
+      (integration as any)._initializeRelativeTimeOrigin([
+        {
+          name: 'implausible-runtime',
+          entryType: 'render',
+          startTime: 31 * 24 * 60 * 60 * 1000,
+          duration: 0,
+        },
+      ]);
+
+      expect((integration as any)._relativeTimeOrigin).toBeNull();
     });
 
     it('should handle PerformanceObserverEntryList format', () => {
