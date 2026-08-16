@@ -23,6 +23,7 @@ import {
 
 const EPOCH_TIMESTAMP_THRESHOLD = 100_000_000_000;
 const MAX_PLAUSIBLE_RELATIVE_RUNTIME = 30 * 24 * 60 * 60 * 1000;
+const MAX_FUTURE_CLOCK_SKEW = 60 * 1000;
 
 /**
  * Performance API 集成配置
@@ -277,6 +278,12 @@ export class PerformanceIntegration implements Integration {
       return;
     }
 
+    const currentEpoch = epochNow();
+    entriesArray = entriesArray.filter((entry) =>
+      this._isPlausiblePerformanceEntry(entry, currentEpoch),
+    );
+    if (entriesArray.length === 0) return;
+
     // 采样控制
     if (Math.random() > this._options.sampleRate) {
       return;
@@ -338,6 +345,22 @@ export class PerformanceIntegration implements Integration {
     this._relativeTimeOrigin = Math.min(
       latestPlausibleOrigin,
       Math.max(earliestPlausibleOrigin, candidate),
+    );
+  }
+
+  private _isPlausiblePerformanceEntry(entry: PerformanceEntry, currentEpoch: number): boolean {
+    if (!Number.isFinite(entry.startTime)) return false;
+    const start = Math.max(0, entry.startTime);
+    const duration = Number.isFinite(entry.duration) ? Math.max(0, entry.duration) : 0;
+    const end = start + duration;
+
+    if (start < EPOCH_TIMESTAMP_THRESHOLD) {
+      return end <= MAX_PLAUSIBLE_RELATIVE_RUNTIME;
+    }
+
+    return (
+      start >= currentEpoch - MAX_PLAUSIBLE_RELATIVE_RUNTIME &&
+      end <= currentEpoch + MAX_FUTURE_CLOCK_SKEW
     );
   }
 

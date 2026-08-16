@@ -1100,8 +1100,11 @@ describe('PerformanceIntegration', () => {
       expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_000);
     });
 
-    it('ignores implausibly large relative values when selecting the time origin', () => {
-      (integration as any)._initializeRelativeTimeOrigin([
+    it('drops implausible relative entries before creating spans', () => {
+      integration.setupOnce();
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+
+      observerCallback?.([
         {
           name: 'implausible-runtime',
           entryType: 'render',
@@ -1111,6 +1114,44 @@ describe('PerformanceIntegration', () => {
       ]);
 
       expect((integration as any)._relativeTimeOrigin).toBeNull();
+      expect(startInactiveSpan).not.toHaveBeenCalled();
+      expect(mockSpan.end).not.toHaveBeenCalled();
+    });
+
+    it('rejects absolute entries outside the plausible runtime window', () => {
+      const now = 1_700_000_000_000;
+      const isPlausible = (integration as any)._isPlausiblePerformanceEntry.bind(integration);
+
+      expect(
+        isPlausible(
+          { name: 'old', entryType: 'resource', startTime: now - 31 * 86_400_000, duration: 0 },
+          now,
+        ),
+      ).toBe(false);
+      expect(
+        isPlausible(
+          { name: 'future', entryType: 'resource', startTime: now + 60_001, duration: 0 },
+          now,
+        ),
+      ).toBe(false);
+      expect(
+        isPlausible(
+          { name: 'current', entryType: 'resource', startTime: now - 1_000, duration: 500 },
+          now,
+        ),
+      ).toBe(true);
+      expect(
+        isPlausible(
+          { name: 'invalid', entryType: 'resource', startTime: Number.NaN, duration: 0 },
+          now,
+        ),
+      ).toBe(false);
+      expect(
+        isPlausible(
+          { name: 'relative', entryType: 'render', startTime: 100, duration: Number.NaN },
+          now,
+        ),
+      ).toBe(true);
     });
 
     it('should handle PerformanceObserverEntryList format', () => {

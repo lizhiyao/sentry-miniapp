@@ -142,4 +142,51 @@ describe('共享函数 instrumentation', () => {
     expect(cleanupClient()).toBeUndefined();
     expect((source.run as Function)()).toBe('original');
   });
+
+  it('宿主属性暂时不可读时 setup 与 cleanup 均安全降级', () => {
+    const original = vi.fn(() => 'original');
+    const target = { run: original };
+    let rejectReads = false;
+    const source = new Proxy(target, {
+      get(targetObject, property, receiver) {
+        if (rejectReads && property === 'run') throw new Error('read denied');
+        return Reflect.get(targetObject, property, receiver);
+      },
+    });
+    const client = { getOptions: () => ({ debug: true }) } as any;
+    const unsubscribe = addFunctionInstrumentationHandler(source, 'run', client, () => 'handled');
+    const wrapper = target.run;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+      throw new Error('console unavailable');
+    });
+
+    rejectReads = true;
+    expect(() => ensureFunctionInstrumentation(source, 'run')).not.toThrow();
+    expect(ensureFunctionInstrumentation(source, 'run')).toBe(false);
+    expect(() => unsubscribe()).not.toThrow();
+
+    rejectReads = false;
+    expect(target.run).toBe(wrapper);
+    const unsubscribeAgain = addFunctionInstrumentationHandler(source, 'run', client, () => 'new');
+    unsubscribeAgain();
+    expect(target.run).toBe(original);
+    warn.mockRestore();
+  });
+
+  it('宿主函数被替换为不可包装属性时丢弃脱离调用链的状态', () => {
+    const original = vi.fn(() => 'original');
+    const source = { run: original };
+    const client = { getOptions: () => ({ debug: false }) } as any;
+    const unsubscribe = addFunctionInstrumentationHandler(source, 'run', client, () => 'handled');
+    const thirdParty = vi.fn(() => 'third-party');
+    Object.defineProperty(source, 'run', {
+      configurable: false,
+      value: thirdParty,
+      writable: false,
+    });
+
+    expect(ensureFunctionInstrumentation(source, 'run')).toBe(false);
+    expect(() => unsubscribe()).not.toThrow();
+    expect(source.run()).toBe('third-party');
+  });
 });

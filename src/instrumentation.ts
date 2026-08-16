@@ -17,6 +17,36 @@ interface FunctionInstrumentationState {
 
 const states = new WeakMap<object, Map<string, FunctionInstrumentationState>>();
 
+interface PropertyReadResult {
+  readable: boolean;
+  value?: unknown;
+}
+
+function readProperty(source: object, name: string): PropertyReadResult {
+  try {
+    return { readable: true, value: (source as Record<string, unknown>)[name] };
+  } catch (_e) {
+    return { readable: false };
+  }
+}
+
+function warnInDebugMode(state: FunctionInstrumentationState, message: string): void {
+  const debugEnabled = [...state.handlers.keys()].some((client) => {
+    try {
+      return client.getOptions().debug === true;
+    } catch (_e) {
+      return false;
+    }
+  });
+  if (!debugEnabled) return;
+
+  try {
+    console.warn(message);
+  } catch (_e) {
+    // 诊断日志不能阻断宿主 instrumentation 的安装或降级。
+  }
+}
+
 function getStateMap(source: object): Map<string, FunctionInstrumentationState> {
   let stateMap = states.get(source);
   if (!stateMap) {
@@ -66,23 +96,23 @@ function createState(
 function ensureState(source: object, name: string): FunctionInstrumentationState | undefined {
   const stateMap = getStateMap(source);
   const existing = stateMap.get(name);
-  if (existing && (source as Record<string, unknown>)[name] === existing.wrapper) {
-    return existing;
-  }
-
-  // 宿主 API 被外部重新赋值后，在新调用链上重装 wrapper，同时保留所有 client handler。
-  // cleanup 闭包继续引用同一个 state，仍能正确退订并恢复最新宿主函数。
   if (existing) {
-    const debugEnabled = [...existing.handlers.keys()].some((client) => {
-      try {
-        return client.getOptions().debug === true;
-      } catch (_e) {
-        return false;
-      }
-    });
-    if (debugEnabled) {
-      console.warn(`[sentry-miniapp] 检测到宿主 API ${name} 被外部替换，正在重新安装监控包装`);
+    const current = readProperty(source, name);
+    if (!current.readable) {
+      warnInDebugMode(
+        existing,
+        `[sentry-miniapp] 无法读取宿主 API ${name}，保留现有监控状态并跳过重装`,
+      );
+      return undefined;
     }
+    if (current.value === existing.wrapper) return existing;
+
+    // 宿主 API 被外部重新赋值后，在新调用链上重装 wrapper，同时保留所有 client handler。
+    // cleanup 闭包继续引用同一个 state，仍能正确退订并恢复最新宿主函数。
+    warnInDebugMode(
+      existing,
+      `[sentry-miniapp] 检测到宿主 API ${name} 被外部替换，正在重新安装监控包装`,
+    );
 
     const reinstalled = createState(source, name, existing);
     if (!reinstalled) stateMap.delete(name);
@@ -96,7 +126,8 @@ function restoreIfIdle(source: object, name: string, state: FunctionInstrumentat
 
   // 只恢复自己仍直接拥有的 wrapper。若第三方后来又包了一层，保留当前调用链，
   // 空 handler 的 Sentry wrapper 会透明转发，避免覆盖第三方修改。
-  if ((source as Record<string, unknown>)[name] === state.wrapper) {
+  const current = readProperty(source, name);
+  if (current.readable && current.value === state.wrapper) {
     state.restore();
     getStateMap(source).delete(name);
   }
