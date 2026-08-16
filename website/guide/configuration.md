@@ -229,6 +229,10 @@ Sentry.init({
 Sentry.init({
   dsn: 'YOUR_DSN',
   defaultIntegrations: false,
-  integrations: [Sentry.globalHandlersIntegration()],
+  integrations: [Sentry.Integrations.globalHandlersIntegration()],
 });
 ```
+
+每次 `init()` 都应创建新的有状态 integration 实例。不要跨多次初始化复用
+`defaultIntegrations` 静态数组或缓存后的 `getDefaultIntegrations()` 结果；静态数组仅为 1.x
+兼容保留且已弃用。

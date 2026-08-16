@@ -139,6 +139,7 @@ Sentry.setConsent(true);
 | 确认各平台、小程序 / 小游戏能力差异 | [支持范围](https://sentry-miniapp.pages.dev/guide/platforms) |
 | 关心主包体积 | [主包体积优化](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 | 看可运行示例 | [示例工程](https://sentry-miniapp.pages.dev/guide/examples) |
+| 从 1.18 升级到 1.19 | [1.19 升级说明](https://sentry-miniapp.pages.dev/guide/migration-1.19) |
 | 查看版本历史与每次发布内容 | [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) |
 | 参与开发或贡献 | [开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [贡献指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
 
