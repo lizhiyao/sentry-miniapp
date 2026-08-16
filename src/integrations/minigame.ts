@@ -1,4 +1,10 @@
-import { addBreadcrumb, setContext, startInactiveSpan, setMeasurement } from '@sentry/core';
+import {
+  addBreadcrumb,
+  getClient,
+  setContext,
+  startInactiveSpan,
+  setMeasurement,
+} from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 
@@ -24,6 +30,7 @@ export class MinigameIntegration implements Integration {
   private _hideHandler: (() => void) | null = null;
   private _coldStartReported: boolean = false;
   private _isSetup: boolean = false;
+  private _client: Client | undefined;
   // 累积的 minigame 上下文。setContext 为「覆盖」语义，故内部维护完整对象，
   // 每次补充字段后整体写回，避免后续字段冲掉启动场景。
   private _minigameContext: {
@@ -39,6 +46,7 @@ export class MinigameIntegration implements Integration {
   }
 
   public setup(client: Client): void {
+    this._client = client;
     this._setup();
     client.registerCleanup(() => this.cleanup());
   }
@@ -77,6 +85,7 @@ export class MinigameIntegration implements Integration {
     // 前台 / 后台切换
     if (typeof miniappSdk.onShow === 'function') {
       this._showHandler = (res: any) => {
+        if (!this._isActiveClient()) return;
         addBreadcrumb({
           category: 'minigame.lifecycle',
           message: '小游戏 onShow（进入前台）',
@@ -88,6 +97,7 @@ export class MinigameIntegration implements Integration {
     }
     if (typeof miniappSdk.onHide === 'function') {
       this._hideHandler = () => {
+        if (!this._isActiveClient()) return;
         addBreadcrumb({
           category: 'minigame.lifecycle',
           message: '小游戏 onHide（退到后台）',
@@ -106,7 +116,7 @@ export class MinigameIntegration implements Integration {
     if (typeof raf !== 'function') return;
 
     raf(() => {
-      if (this._coldStartReported) return;
+      if (!this._isActiveClient() || this._coldStartReported) return;
       this._coldStartReported = true;
       const firstFrameTs = now();
       // 夹下限 0：时长时钟用 Date.now()（见 crossPlatform.now），万一启动头几百 ms 内系统时钟
@@ -158,6 +168,11 @@ export class MinigameIntegration implements Integration {
     this._showHandler = null;
     this._hideHandler = null;
     this._isSetup = false;
+    this._client = undefined;
+  }
+
+  private _isActiveClient(): boolean {
+    return !this._client || getClient() === this._client;
   }
 }
 

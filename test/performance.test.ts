@@ -11,6 +11,7 @@ import {
 } from 'vitest';
 import {
   addBreadcrumb,
+  getClient,
   getCurrentScope,
   startInactiveSpan,
   startSpan,
@@ -26,6 +27,7 @@ import type {
 // Mock Sentry core functions
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
+  getClient: vi.fn(),
   getCurrentScope: vi.fn(),
   startInactiveSpan: vi.fn(),
   startSpan: vi.fn(),
@@ -861,6 +863,32 @@ describe('PerformanceIntegration', () => {
   });
 
   describe('cleanup', () => {
+    it('ignores observer data and buffered summaries owned by an inactive client', () => {
+      const oldClient = { registerCleanup: vi.fn() };
+      (getClient as Mock).mockReturnValue({});
+      integration.setup(oldClient as any);
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      vi.mocked(startInactiveSpan).mockClear();
+
+      observerCallback?.([
+        { name: 'stale', entryType: 'navigation', startTime: 0, duration: 100 },
+      ]);
+      (integration as any)._entryBuffer.push({
+        name: 'stale-buffer',
+        entryType: 'navigation',
+        startTime: 0,
+        duration: 100,
+      });
+      integration.cleanup();
+
+      expect(startInactiveSpan).not.toHaveBeenCalled();
+      expect((integration as any)._entryBuffer).toEqual([]);
+      expect(mockScope.setContext).not.toHaveBeenCalledWith(
+        'performance_summary',
+        expect.anything(),
+      );
+    });
+
     it('should disconnect observers and clear timers', () => {
       integration.setupOnce();
       integration.cleanup();

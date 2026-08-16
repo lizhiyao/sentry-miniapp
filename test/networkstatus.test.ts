@@ -55,6 +55,19 @@ describe('NetworkStatusIntegration', () => {
     });
   });
 
+  it('ignores initial and change callbacks owned by an inactive client', () => {
+    const oldClient = { registerCleanup: vi.fn() };
+    mockGetClient.mockReturnValue({ flush: mockFlush });
+    const integration = new NetworkStatusIntegration();
+
+    integration.setup(oldClient as any);
+    networkChangeCallback?.({ networkType: 'none', isConnected: false });
+
+    expect(mockSetContext).not.toHaveBeenCalled();
+    expect(mockAddBreadcrumb).not.toHaveBeenCalled();
+    integration.cleanup();
+  });
+
   it('should add breadcrumb on network change', () => {
     const integration = new NetworkStatusIntegration();
     integration.setupOnce();

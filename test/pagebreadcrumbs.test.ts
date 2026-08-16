@@ -8,10 +8,11 @@ import { _resetAppLifecycle } from '../src/appLifecycle';
 
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
+  getClient: vi.fn(() => undefined),
   setContext: vi.fn(),
 }));
 
-import { addBreadcrumb, setContext } from '@sentry/core';
+import { addBreadcrumb, getClient, setContext } from '@sentry/core';
 
 describe('PageBreadcrumbs Integration', () => {
   let originalPage: any;
@@ -376,6 +377,24 @@ describe('PageBreadcrumbs Integration', () => {
   });
 
   describe('Edge cases', () => {
+    it('manual cleanup drains client-specific subscriptions idempotently', () => {
+      const basePage = vi.fn((options: any) => options);
+      (globalThis as any).Page = basePage;
+      (globalThis as any).App = vi.fn((options: any) => options);
+      const registerCleanup = vi.fn();
+      const client = { registerCleanup } as any;
+      vi.mocked(getClient).mockReturnValue(client);
+      const integration = new PageBreadcrumbs();
+
+      integration.setup(client);
+      const registeredCleanup = registerCleanup.mock.calls[0][0];
+      integration.cleanup();
+      registeredCleanup();
+      registeredCleanup();
+
+      expect((globalThis as any).Page).toBe(basePage);
+    });
+
     it('should handle missing Page() gracefully', () => {
       delete (globalThis as any).Page;
 

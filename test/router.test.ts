@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { Router } from '../src/integrations/router';
-import { addBreadcrumb, getCurrentScope } from '@sentry/core';
+import { addBreadcrumb, getClient, getCurrentScope } from '@sentry/core';
 
 // Mock Sentry core functions
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
+  getClient: vi.fn(() => undefined),
   getCurrentScope: vi.fn(() => ({
     setTag: vi.fn(),
     setContext: vi.fn(),
@@ -117,10 +118,31 @@ describe('Router Integration', () => {
 
       expect(registerCleanup).toHaveBeenCalledTimes(2);
       expect(registerCleanup).toHaveBeenCalledWith(expect.any(Function));
-      expect((global as any).setInterval).toHaveBeenCalledTimes(1);
+      expect((global as any).setInterval).toHaveBeenCalledTimes(2);
 
       registerCleanup.mock.calls[0][0]();
-      expect((global as any).setInterval).toHaveBeenCalledTimes(1);
+      expect((global as any).setInterval).toHaveBeenCalledTimes(2);
+    });
+
+    it('client handlers and route timer only run for the active client', () => {
+      const registerCleanup = vi.fn();
+      const client = { registerCleanup } as any;
+      router.setup(client);
+      const timerCallback = ((global as any).setInterval as Mock).mock.calls[0][0];
+
+      vi.mocked(getClient).mockReturnValue({} as any);
+      timerCallback();
+      expect(addBreadcrumb).not.toHaveBeenCalled();
+
+      vi.mocked(getClient).mockReturnValue(client);
+      mockSdk.navigateTo();
+      timerCallback();
+      expect(addBreadcrumb).toHaveBeenCalled();
+
+      const cleanup = registerCleanup.mock.calls[0][0];
+      cleanup();
+      cleanup();
+      router.cleanup();
     });
   });
 

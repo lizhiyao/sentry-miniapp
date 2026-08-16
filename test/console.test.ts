@@ -4,9 +4,10 @@ import { ConsoleBreadcrumbs, consoleBreadcrumbsIntegration } from '../src/integr
 
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
+  getClient: vi.fn(() => undefined),
 }));
 
-import { addBreadcrumb } from '@sentry/core';
+import { addBreadcrumb, getClient } from '@sentry/core';
 
 describe('ConsoleBreadcrumbs Integration', () => {
   const originalConsole: Record<string, any> = {};
@@ -152,6 +153,43 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
     integration.cleanup();
     expect(console.log).toBe(originalLog);
+  });
+
+  it('registers and idempotently executes client-specific cleanup', () => {
+    const registerCleanup = vi.fn();
+    const integration = new ConsoleBreadcrumbs({ levels: ['error'] });
+
+    integration.setup({ registerCleanup } as any);
+    const cleanup = registerCleanup.mock.calls[0][0];
+    integration.cleanup();
+    cleanup();
+    cleanup();
+
+    expect(registerCleanup).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it('client setup skips unavailable levels and detached calls preserve console as this', () => {
+    const savedError = console.error;
+    const savedWarn = console.warn;
+    const original = vi.fn(function (this: unknown) {
+      return this;
+    });
+    try {
+      (console as any).error = undefined;
+      (console as any).warn = original;
+      const registerCleanup = vi.fn();
+      const client = { registerCleanup } as any;
+      vi.mocked(getClient).mockReturnValue(client);
+      const integration = new ConsoleBreadcrumbs({ levels: ['error', 'warn'] });
+      integration.setup(client);
+
+      const detached = console.warn;
+      expect(detached()).toBe(console);
+      integration.cleanup();
+    } finally {
+      console.error = savedError;
+      console.warn = savedWarn;
+    }
   });
 
   it('skips unavailable console methods', () => {

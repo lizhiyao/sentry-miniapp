@@ -1,4 +1,10 @@
-import { getCurrentScope, startInactiveSpan, startSpan, withActiveSpan } from '@sentry/core';
+import {
+  getClient,
+  getCurrentScope,
+  startInactiveSpan,
+  startSpan,
+  withActiveSpan,
+} from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 
 import {
@@ -67,6 +73,7 @@ export class PerformanceIntegration implements Integration {
   private _reportTimer: ReturnType<typeof setInterval> | null = null;
   private _isSetup: boolean = false;
   private _relativeTimeOrigin: number | null = null;
+  private _client: Client | undefined;
 
   constructor(options: PerformanceIntegrationOptions = {}) {
     this._options = {
@@ -97,6 +104,7 @@ export class PerformanceIntegration implements Integration {
   }
 
   public setup(client: Client): void {
+    this._client = client;
     this._setup();
     client.registerCleanup(() => this.cleanup());
   }
@@ -241,7 +249,7 @@ export class PerformanceIntegration implements Integration {
    * 处理性能条目
    */
   private _handlePerformanceEntries(entries: PerformanceEntry[] | any): void {
-    if (!entries) {
+    if (!this._isActiveClient() || !entries) {
       return;
     }
 
@@ -531,7 +539,7 @@ export class PerformanceIntegration implements Integration {
 
   /** 汇总缓冲的性能条目，并写入当前 Sentry scope */
   private _reportBufferedEntries(): void {
-    if (this._entryBuffer.length === 0) {
+    if (!this._isActiveClient() || this._entryBuffer.length === 0) {
       return;
     }
 
@@ -738,11 +746,20 @@ export class PerformanceIntegration implements Integration {
       this._reportTimer = null;
     }
 
-    // 最后一次汇总
-    this._reportBufferedEntries();
+    // 旧 client 乱序关闭时不能把它的历史缓冲写入当前 client 的 scope。
+    if (this._isActiveClient()) {
+      this._reportBufferedEntries();
+    } else {
+      this._entryBuffer = [];
+    }
     this._performanceManager = null;
     this._relativeTimeOrigin = null;
     this._isSetup = false;
+    this._client = undefined;
+  }
+
+  private _isActiveClient(): boolean {
+    return !this._client || getClient() === this._client;
   }
 }
 

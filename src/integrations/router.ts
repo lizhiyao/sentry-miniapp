@@ -1,6 +1,10 @@
-import { addBreadcrumb, getCurrentScope } from '@sentry/core';
+import { addBreadcrumb, getClient, getCurrentScope } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
+import {
+  addFunctionInstrumentationHandler,
+  addSetupOnceFunctionInstrumentationHandler,
+} from '../instrumentation';
 
 /**
  * Router integration for miniapp navigation.
@@ -24,97 +28,111 @@ export class Router implements Integration {
    */
   private _lastRoute: string = '';
 
-  private _monitorTimer: ReturnType<typeof setInterval> | null = null;
-  private _restoreNavigation: Array<() => void> = [];
-  private _isSetup: boolean = false;
+  private readonly _cleanupCallbacks = new Set<() => void>();
+  private readonly _setupOnceCleanupCallbacks = new Set<() => void>();
 
   /**
    * @inheritDoc
    */
   public setupOnce(): void {
-    this._setup();
+    for (const cleanup of this._registerNavigationHandlers()) {
+      this._setupOnceCleanupCallbacks.add(cleanup);
+    }
+    this._setupOnceCleanupCallbacks.add(this._startRouteMonitoring());
   }
 
   public setup(client: Client): void {
-    this._setup();
-    client.registerCleanup(() => this.cleanup());
-  }
-
-  private _setup(): void {
-    if (this._isSetup) return;
-    this._isSetup = true;
-    this._instrumentNavigation();
-    this._startRouteMonitoring();
+    const cleanups = [
+      ...this._registerNavigationHandlers(client),
+      this._startRouteMonitoring(client),
+    ];
+    this._clearSetupOnceHandlers();
+    const cleanup = this._trackCleanup(cleanups);
+    client.registerCleanup(cleanup);
   }
 
   /**
    * Instrument navigation functions
    */
-  private _instrumentNavigation(): void {
+  private _registerNavigationHandlers(client?: Client): Array<() => void> {
     let currentSdk: any;
     try {
       currentSdk = sdk();
     } catch (_e) {
-      return; // No SDK available
+      return []; // No SDK available
     }
 
+    const cleanups: Array<() => void> = [];
     const methods = ['navigateTo', 'redirectTo', 'switchTab', 'reLaunch'] as const;
     for (const method of methods) {
-      if (currentSdk[method]) {
-        const original = currentSdk[method];
-        const wrapped = (options: any) => {
-          this._recordNavigation(method, options.url, this._getCurrentRoute());
-          return original.call(currentSdk, options);
-        };
-        currentSdk[method] = wrapped;
-        this._restoreNavigation.push(() => {
-          if (currentSdk[method] === wrapped) currentSdk[method] = original;
-        });
-      }
+      if (typeof currentSdk[method] !== 'function') continue;
+      const handler = (original: Function, thisArg: unknown, args: unknown[]): unknown => {
+        const options = (args[0] || {}) as any;
+        this._recordNavigation(method, options.url, this._getCurrentRoute());
+        return original.apply(thisArg, args);
+      };
+      cleanups.push(
+        client
+          ? addFunctionInstrumentationHandler(currentSdk, method, client, handler)
+          : addSetupOnceFunctionInstrumentationHandler(currentSdk, method, handler),
+      );
     }
 
-    if (currentSdk.navigateBack) {
-      const originalNavigateBack = currentSdk.navigateBack;
-      const wrappedNavigateBack = (options: any = {}) => {
+    if (typeof currentSdk.navigateBack === 'function') {
+      const handler = (original: Function, thisArg: unknown, args: unknown[]): unknown => {
+        const options = (args[0] || {}) as any;
         this._recordNavigation('navigateBack', 'back', this._getCurrentRoute(), options.delta);
-        return originalNavigateBack.call(currentSdk, options);
+        return original.apply(thisArg, args.length > 0 ? args : [{}]);
       };
-      currentSdk.navigateBack = wrappedNavigateBack;
-      this._restoreNavigation.push(() => {
-        if (currentSdk.navigateBack === wrappedNavigateBack) {
-          currentSdk.navigateBack = originalNavigateBack;
-        }
-      });
+      cleanups.push(
+        client
+          ? addFunctionInstrumentationHandler(currentSdk, 'navigateBack', client, handler)
+          : addSetupOnceFunctionInstrumentationHandler(currentSdk, 'navigateBack', handler),
+      );
     }
+    return cleanups;
   }
 
   /**
    * Start monitoring route changes
    */
-  private _startRouteMonitoring(): void {
+  private _startRouteMonitoring(client?: Client): () => void {
     // Monitor route changes by checking current pages periodically
-    this._monitorTimer = setInterval(() => {
+    const monitorTimer = setInterval(() => {
+      if (client && getClient() !== client) return;
       const currentRoute = this._getCurrentRoute();
       if (currentRoute && currentRoute !== this._lastRoute) {
         this._recordRouteChange(this._lastRoute, currentRoute);
         this._lastRoute = currentRoute;
       }
     }, 1000);
+    return () => clearInterval(monitorTimer);
   }
 
   /**
    * 清理资源
    */
   public cleanup(): void {
-    if (this._monitorTimer) {
-      clearInterval(this._monitorTimer);
-      this._monitorTimer = null;
-    }
-    for (const restore of this._restoreNavigation.splice(0).reverse()) {
-      restore();
-    }
+    this._clearSetupOnceHandlers();
+    for (const cleanup of [...this._cleanupCallbacks]) cleanup();
     this._lastRoute = '';
-    this._isSetup = false;
+  }
+
+  private _clearSetupOnceHandlers(): void {
+    for (const cleanup of this._setupOnceCleanupCallbacks) cleanup();
+    this._setupOnceCleanupCallbacks.clear();
+  }
+
+  private _trackCleanup(cleanups: Array<() => void>): () => void {
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      for (const callback of cleanups.reverse()) callback();
+      this._cleanupCallbacks.delete(cleanup);
+    };
+    this._cleanupCallbacks.add(cleanup);
+    return cleanup;
   }
 
   /**

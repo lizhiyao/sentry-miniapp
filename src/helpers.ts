@@ -228,6 +228,10 @@ export function fill(
     restore: () => {
       if (!replaced) return;
 
+      // 只拆除自己安装的这一层。若宿主或第三方在之后又替换/包装了该属性，恢复旧 descriptor
+      // 会把对方的修改一并覆盖，并可能拆掉仍在工作的另一个 Sentry client。
+      if (source[name] !== wrapped) return;
+
       try {
         if (!descriptorInspected) {
           replacePropertyValue(source, name, original, enumerable);

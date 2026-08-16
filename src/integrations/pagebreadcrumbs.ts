@@ -1,21 +1,19 @@
-import { addBreadcrumb, setContext } from '@sentry/core';
+import { addBreadcrumb, getClient, setContext } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
+
 import { subscribeAppLifecycle } from '../appLifecycle';
+import {
+  addFunctionInstrumentationHandler,
+  addSetupOnceFunctionInstrumentationHandler,
+  ensureFunctionInstrumentation,
+} from '../instrumentation';
 
-/**
- * 页面生命周期和用户交互事件的面包屑方法名
- */
-const PAGE_LIFECYCLE_METHODS = ['onLoad', 'onShow', 'onHide', 'onUnload', 'onReady'];
+const PAGE_LIFECYCLE_METHODS = ['onLoad', 'onShow', 'onHide', 'onUnload', 'onReady'] as const;
 
-/**
- * 判断方法名是否为用户交互事件处理函数
- * 排除生命周期方法和以 _ 开头的私有方法
- */
 function isUserInteractionHandler(name: string): boolean {
-  if (PAGE_LIFECYCLE_METHODS.includes(name)) return false;
+  if ((PAGE_LIFECYCLE_METHODS as readonly string[]).includes(name)) return false;
   if (name.startsWith('_')) return false;
 
-  // 常见的事件处理方法命名模式
   return (
     /^(on|handle|bind)[A-Z]/.test(name) ||
     /[Tt]ap$/.test(name) ||
@@ -27,9 +25,6 @@ function isUserInteractionHandler(name: string): boolean {
   );
 }
 
-/**
- * Page/App 面包屑集成配置
- */
 export interface PageBreadcrumbsOptions {
   /** 是否追踪页面生命周期（默认 true） */
   enableLifecycle?: boolean;
@@ -37,25 +32,141 @@ export interface PageBreadcrumbsOptions {
   enableUserInteraction?: boolean;
 }
 
+interface PageSubscriber {
+  firstPageReady: boolean;
+  launchTime: number;
+  options: Required<PageBreadcrumbsOptions>;
+}
+
+const pageSubscribers = new Map<Client, PageSubscriber>();
+let fallbackPageSubscriber: PageSubscriber | undefined;
+
+function getActivePageSubscriber(): PageSubscriber | undefined {
+  const activeClient = getClient();
+  return (
+    (activeClient ? pageSubscribers.get(activeClient) : undefined) ??
+    (pageSubscribers.size === 0 ? fallbackPageSubscriber : undefined)
+  );
+}
+
+function recordPageLifecycle(
+  subscriber: PageSubscriber,
+  method: (typeof PAGE_LIFECYCLE_METHODS)[number],
+  page: any,
+  args: any[],
+): void {
+  if (!subscriber.options.enableLifecycle) return;
+
+  const route = page?.route || page?.__route__ || 'unknown';
+  const breadcrumbData: Record<string, any> = { action: method, page: route };
+  if (method === 'onLoad' && args[0] && typeof args[0] === 'object') {
+    breadcrumbData['query'] = args[0];
+  }
+  if (method === 'onReady' && !subscriber.firstPageReady && subscriber.launchTime > 0) {
+    subscriber.firstPageReady = true;
+    const coldStartDuration = Date.now() - subscriber.launchTime;
+    breadcrumbData['coldStartDuration'] = coldStartDuration;
+    setContext('startup', { coldStartDuration, firstPage: route });
+  }
+
+  addBreadcrumb({
+    category: 'page.lifecycle',
+    message: `${method}: ${route}`,
+    level: 'info',
+    data: breadcrumbData,
+  });
+}
+
+function recordUserInteraction(
+  subscriber: PageSubscriber,
+  key: string,
+  page: any,
+  event: any,
+): void {
+  if (!subscriber.options.enableUserInteraction) return;
+
+  const route = page?.route || page?.__route__ || 'unknown';
+  const breadcrumbData: Record<string, any> = { handler: key, page: route };
+  if (event && typeof event === 'object') {
+    if (event.target) {
+      if (event.target.id) breadcrumbData['targetId'] = event.target.id;
+      if (event.target.dataset) breadcrumbData['dataset'] = event.target.dataset;
+    }
+    if (event.type) breadcrumbData['eventType'] = event.type;
+    if (event.detail) {
+      if (typeof event.detail.x === 'number') breadcrumbData['x'] = event.detail.x;
+      if (typeof event.detail.y === 'number') breadcrumbData['y'] = event.detail.y;
+    }
+    if (event.touches && event.touches.length > 0) {
+      const touch = event.touches[0];
+      if (touch) {
+        breadcrumbData['touchX'] = touch.pageX;
+        breadcrumbData['touchY'] = touch.pageY;
+      }
+    }
+  }
+
+  addBreadcrumb({
+    category: 'user.interaction',
+    message: `${key} on ${route}`,
+    level: 'info',
+    data: breadcrumbData,
+  });
+}
+
+/** Page 定义只注入中立 wrapper，回调执行时再按当前 client 选择配置。 */
+function instrumentPageOptions(pageOptions: unknown): void {
+  if (!pageOptions || typeof pageOptions !== 'object') return;
+  const options = pageOptions as Record<string, any>;
+
+  for (const method of PAGE_LIFECYCLE_METHODS) {
+    const original = options[method];
+    if (typeof original !== 'function' || original.__sentryPageCallbackWrapper) continue;
+    const wrapped = function (this: any, ...args: any[]): any {
+      const subscriber = getActivePageSubscriber();
+      if (subscriber) recordPageLifecycle(subscriber, method, this, args);
+      return original.apply(this, args);
+    };
+    Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
+    options[method] = wrapped;
+  }
+
+  for (const key of Object.keys(options)) {
+    const original = options[key];
+    if (
+      typeof original !== 'function' ||
+      original.__sentryPageCallbackWrapper ||
+      !isUserInteractionHandler(key)
+    ) {
+      continue;
+    }
+    const wrapped = function (this: any, event: any, ...rest: any[]): any {
+      const subscriber = getActivePageSubscriber();
+      if (subscriber) recordUserInteraction(subscriber, key, this, event);
+      return original.apply(this, [event, ...rest]);
+    };
+    Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
+    options[key] = wrapped;
+  }
+}
+
+function invokePage(original: Function, thisArg: unknown, args: unknown[]): unknown {
+  instrumentPageOptions(args[0]);
+  return original.apply(thisArg, args);
+}
+
 /**
- * Page 面包屑集成
- *
- * 通过包装小程序的 Page() 和 App() 全局构造函数，自动记录：
- * - 页面生命周期事件（onLoad/onShow/onHide/onUnload/onReady）
- * - App 生命周期事件（onLaunch/onShow/onHide）
- * - 用户交互事件（onTap/handleClick/bindChange 等）
+ * 页面与 App 生命周期面包屑。全局 Page 由共享 instrumentation 统一拥有；每个 client
+ * 只注册 subscriber，乱序 close 不会拆掉当前 client 的包装或复活旧配置。
  */
 export class PageBreadcrumbs implements Integration {
   public static id: string = 'PageBreadcrumbs';
   public name: string = PageBreadcrumbs.id;
 
-  private _options: Required<PageBreadcrumbsOptions>;
-  private _originalPage: ((...args: any[]) => any) | null = null;
-  private _wrappedPage: ((...args: any[]) => any) | null = null;
-  private _unsubscribeApp: (() => void) | null = null;
-  private _launchTime: number = 0;
-  private _firstPageReady: boolean = false;
-  private _isSetup: boolean = false;
+  private readonly _options: Required<PageBreadcrumbsOptions>;
+  private readonly _cleanupCallbacks = new Set<() => void>();
+  private readonly _setupOnceCleanupCallbacks = new Set<() => void>();
+  private _setupOnceInitialized = false;
 
   constructor(options: PageBreadcrumbsOptions = {}) {
     this._options = {
@@ -66,153 +177,70 @@ export class PageBreadcrumbs implements Integration {
   }
 
   public setupOnce(): void {
-    this._setup();
+    if (this._setupOnceInitialized) return;
+    this._setupOnceInitialized = true;
+    const subscriber = this._createSubscriber();
+    fallbackPageSubscriber = subscriber;
+
+    const globalObject = globalThis as Record<PropertyKey, unknown>;
+    if (typeof globalObject['Page'] === 'function') {
+      ensureFunctionInstrumentation(globalObject, 'Page');
+      Object.defineProperty(globalObject['Page'], '__sentryPageWrapper', {
+        value: true,
+        configurable: true,
+      });
+      this._setupOnceCleanupCallbacks.add(
+        addSetupOnceFunctionInstrumentationHandler(globalObject, 'Page', invokePage),
+      );
+    }
+    this._setupOnceCleanupCallbacks.add(this._subscribeApp(subscriber));
+    this._setupOnceCleanupCallbacks.add(() => {
+      if (fallbackPageSubscriber === subscriber) fallbackPageSubscriber = undefined;
+    });
   }
 
   public setup(client: Client): void {
-    this._setup();
-    client.registerCleanup(() => this.cleanup());
+    const subscriber = this._createSubscriber();
+    pageSubscribers.set(client, subscriber);
+    const globalObject = globalThis as Record<PropertyKey, unknown>;
+    const cleanups: Array<() => void> = [
+      () => {
+        if (pageSubscribers.get(client) === subscriber) pageSubscribers.delete(client);
+      },
+      this._subscribeApp(subscriber),
+    ];
+    if (typeof globalObject['Page'] === 'function') {
+      cleanups.push(addFunctionInstrumentationHandler(globalObject, 'Page', client, invokePage));
+    }
+    this._clearSetupOnceHandlers();
+
+    const cleanup = this._trackCleanup(cleanups);
+    client.registerCleanup(cleanup);
   }
 
-  private _setup(): void {
-    if (this._isSetup) return;
-    this._isSetup = true;
-    this._wrapPage();
-    this._subscribeApp();
+  public cleanup(): void {
+    this._clearSetupOnceHandlers();
+    for (const cleanup of [...this._cleanupCallbacks]) cleanup();
   }
 
-  /**
-   * 包装全局 Page() 构造函数
-   */
-  private _wrapPage(): void {
-    const global = globalThis as any;
-    if (typeof global.Page !== 'function') return;
-    // 幂等守卫：已是本集成的包装则跳过，避免二次 setupOnce 套娃
-    //（会让 _originalPage 指向上一层包装，cleanup 还原成包装而非真身）。
-    if (global.Page.__sentryPageWrapper) return;
-
-    this._originalPage = global.Page;
-    const originalPage = global.Page;
-    const options = this._options;
-    const getFirstPageReady = () => this._firstPageReady;
-    const setFirstPageReady = (v: boolean) => {
-      this._firstPageReady = v;
-    };
-    const getLaunchTime = () => this._launchTime;
-
-    const wrappedPage = function (pageOptions: any) {
-      if (pageOptions && typeof pageOptions === 'object') {
-        // 包装生命周期方法
-        if (options.enableLifecycle) {
-          for (const method of PAGE_LIFECYCLE_METHODS) {
-            if (typeof pageOptions[method] === 'function') {
-              const original = pageOptions[method];
-              pageOptions[method] = function (this: any, ...args: any[]) {
-                const route = this?.route || this?.__route__ || 'unknown';
-                const breadcrumbData: Record<string, any> = {
-                  action: method,
-                  page: route,
-                };
-
-                // 记录 onLoad 的 query 参数
-                if (method === 'onLoad' && args[0] && typeof args[0] === 'object') {
-                  breadcrumbData['query'] = args[0];
-                }
-
-                // 记录冷启动耗时（首次 onReady）
-                if (method === 'onReady' && !getFirstPageReady() && getLaunchTime() > 0) {
-                  setFirstPageReady(true);
-                  const coldStartDuration = Date.now() - getLaunchTime();
-                  breadcrumbData['coldStartDuration'] = coldStartDuration;
-                  setContext('startup', {
-                    coldStartDuration,
-                    firstPage: route,
-                  });
-                }
-
-                addBreadcrumb({
-                  category: 'page.lifecycle',
-                  message: `${method}: ${route}`,
-                  level: 'info',
-                  data: breadcrumbData,
-                });
-                return original.apply(this, args);
-              };
-            }
-          }
-        }
-
-        // 包装用户交互事件处理方法
-        if (options.enableUserInteraction) {
-          for (const key of Object.keys(pageOptions)) {
-            if (typeof pageOptions[key] === 'function' && isUserInteractionHandler(key)) {
-              const original = pageOptions[key];
-              pageOptions[key] = function (this: any, event: any, ...rest: any[]) {
-                const route = this?.route || this?.__route__ || 'unknown';
-                const breadcrumbData: Record<string, any> = {
-                  handler: key,
-                  page: route,
-                };
-
-                // 提取事件目标和交互详情
-                if (event && typeof event === 'object') {
-                  if (event.target) {
-                    if (event.target.id) breadcrumbData['targetId'] = event.target.id;
-                    if (event.target.dataset) breadcrumbData['dataset'] = event.target.dataset;
-                  }
-                  if (event.type) breadcrumbData['eventType'] = event.type;
-                  // 提取触摸坐标
-                  if (event.detail) {
-                    if (typeof event.detail.x === 'number') breadcrumbData['x'] = event.detail.x;
-                    if (typeof event.detail.y === 'number') breadcrumbData['y'] = event.detail.y;
-                  }
-                  // 提取触摸点信息
-                  if (event.touches && event.touches.length > 0) {
-                    const touch = event.touches[0];
-                    if (touch) {
-                      breadcrumbData['touchX'] = touch.pageX;
-                      breadcrumbData['touchY'] = touch.pageY;
-                    }
-                  }
-                }
-
-                addBreadcrumb({
-                  category: 'user.interaction',
-                  message: `${key} on ${route}`,
-                  level: 'info',
-                  data: breadcrumbData,
-                });
-                return original.apply(this, [event, ...rest]);
-              };
-            }
-          }
-        }
-      }
-
-      return originalPage(pageOptions);
-    };
-    Object.defineProperty(wrappedPage, '__sentryPageWrapper', {
-      value: true,
-      configurable: true,
-    });
-    this._wrappedPage = wrappedPage;
-    global.Page = wrappedPage;
+  private _createSubscriber(): PageSubscriber {
+    return { firstPageReady: false, launchTime: 0, options: this._options };
   }
 
-  /**
-   * 订阅全局 App 生命周期（经共享 appLifecycle，不再自行猴补 App）。
-   * 记录 onLaunch 时间用于冷启动耗时计算，并对各生命周期打 app.lifecycle 面包屑。
-   */
-  private _subscribeApp(): void {
-    if (!this._options.enableLifecycle) return;
-
-    this._unsubscribeApp = subscribeAppLifecycle({
+  private _subscribeApp(subscriber: PageSubscriber): () => void {
+    if (!subscriber.options.enableLifecycle) return () => {};
+    return subscribeAppLifecycle({
       onLaunch: () => {
-        this._launchTime = Date.now();
+        if (getActivePageSubscriber() !== subscriber) return;
+        subscriber.launchTime = Date.now();
         this._appBreadcrumb('onLaunch');
       },
-      onShow: () => this._appBreadcrumb('onShow'),
-      onHide: () => this._appBreadcrumb('onHide'),
+      onShow: () => {
+        if (getActivePageSubscriber() === subscriber) this._appBreadcrumb('onShow');
+      },
+      onHide: () => {
+        if (getActivePageSubscriber() === subscriber) this._appBreadcrumb('onHide');
+      },
     });
   }
 
@@ -225,32 +253,24 @@ export class PageBreadcrumbs implements Integration {
     });
   }
 
-  /**
-   * 清理资源：恢复原始 Page() 构造函数，并退订 App 生命周期。
-   */
-  public cleanup(): void {
-    const global = globalThis as any;
-    if (this._originalPage) {
-      // 安全还原：仅当当前 Page 仍是本实例创建的包装时才还原，避免把他人后续包装的 Page 一并清掉。
-      if (global.Page === this._wrappedPage) {
-        global.Page = this._originalPage;
-      }
-      this._originalPage = null;
-      this._wrappedPage = null;
-    }
-    if (this._unsubscribeApp) {
-      this._unsubscribeApp();
-      this._unsubscribeApp = null;
-    }
-    this._launchTime = 0;
-    this._firstPageReady = false;
-    this._isSetup = false;
+  private _clearSetupOnceHandlers(): void {
+    for (const cleanup of this._setupOnceCleanupCallbacks) cleanup();
+    this._setupOnceCleanupCallbacks.clear();
+    this._setupOnceInitialized = false;
+  }
+
+  private _trackCleanup(cleanups: Array<() => void>): () => void {
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      for (const callback of cleanups.reverse()) callback();
+      this._cleanupCallbacks.delete(cleanup);
+    };
+    this._cleanupCallbacks.add(cleanup);
+    return cleanup;
   }
 }
 
-/**
- * Page 面包屑集成工厂函数
- */
-export const pageBreadcrumbsIntegration = (options?: PageBreadcrumbsOptions) => {
-  return new PageBreadcrumbs(options);
-};
+export const pageBreadcrumbsIntegration = (options?: PageBreadcrumbsOptions) =>
+  new PageBreadcrumbs(options);

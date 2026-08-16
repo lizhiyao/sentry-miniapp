@@ -8,6 +8,7 @@ const {
   mockStartInactiveSpan,
   mockSetMeasurement,
   mockFlush,
+  mockGetClient,
 } = vi.hoisted(() => {
   const mockSpanEnd = vi.fn((..._args: any[]) => {});
   const mockSpanSetAttributes = vi.fn((..._args: any[]) => {});
@@ -23,12 +24,14 @@ const {
     })),
     mockSetMeasurement: vi.fn((..._args: any[]) => {}),
     mockFlush: vi.fn((_timeout?: number) => Promise.resolve(true)),
+    mockGetClient: vi.fn(),
   };
 });
 
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
   flush: mockFlush,
+  getClient: mockGetClient,
   setContext: mockSetContext,
   startInactiveSpan: mockStartInactiveSpan,
   setMeasurement: mockSetMeasurement,
@@ -62,6 +65,23 @@ describe('MinigameFrameRateIntegration', () => {
     expect(integration).toBeInstanceOf(MinigameFrameRateIntegration);
     expect(integration.name).toBe('MinigameFrameRate');
     expect(integration.setupOnce).toEqual(expect.any(Function));
+  });
+
+  it('inactive client 不累计帧、不响应生命周期，也不在 cleanup 上报旧汇总', () => {
+    const integration = new MinigameFrameRateIntegration({ reportInterval: 16 });
+    const oldClient = { registerCleanup: vi.fn() };
+    mockGetClient.mockReturnValue({});
+    integration.setup(oldClient as any);
+    vi.clearAllMocks();
+
+    frame(16);
+    hideCb?.();
+    showCb?.({});
+    integration.cleanup();
+
+    expect(mockAddBreadcrumb).not.toHaveBeenCalled();
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    expect(mockFlush).not.toHaveBeenCalled();
   });
 
   beforeEach(() => {

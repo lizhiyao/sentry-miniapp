@@ -1,6 +1,11 @@
 import { addBreadcrumb } from '@sentry/core';
 import type { Client, Integration, SeverityLevel } from '@sentry/core';
 
+import {
+  addFunctionInstrumentationHandler,
+  addSetupOnceFunctionInstrumentationHandler,
+} from '../instrumentation';
+
 const CONSOLE_LEVELS = ['debug', 'info', 'warn', 'error', 'log'] as const;
 
 type ConsoleLevel = (typeof CONSOLE_LEVELS)[number];
@@ -33,70 +38,88 @@ export class ConsoleBreadcrumbs implements Integration {
   public static id: string = 'ConsoleBreadcrumbs';
   public name: string = ConsoleBreadcrumbs.id;
 
-  private _levels: ConsoleLevel[];
-  private _originalMethods: Partial<Record<ConsoleLevel, (...args: any[]) => void>> = {};
-  private _wrappedMethods: Partial<Record<ConsoleLevel, (...args: any[]) => void>> = {};
-  private _isSetup: boolean = false;
+  private readonly _levels: ConsoleLevel[];
+  private readonly _cleanupCallbacks = new Set<() => void>();
+  private readonly _setupOnceCleanupCallbacks = new Set<() => void>();
 
   constructor(options: ConsoleBreadcrumbsOptions = {}) {
     this._levels = options.levels || [...CONSOLE_LEVELS];
   }
 
   public setupOnce(): void {
-    this._setup();
+    for (const level of this._levels) {
+      if (typeof console[level] !== 'function') continue;
+      this._setupOnceCleanupCallbacks.add(
+        addSetupOnceFunctionInstrumentationHandler(console, level, (original, thisArg, args) =>
+          this._handleConsole(level, original, thisArg, args),
+        ),
+      );
+    }
   }
 
   public setup(client: Client): void {
-    this._setup();
-    client.registerCleanup(() => this.cleanup());
-  }
-
-  private _setup(): void {
-    if (this._isSetup) return;
-    this._isSetup = true;
-
+    const cleanups: Array<() => void> = [];
     for (const level of this._levels) {
       if (typeof console[level] !== 'function') continue;
-
-      const original = console[level];
-      this._originalMethods[level] = original;
-
-      const wrapped = function (...args: any[]) {
-        addBreadcrumb({
-          category: 'console',
-          level: LEVEL_TO_SEVERITY[level],
-          message: args
-            .map((a) => {
-              if (typeof a === 'string') return a;
-              try {
-                return JSON.stringify(a);
-              } catch (_e) {
-                return String(a);
-              }
-            })
-            .join(' '),
-        });
-
-        return original.apply(console, args);
-      };
-      this._wrappedMethods[level] = wrapped;
-      console[level] = wrapped;
+      cleanups.push(
+        addFunctionInstrumentationHandler(console, level, client, (original, thisArg, args) =>
+          this._handleConsole(level, original, thisArg, args),
+        ),
+      );
     }
+    this._clearSetupOnceHandlers();
+
+    const cleanup = this._trackCleanup(cleanups);
+    client.registerCleanup(cleanup);
+  }
+
+  private _handleConsole(
+    level: ConsoleLevel,
+    original: Function,
+    thisArg: unknown,
+    args: unknown[],
+  ): unknown {
+    addBreadcrumb({
+      category: 'console',
+      level: LEVEL_TO_SEVERITY[level],
+      message: args
+        .map((arg) => {
+          if (typeof arg === 'string') return arg;
+          try {
+            return JSON.stringify(arg);
+          } catch (_e) {
+            return String(arg);
+          }
+        })
+        .join(' '),
+    });
+
+    return original.apply(thisArg ?? console, args);
   }
 
   /**
    * 清理资源，恢复原始 console 方法
    */
   public cleanup(): void {
-    for (const level of this._levels) {
-      const original = this._originalMethods[level];
-      if (original && console[level] === this._wrappedMethods[level]) {
-        console[level] = original;
-      }
-    }
-    this._originalMethods = {};
-    this._wrappedMethods = {};
-    this._isSetup = false;
+    this._clearSetupOnceHandlers();
+    for (const cleanup of [...this._cleanupCallbacks]) cleanup();
+  }
+
+  private _clearSetupOnceHandlers(): void {
+    for (const cleanup of this._setupOnceCleanupCallbacks) cleanup();
+    this._setupOnceCleanupCallbacks.clear();
+  }
+
+  private _trackCleanup(cleanups: Array<() => void>): () => void {
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      for (const callback of cleanups.reverse()) callback();
+      this._cleanupCallbacks.delete(cleanup);
+    };
+    this._cleanupCallbacks.add(cleanup);
+    return cleanup;
   }
 }
 

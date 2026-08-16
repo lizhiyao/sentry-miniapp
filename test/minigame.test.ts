@@ -6,6 +6,7 @@ const {
   mockSpanEnd,
   mockStartInactiveSpan,
   mockSetMeasurement,
+  mockGetClient,
 } = vi.hoisted(() => {
   const mockSpanEnd = vi.fn((..._args: any[]) => {});
   const mockSpanSetAttributes = vi.fn((..._args: any[]) => {});
@@ -19,11 +20,13 @@ const {
       end: mockSpanEnd,
     })),
     mockSetMeasurement: vi.fn((..._args: any[]) => {}),
+    mockGetClient: vi.fn(),
   };
 });
 
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
+  getClient: mockGetClient,
   setContext: mockSetContext,
   startInactiveSpan: mockStartInactiveSpan,
   setMeasurement: mockSetMeasurement,
@@ -90,6 +93,22 @@ describe('MinigameIntegration', () => {
     expect(mockAddBreadcrumb).toHaveBeenCalledWith(
       expect.objectContaining({ category: 'minigame.launch' }),
     );
+  });
+
+  it('ignores delayed frame and lifecycle callbacks owned by an inactive client', () => {
+    const integration = new MinigameIntegration();
+    const oldClient = { registerCleanup: vi.fn() };
+    mockGetClient.mockReturnValue({});
+    integration.setup(oldClient as any);
+    vi.clearAllMocks();
+
+    rafCallback?.();
+    showCb?.({ scene: 1002 });
+    hideCb?.();
+
+    expect(mockAddBreadcrumb).not.toHaveBeenCalled();
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    integration.cleanup();
   });
 
   it('用首帧 requestAnimationFrame 计算冷启动耗时', () => {

@@ -11,8 +11,12 @@ import {
   startInactiveSpan,
 } from '@sentry/core';
 import type { Client, Integration, Span } from '@sentry/core';
-import { fill } from '../helpers';
 import { sdk } from '../crossPlatform';
+import {
+  addFunctionInstrumentationHandler,
+  addSetupOnceFunctionInstrumentationHandler,
+  ensureFunctionInstrumentation,
+} from '../instrumentation';
 
 /**
  * Network Breadcrumbs Integration.
@@ -37,9 +41,9 @@ export class NetworkBreadcrumbs implements Integration {
   private readonly _enableTracePropagation: boolean;
   private readonly _tracePropagationTargets: Array<string | RegExp>;
   private readonly _propagateTraceparent: boolean;
-  private _restoreRequest: (() => void) | null = null;
-  private _restoreHttpRequest: (() => void) | null = null;
-  private _isSetup: boolean = false;
+  private readonly _cleanupCallbacks = new Set<() => void>();
+  private readonly _setupOnceCleanupCallbacks = new Set<() => void>();
+  private readonly _requestWrappers = new WeakMap<Function, Function>();
 
   public constructor(
     options: {
@@ -88,53 +92,77 @@ export class NetworkBreadcrumbs implements Integration {
    * @inheritDoc
    */
   public setupOnce(): void {
-    this._setup();
+    const miniappSdk = sdk();
+    this._registerSetupOnceHandler(miniappSdk, 'request');
+    this._registerSetupOnceHandler(miniappSdk, 'httpRequest');
   }
 
   public setup(client: Client): void {
-    this._setup();
-    client.registerCleanup(() => this.cleanup());
-  }
-
-  private _setup(): void {
-    if (this._isSetup) return;
-    this._isSetup = true;
     const miniappSdk = sdk();
-
-    // Intercept standard request (WeChat, ByteDance, Swan, etc.)
-    if (miniappSdk && typeof miniappSdk.request === 'function') {
-      const result = fill(miniappSdk, 'request', this._createRequestWrapper.bind(this));
-      if (result?.replaced) {
-        this._restoreRequest = result.restore;
-      } else {
-        console.warn(
-          '[sentry-miniapp] 无法包装当前平台的 request API，网络面包屑和请求追踪将不可用',
-        );
-      }
+    const cleanups: Array<() => void> = [];
+    for (const name of ['request', 'httpRequest'] as const) {
+      if (typeof miniappSdk[name] !== 'function') continue;
+      cleanups.push(
+        addFunctionInstrumentationHandler(miniappSdk, name, client, (original, thisArg, args) =>
+          this._invokeRequestWrapper(original, thisArg, args),
+        ),
+      );
     }
+    this._clearSetupOnceHandlers();
 
-    // Intercept Alipay request
-    if (miniappSdk && typeof miniappSdk.httpRequest === 'function') {
-      const result = fill(miniappSdk, 'httpRequest', this._createRequestWrapper.bind(this));
-      if (result?.replaced) {
-        this._restoreHttpRequest = result.restore;
-      } else {
-        console.warn(
-          '[sentry-miniapp] 无法包装当前平台的 httpRequest API，网络面包屑和请求追踪将不可用',
-        );
-      }
-    }
+    const cleanup = this._trackCleanup(cleanups);
+    client.registerCleanup(cleanup);
   }
 
   /**
    * 清理集成，恢复原始网络请求方法
    */
   public cleanup(): void {
-    this._restoreRequest?.();
-    this._restoreHttpRequest?.();
-    this._restoreRequest = null;
-    this._restoreHttpRequest = null;
-    this._isSetup = false;
+    this._clearSetupOnceHandlers();
+    for (const cleanup of [...this._cleanupCallbacks]) cleanup();
+  }
+
+  private _registerSetupOnceHandler(
+    miniappSdk: Partial<Record<'request' | 'httpRequest', unknown>>,
+    name: 'request' | 'httpRequest',
+  ): void {
+    if (typeof miniappSdk[name] !== 'function') return;
+    if (!ensureFunctionInstrumentation(miniappSdk, name)) {
+      console.warn(`[sentry-miniapp] 无法包装当前平台的 ${name} API，网络面包屑和请求追踪将不可用`);
+      return;
+    }
+    const cleanup = addSetupOnceFunctionInstrumentationHandler(
+      miniappSdk,
+      name,
+      (original, thisArg, args) => this._invokeRequestWrapper(original, thisArg, args),
+    );
+    this._setupOnceCleanupCallbacks.add(cleanup);
+  }
+
+  private _clearSetupOnceHandlers(): void {
+    for (const cleanup of this._setupOnceCleanupCallbacks) cleanup();
+    this._setupOnceCleanupCallbacks.clear();
+  }
+
+  private _trackCleanup(cleanups: Array<() => void>): () => void {
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      for (const callback of cleanups.reverse()) callback();
+      this._cleanupCallbacks.delete(cleanup);
+    };
+    this._cleanupCallbacks.add(cleanup);
+    return cleanup;
+  }
+
+  private _invokeRequestWrapper(original: Function, thisArg: unknown, args: unknown[]): unknown {
+    let wrapper = this._requestWrappers.get(original);
+    if (!wrapper) {
+      wrapper = this._createRequestWrapper(original);
+      this._requestWrappers.set(original, wrapper);
+    }
+    return wrapper.apply(thisArg, args);
   }
 
   /**
