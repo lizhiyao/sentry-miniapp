@@ -4,7 +4,6 @@ import type { Client, Integration } from '@sentry/core';
 import { subscribeAppLifecycle } from '../appLifecycle';
 import {
   addFunctionInstrumentationHandler,
-  addSetupOnceFunctionInstrumentationHandler,
   ensureFunctionInstrumentation,
 } from '../instrumentation';
 
@@ -39,14 +38,10 @@ interface PageSubscriber {
 }
 
 const pageSubscribers = new Map<Client, PageSubscriber>();
-let fallbackPageSubscriber: PageSubscriber | undefined;
 
 function getActivePageSubscriber(): PageSubscriber | undefined {
   const activeClient = getClient();
-  return (
-    (activeClient ? pageSubscribers.get(activeClient) : undefined) ??
-    (pageSubscribers.size === 0 ? fallbackPageSubscriber : undefined)
-  );
+  return activeClient ? pageSubscribers.get(activeClient) : undefined;
 }
 
 function recordPageLifecycle(
@@ -165,8 +160,6 @@ export class PageBreadcrumbs implements Integration {
 
   private readonly _options: Required<PageBreadcrumbsOptions>;
   private readonly _cleanupCallbacks = new Set<() => void>();
-  private readonly _setupOnceCleanupCallbacks = new Set<() => void>();
-  private _setupOnceInitialized = false;
 
   constructor(options: PageBreadcrumbsOptions = {}) {
     this._options = {
@@ -177,26 +170,10 @@ export class PageBreadcrumbs implements Integration {
   }
 
   public setupOnce(): void {
-    if (this._setupOnceInitialized) return;
-    this._setupOnceInitialized = true;
-    const subscriber = this._createSubscriber();
-    fallbackPageSubscriber = subscriber;
-
     const globalObject = globalThis as Record<PropertyKey, unknown>;
     if (typeof globalObject['Page'] === 'function') {
       ensureFunctionInstrumentation(globalObject, 'Page');
-      Object.defineProperty(globalObject['Page'], '__sentryPageWrapper', {
-        value: true,
-        configurable: true,
-      });
-      this._setupOnceCleanupCallbacks.add(
-        addSetupOnceFunctionInstrumentationHandler(globalObject, 'Page', invokePage),
-      );
     }
-    this._setupOnceCleanupCallbacks.add(this._subscribeApp(subscriber));
-    this._setupOnceCleanupCallbacks.add(() => {
-      if (fallbackPageSubscriber === subscriber) fallbackPageSubscriber = undefined;
-    });
   }
 
   public setup(client: Client): void {
@@ -212,14 +189,11 @@ export class PageBreadcrumbs implements Integration {
     if (typeof globalObject['Page'] === 'function') {
       cleanups.push(addFunctionInstrumentationHandler(globalObject, 'Page', client, invokePage));
     }
-    this._clearSetupOnceHandlers();
-
     const cleanup = this._trackCleanup(cleanups);
     client.registerCleanup(cleanup);
   }
 
   public cleanup(): void {
-    this._clearSetupOnceHandlers();
     for (const cleanup of [...this._cleanupCallbacks]) cleanup();
   }
 
@@ -251,12 +225,6 @@ export class PageBreadcrumbs implements Integration {
       level: 'info',
       data: { action: method },
     });
-  }
-
-  private _clearSetupOnceHandlers(): void {
-    for (const cleanup of this._setupOnceCleanupCallbacks) cleanup();
-    this._setupOnceCleanupCallbacks.clear();
-    this._setupOnceInitialized = false;
   }
 
   private _trackCleanup(cleanups: Array<() => void>): () => void {

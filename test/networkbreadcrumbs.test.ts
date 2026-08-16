@@ -11,6 +11,7 @@ const {
   mockIsSentryRequestUrl,
   mockGetTraceData,
   mockSetHttpStatus,
+  mockGetClient,
 } = vi.hoisted(() => {
   const mockSpanSetAttribute = vi.fn();
   const mockSpanSetStatus = vi.fn();
@@ -38,6 +39,7 @@ const {
       span.setAttribute('http.response.status_code', statusCode);
       span.setStatus({ code: statusCode >= 400 ? 2 : 1 });
     }),
+    mockGetClient: vi.fn(),
   };
 });
 const mockTraceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
@@ -47,9 +49,7 @@ vi.mock('@sentry/core', () => {
   return {
     addBreadcrumb: vi.fn(),
     getActiveSpan: mockGetActiveSpan,
-    getClient: vi.fn(() => ({
-      getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
-    })),
+    getClient: mockGetClient,
     hasSpansEnabled: mockHasSpansEnabled,
     isSentryRequestUrl: mockIsSentryRequestUrl,
     getTraceData: mockGetTraceData,
@@ -63,11 +63,21 @@ import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
 import * as crossPlatform from '../src/crossPlatform';
 import { addBreadcrumb } from '@sentry/core';
 
+function setupIntegration(integration: NetworkBreadcrumbs): void {
+  const client = {
+    getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
+    registerCleanup: vi.fn(),
+  } as any;
+  mockGetClient.mockReturnValue(client);
+  integration.setup(client);
+}
+
 describe('NetworkBreadcrumbs Integration', () => {
   let requestMock: Mock;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetClient.mockReturnValue(undefined);
 
     requestMock = vi.fn((options) => {
       if (options.success) {
@@ -86,7 +96,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('should patch request and add breadcrumb without body by default', () => {
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -129,6 +139,17 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(mockSpanEnd).toHaveBeenCalledTimes(1);
   });
 
+  it('setupOnce only installs a neutral request wrapper', () => {
+    const integration = new NetworkBreadcrumbs();
+
+    integration.setupOnce();
+    crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
+
+    expect(requestMock).toHaveBeenCalledOnce();
+    expect(addBreadcrumb).not.toHaveBeenCalled();
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+  });
+
   it('should patch a configurable request accessor and restore its descriptor on cleanup', () => {
     const getter = vi.fn(() => requestMock);
     const setter = vi.fn();
@@ -143,7 +164,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue(miniappSdk as any);
 
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     expect(setter).toHaveBeenCalledTimes(1);
     expect(miniappSdk.request).not.toBe(requestMock);
@@ -191,7 +212,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('should sanitize query and fragment from request span name', () => {
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -210,7 +231,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('should remove data URL payloads from span names', () => {
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
     const miniappSdk = crossPlatform.sdk();
 
     miniappSdk.request({ url: 'data:image/png;base64,very-large-image-data' });
@@ -228,7 +249,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('should include request and response body when traceNetworkBody is true', () => {
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -265,7 +286,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: cyclicRequestMock });
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     crossPlatform.sdk().request({
       url: 'https://api.example.com/cyclic',
@@ -286,7 +307,7 @@ describe('NetworkBreadcrumbs Integration', () => {
   it('should ignore requests identified as SDK envelopes by core', () => {
     mockIsSentryRequestUrl.mockReturnValueOnce(true);
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -305,7 +326,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('should NOT ignore URLs that merely contain sentry.io as substring', () => {
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
 
@@ -329,7 +350,7 @@ describe('NetworkBreadcrumbs Integration', () => {
   it('should ignore an ingest envelope URL identified by core', () => {
     mockIsSentryRequestUrl.mockReturnValueOnce(true);
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -346,7 +367,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     mockIsSentryRequestUrl.mockReturnValueOnce(true);
 
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -371,7 +392,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
 
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -408,7 +429,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: failRequestMock });
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
     const miniappSdk = crossPlatform.sdk();
 
     miniappSdk.request({ url: 'https://api.example.com/missing-error' });
@@ -433,7 +454,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const failRequestMock = vi.fn(options => options.fail({ errMsg: 'request:fail' }));
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: failRequestMock });
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const result = crossPlatform.sdk().request({
       url: 'https://api.example.com/fail',
@@ -446,7 +467,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('should not inject trace headers when trace propagation is disabled', () => {
     const integration = new NetworkBreadcrumbs({ enableTracePropagation: false });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -471,7 +492,7 @@ describe('NetworkBreadcrumbs Integration', () => {
       propagateTraceparent: true,
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -502,7 +523,7 @@ describe('NetworkBreadcrumbs Integration', () => {
       propagateTraceparent: true,
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -525,7 +546,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     crossPlatform.sdk().request({
       url: 'https://api.example.com/users',
@@ -546,7 +567,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -564,7 +585,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: [/api\.example\.com/g],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -594,7 +615,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
 
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -621,7 +642,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     } as any);
 
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk() as any;
     miniappSdk.httpRequest({
@@ -644,7 +665,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const miniappSdk = crossPlatform.sdk();
     miniappSdk.request({
@@ -666,7 +687,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     crossPlatform.sdk().request({
       url: 'https://api.example.com/users',
@@ -682,7 +703,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     crossPlatform.sdk().request({
       url: 'https://api.example.com/users',
@@ -705,7 +726,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: bodyRequestMock });
     const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     crossPlatform.sdk().request({
       url: 'https://api.example.com/private',
@@ -729,7 +750,7 @@ describe('NetworkBreadcrumbs Integration', () => {
       traceNetworkBody: true,
       denyBodyUrls: ['do-not-record'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
     const miniappSdk = crossPlatform.sdk();
 
     miniappSdk.request({
@@ -762,7 +783,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: callbackRequestMock });
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     const task = crossPlatform.sdk().request({
       url: 42,
@@ -789,7 +810,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     expect(() =>
       crossPlatform.sdk().request({ url: 'https://api.example.com/no-response' }),
@@ -807,7 +828,7 @@ describe('NetworkBreadcrumbs Integration', () => {
       throw new Error('span status failed');
     });
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     expect(() =>
       crossPlatform.sdk().request({ url: 'https://api.example.com/span-finish-error' }),
@@ -825,7 +846,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     crossPlatform.sdk().request(requestOptions);
 
@@ -850,7 +871,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
 
     crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
 
@@ -865,7 +886,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const passthroughRequest = vi.fn((options) => options);
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: passthroughRequest });
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     expect(crossPlatform.sdk().request(null as any)).toBeNull();
     expect(passthroughRequest).toHaveBeenCalledWith(null);
@@ -875,7 +896,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('normalizes missing and null URLs to an empty string', () => {
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
     const miniappSdk = crossPlatform.sdk();
 
     miniappSdk.request({});
@@ -908,7 +929,7 @@ describe('NetworkBreadcrumbs Integration', () => {
       .mockReturnValueOnce(2000)
       .mockReturnValueOnce(6001);
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
     const miniappSdk = crossPlatform.sdk();
 
     miniappSdk.request({ url: 'https://api.example.com/error' });
@@ -935,7 +956,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    integration.setupOnce();
+    setupIntegration(integration);
     const miniappSdk = crossPlatform.sdk();
 
     expect(() => miniappSdk.request({ url: 'https://api.example.com/no-span' })).not.toThrow();
@@ -956,7 +977,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: throwingRequest });
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     expect(() =>
       crossPlatform.sdk().request({ url: 'https://api.example.com/crash' }),
@@ -971,7 +992,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: throwingRequest });
     const integration = new NetworkBreadcrumbs();
-    integration.setupOnce();
+    setupIntegration(integration);
 
     expect(() =>
       crossPlatform.sdk().request({ url: 'https://api.example.com/crash' }),

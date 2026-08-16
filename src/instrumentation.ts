@@ -11,7 +11,6 @@ export type FunctionInstrumentationHandler = (
 
 interface FunctionInstrumentationState {
   handlers: Map<Client, FunctionInstrumentationHandler>;
-  fallbackHandler: FunctionInstrumentationHandler | undefined;
   restore: () => void;
   wrapper: Function;
 }
@@ -37,9 +36,7 @@ function createState(source: object, name: string): FunctionInstrumentationState
     const wrapper = function (this: unknown, ...args: unknown[]): unknown {
       const activeClient = getClient();
       const handler = activeClient ? handlers.get(activeClient) : undefined;
-      const selectedHandler = handler ?? (handlers.size === 0 ? state.fallbackHandler : undefined);
-
-      return selectedHandler ? selectedHandler(original, this, args) : original.apply(this, args);
+      return handler ? handler(original, this, args) : original.apply(this, args);
     };
 
     state.wrapper = wrapper;
@@ -70,7 +67,7 @@ function ensureState(source: object, name: string): FunctionInstrumentationState
 }
 
 function restoreIfIdle(source: object, name: string, state: FunctionInstrumentationState): void {
-  if (state.handlers.size > 0 || state.fallbackHandler) return;
+  if (state.handlers.size > 0) return;
 
   // 只恢复自己仍直接拥有的 wrapper。若第三方后来又包了一层，保留当前调用链，
   // 空 handler 的 Sentry wrapper 会透明转发，避免覆盖第三方修改。
@@ -105,8 +102,6 @@ export function addFunctionInstrumentationHandler(
   if (!state) return () => {};
 
   state.handlers.set(client, handler);
-  // setupOnce 的无 client 兼容 handler 只服务手动调用；正式 setup(client) 后立即淘汰。
-  state.fallbackHandler = undefined;
 
   let active = true;
   return () => {
@@ -114,30 +109,6 @@ export function addFunctionInstrumentationHandler(
     active = false;
     if (state.handlers.get(client) === handler) {
       state.handlers.delete(client);
-    }
-    restoreIfIdle(source, name, state);
-  };
-}
-
-/**
- * 兼容直接手动调用 integration.setupOnce() 的历史用法和单元测试。
- * core 的正常生命周期会在紧随其后的 setup(client) 中移除此 fallback。
- */
-export function addSetupOnceFunctionInstrumentationHandler(
-  source: object,
-  name: string,
-  handler: FunctionInstrumentationHandler,
-): () => void {
-  const state = ensureState(source, name);
-  if (!state) return () => {};
-  state.fallbackHandler = handler;
-
-  let active = true;
-  return () => {
-    if (!active) return;
-    active = false;
-    if (state.fallbackHandler === handler) {
-      state.fallbackHandler = undefined;
     }
     restoreIfIdle(source, name, state);
   };

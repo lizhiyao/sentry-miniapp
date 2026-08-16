@@ -3,7 +3,7 @@ import type { Client, Integration, SeverityLevel } from '@sentry/core';
 
 import {
   addFunctionInstrumentationHandler,
-  addSetupOnceFunctionInstrumentationHandler,
+  ensureFunctionInstrumentation,
 } from '../instrumentation';
 
 const CONSOLE_LEVELS = ['debug', 'info', 'warn', 'error', 'log'] as const;
@@ -40,7 +40,6 @@ export class ConsoleBreadcrumbs implements Integration {
 
   private readonly _levels: ConsoleLevel[];
   private readonly _cleanupCallbacks = new Set<() => void>();
-  private readonly _setupOnceCleanupCallbacks = new Set<() => void>();
 
   constructor(options: ConsoleBreadcrumbsOptions = {}) {
     this._levels = options.levels || [...CONSOLE_LEVELS];
@@ -49,11 +48,7 @@ export class ConsoleBreadcrumbs implements Integration {
   public setupOnce(): void {
     for (const level of this._levels) {
       if (typeof console[level] !== 'function') continue;
-      this._setupOnceCleanupCallbacks.add(
-        addSetupOnceFunctionInstrumentationHandler(console, level, (original, thisArg, args) =>
-          this._handleConsole(level, original, thisArg, args),
-        ),
-      );
+      ensureFunctionInstrumentation(console, level);
     }
   }
 
@@ -67,8 +62,6 @@ export class ConsoleBreadcrumbs implements Integration {
         ),
       );
     }
-    this._clearSetupOnceHandlers();
-
     const cleanup = this._trackCleanup(cleanups);
     client.registerCleanup(cleanup);
   }
@@ -101,13 +94,7 @@ export class ConsoleBreadcrumbs implements Integration {
    * 清理资源，恢复原始 console 方法
    */
   public cleanup(): void {
-    this._clearSetupOnceHandlers();
     for (const cleanup of [...this._cleanupCallbacks]) cleanup();
-  }
-
-  private _clearSetupOnceHandlers(): void {
-    for (const cleanup of this._setupOnceCleanupCallbacks) cleanup();
-    this._setupOnceCleanupCallbacks.clear();
   }
 
   private _trackCleanup(cleanups: Array<() => void>): () => void {

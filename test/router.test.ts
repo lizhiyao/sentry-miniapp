@@ -20,6 +20,12 @@ vi.mock('../src/crossPlatform', () => ({
 
 import { sdk as sdkFn } from '../src/crossPlatform';
 
+function setupRouter(router: Router): void {
+  const client = { registerCleanup: vi.fn() } as any;
+  vi.mocked(getClient).mockReturnValue(client);
+  router.setup(client);
+}
+
 describe('Router Integration', () => {
   let router: Router;
 
@@ -56,6 +62,7 @@ describe('Router Integration', () => {
 
     // Mock setInterval to avoid actual timing
     (global as any).setInterval = vi.fn();
+    vi.mocked(getClient).mockReturnValue(undefined);
 
     vi.clearAllMocks();
 
@@ -101,7 +108,7 @@ describe('Router Integration', () => {
       ((global as any).setInterval as Mock).mockReturnValue(123 as any);
 
       try {
-        router.setupOnce();
+        setupRouter(router);
         router.cleanup();
 
         expect(clearIntervalSpy).toHaveBeenCalledWith(123);
@@ -147,16 +154,20 @@ describe('Router Integration', () => {
   });
 
   describe('setupOnce', () => {
-    it('should instrument navigation functions and start monitoring', () => {
+    it('should install neutral wrappers without starting route monitoring', () => {
+      const originalNavigateTo = mockSdk.navigateTo;
       router.setupOnce();
 
-      // Check that setInterval was called for route monitoring
-      expect((global as any).setInterval).toHaveBeenCalledWith(expect.any(Function), 1000);
+      expect(mockSdk.navigateTo).not.toBe(originalNavigateTo);
+      mockSdk.navigateTo({ url: '/pages/test/test' });
+      expect(originalNavigateTo).toHaveBeenCalledWith({ url: '/pages/test/test' });
+      expect(addBreadcrumb).not.toHaveBeenCalled();
+      expect((global as any).setInterval).not.toHaveBeenCalled();
     });
 
     it('should instrument navigateTo', () => {
       const originalNavigateTo = mockSdk.navigateTo;
-      router.setupOnce();
+      setupRouter(router);
 
       // Check that navigateTo was wrapped
       expect(mockSdk.navigateTo).not.toBe(originalNavigateTo);
@@ -181,7 +192,7 @@ describe('Router Integration', () => {
 
     it('should instrument redirectTo', () => {
       const originalRedirectTo = mockSdk.redirectTo;
-      router.setupOnce();
+      setupRouter(router);
 
       const options = { url: '/pages/redirect/redirect' };
       mockSdk.redirectTo(options);
@@ -202,7 +213,7 @@ describe('Router Integration', () => {
 
     it('should instrument switchTab', () => {
       const originalSwitchTab = mockSdk.switchTab;
-      router.setupOnce();
+      setupRouter(router);
 
       const options = { url: '/pages/tab/tab' };
       mockSdk.switchTab(options);
@@ -223,7 +234,7 @@ describe('Router Integration', () => {
 
     it('should instrument navigateBack', () => {
       const originalNavigateBack = mockSdk.navigateBack;
-      router.setupOnce();
+      setupRouter(router);
 
       const options = { delta: 2 };
       mockSdk.navigateBack(options);
@@ -244,7 +255,7 @@ describe('Router Integration', () => {
 
     it('should instrument navigateBack with default options', () => {
       const originalNavigateBack = mockSdk.navigateBack;
-      router.setupOnce();
+      setupRouter(router);
 
       mockSdk.navigateBack();
 
@@ -264,7 +275,7 @@ describe('Router Integration', () => {
 
     it('should instrument reLaunch', () => {
       const originalReLaunch = mockSdk.reLaunch;
-      router.setupOnce();
+      setupRouter(router);
 
       const options = { url: '/pages/relaunch/relaunch' };
       mockSdk.reLaunch(options);
@@ -291,6 +302,17 @@ describe('Router Integration', () => {
       expect(() => router.setupOnce()).not.toThrow();
     });
 
+    it('client setup degrades gracefully when sdk() throws', () => {
+      (sdkFn as Mock).mockImplementation(() => {
+        throw new Error('sentry-miniapp 暂不支持此平台');
+      });
+      const client = { registerCleanup: vi.fn() } as any;
+      vi.mocked(getClient).mockReturnValue(client);
+
+      expect(() => router.setup(client)).not.toThrow();
+      expect(client.registerCleanup).toHaveBeenCalledWith(expect.any(Function));
+    });
+
     it('should handle SDK with missing methods gracefully', () => {
       // Clear all methods from mockSdk
       Object.keys(mockSdk).forEach((key) => {
@@ -299,11 +321,18 @@ describe('Router Integration', () => {
 
       expect(() => router.setupOnce()).not.toThrow();
     });
+
+    it('client setup skips unavailable navigation methods', () => {
+      delete mockSdk.redirectTo;
+
+      expect(() => setupRouter(router)).not.toThrow();
+      expect(mockSdk.navigateTo).toEqual(expect.any(Function));
+    });
   });
 
   describe('route monitoring', () => {
     it('should monitor route changes', () => {
-      router.setupOnce();
+      setupRouter(router);
 
       // Get the interval callback
       const setIntervalMock = (global as any).setInterval as Mock;
@@ -337,7 +366,7 @@ describe('Router Integration', () => {
     });
 
     it('should not trigger route change for same route', () => {
-      router.setupOnce();
+      setupRouter(router);
 
       const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
@@ -358,7 +387,7 @@ describe('Router Integration', () => {
         throw new Error('getCurrentPages error');
       });
 
-      router.setupOnce();
+      setupRouter(router);
       const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
@@ -368,7 +397,7 @@ describe('Router Integration', () => {
     it('should handle empty pages array', () => {
       ((globalThis as any).getCurrentPages as Mock).mockReturnValue([]);
 
-      router.setupOnce();
+      setupRouter(router);
       const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
@@ -380,7 +409,7 @@ describe('Router Integration', () => {
         { __route__: 'pages/legacy/legacy' },
       ]);
 
-      router.setupOnce();
+      setupRouter(router);
       const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
@@ -400,7 +429,7 @@ describe('Router Integration', () => {
     it('should handle a current page without route metadata', () => {
       ((globalThis as any).getCurrentPages as Mock).mockReturnValue([{}]);
 
-      router.setupOnce();
+      setupRouter(router);
       const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
@@ -411,7 +440,7 @@ describe('Router Integration', () => {
     it('should handle missing getCurrentPages function', () => {
       delete (globalThis as any).getCurrentPages;
 
-      router.setupOnce();
+      setupRouter(router);
       const setIntervalMock = (global as any).setInterval as Mock;
       const intervalCallback = setIntervalMock.mock.calls[0]?.[0] as () => void;
 
@@ -421,7 +450,7 @@ describe('Router Integration', () => {
 
   describe('navigation recording', () => {
     beforeEach(() => {
-      router.setupOnce();
+      setupRouter(router);
     });
 
     it('should set correct tags and context for navigation', () => {
@@ -467,7 +496,7 @@ describe('Router Integration', () => {
       (sdkFn as Mock).mockReturnValue(alipaySdk);
 
       const alipayRouter = new Router();
-      alipayRouter.setupOnce();
+      setupRouter(alipayRouter);
 
       // navigateTo should have been wrapped
       expect(alipaySdk.navigateTo).not.toBe(alipayNavigateTo);

@@ -14,12 +14,19 @@ vi.mock('@sentry/core', () => ({
 
 import { addBreadcrumb, getClient, setContext } from '@sentry/core';
 
+function setupIntegration(integration: PageBreadcrumbs): void {
+  const client = { registerCleanup: vi.fn() } as any;
+  vi.mocked(getClient).mockReturnValue(client);
+  integration.setup(client);
+}
+
 describe('PageBreadcrumbs Integration', () => {
   let originalPage: any;
   let originalApp: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getClient).mockReturnValue(undefined);
     _resetAppLifecycle(); // 清共享 App 包装状态，避免用例间残留
     originalPage = (globalThis as any).Page;
     originalApp = (globalThis as any).App;
@@ -36,7 +43,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const onShowFn = vi.fn();
       const pageOptions = {
@@ -66,7 +73,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const onHideFn = vi.fn();
       const pageOptions = { onHide: onHideFn };
@@ -86,7 +93,7 @@ describe('PageBreadcrumbs Integration', () => {
     it('uses an unknown route when lifecycle handlers have no page instance', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
       const page = (globalThis as any).Page({ onShow: vi.fn() });
 
       page.onShow.call(null);
@@ -100,7 +107,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const onLoadFn = vi.fn();
       const onUnloadFn = vi.fn();
@@ -121,7 +128,7 @@ describe('PageBreadcrumbs Integration', () => {
       vi.mocked(Date.now).mockReturnValueOnce(1000).mockReturnValueOnce(1250);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
       const app = (globalThis as any).App({});
       const page = (globalThis as any).Page({ onReady: vi.fn() });
 
@@ -146,7 +153,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs({ enableLifecycle: false });
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const onShowFn = vi.fn();
       const pageOptions = { onShow: onShowFn };
@@ -167,7 +174,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const onTapFn = vi.fn();
       const pageOptions = { onTap: onTapFn };
@@ -198,7 +205,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const clickSpy = vi.fn();
       const changeSpy = vi.fn();
@@ -232,7 +239,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
       const handler = vi.fn();
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const page = (globalThis as any).Page({ [handlerName]: handler });
       page[handlerName].call({}, null);
@@ -249,7 +256,7 @@ describe('PageBreadcrumbs Integration', () => {
     it('captures interaction coordinates and touch details', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
       const onInput = vi.fn();
       const page = (globalThis as any).Page({ onInput });
       const event = {
@@ -279,7 +286,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs({ enableLifecycle: false });
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const pageOptions = {
         onShow: vi.fn(),
@@ -302,7 +309,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const pageOptions = { _privateMethod: vi.fn() };
 
@@ -318,7 +325,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs({ enableUserInteraction: false });
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const pageOptions = { onTap: vi.fn() };
 
@@ -336,7 +343,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).App = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const onLaunchFn = vi.fn();
       const appOptions = { onLaunch: onLaunchFn };
@@ -357,7 +364,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).App = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       const showSpy = vi.fn();
       const hideSpy = vi.fn();
@@ -406,14 +413,14 @@ describe('PageBreadcrumbs Integration', () => {
       delete (globalThis as any).App;
 
       const integration = new PageBreadcrumbs();
-      expect(() => integration.setupOnce()).not.toThrow();
+      expect(() => setupIntegration(integration)).not.toThrow();
     });
 
     it('should handle Page() with no options', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
 
       expect(() => (globalThis as any).Page(null)).not.toThrow();
       expect(() => (globalThis as any).Page(undefined)).not.toThrow();
@@ -421,7 +428,7 @@ describe('PageBreadcrumbs Integration', () => {
   });
 
   describe('Page 包装幂等与安全还原', () => {
-    it('二次 setupOnce 不重复包装 Page（幂等守卫）', () => {
+    it('二次 setupOnce 只保留一层中性包装', () => {
       const base = vi.fn((o: any) => o);
       (globalThis as any).Page = base;
 
@@ -429,16 +436,14 @@ describe('PageBreadcrumbs Integration', () => {
       integration.setupOnce();
       const wrapped = (globalThis as any).Page;
       expect(wrapped).not.toBe(base);
-      expect((wrapped as any).__sentryPageWrapper).toBe(true);
-      expect(Object.prototype.propertyIsEnumerable.call(wrapped, '__sentryPageWrapper')).toBe(
-        false,
-      );
 
-      // 再次 setupOnce 不应在包装之上再套一层（否则 _originalPage 会指向上一层包装）
       integration.setupOnce();
       expect((globalThis as any).Page).toBe(wrapped);
 
-      integration.cleanup();
+      const onShow = vi.fn();
+      (globalThis as any).Page({ onShow }).onShow();
+      expect(onShow).toHaveBeenCalledOnce();
+      expect(addBreadcrumb).not.toHaveBeenCalled();
     });
 
     it('cleanup 不清掉他人在我们之后包装的 Page', () => {
@@ -446,7 +451,7 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = base;
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
       const ourWrapper = (globalThis as any).Page;
 
       // 第三方在我们之后再包一层
@@ -458,30 +463,12 @@ describe('PageBreadcrumbs Integration', () => {
       expect((globalThis as any).Page).toBe(thirdParty);
     });
 
-    it('cleanup 不被第三方复制的 __sentryPageWrapper 标记误导', () => {
-      const base = vi.fn((o: any) => o);
-      (globalThis as any).Page = base;
-
-      const integration = new PageBreadcrumbs();
-      integration.setupOnce();
-      const ourWrapper = (globalThis as any).Page;
-
-      const thirdParty = vi.fn((o: any) => ourWrapper(o));
-      // 模拟第三方包装器复制了当前 Page 上的属性；cleanup 必须按 wrapper 身份判断，
-      // 不能只看布尔标记，否则会把第三方包装误清掉。
-      (thirdParty as any).__sentryPageWrapper = (ourWrapper as any).__sentryPageWrapper;
-      (globalThis as any).Page = thirdParty;
-
-      integration.cleanup();
-      expect((globalThis as any).Page).toBe(thirdParty);
-    });
-
     it('cleanup 在我们仍是顶层包装时正常还原原始 Page', () => {
       const base = vi.fn((o: any) => o);
       (globalThis as any).Page = base;
 
       const integration = new PageBreadcrumbs();
-      integration.setupOnce();
+      setupIntegration(integration);
       expect((globalThis as any).Page).not.toBe(base);
 
       integration.cleanup();

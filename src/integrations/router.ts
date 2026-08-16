@@ -3,7 +3,7 @@ import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 import {
   addFunctionInstrumentationHandler,
-  addSetupOnceFunctionInstrumentationHandler,
+  ensureFunctionInstrumentation,
 } from '../instrumentation';
 
 /**
@@ -29,16 +29,12 @@ export class Router implements Integration {
   private _lastRoute: string = '';
 
   private readonly _cleanupCallbacks = new Set<() => void>();
-  private readonly _setupOnceCleanupCallbacks = new Set<() => void>();
 
   /**
    * @inheritDoc
    */
   public setupOnce(): void {
-    for (const cleanup of this._registerNavigationHandlers()) {
-      this._setupOnceCleanupCallbacks.add(cleanup);
-    }
-    this._setupOnceCleanupCallbacks.add(this._startRouteMonitoring());
+    this._ensureNavigationInstrumentation();
   }
 
   public setup(client: Client): void {
@@ -46,7 +42,6 @@ export class Router implements Integration {
       ...this._registerNavigationHandlers(client),
       this._startRouteMonitoring(client),
     ];
-    this._clearSetupOnceHandlers();
     const cleanup = this._trackCleanup(cleanups);
     client.registerCleanup(cleanup);
   }
@@ -54,7 +49,22 @@ export class Router implements Integration {
   /**
    * Instrument navigation functions
    */
-  private _registerNavigationHandlers(client?: Client): Array<() => void> {
+  private _ensureNavigationInstrumentation(): void {
+    let currentSdk: any;
+    try {
+      currentSdk = sdk();
+    } catch (_e) {
+      return;
+    }
+
+    for (const method of ['navigateTo', 'redirectTo', 'switchTab', 'reLaunch', 'navigateBack']) {
+      if (typeof currentSdk[method] === 'function') {
+        ensureFunctionInstrumentation(currentSdk, method);
+      }
+    }
+  }
+
+  private _registerNavigationHandlers(client: Client): Array<() => void> {
     let currentSdk: any;
     try {
       currentSdk = sdk();
@@ -71,11 +81,7 @@ export class Router implements Integration {
         this._recordNavigation(method, options.url, this._getCurrentRoute());
         return original.apply(thisArg, args);
       };
-      cleanups.push(
-        client
-          ? addFunctionInstrumentationHandler(currentSdk, method, client, handler)
-          : addSetupOnceFunctionInstrumentationHandler(currentSdk, method, handler),
-      );
+      cleanups.push(addFunctionInstrumentationHandler(currentSdk, method, client, handler));
     }
 
     if (typeof currentSdk.navigateBack === 'function') {
@@ -84,11 +90,7 @@ export class Router implements Integration {
         this._recordNavigation('navigateBack', 'back', this._getCurrentRoute(), options.delta);
         return original.apply(thisArg, args.length > 0 ? args : [{}]);
       };
-      cleanups.push(
-        client
-          ? addFunctionInstrumentationHandler(currentSdk, 'navigateBack', client, handler)
-          : addSetupOnceFunctionInstrumentationHandler(currentSdk, 'navigateBack', handler),
-      );
+      cleanups.push(addFunctionInstrumentationHandler(currentSdk, 'navigateBack', client, handler));
     }
     return cleanups;
   }
@@ -113,14 +115,8 @@ export class Router implements Integration {
    * 清理资源
    */
   public cleanup(): void {
-    this._clearSetupOnceHandlers();
     for (const cleanup of [...this._cleanupCallbacks]) cleanup();
     this._lastRoute = '';
-  }
-
-  private _clearSetupOnceHandlers(): void {
-    for (const cleanup of this._setupOnceCleanupCallbacks) cleanup();
-    this._setupOnceCleanupCallbacks.clear();
   }
 
   private _trackCleanup(cleanups: Array<() => void>): () => void {

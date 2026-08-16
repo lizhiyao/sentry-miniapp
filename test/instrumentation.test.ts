@@ -6,7 +6,6 @@ vi.mock('@sentry/core', () => ({ getClient: mockGetClient }));
 
 import {
   addFunctionInstrumentationHandler,
-  addSetupOnceFunctionInstrumentationHandler,
   ensureFunctionInstrumentation,
 } from '../src/instrumentation';
 
@@ -16,24 +15,16 @@ describe('共享函数 instrumentation', () => {
     mockGetClient.mockReturnValue(undefined);
   });
 
-  it('setupOnce fallback 可工作、幂等并在退订后恢复原函数', () => {
+  it('中性包装幂等且无 client 时透明调用原函数', () => {
     const original = vi.fn((value: number) => value + 1);
     const source = { run: original };
-    const fallback = vi.fn((fn: Function, thisArg: unknown, args: unknown[]) =>
-      fn.apply(thisArg, args) * 2,
-    );
 
     expect(ensureFunctionInstrumentation(source, 'run')).toBe(true);
     const wrapper = source.run;
     expect(ensureFunctionInstrumentation(source, 'run')).toBe(true);
     expect(source.run).toBe(wrapper);
-    const unsubscribe = addSetupOnceFunctionInstrumentationHandler(source, 'run', fallback);
-
-    expect(source.run(2)).toBe(6);
-    expect(fallback).toHaveBeenCalledOnce();
-    unsubscribe();
-    unsubscribe();
-    expect(source.run).toBe(original);
+    expect(source.run(2)).toBe(3);
+    expect(original).toHaveBeenCalledOnce();
   });
 
   it('只分发给当前 client，乱序退订不影响其他 client', () => {
@@ -123,13 +114,7 @@ describe('共享函数 instrumentation', () => {
       {} as any,
       () => 'client',
     );
-    const cleanupFallback = addSetupOnceFunctionInstrumentationHandler(
-      source,
-      'run',
-      () => 'fallback',
-    );
     expect(cleanupClient()).toBeUndefined();
-    expect(cleanupFallback()).toBeUndefined();
     expect((source.run as Function)()).toBe('original');
   });
 });

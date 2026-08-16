@@ -14,7 +14,6 @@ import type { Client, Integration, Span } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 import {
   addFunctionInstrumentationHandler,
-  addSetupOnceFunctionInstrumentationHandler,
   ensureFunctionInstrumentation,
 } from '../instrumentation';
 
@@ -42,7 +41,6 @@ export class NetworkBreadcrumbs implements Integration {
   private readonly _tracePropagationTargets: Array<string | RegExp>;
   private readonly _propagateTraceparent: boolean;
   private readonly _cleanupCallbacks = new Set<() => void>();
-  private readonly _setupOnceCleanupCallbacks = new Set<() => void>();
   private readonly _requestWrappers = new WeakMap<Function, Function>();
 
   public constructor(
@@ -93,8 +91,8 @@ export class NetworkBreadcrumbs implements Integration {
    */
   public setupOnce(): void {
     const miniappSdk = sdk();
-    this._registerSetupOnceHandler(miniappSdk, 'request');
-    this._registerSetupOnceHandler(miniappSdk, 'httpRequest');
+    this._ensureInstrumentation(miniappSdk, 'request');
+    this._ensureInstrumentation(miniappSdk, 'httpRequest');
   }
 
   public setup(client: Client): void {
@@ -108,8 +106,6 @@ export class NetworkBreadcrumbs implements Integration {
         ),
       );
     }
-    this._clearSetupOnceHandlers();
-
     const cleanup = this._trackCleanup(cleanups);
     client.registerCleanup(cleanup);
   }
@@ -118,30 +114,17 @@ export class NetworkBreadcrumbs implements Integration {
    * 清理集成，恢复原始网络请求方法
    */
   public cleanup(): void {
-    this._clearSetupOnceHandlers();
     for (const cleanup of [...this._cleanupCallbacks]) cleanup();
   }
 
-  private _registerSetupOnceHandler(
+  private _ensureInstrumentation(
     miniappSdk: Partial<Record<'request' | 'httpRequest', unknown>>,
     name: 'request' | 'httpRequest',
   ): void {
     if (typeof miniappSdk[name] !== 'function') return;
     if (!ensureFunctionInstrumentation(miniappSdk, name)) {
       console.warn(`[sentry-miniapp] 无法包装当前平台的 ${name} API，网络面包屑和请求追踪将不可用`);
-      return;
     }
-    const cleanup = addSetupOnceFunctionInstrumentationHandler(
-      miniappSdk,
-      name,
-      (original, thisArg, args) => this._invokeRequestWrapper(original, thisArg, args),
-    );
-    this._setupOnceCleanupCallbacks.add(cleanup);
-  }
-
-  private _clearSetupOnceHandlers(): void {
-    for (const cleanup of this._setupOnceCleanupCallbacks) cleanup();
-    this._setupOnceCleanupCallbacks.clear();
   }
 
   private _trackCleanup(cleanups: Array<() => void>): () => void {
