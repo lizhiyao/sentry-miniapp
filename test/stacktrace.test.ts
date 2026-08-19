@@ -52,6 +52,25 @@ describe('miniappStackParser', () => {
       expect(crashFrame!.in_app).toBe(true);
     });
 
+    it('should parse Cocos WeChat minigame frames with minified function names', () => {
+      const stack = [
+        'MiniProgramError',
+        'Cannot read properties of undefined (reading someProperty)',
+        'TypeError: Cannot read properties of undefined (reading someProperty)',
+        'at o.OnInit (engine/game.js:10555:48)',
+        'at s.InvokeInit (engine/game.js:58020:2130)',
+      ].join('\n');
+
+      const frames = miniappStackParser(stack, 0);
+      expect(frames).toHaveLength(2);
+      expect(frames[1]).toMatchObject({
+        filename: 'engine/game.js',
+        function: 'o.OnInit',
+        lineno: 10555,
+        colno: 48,
+      });
+    });
+
     it('should parse WeChat appservice frames', () => {
       const stack = [
         'Error: something went wrong',

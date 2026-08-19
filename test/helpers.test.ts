@@ -3,7 +3,7 @@ import {
   wrap,
   fill,
   shouldIgnoreOnError,
-  ignoreNextOnErrorCall,
+  markErrorAsCaptured,
   getFunctionName,
 } from '../src/helpers';
 
@@ -388,47 +388,123 @@ describe('Helpers', () => {
   });
 
   describe('shouldIgnoreOnError', () => {
+    const createError = (message: string, location = 'engine/game.js:10555:48'): Error => {
+      const error = new TypeError(message);
+      error.stack = [`TypeError: ${message}`, `at o.OnInit (${location})`].join('\n');
+      return error;
+    };
+
+    const createPlatformError = (
+      message: string,
+      location = 'engine/game.js:10555:48',
+    ): string =>
+      [
+        'MiniProgramError',
+        message,
+        `TypeError: ${message}`,
+        `at o.OnInit (${location})`,
+      ].join('\n');
+
     it('should return false by default', () => {
-      expect(shouldIgnoreOnError()).toBe(false);
+      expect(shouldIgnoreOnError(createPlatformError('not captured'))).toBe(false);
     });
 
-    it('should return true after ignoreNextOnErrorCall', () => {
-      vi.useFakeTimers();
+    it('should consume a matching platform error once', () => {
+      const message = 'matching captured error';
+      markErrorAsCaptured(createError(message));
+
+      expect(shouldIgnoreOnError(createPlatformError(message))).toBe(true);
+      expect(shouldIgnoreOnError(createPlatformError(message))).toBe(false);
+    });
+
+    it('should normalize the generic Error prefix from platform strings', () => {
+      const message = 'generic matching error';
+      const error = new Error(message);
+      error.stack = [`Error: ${message}`, 'at o.OnInit (engine/game.js:10555:48)'].join('\n');
+      markErrorAsCaptured(error);
+
+      expect(
+        shouldIgnoreOnError(
+          [
+            'MiniProgramError',
+            message,
+            `Error: ${message}`,
+            'at o.OnInit (engine/game.js:10555:48)',
+          ].join('\n'),
+        ),
+      ).toBe(true);
+    });
+
+    it('should match Safari-style stack locations', () => {
+      const message = 'safari matching error';
+      const error = new Error(message);
+      error.stack = [`Error: ${message}`, 'o.OnInit@engine/game.js:10555:48'].join('\n');
+      markErrorAsCaptured(error);
+
+      expect(
+        shouldIgnoreOnError(
+          [
+            'MiniProgramError',
+            `Error: ${message}`,
+            'o.OnInit@engine/game.js:10555:48',
+          ].join('\n'),
+        ),
+      ).toBe(true);
+    });
+
+    it('should cover a delayed platform callback within the fingerprint window', () => {
+      let now = 1000;
+      const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+      const message = 'delayed captured error';
 
       try {
-        ignoreNextOnErrorCall();
-        expect(shouldIgnoreOnError()).toBe(true);
+        markErrorAsCaptured(createError(message));
+        now += 303;
+
+        expect(shouldIgnoreOnError(createPlatformError(message))).toBe(true);
       } finally {
-        vi.runOnlyPendingTimers();
-        vi.useRealTimers();
+        nowSpy.mockRestore();
       }
     });
 
-    it('should return false after timeout', async () => {
-      vi.useFakeTimers();
+    it('should not consume an expired captured error', () => {
+      let now = 1000;
+      const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+      const message = 'expired captured error';
 
       try {
-        ignoreNextOnErrorCall();
-        expect(shouldIgnoreOnError()).toBe(true);
+        markErrorAsCaptured(createError(message));
+        now += 1001;
 
-        await vi.advanceTimersByTimeAsync(10);
-        expect(shouldIgnoreOnError()).toBe(false);
+        expect(shouldIgnoreOnError(createPlatformError(message))).toBe(false);
       } finally {
-        vi.useRealTimers();
+        nowSpy.mockRestore();
       }
     });
 
-    it('should handle multiple calls', () => {
-      vi.useFakeTimers();
+    it('should require the first stack location to match', () => {
+      const message = 'same message at another location';
+      markErrorAsCaptured(createError(message));
 
-      try {
-        ignoreNextOnErrorCall();
-        ignoreNextOnErrorCall();
-        expect(shouldIgnoreOnError()).toBe(true);
-      } finally {
-        vi.runOnlyPendingTimers();
-        vi.useRealTimers();
-      }
+      expect(
+        shouldIgnoreOnError(createPlatformError(message, 'engine/game.js:58020:2130')),
+      ).toBe(false);
+      expect(shouldIgnoreOnError(createPlatformError(message))).toBe(true);
+    });
+
+    it('should consume multiple identical captured errors one by one', () => {
+      const message = 'repeated captured error';
+      markErrorAsCaptured(createError(message));
+      markErrorAsCaptured(createError(message));
+
+      expect(shouldIgnoreOnError(createPlatformError(message))).toBe(true);
+      expect(shouldIgnoreOnError(createPlatformError(message))).toBe(true);
+      expect(shouldIgnoreOnError(createPlatformError(message))).toBe(false);
+    });
+
+    it('should not suppress errors without a comparable stack location', () => {
+      markErrorAsCaptured('missing platform stack');
+      expect(shouldIgnoreOnError('missing platform stack')).toBe(false);
     });
   });
 
