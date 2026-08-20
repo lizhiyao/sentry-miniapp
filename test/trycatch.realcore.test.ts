@@ -102,7 +102,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
 
-  it('requestAnimationFrame 抛错后平台 onError 不会重复上报', async () => {
+  it('requestAnimationFrame 抛错 303ms 后平台 onError 仍不会重复上报', async () => {
     g.requestAnimationFrame = (callback: () => void) => callback();
 
     init({
@@ -119,18 +119,36 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       }),
     } as any);
 
-    expect(() => {
-      g.requestAnimationFrame(() => {
-        throw new TypeError('duplicate raf boom');
-      });
-    }).toThrow('duplicate raf boom');
+    let now = Date.now();
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const error = new TypeError('duplicate raf boom');
+    error.stack = [
+      'TypeError: duplicate raf boom',
+      'at o.OnInit (engine/game.js:10555:48)',
+      'at s.InvokeInit (engine/game.js:58020:2130)',
+    ].join('\n');
 
-    // 微信会在重新抛出后以字符串形式触发 onError；这条回调应被短暂屏蔽。
-    onErrorHandler!(
-      ['MiniProgramError', 'TypeError: duplicate raf boom', 'at (engine/game.js:12000:20)'].join(
-        '\n',
-      ),
-    );
+    try {
+      expect(() => {
+        g.requestAnimationFrame(() => {
+          throw error;
+        });
+      }).toThrow('duplicate raf boom');
+
+      // 微信真机在卡顿后可能延迟到后续任务才触发 onError。
+      now += 303;
+      onErrorHandler!(
+        [
+          'MiniProgramError',
+          'duplicate raf boom',
+          'TypeError: duplicate raf boom',
+          'at o.OnInit (engine/game.js:10555:48)',
+          'at s.InvokeInit (engine/game.js:58020:2130)',
+        ].join('\n'),
+      );
+    } finally {
+      nowSpy.mockRestore();
+    }
     await flush(2000);
 
     const events = collectEvents(captured).filter((event) =>

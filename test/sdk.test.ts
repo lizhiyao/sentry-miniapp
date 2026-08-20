@@ -588,24 +588,16 @@ describe('SDK', () => {
     });
 
     it('should capture exceptions and re-throw', () => {
-      vi.useFakeTimers();
+      init({ dsn: 'https://test@sentry.io/123' });
+      const error = new Error('Test wrap error');
+      const fn = () => {
+        throw error;
+      };
+      const wrapped = wrap(fn);
 
-      try {
-        init({ dsn: 'https://test@sentry.io/123' });
-        const error = new Error('Test wrap error');
-        const fn = () => {
-          throw error;
-        };
-        const wrapped = wrap(fn);
-
-        expect(() => wrapped()).toThrow('Test wrap error');
-        expect(shouldIgnoreOnError()).toBe(true);
-      } finally {
-        vi.runOnlyPendingTimers();
-        vi.useRealTimers();
-      }
-
-      expect(shouldIgnoreOnError()).toBe(false);
+      expect(() => wrapped()).toThrow('Test wrap error');
+      expect(shouldIgnoreOnError(error)).toBe(true);
+      expect(shouldIgnoreOnError(error)).toBe(false);
     });
 
     it('should preserve this context', () => {

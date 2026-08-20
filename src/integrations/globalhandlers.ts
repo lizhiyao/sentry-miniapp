@@ -108,7 +108,7 @@ export class GlobalHandlers implements Integration {
     if (sdk().onError) {
       this._errorHandler = (err: string | Error) => {
         if (this._client && getClient() !== this._client) return;
-        if (shouldIgnoreOnError()) {
+        if (shouldIgnoreOnError(err)) {
           return;
         }
 

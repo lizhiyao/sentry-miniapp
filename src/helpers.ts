@@ -46,9 +46,9 @@ export function wrap(
     try {
       return fn.apply(this, args);
     } catch (ex) {
-      // 平台全局 onError 会在异常重新抛出后再次收到同一个错误。短暂屏蔽该回调，
-      // 与 Sentry Browser 的 TryCatch / GlobalHandlers 去重策略保持一致。
-      ignoreNextOnErrorCall();
+      // 平台全局 onError 会在异常重新抛出后再次收到同一个错误。记录错误指纹，
+      // 由 GlobalHandlers 在短时间内精确匹配并消费对应回调。
+      markErrorAsCaptured(ex);
 
       // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
       // 绝不能用 getCurrentScope().addEventProcessor——那会把处理器永久挂在当前 scope 上，给之后
@@ -121,26 +121,158 @@ export function wrap(
   return sentryWrapped;
 }
 
-/**
- * 是否忽略下一次 onError 事件
- */
-let ignoreNextOnError = 0;
+interface RecentCapturedError {
+  fingerprint: string;
+  capturedAt: number;
+}
 
-/**
- * 检查是否应忽略 onError
- */
-export function shouldIgnoreOnError(): boolean {
-  return ignoreNextOnError > 0;
+// 微信小游戏真机可能在主线程卡顿后延迟触发 onError。窗口只用于匹配同一错误，
+// 还会校验消息与首个有效堆栈位置，并在命中后立即消费。
+const ON_ERROR_DEDUPLICATION_WINDOW_MS = 1000;
+const MAX_RECENT_CAPTURED_ERRORS = 20;
+const recentCapturedErrors: RecentCapturedError[] = [];
+const V8_STACK_LOCATION_REGEX = /^\s*at\s+(?:(.*?)\s*\((.+):(\d+):(\d+)\)|(.+):(\d+):(\d+))\s*$/;
+const SAFARI_STACK_LOCATION_REGEX = /^\s*[^@]*@(.+):(\d+):(\d+)\s*$/;
+const ERROR_TYPE_PREFIX =
+  /^(?:Uncaught\s+)?(?:Error|Exception|[A-Za-z_$][\w.$]*(?:Error|Exception)):\s*/i;
+
+function normalizeErrorMessage(message: string): string {
+  return message.trim().replace(ERROR_TYPE_PREFIX, '').replace(/\s+/g, ' ');
+}
+
+function getPlatformErrorMessage(stack: string): string {
+  const lines = stack
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const typedMessage = lines.find(
+    (line) => ERROR_TYPE_PREFIX.test(line) && normalizeErrorMessage(line).length > 0,
+  );
+
+  if (typedMessage) {
+    return normalizeErrorMessage(typedMessage);
+  }
+
+  const message = lines.find(
+    (line) =>
+      line !== 'MiniProgramError' &&
+      !line.startsWith('at ') &&
+      !/^\s*[^@]*@.+:\d+(?::\d+)?\s*$/.test(line),
+  );
+  return message ? normalizeErrorMessage(message) : '';
+}
+
+function getErrorDetails(value: unknown): { message: string; stack: string } | undefined {
+  try {
+    if (typeof value === 'string') {
+      return { message: getPlatformErrorMessage(value), stack: value };
+    }
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+
+    const error = value as { message?: unknown; stack?: unknown };
+    const stack = typeof error.stack === 'string' ? error.stack : '';
+    const message =
+      typeof error.message === 'string'
+        ? normalizeErrorMessage(error.message)
+        : getPlatformErrorMessage(stack);
+    return { message, stack };
+  } catch (_error) {
+    return undefined;
+  }
+}
+
+function getFirstStackLocation(
+  stack: string,
+): { filename: string; lineno: string; colno: string } | undefined {
+  for (const line of stack.split('\n')) {
+    const v8Match = V8_STACK_LOCATION_REGEX.exec(line);
+    if (v8Match) {
+      return {
+        filename: (v8Match[2] || v8Match[5])!,
+        lineno: (v8Match[3] || v8Match[6])!,
+        colno: (v8Match[4] || v8Match[7])!,
+      };
+    }
+
+    const safariMatch = SAFARI_STACK_LOCATION_REGEX.exec(line);
+    if (safariMatch) {
+      return {
+        filename: safariMatch[1]!,
+        lineno: safariMatch[2]!,
+        colno: safariMatch[3]!,
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function getErrorFingerprint(value: unknown): string | undefined {
+  const details = getErrorDetails(value);
+  if (!details?.message || !details.stack) {
+    return undefined;
+  }
+
+  const location = getFirstStackLocation(details.stack);
+  if (!location) {
+    return undefined;
+  }
+
+  const filename = location.filename
+    .replace(/\\/g, '/')
+    .replace(/^(?:app|file|webpack):\/+/, '')
+    .replace(/^\.\//, '')
+    .replace(/[?#].*$/, '');
+  return `${details.message}|${filename}:${location.lineno}:${location.colno}`;
+}
+
+function removeExpiredCapturedErrors(now: number): void {
+  for (let index = recentCapturedErrors.length - 1; index >= 0; index -= 1) {
+    if (now - recentCapturedErrors[index]!.capturedAt > ON_ERROR_DEDUPLICATION_WINDOW_MS) {
+      recentCapturedErrors.splice(index, 1);
+    }
+  }
 }
 
 /**
- * 忽略下一次 onError 调用
+ * 检查并消费与近期已捕获异常匹配的 onError
  */
-export function ignoreNextOnErrorCall(): void {
-  ignoreNextOnError += 1;
-  setTimeout(() => {
-    ignoreNextOnError -= 1;
-  });
+export function shouldIgnoreOnError(error: unknown): boolean {
+  const fingerprint = getErrorFingerprint(error);
+  if (!fingerprint) {
+    return false;
+  }
+
+  const now = Date.now();
+  removeExpiredCapturedErrors(now);
+  const matchIndex = recentCapturedErrors.findIndex(
+    (candidate) => candidate.fingerprint === fingerprint,
+  );
+  if (matchIndex === -1) {
+    return false;
+  }
+
+  recentCapturedErrors.splice(matchIndex, 1);
+  return true;
+}
+
+/**
+ * 记录一次已由 TryCatch 捕获、随后可能再次进入 onError 的异常
+ */
+export function markErrorAsCaptured(error: unknown): void {
+  const fingerprint = getErrorFingerprint(error);
+  if (!fingerprint) {
+    return;
+  }
+
+  const now = Date.now();
+  removeExpiredCapturedErrors(now);
+  recentCapturedErrors.push({ fingerprint, capturedAt: now });
+  if (recentCapturedErrors.length > MAX_RECENT_CAPTURED_ERRORS) {
+    recentCapturedErrors.splice(0, recentCapturedErrors.length - MAX_RECENT_CAPTURED_ERRORS);
+  }
 }
 
 /**

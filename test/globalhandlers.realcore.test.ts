@@ -105,9 +105,10 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     onErrorHandler!(
       [
         'MiniProgramError',
-        "undefined is not an object (evaluating 'object.someProperty')",
-        "TypeError: undefined is not an object (evaluating 'object.someProperty')",
-        'at (subpackages/engine/game.js:12000:20)',
+        'Cannot read properties of undefined (reading someProperty)',
+        'TypeError: Cannot read properties of undefined (reading someProperty)',
+        'at o.OnInit (subpackages/engine/game.js:10555:48)',
+        'at s.InvokeInit (subpackages/engine/game.js:58020:2130)',
         'at (WAGameSubContext.js:1:200000)',
       ].join('\n'),
     );
@@ -120,8 +121,9 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
       expect.arrayContaining([
         expect.objectContaining({
           filename: 'app:///subpackages/engine/game.js',
-          lineno: 12000,
-          colno: 20,
+          function: 'o.OnInit',
+          lineno: 10555,
+          colno: 48,
         }),
       ]),
     );

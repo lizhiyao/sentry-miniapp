@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { captureException, withScope } from '@sentry/core';
 import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/index';
-import { ignoreNextOnErrorCall } from '../src/helpers';
+import { markErrorAsCaptured } from '../src/helpers';
 
 // Mock @sentry/core
 vi.mock('@sentry/core', () => ({
@@ -113,21 +113,26 @@ describe('GlobalHandlers', () => {
     });
 
     it('should ignore the global callback after a wrapped handler captured the error', () => {
-      vi.useFakeTimers();
+      const integration = new GlobalHandlers();
+      integration.setupOnce();
+      const handler = mockSdk.onError.mock.calls[0][0];
+      const error = new TypeError('duplicate platform error');
+      error.stack = [
+        'TypeError: duplicate platform error',
+        'at o.OnInit (engine/game.js:10555:48)',
+      ].join('\n');
 
-      try {
-        const integration = new GlobalHandlers();
-        integration.setupOnce();
-        const handler = mockSdk.onError.mock.calls[0][0];
+      markErrorAsCaptured(error);
+      handler(
+        [
+          'MiniProgramError',
+          'duplicate platform error',
+          'TypeError: duplicate platform error',
+          'at o.OnInit (engine/game.js:10555:48)',
+        ].join('\n'),
+      );
 
-        ignoreNextOnErrorCall();
-        handler('duplicate platform error');
-
-        expect(captureException).not.toHaveBeenCalled();
-      } finally {
-        vi.runOnlyPendingTimers();
-        vi.useRealTimers();
-      }
+      expect(captureException).not.toHaveBeenCalled();
     });
 
     it('should capture Error objects', () => {
