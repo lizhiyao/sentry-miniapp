@@ -482,14 +482,41 @@ describe('Helpers', () => {
       }
     });
 
-    it('should require the first stack location to match', () => {
-      const message = 'same message at another location';
+    it('should not match another error type at a different location', () => {
+      const message = 'same message from another error type';
       markErrorAsCaptured(createError(message));
 
       expect(
-        shouldIgnoreOnError(createPlatformError(message, 'engine/game.js:58020:2130')),
+        shouldIgnoreOnError(
+          [
+            'MiniProgramError',
+            message,
+            `RangeError: ${message}`,
+            'at o.OnInit (engine/game.js:58020:2130)',
+          ].join('\n'),
+        ),
       ).toBe(false);
       expect(shouldIgnoreOnError(createPlatformError(message))).toBe(true);
+    });
+
+    it('should match the same error type and message when host wrapping changes the stack', () => {
+      const message = 'host-wrapped error';
+      markErrorAsCaptured(createError(message));
+
+      expect(
+        shouldIgnoreOnError(
+          createPlatformError(message, 'WAGameSubContext.js:1:200000'),
+        ),
+      ).toBe(true);
+    });
+
+    it('should use the error type when neither stack has a comparable location', () => {
+      const message = 'type-only matching error';
+      const error = new TypeError(message);
+      error.stack = `TypeError: ${message}`;
+      markErrorAsCaptured(error);
+
+      expect(shouldIgnoreOnError(`MiniProgramError\nTypeError: ${message}`)).toBe(true);
     });
 
     it('should consume multiple identical captured errors one by one', () => {

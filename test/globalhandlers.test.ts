@@ -135,6 +135,29 @@ describe('GlobalHandlers', () => {
       expect(captureException).not.toHaveBeenCalled();
     });
 
+    it('should ignore a delayed callback when the host replaces the business stack', () => {
+      const integration = new GlobalHandlers();
+      integration.setupOnce();
+      const handler = mockSdk.onError.mock.calls[0][0];
+      const error = new TypeError('host-wrapped platform error');
+      error.stack = [
+        'TypeError: host-wrapped platform error',
+        'at o.OnInit (engine/game.js:10555:48)',
+      ].join('\n');
+
+      markErrorAsCaptured(error);
+      handler(
+        [
+          'MiniProgramError',
+          'TypeError: host-wrapped platform error',
+          'at sentryWrapped (sentry-miniapp.js:100:20)',
+          'at dispatchError (WAGameSubContext.js:1:200000)',
+        ].join('\n'),
+      );
+
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
     it('should capture Error objects', () => {
       const integration = new GlobalHandlers();
       integration.setupOnce();

@@ -102,7 +102,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
 
-  it('requestAnimationFrame 抛错 303ms 后平台 onError 仍不会重复上报', async () => {
+  it('requestAnimationFrame 抛错 307ms 后即使宿主栈变化也不会重复上报', async () => {
     g.requestAnimationFrame = (callback: () => void) => callback();
 
     init({
@@ -135,15 +135,16 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
         });
       }).toThrow('duplicate raf boom');
 
-      // 微信真机在卡顿后可能延迟到后续任务才触发 onError。
-      now += 303;
+      // 微信真机在卡顿后可能延迟到后续任务才触发 onError，并把业务首帧替换成宿主 / SDK 包装帧。
+      now += 307;
       onErrorHandler!(
         [
           'MiniProgramError',
           'duplicate raf boom',
           'TypeError: duplicate raf boom',
-          'at o.OnInit (engine/game.js:10555:48)',
-          'at s.InvokeInit (engine/game.js:58020:2130)',
+          'at sentryWrapped (sentry-miniapp.js:100:20)',
+          'at dispatchError (WAGameSubContext.js:1:200000)',
+          'at reportError (WAGame.js:1:300000)',
         ].join('\n'),
       );
     } finally {
