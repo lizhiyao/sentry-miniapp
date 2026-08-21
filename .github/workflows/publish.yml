@@ -18,17 +18,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # 发布成功后创建 / 更新 GitHub Release
-      id-token: write # 这使得工作流能够通过 OIDC 从 GitHub 获取凭证
+      id-token: write # npm Trusted Publishing 通过 OIDC 获取短期发布凭证
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
-        node-version: '22.x'
+        node-version: '24.x'
         registry-url: 'https://registry.npmjs.org'
+        package-manager-cache: false
+
+    # npm Trusted Publishing 要求 npm >= 11.5.1；固定版本避免 runner 镜像变化影响发版。
+    - name: Setup npm for Trusted Publishing
+      run: npm install --global npm@11.19.0
 
     - name: Enable Corepack
       run: corepack enable
@@ -50,7 +55,6 @@ jobs:
 
     - name: Publish to NPM
       env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         TAG_NAME: ${{ github.ref_name }}
       run: |
         VERSION="${TAG_NAME#v}"
@@ -70,7 +74,7 @@ jobs:
           echo "sentry-miniapp@$VERSION is already published; skipping npm publish."
         else
           echo "Publishing sentry-miniapp@$VERSION with dist-tag $PUBLISH_TAG"
-          npm publish --access public --provenance --tag "$PUBLISH_TAG"
+          npm publish --access public --tag "$PUBLISH_TAG"
         fi
 
     - name: Create GitHub Release
