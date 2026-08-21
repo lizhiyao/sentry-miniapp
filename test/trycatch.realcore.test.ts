@@ -22,7 +22,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
   let captured: any[];
   let realSetTimeout: any;
   let realRequestAnimationFrame: any;
-  let onErrorHandler: ((e: string | Error) => void) | undefined;
+  let onErrorHandler: ((e: unknown) => void) | undefined;
 
   beforeEach(() => {
     captured = [];
@@ -35,7 +35,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     g.wx = {
       request: vi.fn(),
       getSystemInfoSync: () => ({ brand: 'Apple', SDKVersion: '3' }),
-      onError: vi.fn((h: (e: string | Error) => void) => {
+      onError: vi.fn((h: (e: unknown) => void) => {
         onErrorHandler = h;
       }),
       onUnhandledRejection: vi.fn(),
@@ -137,8 +137,8 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
 
       // 微信真机在卡顿后可能延迟到后续任务才触发 onError，并把业务首帧替换成宿主 / SDK 包装帧。
       now += 307;
-      onErrorHandler!(
-        [
+      onErrorHandler!({
+        message: [
           'MiniProgramError',
           'duplicate raf boom',
           'TypeError: duplicate raf boom',
@@ -146,7 +146,8 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
           'at dispatchError (WAGameSubContext.js:1:200000)',
           'at reportError (WAGame.js:1:300000)',
         ].join('\n'),
-      );
+        stack: '',
+      });
     } finally {
       nowSpy.mockRestore();
     }

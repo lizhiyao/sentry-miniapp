@@ -158,6 +158,31 @@ describe('GlobalHandlers', () => {
       expect(captureException).not.toHaveBeenCalled();
     });
 
+    it('should ignore an object payload whose message contains the platform stack', () => {
+      const integration = new GlobalHandlers();
+      integration.setupOnce();
+      const handler = mockSdk.onError.mock.calls[0][0];
+      const message = 's.Ins.OnEventGameInit is not a function';
+      const error = new TypeError(message);
+      error.stack = [`TypeError: ${message}`, 'at bInit (Project/ViewBattleDebug.ts:52:23)'].join(
+        '\n',
+      );
+
+      markErrorAsCaptured(error);
+      handler({
+        message: [
+          'MiniProgramError',
+          message,
+          `TypeError: ${message}`,
+          'at bInit (subpackages/../file:/Project/ViewBattleDebug.ts:52:23)',
+          'at Function.<anonymous> (WAGameSubContext.js:1:216128)',
+        ].join('\n'),
+        stack: '',
+      });
+
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
     it('should capture Error objects', () => {
       const integration = new GlobalHandlers();
       integration.setupOnce();

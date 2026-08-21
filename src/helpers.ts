@@ -151,6 +151,16 @@ function getPlatformErrorMessage(stack: string): string {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
+  const markerIndex = lines.indexOf('MiniProgramError');
+  const markerMessage = markerIndex >= 0 ? lines[markerIndex + 1] : undefined;
+  if (
+    markerMessage &&
+    !markerMessage.startsWith('at ') &&
+    !/^\s*[^@]*@.+:\d+(?::\d+)?\s*$/.test(markerMessage)
+  ) {
+    return normalizeErrorMessage(markerMessage);
+  }
+
   const typedMessage = lines.find(
     (line) => ERROR_TYPE_PREFIX.test(line) && normalizeErrorMessage(line).length > 0,
   );
@@ -172,16 +182,20 @@ function getPlatformErrorType(stack: string): string | undefined {
   for (const line of stack.split('\n')) {
     const match = ERROR_TYPE_PREFIX.exec(line.trim());
     if (match?.[1]) {
-      return match[1].toLowerCase();
+      return match[1];
     }
   }
 
   return undefined;
 }
 
-function getErrorDetails(
-  value: unknown,
-): { message: string; stack: string; type?: string } | undefined {
+export interface ErrorDetails {
+  message: string;
+  stack: string;
+  type?: string;
+}
+
+export function getErrorDetails(value: unknown): ErrorDetails | undefined {
   try {
     if (typeof value === 'string') {
       const type = getPlatformErrorType(value);
@@ -193,16 +207,20 @@ function getErrorDetails(
       return undefined;
     }
 
-    const error = value as { message?: unknown; stack?: unknown };
-    const stack = typeof error.stack === 'string' ? error.stack : '';
+    const error = value as { message?: unknown; name?: unknown; stack?: unknown };
+    const rawMessage = typeof error.message === 'string' ? error.message : '';
+    const rawStack = typeof error.stack === 'string' ? error.stack : '';
+    // 微信小游戏 Android 真机可能传入 { message: "MiniProgramError\n...\nat ...", stack: "" }。
+    // stack 为空时，message 本身就是完整宿主堆栈，必须沿字符串路径解析。
+    const embeddedStack = rawMessage.includes('\n') ? rawMessage : '';
+    const stack = rawStack.trim() ? rawStack : embeddedStack;
+    const platformMessage = embeddedStack ? getPlatformErrorMessage(embeddedStack) : '';
     const message =
-      typeof error.message === 'string'
-        ? normalizeErrorMessage(error.message)
-        : getPlatformErrorMessage(stack);
+      platformMessage ||
+      (rawMessage ? normalizeErrorMessage(rawMessage) : getPlatformErrorMessage(stack));
     const type =
-      'name' in error && typeof error.name === 'string' && error.name
-        ? error.name.toLowerCase()
-        : getPlatformErrorType(stack);
+      getPlatformErrorType(stack) ||
+      (typeof error.name === 'string' && error.name ? error.name : undefined);
     return type ? { message, stack, type } : { message, stack };
   } catch (_error) {
     return undefined;
@@ -244,7 +262,7 @@ function getErrorSignature(value: unknown): ErrorSignature | undefined {
   const location = getFirstStackLocation(details.stack);
   if (!location) {
     return details.type
-      ? { message: details.message, type: details.type }
+      ? { message: details.message, type: details.type.toLowerCase() }
       : { message: details.message };
   }
 
@@ -255,7 +273,7 @@ function getErrorSignature(value: unknown): ErrorSignature | undefined {
     .replace(/[?#].*$/, '');
   return {
     message: details.message,
-    ...(details.type ? { type: details.type } : {}),
+    ...(details.type ? { type: details.type.toLowerCase() } : {}),
     location: `${filename}:${location.lineno}:${location.colno}`,
   };
 }

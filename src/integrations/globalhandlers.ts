@@ -2,17 +2,32 @@ import { captureException, getClient, withScope } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
-import { shouldIgnoreOnError } from '../helpers';
+import { getErrorDetails, shouldIgnoreOnError } from '../helpers';
 
-function errorFromPlatformValue(value: string | Error): Error {
-  if (typeof value !== 'string') {
+interface PlatformErrorPayload {
+  message?: unknown;
+  name?: unknown;
+  stack?: unknown;
+}
+
+type PlatformErrorValue = string | Error | PlatformErrorPayload;
+
+function errorFromPlatformValue(value: PlatformErrorValue): Error {
+  if (value instanceof Error) {
     return value;
   }
 
-  const error = new Error(value);
-  // 小程序 / 小游戏 onError 只给字符串时，堆栈也包含在该字符串中。覆盖本地构造
-  // Error 产生的无关 stack，让 MiniappClient 使用用户配置的 stackParser 解析宿主帧。
-  error.stack = value;
+  const details = getErrorDetails(value);
+  const error = new Error(details?.message || 'Unknown platform error');
+  if (details?.type) {
+    error.name = details.type;
+  }
+  // 小程序 / 小游戏 onError 可能直接给字符串，也可能给
+  // { message: "MiniProgramError\n...\nat ...", stack: "" }。覆盖本地构造 Error
+  // 产生的无关 stack，让 MiniappClient 使用用户配置的 stackParser 解析宿主帧。
+  if (details) {
+    error.stack = details.stack || details.message;
+  }
   return error;
 }
 
@@ -44,7 +59,7 @@ export class GlobalHandlers implements Integration {
   private _onPageNotFoundHandlerInstalled: boolean = false;
   private _onMemoryWarningHandlerInstalled: boolean = false;
 
-  private _errorHandler: ((err: string | Error) => void) | null = null;
+  private _errorHandler: ((err: PlatformErrorValue) => void) | null = null;
   private _rejectionHandler:
     | ((res: { reason: string | Error; promise: Promise<any> }) => void)
     | null = null;
@@ -106,7 +121,7 @@ export class GlobalHandlers implements Integration {
     }
 
     if (sdk().onError) {
-      this._errorHandler = (err: string | Error) => {
+      this._errorHandler = (err: PlatformErrorValue) => {
         if (this._client && getClient() !== this._client) return;
         if (shouldIgnoreOnError(err)) {
           return;
