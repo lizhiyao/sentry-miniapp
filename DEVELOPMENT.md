@@ -103,6 +103,21 @@ yarn lint && yarn test
    git push origin vX.Y.Z
    ```
 
-6. GitHub Actions 将自动接管构建、发布到 NPM，并在发布成功后通过 `softprops/action-gh-release@v3` 创建对应的 GitHub Release。Release notes 由 GitHub 根据 tag 之间的 PR 自动生成，同时附带可直接下载的 `sentry-miniapp.umd.js` 与 Source Map。
+6. GitHub Actions 将自动接管构建、通过 npm Trusted Publishing（OIDC）发布到 NPM，并在发布成功后通过 `softprops/action-gh-release@v3` 创建对应的 GitHub Release。Release notes 由 GitHub 根据 tag 之间的 PR 自动生成，同时附带可直接下载的 `sentry-miniapp.umd.js` 与 Source Map。
+
+### npm Trusted Publishing
+
+发布工作流不使用长期 `NPM_TOKEN`。npm 包设置中的 Trusted Publisher 必须与仓库配置精确匹配：
+
+- Provider：GitHub Actions
+- Organization or user：`lizhiyao`
+- Repository：`sentry-miniapp`
+- Workflow filename：`publish.yml`
+- Allowed actions：`npm publish`
+- Environment：不设置
+
+`.github/workflows/publish.yml` 使用 GitHub 托管 runner，并授予 `id-token: write`。npm CLI 会用 GitHub OIDC 身份换取仅对当前 workflow 有效的短期发布凭证，并自动生成 provenance；不要重新添加 `NODE_AUTH_TOKEN` 或发布权限 token。
+
+首次 OIDC 发版验证成功后，应在 npm 的 Publishing access 中选择 **Require two-factor authentication and disallow tokens**，删除仓库中的 `NPM_TOKEN` Secret，并撤销 npm 账户里不再使用的发布 token。若发布报 `ENEEDAUTH`，优先检查 npm Trusted Publisher 的仓库名、workflow 文件名和可执行 action 是否完全一致。
 
 仓库不再保留单独的 `CHANGELOG.md`。PR title / description 是发版说明的唯一信息源，包含 BREAKING CHANGE、迁移方式或兼容性注意事项的改动必须在 PR 描述里写清楚。
