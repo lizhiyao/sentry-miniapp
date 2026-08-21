@@ -27,7 +27,7 @@ function collectEvents(captured: any[]): any[] {
 describe('GlobalHandlers（真 @sentry/core 集成）', () => {
   const g = global as any;
   let captured: any[];
-  let onErrorHandler: ((e: string | Error) => void) | undefined;
+  let onErrorHandler: ((e: unknown) => void) | undefined;
   let onPageNotFoundHandler:
     | ((event: { path: string; query: Record<string, unknown>; isEntryPage: boolean }) => void)
     | undefined;
@@ -42,7 +42,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     g.wx = {
       request: vi.fn(),
       getSystemInfoSync: () => ({ brand: 'Apple', SDKVersion: '3' }),
-      onError: vi.fn((h: (e: string | Error) => void) => {
+      onError: vi.fn((h: (e: unknown) => void) => {
         onErrorHandler = h;
       }),
       onUnhandledRejection: vi.fn(),
@@ -124,6 +124,47 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
           function: 'o.OnInit',
           lineno: 10555,
           colno: 48,
+        }),
+      ]),
+    );
+  });
+
+  it('wx.onError 对象 message 中的小游戏堆栈会转为结构化 frames', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      transport: () => ({
+        send: (env: any) => {
+          captured.push(env);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    onErrorHandler!({
+      message: [
+        'MiniProgramError',
+        's.Ins.OnEventGameInit is not a function',
+        'TypeError: s.Ins.OnEventGameInit is not a function',
+        'at bInit (subpackages/../file:/Project/ViewBattleDebug.ts:52:23)',
+        'at Function.<anonymous> (WAGameSubContext.js:1:216128)',
+      ].join('\n'),
+      stack: '',
+    });
+    await flush(2000);
+
+    const events = collectEvents(captured);
+    const value = events[0]?.exception?.values?.[0];
+    expect(value.type).toBe('TypeError');
+    expect(value.value).toBe('s.Ins.OnEventGameInit is not a function');
+    expect(value.mechanism).toEqual({ type: 'onerror', handled: false });
+    expect(value.stacktrace?.frames).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          function: 'bInit',
+          lineno: 52,
+          colno: 23,
         }),
       ]),
     );

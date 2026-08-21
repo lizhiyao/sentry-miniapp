@@ -510,6 +510,41 @@ describe('Helpers', () => {
       ).toBe(true);
     });
 
+    it('should read an embedded stack from an object payload with an empty stack field', () => {
+      const message = 's.Ins.OnEventGameInit is not a function';
+      markErrorAsCaptured(createError(message, 'Project/ViewBattleDebug.ts:52:23'));
+
+      expect(
+        shouldIgnoreOnError({
+          message: [
+            'MiniProgramError',
+            message,
+            `TypeError: ${message}`,
+            'at bInit (subpackages/../file:/Project/ViewBattleDebug.ts:52:23)',
+            'at Function.<anonymous> (WAGameSubContext.js:1:216128)',
+          ].join('\n'),
+          stack: '',
+        }),
+      ).toBe(true);
+    });
+
+    it('should prefer the core message immediately after MiniProgramError', () => {
+      const message = 'core platform message';
+      markErrorAsCaptured(createError(message));
+
+      expect(
+        shouldIgnoreOnError({
+          message: [
+            'MiniProgramError',
+            message,
+            `TypeError: ${message} (host suffix)`,
+            'at Function.<anonymous> (WAGameSubContext.js:1:216128)',
+          ].join('\n'),
+          stack: '   ',
+        }),
+      ).toBe(true);
+    });
+
     it('should use the error type when neither stack has a comparable location', () => {
       const message = 'type-only matching error';
       const error = new TypeError(message);
