@@ -1804,12 +1804,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/core@npm:10.69.0":
-  version: 10.69.0
-  resolution: "@sentry/core@npm:10.69.0"
+"@sentry/core@npm:10.70.0":
+  version: 10.70.0
+  resolution: "@sentry/core@npm:10.70.0"
   dependencies:
     "@sentry/conventions": "npm:^0.16.0"
-  checksum: 10c0/d6a00824a12d332063ed309c3fc263715ac1d20d253ddfce75d22b8b046da4eb2f99d843628bf365281ca625826bc6a9bdf5dec0ce24c9eb88712f7187858891
+  checksum: 10c0/4625428ed269c00375d2436968d7a24e5235a9c83c2968dc237543bba606d42326b5922e2d8d08a76a15e5f8734b940c607b1d911da8906987e1259763d36e21
   languageName: node
   linkType: hard
 
@@ -6357,7 +6357,7 @@ __metadata:
     "@babel/plugin-transform-regenerator": "npm:^7.29.8"
     "@commitlint/cli": "npm:^20.5.0"
     "@commitlint/config-conventional": "npm:^20.5.0"
-    "@sentry/core": "npm:10.69.0"
+    "@sentry/core": "npm:10.70.0"
     "@types/node": "npm:^20.19.11"
     "@typescript-eslint/eslint-plugin": "npm:^8.57.1"
     "@typescript-eslint/parser": "npm:^8.57.1"

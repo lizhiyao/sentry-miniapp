@@ -77,7 +77,7 @@
     "vitest": "^3.2.6"
   },
   "dependencies": {
-    "@sentry/core": "10.69.0"
+    "@sentry/core": "10.70.0"
   },
   "resolutions": {
     "js-yaml": "4.3.1",
