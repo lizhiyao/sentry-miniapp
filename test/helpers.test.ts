@@ -4,6 +4,7 @@ import {
   fill,
   shouldIgnoreOnError,
   markErrorAsCaptured,
+  getErrorDetails,
   getFunctionName,
 } from '../src/helpers';
 
@@ -552,6 +553,53 @@ describe('Helpers', () => {
       markErrorAsCaptured(error);
 
       expect(shouldIgnoreOnError(`MiniProgramError\nTypeError: ${message}`)).toBe(true);
+    });
+
+    it('should fall back to the constructor type when the runtime omits error.name', () => {
+      const message = "Cannot read properties of null (reading 'TryChangeDataUserBySystemInit')";
+      const error = new TypeError(message);
+      error.name = '';
+      error.stack = [message, 'at gameTick (subpackages/engine/game.js:12000:20)'].join('\n');
+      markErrorAsCaptured(error);
+
+      expect(
+        shouldIgnoreOnError({
+          message: [
+            'MiniProgramError',
+            message,
+            `TypeError: ${message}`,
+            'at sentryWrapped (sdk/sentry-miniapp.js:18:15817)',
+            'at Function.<anonymous> (WAGameSubContext.js:1:216128)',
+          ].join('\n'),
+          stack: '',
+        }),
+      ).toBe(true);
+    });
+
+    it('should tolerate a throwing name getter and still use the constructor type', () => {
+      const value = {
+        message: 'host error',
+        stack: '',
+        constructor: TypeError,
+      } as Record<string, unknown>;
+      Object.defineProperty(value, 'name', {
+        get() {
+          throw new Error('name is unavailable');
+        },
+      });
+
+      expect(getErrorDetails(value)?.type).toBe('TypeError');
+    });
+
+    it('should tolerate a throwing constructor getter without inventing an error type', () => {
+      const value = { message: 'host error', stack: '', name: '' } as Record<string, unknown>;
+      Object.defineProperty(value, 'constructor', {
+        get() {
+          throw new Error('constructor is unavailable');
+        },
+      });
+
+      expect(getErrorDetails(value)).toEqual({ message: 'host error', stack: '' });
     });
 
     it('should consume multiple identical captured errors one by one', () => {

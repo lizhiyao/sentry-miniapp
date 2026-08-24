@@ -102,7 +102,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
 
-  it('requestAnimationFrame 抛错 307ms 后即使宿主栈变化也不会重复上报', async () => {
+  it('requestAnimationFrame 抛错 401ms 后即使宿主栈变化也不会重复上报', async () => {
     g.requestAnimationFrame = (callback: () => void) => callback();
 
     init({
@@ -122,8 +122,11 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     let now = Date.now();
     const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
     const error = new TypeError('duplicate raf boom');
+    // 部分 Cocos / 微信运行时 Error 最终会被 core 通过 constructor.name 识别为
+    // TypeError，但捕获瞬间的 name 和 stack 首行并不携带类型。
+    error.name = '';
     error.stack = [
-      'TypeError: duplicate raf boom',
+      'duplicate raf boom',
       'at o.OnInit (engine/game.js:10555:48)',
       'at s.InvokeInit (engine/game.js:58020:2130)',
     ].join('\n');
@@ -136,7 +139,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       }).toThrow('duplicate raf boom');
 
       // 微信真机在卡顿后可能延迟到后续任务才触发 onError，并把业务首帧替换成宿主 / SDK 包装帧。
-      now += 307;
+      now += 401;
       onErrorHandler!({
         message: [
           'MiniProgramError',
@@ -157,6 +160,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       event.exception?.values?.some((value: any) => value.value?.includes('duplicate raf boom')),
     );
     expect(events).toHaveLength(1);
+    expect(events[0].exception.values[0].type).toBe('TypeError');
     expect(events[0].exception.values[0].mechanism).toMatchObject({
       type: 'instrument',
       handled: false,
