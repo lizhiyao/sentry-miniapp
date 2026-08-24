@@ -189,6 +189,28 @@ function getPlatformErrorType(stack: string): string | undefined {
   return undefined;
 }
 
+function getObjectErrorType(error: { name?: unknown; constructor?: unknown }): string | undefined {
+  try {
+    if (typeof error.name === 'string' && error.name) {
+      return error.name;
+    }
+  } catch (_error) {
+    // 某些宿主对象不允许读取 name，继续尝试构造器名称。
+  }
+
+  try {
+    const constructorName =
+      typeof error.constructor === 'function' ? error.constructor.name : undefined;
+    // 与 core 的 error.name || error.constructor.name 语义对齐，但不把普通 Object
+    // 等构造器误当成异常类型。
+    return constructorName && ERROR_TYPE_PREFIX.test(`${constructorName}: `)
+      ? constructorName
+      : undefined;
+  } catch (_error) {
+    return undefined;
+  }
+}
+
 export interface ErrorDetails {
   message: string;
   stack: string;
@@ -218,9 +240,7 @@ export function getErrorDetails(value: unknown): ErrorDetails | undefined {
     const message =
       platformMessage ||
       (rawMessage ? normalizeErrorMessage(rawMessage) : getPlatformErrorMessage(stack));
-    const type =
-      getPlatformErrorType(stack) ||
-      (typeof error.name === 'string' && error.name ? error.name : undefined);
+    const type = getPlatformErrorType(stack) || getObjectErrorType(error);
     return type ? { message, stack, type } : { message, stack };
   } catch (_error) {
     return undefined;
