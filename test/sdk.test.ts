@@ -16,7 +16,6 @@ import type { StackParser } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
-import { shouldIgnoreOnError } from '../src/helpers';
 import { resetPlatformCache } from '../src/crossPlatform';
 
 describe('SDK', () => {
@@ -596,8 +595,6 @@ describe('SDK', () => {
       const wrapped = wrap(fn);
 
       expect(() => wrapped()).toThrow('Test wrap error');
-      expect(shouldIgnoreOnError(error)).toBe(true);
-      expect(shouldIgnoreOnError(error)).toBe(false);
     });
 
     it('should preserve this context', () => {

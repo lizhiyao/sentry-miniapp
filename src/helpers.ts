@@ -46,10 +46,6 @@ export function wrap(
     try {
       return fn.apply(this, args);
     } catch (ex) {
-      // 平台全局 onError 会在异常重新抛出后再次收到同一个错误。记录错误特征，
-      // 由 GlobalHandlers 在短时间内精确匹配并消费对应回调。
-      markErrorAsCaptured(ex);
-
       // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
       // 绝不能用 getCurrentScope().addEventProcessor——那会把处理器永久挂在当前 scope 上，给之后
       // 每个 unrelated 事件都盖上本次的 mechanism/arguments（尤其把未处理错误误标成 handled:true，
@@ -121,24 +117,6 @@ export function wrap(
   return sentryWrapped;
 }
 
-interface ErrorSignature {
-  message: string;
-  type?: string;
-  location?: string;
-}
-
-interface RecentCapturedError {
-  signature: ErrorSignature;
-  capturedAt: number;
-}
-
-// 微信小游戏真机可能在主线程卡顿后延迟触发 onError。窗口只用于匹配同一错误，
-// 优先校验首个有效堆栈位置；宿主改写堆栈时退回到错误类型与消息，并在命中后立即消费。
-const ON_ERROR_DEDUPLICATION_WINDOW_MS = 1000;
-const MAX_RECENT_CAPTURED_ERRORS = 20;
-const recentCapturedErrors: RecentCapturedError[] = [];
-const V8_STACK_LOCATION_REGEX = /^\s*at\s+(?:(.*?)\s*\((.+):(\d+):(\d+)\)|(.+):(\d+):(\d+))\s*$/;
-const SAFARI_STACK_LOCATION_REGEX = /^\s*[^@]*@(.+):(\d+):(\d+)\s*$/;
 const ERROR_TYPE_PREFIX =
   /^(?:Uncaught\s+)?(Error|Exception|[A-Za-z_$][\w.$]*(?:Error|Exception)):\s*/i;
 
@@ -244,114 +222,6 @@ export function getErrorDetails(value: unknown): ErrorDetails | undefined {
     return type ? { message, stack, type } : { message, stack };
   } catch (_error) {
     return undefined;
-  }
-}
-
-function getFirstStackLocation(
-  stack: string,
-): { filename: string; lineno: string; colno: string } | undefined {
-  for (const line of stack.split('\n')) {
-    const v8Match = V8_STACK_LOCATION_REGEX.exec(line);
-    if (v8Match) {
-      return {
-        filename: (v8Match[2] || v8Match[5])!,
-        lineno: (v8Match[3] || v8Match[6])!,
-        colno: (v8Match[4] || v8Match[7])!,
-      };
-    }
-
-    const safariMatch = SAFARI_STACK_LOCATION_REGEX.exec(line);
-    if (safariMatch) {
-      return {
-        filename: safariMatch[1]!,
-        lineno: safariMatch[2]!,
-        colno: safariMatch[3]!,
-      };
-    }
-  }
-
-  return undefined;
-}
-
-function getErrorSignature(value: unknown): ErrorSignature | undefined {
-  const details = getErrorDetails(value);
-  if (!details?.message) {
-    return undefined;
-  }
-
-  const location = getFirstStackLocation(details.stack);
-  if (!location) {
-    return details.type
-      ? { message: details.message, type: details.type.toLowerCase() }
-      : { message: details.message };
-  }
-
-  const filename = location.filename
-    .replace(/\\/g, '/')
-    .replace(/^(?:app|file|webpack):\/+/, '')
-    .replace(/^\.\//, '')
-    .replace(/[?#].*$/, '');
-  return {
-    message: details.message,
-    ...(details.type ? { type: details.type.toLowerCase() } : {}),
-    location: `${filename}:${location.lineno}:${location.colno}`,
-  };
-}
-
-function removeExpiredCapturedErrors(now: number): void {
-  for (let index = recentCapturedErrors.length - 1; index >= 0; index -= 1) {
-    if (now - recentCapturedErrors[index]!.capturedAt > ON_ERROR_DEDUPLICATION_WINDOW_MS) {
-      recentCapturedErrors.splice(index, 1);
-    }
-  }
-}
-
-/**
- * 检查并消费与近期已捕获异常匹配的 onError
- */
-export function shouldIgnoreOnError(error: unknown): boolean {
-  const signature = getErrorSignature(error);
-  if (!signature || (!signature.location && !signature.type)) {
-    return false;
-  }
-
-  const now = Date.now();
-  removeExpiredCapturedErrors(now);
-  const matchIndex = recentCapturedErrors.findIndex((candidate) => {
-    if (candidate.signature.message !== signature.message) {
-      return false;
-    }
-
-    const sameLocation =
-      !!candidate.signature.location &&
-      !!signature.location &&
-      candidate.signature.location === signature.location;
-    const sameType =
-      !!candidate.signature.type && !!signature.type && candidate.signature.type === signature.type;
-    return sameLocation || sameType;
-  });
-  if (matchIndex === -1) {
-    return false;
-  }
-
-  recentCapturedErrors.splice(matchIndex, 1);
-  return true;
-}
-
-/**
- * 记录一次已由 TryCatch 捕获、随后可能再次进入 onError 的异常
- */
-export function markErrorAsCaptured(error: unknown): void {
-  const signature = getErrorSignature(error);
-  if (!signature || (!signature.location && !signature.type)) {
-    return;
-  }
-
-  const now = Date.now();
-  removeExpiredCapturedErrors(now);
-  recentCapturedErrors.push({ signature, capturedAt: now });
-  if (recentCapturedErrors.length > MAX_RECENT_CAPTURED_ERRORS) {
-    recentCapturedErrors.splice(0, recentCapturedErrors.length - MAX_RECENT_CAPTURED_ERRORS);
   }
 }
 

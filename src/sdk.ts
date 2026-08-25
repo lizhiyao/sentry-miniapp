@@ -16,7 +16,6 @@ export { getDiagnostics } from './diagnostics';
 
 import { MiniappClient, setConfiguredDefaultIntegrationsMode } from './client';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
-import { markErrorAsCaptured } from './helpers';
 import {
   GlobalHandlers,
   TryCatch,
@@ -241,8 +240,13 @@ export function wrap<T extends (...args: any[]) => any>(fn: T): T {
       try {
         return fn.apply(this, args);
       } catch (error) {
-        markErrorAsCaptured(error);
-        getCurrentScope().captureException(error);
+        getCurrentScope().captureException(error, {
+          mechanism: {
+            type: 'instrument',
+            handled: false,
+            data: { function: 'wrap' },
+          },
+        });
         throw error;
       }
     });
