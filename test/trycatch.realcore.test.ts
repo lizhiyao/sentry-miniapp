@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { getClient, flush, captureException, installedIntegrations } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
-import { init } from '../src/index';
+import { init, wrap as sdkWrap } from '../src/index';
 
 function collectEvents(captured: any[]): any[] {
   const events: any[] = [];
@@ -102,7 +102,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
 
-  it('requestAnimationFrame 抛错 401ms 后即使宿主栈变化也不会重复上报', async () => {
+  it('requestAnimationFrame 抛错 359ms 后按最终事件类型和消息去重', async () => {
     g.requestAnimationFrame = (callback: () => void) => callback();
 
     init({
@@ -121,12 +121,13 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
 
     let now = Date.now();
     const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
-    const error = new TypeError('duplicate raf boom');
+    const message = "Cannot read properties of null (reading 'TryChangeDataUserBySystemInit')";
+    const error = new TypeError(message);
     // 部分 Cocos / 微信运行时 Error 最终会被 core 通过 constructor.name 识别为
     // TypeError，但捕获瞬间的 name 和 stack 首行并不携带类型。
     error.name = '';
     error.stack = [
-      'duplicate raf boom',
+      message,
       'at o.OnInit (engine/game.js:10555:48)',
       'at s.InvokeInit (engine/game.js:58020:2130)',
     ].join('\n');
@@ -136,15 +137,15 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
         g.requestAnimationFrame(() => {
           throw error;
         });
-      }).toThrow('duplicate raf boom');
+      }).toThrow(message);
 
       // 微信真机在卡顿后可能延迟到后续任务才触发 onError，并把业务首帧替换成宿主 / SDK 包装帧。
-      now += 401;
+      now += 359;
       onErrorHandler!({
         message: [
           'MiniProgramError',
-          'duplicate raf boom',
-          'TypeError: duplicate raf boom',
+          message,
+          `TypeError: ${message}`,
           'at sentryWrapped (sentry-miniapp.js:100:20)',
           'at dispatchError (WAGameSubContext.js:1:200000)',
           'at reportError (WAGame.js:1:300000)',
@@ -157,13 +158,45 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     await flush(2000);
 
     const events = collectEvents(captured).filter((event) =>
-      event.exception?.values?.some((value: any) => value.value?.includes('duplicate raf boom')),
+      event.exception?.values?.some((value: any) => value.value === message),
     );
     expect(events).toHaveLength(1);
     expect(events[0].exception.values[0].type).toBe('TypeError');
     expect(events[0].exception.values[0].mechanism).toMatchObject({
       type: 'instrument',
       handled: false,
+    });
+  });
+
+  it('公开 wrap 重新抛出的错误也按事件层去重', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      enableOfflineCache: false,
+      transport: () => ({
+        send: (env: any) => {
+          captured.push(env);
+          return Promise.resolve({ statusCode: 200 });
+        },
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    const wrapped = sdkWrap(() => {
+      throw new TypeError('public wrap boom');
+    });
+    expect(() => wrapped()).toThrow('public wrap boom');
+    onErrorHandler!('MiniProgramError\npublic wrap boom\nTypeError: public wrap boom');
+    await flush(2000);
+
+    const events = collectEvents(captured).filter((event) =>
+      event.exception?.values?.some((value: any) => value.value === 'public wrap boom'),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0].exception.values[0].mechanism).toMatchObject({
+      type: 'instrument',
+      handled: false,
+      data: { function: 'wrap' },
     });
   });
 

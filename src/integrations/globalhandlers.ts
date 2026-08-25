@@ -1,8 +1,17 @@
 import { captureException, getClient, withScope } from '@sentry/core';
-import type { Client, Integration, IntegrationFn } from '@sentry/core';
+import type { Client, Event, Integration, IntegrationFn } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
-import { getErrorDetails, shouldIgnoreOnError } from '../helpers';
+import { getErrorDetails } from '../helpers';
+
+interface RecentInstrumentEvent {
+  capturedAt: number;
+  type: string;
+  value: string;
+}
+
+const ON_ERROR_DEDUPLICATION_WINDOW_MS = 1000;
+const MAX_RECENT_INSTRUMENT_EVENTS = 20;
 
 interface PlatformErrorPayload {
   message?: unknown;
@@ -68,6 +77,7 @@ export class GlobalHandlers implements Integration {
     | null = null;
   private _memoryWarningHandler: ((res: { level: number }) => void) | null = null;
   private _client: Client | undefined;
+  private readonly _recentInstrumentEvents: RecentInstrumentEvent[] = [];
 
   /** JSDoc */
   public constructor(options?: Partial<GlobalHandlersIntegrations>) {
@@ -92,6 +102,62 @@ export class GlobalHandlers implements Integration {
     this._client = client;
     this._setup();
     client.registerCleanup(() => this.cleanup());
+  }
+
+  /**
+   * TryCatch 捕获并重新抛出的异常，可能在微信小游戏真机上延迟进入 onError。
+   * 在 Core 完成事件构建后比较最终异常类型和消息，避免依赖宿主原始 Error 的不稳定形态。
+   */
+  public processEvent(event: Event): Event | null {
+    if (!this._options.onerror || event.type) {
+      return event;
+    }
+
+    const exception = event.exception?.values?.find(
+      (value) => value.mechanism?.type === 'instrument' || value.mechanism?.type === 'onerror',
+    );
+    if (!exception?.type || !exception.value) {
+      return event;
+    }
+
+    const now = Date.now();
+    this._removeExpiredInstrumentEvents(now);
+
+    if (exception.mechanism?.type === 'instrument') {
+      this._recentInstrumentEvents.push({
+        capturedAt: now,
+        type: exception.type,
+        value: exception.value,
+      });
+      if (this._recentInstrumentEvents.length > MAX_RECENT_INSTRUMENT_EVENTS) {
+        this._recentInstrumentEvents.splice(
+          0,
+          this._recentInstrumentEvents.length - MAX_RECENT_INSTRUMENT_EVENTS,
+        );
+      }
+      return event;
+    }
+
+    const matchIndex = this._recentInstrumentEvents.findIndex(
+      (candidate) => candidate.type === exception.type && candidate.value === exception.value,
+    );
+    if (matchIndex === -1) {
+      return event;
+    }
+
+    this._recentInstrumentEvents.splice(matchIndex, 1);
+    return null;
+  }
+
+  private _removeExpiredInstrumentEvents(now: number): void {
+    for (let index = this._recentInstrumentEvents.length - 1; index >= 0; index -= 1) {
+      if (
+        now - this._recentInstrumentEvents[index]!.capturedAt >
+        ON_ERROR_DEDUPLICATION_WINDOW_MS
+      ) {
+        this._recentInstrumentEvents.splice(index, 1);
+      }
+    }
   }
 
   private _setup(): void {
@@ -123,9 +189,6 @@ export class GlobalHandlers implements Integration {
     if (sdk().onError) {
       this._errorHandler = (err: PlatformErrorValue) => {
         if (this._client && getClient() !== this._client) return;
-        if (shouldIgnoreOnError(err)) {
-          return;
-        }
 
         const error = errorFromPlatformValue(err);
         captureException(error, {
@@ -286,6 +349,7 @@ export class GlobalHandlers implements Integration {
     this._onUnhandledRejectionHandlerInstalled = false;
     this._onPageNotFoundHandlerInstalled = false;
     this._onMemoryWarningHandlerInstalled = false;
+    this._recentInstrumentEvents.length = 0;
   }
 }
 

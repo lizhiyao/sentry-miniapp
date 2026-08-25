@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { captureException, withScope } from '@sentry/core';
+import type { Event } from '@sentry/core';
 import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/index';
-import { markErrorAsCaptured } from '../src/helpers';
 
 // Mock @sentry/core
 vi.mock('@sentry/core', () => ({
@@ -112,77 +112,6 @@ describe('GlobalHandlers', () => {
       );
     });
 
-    it('should ignore the global callback after a wrapped handler captured the error', () => {
-      const integration = new GlobalHandlers();
-      integration.setupOnce();
-      const handler = mockSdk.onError.mock.calls[0][0];
-      const error = new TypeError('duplicate platform error');
-      error.stack = [
-        'TypeError: duplicate platform error',
-        'at o.OnInit (engine/game.js:10555:48)',
-      ].join('\n');
-
-      markErrorAsCaptured(error);
-      handler(
-        [
-          'MiniProgramError',
-          'duplicate platform error',
-          'TypeError: duplicate platform error',
-          'at o.OnInit (engine/game.js:10555:48)',
-        ].join('\n'),
-      );
-
-      expect(captureException).not.toHaveBeenCalled();
-    });
-
-    it('should ignore a delayed callback when the host replaces the business stack', () => {
-      const integration = new GlobalHandlers();
-      integration.setupOnce();
-      const handler = mockSdk.onError.mock.calls[0][0];
-      const error = new TypeError('host-wrapped platform error');
-      error.stack = [
-        'TypeError: host-wrapped platform error',
-        'at o.OnInit (engine/game.js:10555:48)',
-      ].join('\n');
-
-      markErrorAsCaptured(error);
-      handler(
-        [
-          'MiniProgramError',
-          'TypeError: host-wrapped platform error',
-          'at sentryWrapped (sentry-miniapp.js:100:20)',
-          'at dispatchError (WAGameSubContext.js:1:200000)',
-        ].join('\n'),
-      );
-
-      expect(captureException).not.toHaveBeenCalled();
-    });
-
-    it('should ignore an object payload whose message contains the platform stack', () => {
-      const integration = new GlobalHandlers();
-      integration.setupOnce();
-      const handler = mockSdk.onError.mock.calls[0][0];
-      const message = 's.Ins.OnEventGameInit is not a function';
-      const error = new TypeError(message);
-      error.stack = [`TypeError: ${message}`, 'at bInit (Project/ViewBattleDebug.ts:52:23)'].join(
-        '\n',
-      );
-
-      markErrorAsCaptured(error);
-      handler({
-        message: [
-          'MiniProgramError',
-          message,
-          `TypeError: ${message}`,
-          'at bInit (subpackages/../file:/Project/ViewBattleDebug.ts:52:23)',
-          'at Function.<anonymous> (WAGameSubContext.js:1:216128)',
-        ].join('\n'),
-        stack: '',
-      });
-
-      expect(captureException).not.toHaveBeenCalled();
-    });
-
     it('should capture Error objects', () => {
       const integration = new GlobalHandlers();
       integration.setupOnce();
@@ -197,6 +126,109 @@ describe('GlobalHandlers', () => {
           mechanism: { type: 'onerror', handled: false },
         }),
       );
+    });
+  });
+
+  describe('event-level onError deduplication', () => {
+    const event = (mechanism: string, type?: string, value?: string): Event => ({
+      exception: {
+        values: [{ mechanism: { type: mechanism, handled: false }, type, value }],
+      },
+    });
+
+    it('drops the matching onerror event reported by the Android minigame host after 359ms', () => {
+      const integration = new GlobalHandlers();
+      const message = "Cannot read properties of null (reading 'TryChangeDataUserBySystemInit')";
+      const instrumentEvent = event('instrument', 'TypeError', message);
+      const onerrorEvent = event('onerror', 'TypeError', message);
+      let now = 1000;
+      const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+
+      try {
+        expect(integration.processEvent(instrumentEvent)).toBe(instrumentEvent);
+        now += 359;
+        expect(integration.processEvent(onerrorEvent)).toBeNull();
+        expect(integration.processEvent(onerrorEvent)).toBe(onerrorEvent);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it('keeps standalone, expired, and non-matching onerror events', () => {
+      const integration = new GlobalHandlers();
+      const standalone = event('onerror', 'TypeError', 'standalone');
+      expect(integration.processEvent(standalone)).toBe(standalone);
+      expect(integration.processEvent(standalone)).toBe(standalone);
+
+      let now = 1000;
+      const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+      try {
+        integration.processEvent(event('instrument', 'TypeError', 'expired'));
+        integration.processEvent(event('instrument', 'TypeError', 'same message'));
+        now += 1001;
+
+        const expired = event('onerror', 'TypeError', 'expired');
+        const differentType = event('onerror', 'RangeError', 'same message');
+        const differentMessage = event('onerror', 'TypeError', 'different message');
+        expect(integration.processEvent(expired)).toBe(expired);
+        expect(integration.processEvent(differentType)).toBe(differentType);
+        expect(integration.processEvent(differentMessage)).toBe(differentMessage);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it('finds the mechanism-bearing exception without relying on values[0]', () => {
+      const integration = new GlobalHandlers();
+      const instrumentEvent: Event = {
+        exception: {
+          values: [
+            { type: 'Error', value: 'linked outer error' },
+            {
+              mechanism: { type: 'instrument', handled: false },
+              type: 'TypeError',
+              value: 'linked root error',
+            },
+          ],
+        },
+      };
+      const onerrorEvent = event('onerror', 'TypeError', 'linked root error');
+
+      expect(integration.processEvent(instrumentEvent)).toBe(instrumentEvent);
+      expect(integration.processEvent(onerrorEvent)).toBeNull();
+    });
+
+    it('ignores non-error events and incomplete exception values', () => {
+      const integration = new GlobalHandlers();
+      const disabledIntegration = new GlobalHandlers({ onerror: false });
+      const transaction: Event = { type: 'transaction' };
+      const missingException: Event = {};
+      const missingType = event('instrument', undefined, 'message');
+      const missingValue = event('instrument', 'TypeError');
+      const disabledInstrument = event('instrument', 'TypeError', 'disabled');
+      const disabledOnError = event('onerror', 'TypeError', 'disabled');
+
+      expect(integration.processEvent(transaction)).toBe(transaction);
+      expect(integration.processEvent(missingException)).toBe(missingException);
+      expect(integration.processEvent(missingType)).toBe(missingType);
+      expect(integration.processEvent(missingValue)).toBe(missingValue);
+      expect(disabledIntegration.processEvent(disabledInstrument)).toBe(disabledInstrument);
+      expect(disabledIntegration.processEvent(disabledOnError)).toBe(disabledOnError);
+    });
+
+    it('bounds queued instrument events and clears them during cleanup', () => {
+      const integration = new GlobalHandlers();
+      for (let index = 0; index < 21; index += 1) {
+        integration.processEvent(event('instrument', 'TypeError', `message ${index}`));
+      }
+
+      expect(integration.processEvent(event('onerror', 'TypeError', 'message 0'))).not.toBeNull();
+      expect(integration.processEvent(event('onerror', 'TypeError', 'message 20'))).toBeNull();
+
+      integration.processEvent(event('instrument', 'TypeError', 'after cleanup'));
+      integration.cleanup();
+      const afterCleanup = event('onerror', 'TypeError', 'after cleanup');
+      expect(integration.processEvent(afterCleanup)).toBe(afterCleanup);
     });
   });
 
