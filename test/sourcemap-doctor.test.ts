@@ -1,4 +1,5 @@
-import { describe, expect, it, onTestFinished } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { TestContext } from 'vitest';
 import { execFile } from 'node:child_process';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,7 +10,14 @@ const repoRoot = resolve(__dirname, '..');
 const doctorScript = join(repoRoot, 'scripts/doctor-sourcemap.mjs');
 const execFileAsync = promisify(execFile);
 
-function makeTempDir(): string {
+interface DoctorResult {
+  status: number;
+  stdout: string;
+  stderr: string;
+  signal: string | null;
+}
+
+function makeTempDir(onTestFinished: TestContext['onTestFinished']): string {
   const dir = mkdtempSync(join(tmpdir(), 'sentry-miniapp-sourcemap-doctor-'));
   onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
@@ -19,25 +27,45 @@ function writeJson(file: string, value: unknown): void {
   writeFileSync(file, JSON.stringify(value), 'utf8');
 }
 
-async function runDoctor(args: string[]): Promise<{ status: number; stdout: string }> {
+function outputText(value: Buffer | string | undefined): string {
+  return Buffer.isBuffer(value) ? value.toString('utf8') : (value ?? '');
+}
+
+function expectDoctorStatus(result: DoctorResult, expected: number): void {
+  const details = [
+    `signal: ${result.signal ?? 'none'}`,
+    `stdout:\n${result.stdout}`,
+    `stderr:\n${result.stderr}`,
+  ].join('\n');
+  expect(result.status, details).toBe(expected);
+}
+
+async function runDoctor(args: string[]): Promise<DoctorResult> {
   try {
-    const { stdout } = await execFileAsync(process.execPath, [doctorScript, ...args, '--json'], {
+    const { stdout, stderr } = await execFileAsync(process.execPath, [doctorScript, ...args, '--json'], {
       cwd: repoRoot,
       encoding: 'utf8',
     });
-    return { status: 0, stdout: stdout.toString() };
+    return { status: 0, stdout: stdout.toString(), stderr: stderr.toString(), signal: null };
   } catch (error) {
-    const err = error as { code?: number | string; stdout?: Buffer | string };
+    const err = error as {
+      code?: number | string;
+      signal?: string;
+      stdout?: Buffer | string;
+      stderr?: Buffer | string;
+    };
     return {
       status: typeof err.code === 'number' ? err.code : 1,
-      stdout: Buffer.isBuffer(err.stdout) ? err.stdout.toString('utf8') : (err.stdout ?? ''),
+      stdout: outputText(err.stdout),
+      stderr: outputText(err.stderr),
+      signal: err.signal ?? null,
     };
   }
 }
 
 describe.concurrent('doctor-sourcemap', () => {
-  it('passes a dist with matching js and source map', async () => {
-    const dist = makeTempDir();
+  it('passes a dist with matching js and source map', async ({ onTestFinished }) => {
+    const dist = makeTempDir(onTestFinished);
     writeFileSync(join(dist, 'app.js'), 'console.log("ok");\n//# sourceMappingURL=app.js.map\n');
     writeJson(join(dist, 'app.js.map'), {
       version: 3,
@@ -56,9 +84,9 @@ describe.concurrent('doctor-sourcemap', () => {
     });
 
     const result = await runDoctor(['--dist', dist, '--release', 'miniapp@1.0.0']);
+    expectDoctorStatus(result, 0);
     const report = JSON.parse(result.stdout);
 
-    expect(result.status).toBe(0);
     expect(report.status).toBe('pass');
     expect(report.summary.dist).toMatchObject({
       jsFiles: 1,
@@ -67,8 +95,8 @@ describe.concurrent('doctor-sourcemap', () => {
     });
   });
 
-  it('warns but does not fail for hidden source maps without release', async () => {
-    const dist = makeTempDir();
+  it('warns but does not fail for hidden source maps without release', async ({ onTestFinished }) => {
+    const dist = makeTempDir(onTestFinished);
     writeFileSync(join(dist, 'app.js'), 'console.log("ok");\n');
     writeJson(join(dist, 'app.js.map'), {
       version: 3,
@@ -79,11 +107,11 @@ describe.concurrent('doctor-sourcemap', () => {
     });
 
     const result = await runDoctor(['--dist', dist]);
+    expectDoctorStatus(result, 0);
     const report = JSON.parse(result.stdout);
     const warningCodes = report.warnings.map((warning: { code: string }) => warning.code);
     const noticeCodes = report.notices.map((notice: { code: string }) => notice.code);
 
-    expect(result.status).toBe(0);
     expect(report.status).toBe('warn');
     expect(warningCodes).toEqual(
       expect.arrayContaining(['missing_release', 'missing_sources_content']),
@@ -91,21 +119,21 @@ describe.concurrent('doctor-sourcemap', () => {
     expect(noticeCodes).toContain('hidden_source_map');
   });
 
-  it('fails invalid source map json', async () => {
-    const dist = makeTempDir();
+  it('fails invalid source map json', async ({ onTestFinished }) => {
+    const dist = makeTempDir(onTestFinished);
     writeFileSync(join(dist, 'app.js'), 'console.log("ok");\n//# sourceMappingURL=app.js.map\n');
     writeFileSync(join(dist, 'app.js.map'), '{ invalid json', 'utf8');
 
     const result = await runDoctor(['--dist', dist, '--release', 'miniapp@1.0.0']);
+    expectDoctorStatus(result, 1);
     const report = JSON.parse(result.stdout);
 
-    expect(result.status).toBe(1);
     expect(report.status).toBe('fail');
     expect(report.errors.map((item: { code: string }) => item.code)).toContain('invalid_map_json');
   });
 
-  it('checks whether wechat outer maps can match build maps', async () => {
-    const root = makeTempDir();
+  it('checks whether wechat outer maps can match build maps', async ({ onTestFinished }) => {
+    const root = makeTempDir(onTestFinished);
     const wechat = join(root, 'appservice.app.js.map');
     const buildMaps = join(root, 'build');
     mkdirSync(join(buildMaps, 'pages/index'), { recursive: true });
@@ -137,9 +165,9 @@ describe.concurrent('doctor-sourcemap', () => {
       '--release',
       'miniapp@1.0.0',
     ]);
+    expectDoctorStatus(result, 0);
     const report = JSON.parse(result.stdout);
 
-    expect(result.status).toBe(0);
     expect(report.summary.wechat.merge).toMatchObject({
       total: 1,
       matched: 1,
@@ -149,8 +177,10 @@ describe.concurrent('doctor-sourcemap', () => {
     expect(report.errors).toHaveLength(0);
   });
 
-  it('accepts a WeChat minigame game.js outer map and matches the Cocos build map', async () => {
-    const root = makeTempDir();
+  it('accepts a WeChat minigame game.js outer map and matches the Cocos build map', async ({
+    onTestFinished,
+  }) => {
+    const root = makeTempDir(onTestFinished);
     const wechat = join(root, 'wechat-online', 'game.js.map');
     const buildMaps = join(root, 'cocos-build');
     mkdirSync(join(root, 'wechat-online'), { recursive: true });
@@ -181,10 +211,10 @@ describe.concurrent('doctor-sourcemap', () => {
       '--release',
       'minigame@1.0.0',
     ]);
+    expectDoctorStatus(result, 0);
     const report = JSON.parse(result.stdout);
     const warningCodes = report.warnings.map((warning: { code: string }) => warning.code);
 
-    expect(result.status).toBe(0);
     expect(report.summary.wechat).toMatchObject({ outputFile: 'game.js', sources: 1 });
     expect(report.summary.wechat.merge).toMatchObject({
       total: 1,
@@ -198,8 +228,10 @@ describe.concurrent('doctor-sourcemap', () => {
     );
   });
 
-  it('does not assume a game.js map in dist mode is a WeChat outer map', async () => {
-    const dist = makeTempDir();
+  it('does not assume a game.js map in dist mode is a WeChat outer map', async ({
+    onTestFinished,
+  }) => {
+    const dist = makeTempDir(onTestFinished);
     writeFileSync(join(dist, 'game.js'), 'throw new Error("test");\n');
     writeJson(join(dist, 'game.js.map'), {
       version: 3,
@@ -211,12 +243,12 @@ describe.concurrent('doctor-sourcemap', () => {
     });
 
     const result = await runDoctor(['--dist', dist, '--release', 'minigame@1.0.0']);
+    expectDoctorStatus(result, 0);
     const report = JSON.parse(result.stdout);
     const notice = report.notices.find(
       (item: { code: string }) => item.code === 'wechat_appservice_map',
     );
 
-    expect(result.status).toBe(0);
     expect(notice).toBeUndefined();
   });
 });

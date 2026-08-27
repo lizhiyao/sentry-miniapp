@@ -9,6 +9,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Keep spies and Vitest-managed globals isolated between tests.
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     include: ['{src,test}/**/__tests__/**/*.ts', '{src,test}/**/*.{spec,test}.ts'],
     setupFiles: ['./test/setup.ts'],
     testTimeout: 10_000,
