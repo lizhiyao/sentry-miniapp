@@ -1,16 +1,17 @@
-import { describe, expect, it, afterEach } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { describe, expect, it, onTestFinished } from 'vitest';
+import { execFile } from 'node:child_process';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 
 const repoRoot = resolve(__dirname, '..');
 const doctorScript = join(repoRoot, 'scripts/doctor-sourcemap.mjs');
-const tmpRoots: string[] = [];
+const execFileAsync = promisify(execFile);
 
 function makeTempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'sentry-miniapp-sourcemap-doctor-'));
-  tmpRoots.push(dir);
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
 
@@ -18,30 +19,24 @@ function writeJson(file: string, value: unknown): void {
   writeFileSync(file, JSON.stringify(value), 'utf8');
 }
 
-function runDoctor(args: string[]): { status: number; stdout: string } {
+async function runDoctor(args: string[]): Promise<{ status: number; stdout: string }> {
   try {
-    const stdout = execFileSync('node', [doctorScript, ...args, '--json'], {
+    const { stdout } = await execFileAsync(process.execPath, [doctorScript, ...args, '--json'], {
       cwd: repoRoot,
       encoding: 'utf8',
     });
-    return { status: 0, stdout };
+    return { status: 0, stdout: stdout.toString() };
   } catch (error) {
-    const err = error as { status?: number; stdout?: Buffer | string };
+    const err = error as { code?: number | string; stdout?: Buffer | string };
     return {
-      status: err.status ?? 1,
+      status: typeof err.code === 'number' ? err.code : 1,
       stdout: Buffer.isBuffer(err.stdout) ? err.stdout.toString('utf8') : (err.stdout ?? ''),
     };
   }
 }
 
-afterEach(() => {
-  for (const dir of tmpRoots.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-describe('doctor-sourcemap', () => {
-  it('passes a dist with matching js and source map', () => {
+describe.concurrent('doctor-sourcemap', () => {
+  it('passes a dist with matching js and source map', async () => {
     const dist = makeTempDir();
     writeFileSync(join(dist, 'app.js'), 'console.log("ok");\n//# sourceMappingURL=app.js.map\n');
     writeJson(join(dist, 'app.js.map'), {
@@ -60,7 +55,7 @@ describe('doctor-sourcemap', () => {
       mappings: 'AAAA',
     });
 
-    const result = runDoctor(['--dist', dist, '--release', 'miniapp@1.0.0']);
+    const result = await runDoctor(['--dist', dist, '--release', 'miniapp@1.0.0']);
     const report = JSON.parse(result.stdout);
 
     expect(result.status).toBe(0);
@@ -72,7 +67,7 @@ describe('doctor-sourcemap', () => {
     });
   });
 
-  it('warns but does not fail for hidden source maps without release', () => {
+  it('warns but does not fail for hidden source maps without release', async () => {
     const dist = makeTempDir();
     writeFileSync(join(dist, 'app.js'), 'console.log("ok");\n');
     writeJson(join(dist, 'app.js.map'), {
@@ -83,7 +78,7 @@ describe('doctor-sourcemap', () => {
       mappings: 'AAAA',
     });
 
-    const result = runDoctor(['--dist', dist]);
+    const result = await runDoctor(['--dist', dist]);
     const report = JSON.parse(result.stdout);
     const warningCodes = report.warnings.map((warning: { code: string }) => warning.code);
     const noticeCodes = report.notices.map((notice: { code: string }) => notice.code);
@@ -96,12 +91,12 @@ describe('doctor-sourcemap', () => {
     expect(noticeCodes).toContain('hidden_source_map');
   });
 
-  it('fails invalid source map json', () => {
+  it('fails invalid source map json', async () => {
     const dist = makeTempDir();
     writeFileSync(join(dist, 'app.js'), 'console.log("ok");\n//# sourceMappingURL=app.js.map\n');
     writeFileSync(join(dist, 'app.js.map'), '{ invalid json', 'utf8');
 
-    const result = runDoctor(['--dist', dist, '--release', 'miniapp@1.0.0']);
+    const result = await runDoctor(['--dist', dist, '--release', 'miniapp@1.0.0']);
     const report = JSON.parse(result.stdout);
 
     expect(result.status).toBe(1);
@@ -109,7 +104,7 @@ describe('doctor-sourcemap', () => {
     expect(report.errors.map((item: { code: string }) => item.code)).toContain('invalid_map_json');
   });
 
-  it('checks whether wechat outer maps can match build maps', () => {
+  it('checks whether wechat outer maps can match build maps', async () => {
     const root = makeTempDir();
     const wechat = join(root, 'appservice.app.js.map');
     const buildMaps = join(root, 'build');
@@ -132,7 +127,7 @@ describe('doctor-sourcemap', () => {
       mappings: 'AAAA',
     });
 
-    const result = runDoctor([
+    const result = await runDoctor([
       '--wechat',
       wechat,
       '--build-maps',
@@ -154,7 +149,7 @@ describe('doctor-sourcemap', () => {
     expect(report.errors).toHaveLength(0);
   });
 
-  it('accepts a WeChat minigame game.js outer map and matches the Cocos build map', () => {
+  it('accepts a WeChat minigame game.js outer map and matches the Cocos build map', async () => {
     const root = makeTempDir();
     const wechat = join(root, 'wechat-online', 'game.js.map');
     const buildMaps = join(root, 'cocos-build');
@@ -178,7 +173,7 @@ describe('doctor-sourcemap', () => {
       mappings: 'AAAA',
     });
 
-    const result = runDoctor([
+    const result = await runDoctor([
       '--wechat',
       wechat,
       '--build-maps',
@@ -203,7 +198,7 @@ describe('doctor-sourcemap', () => {
     );
   });
 
-  it('does not assume a game.js map in dist mode is a WeChat outer map', () => {
+  it('does not assume a game.js map in dist mode is a WeChat outer map', async () => {
     const dist = makeTempDir();
     writeFileSync(join(dist, 'game.js'), 'throw new Error("test");\n');
     writeJson(join(dist, 'game.js.map'), {
@@ -215,7 +210,7 @@ describe('doctor-sourcemap', () => {
       mappings: 'AAAA',
     });
 
-    const result = runDoctor(['--dist', dist, '--release', 'minigame@1.0.0']);
+    const result = await runDoctor(['--dist', dist, '--release', 'minigame@1.0.0']);
     const report = JSON.parse(result.stdout);
     const notice = report.notices.find(
       (item: { code: string }) => item.code === 'wechat_appservice_map',
