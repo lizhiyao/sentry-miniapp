@@ -51,7 +51,7 @@ describe('PerformanceIntegration', () => {
   let mockSpan: { setAttributes: Mock; end: Mock };
 
   beforeEach(() => {
-    // Reset all mocks
+    // 清调用记录并恢复每个可变模块 mock 的默认实现，保证随机顺序下互不影响。
     vi.clearAllMocks();
 
     // Setup mock performance manager
@@ -83,12 +83,17 @@ describe('PerformanceIntegration', () => {
       end: vi.fn(),
     };
 
-    (getPerformanceManager as Mock).mockReturnValue(mockPerformanceManager);
-    (getCurrentScope as Mock).mockReturnValue(mockScope);
-    (startInactiveSpan as Mock).mockReturnValue(mockSpan);
-    (startSpan as Mock).mockImplementation((_options: unknown, callback: (span: any) => unknown) =>
-      callback(mockSpan),
-    );
+    (getPerformanceManager as Mock).mockReset().mockReturnValue(mockPerformanceManager);
+    (getSystemInfo as Mock).mockReset().mockReturnValue({ platform: 'devtools' });
+    (sdk as Mock).mockReset().mockReturnValue({ getPerformance: vi.fn() });
+    (getClient as Mock).mockReset().mockReturnValue(undefined);
+    (getCurrentScope as Mock).mockReset().mockReturnValue(mockScope);
+    (startInactiveSpan as Mock).mockReset().mockReturnValue(mockSpan);
+    (startSpan as Mock)
+      .mockReset()
+      .mockImplementation((_options: unknown, callback: (span: any) => unknown) =>
+        callback(mockSpan),
+      );
 
     integration = new PerformanceIntegration();
   });

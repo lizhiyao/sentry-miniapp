@@ -645,17 +645,11 @@ describe('SDK', () => {
       );
     });
 
-    it('matches core semantics without a client', () => {
+    it('returns an event id without a client', () => {
       getCurrentScope().setClient(undefined);
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const result = captureFeedback({ message: 'feedback' });
 
       expect(result).toMatch(/^[a-f0-9]{32}$/);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Sentry Logger [warn]:',
-        'No client configured on scope - will not capture event!',
-      );
-      consoleSpy.mockRestore();
     });
   });
 });

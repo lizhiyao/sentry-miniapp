@@ -10,22 +10,19 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-and-test:
+  quality:
+    name: Quality (Node 24.x)
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
-    strategy:
-      matrix:
-        node-version: [20.x, 22.x]
-
     steps:
     - uses: actions/checkout@v4
 
-    - name: Use Node.js ${{ matrix.node-version }}
+    - name: Use Node.js 24.x
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: 24.x
 
     - name: Enable Corepack
       run: corepack enable
@@ -50,3 +47,30 @@ jobs:
 
     - name: Run Tests with Coverage
       run: yarn run test:coverage
+
+  # 保留 job id，使分支保护中的 build-and-test (20.x/22.x) 检查名继续有效。
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      matrix:
+        node-version: [20.x, 22.x]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+
+    - name: Enable Corepack
+      run: corepack enable
+
+    - name: Install dependencies
+      run: yarn install --immutable
+
+    - name: Run Tests in Random Order
+      run: yarn run test:shuffle

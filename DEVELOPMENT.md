@@ -30,6 +30,7 @@ yarn install
 | `yarn build:types` | 构建类型定义文件（d.ts） |
 | `yarn test` | 运行单元测试（Vitest） |
 | `yarn test:coverage` | 运行单元测试并检查覆盖率门槛 |
+| `yarn test:shuffle` | 随机化用例顺序，排查测试状态污染与顺序依赖 |
 | `yarn lint` | 运行 ESLint 检查 |
 
 ---
