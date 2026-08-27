@@ -4,15 +4,17 @@
   "description": "Sentry SDK for Mini Programs (WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou) & Taro / uni-app | 小程序监控 SDK，支持异常监控、性能监控、错误收集",
   "repository": {
     "type": "git",
-    "url": "git://github.com/lizhiyao/sentry-miniapp.git"
+    "url": "git+https://github.com/lizhiyao/sentry-miniapp.git"
   },
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
-    "build": "vite build && npm run check:build-output && npm run check:package",
-    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.esm.js dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
+    "build": "vite build && npm run build:type-entrypoints && npm run check:build-output && npm run check:package && npm run check:package-consumers",
+    "build:type-entrypoints": "node scripts/internal/create-type-entrypoints.mjs",
+    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs dist/sentry-miniapp.umd.js",
     "check:package": "publint --level error",
+    "check:package-consumers": "node scripts/internal/check-package-consumers.mjs",
     "build:miniapp": "vite build --mode miniapp && node scripts/internal/check-build-output.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-miniapp-bundle.mjs examples/wxapp/lib/sentry-miniapp.js",
-    "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types",
+    "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types && npm run build:type-entrypoints",
     "dev": "vite build --watch",
     "dev:miniapp": "vite build --mode miniapp --watch",
     "docs:dev": "vitepress dev website",
@@ -30,12 +32,14 @@
   },
   "author": "dancerlzy@gmail.com",
   "license": "MIT",
+  "sideEffects": true,
+  "type": "commonjs",
   "packageManager": "yarn@4.16.0",
   "engines": {
     "node": ">=20"
   },
-  "main": "dist/sentry-miniapp.cjs.js",
-  "module": "dist/sentry-miniapp.esm.js",
+  "main": "dist/sentry-miniapp.cjs",
+  "module": "dist/sentry-miniapp.mjs",
   "types": "dist/types/index.d.ts",
   "bin": {
     "sentry-miniapp-sourcemap-doctor": "scripts/doctor-sourcemap.mjs",
@@ -43,10 +47,14 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/sentry-miniapp.esm.js",
-      "require": "./dist/sentry-miniapp.cjs.js",
-      "default": "./dist/sentry-miniapp.umd.js"
+      "import": {
+        "types": "./dist/types/index.d.mts",
+        "default": "./dist/sentry-miniapp.mjs"
+      },
+      "require": {
+        "types": "./dist/types/index.d.cts",
+        "default": "./dist/sentry-miniapp.cjs"
+      }
     }
   },
   "files": [
@@ -60,6 +68,7 @@
     "@babel/plugin-transform-regenerator": "^7.29.8",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
+    "@publint/pack": "^0.1.7",
     "@types/node": "^20.19.11",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
