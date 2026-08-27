@@ -34,6 +34,7 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 | 设备信息与离线缓存 | 支持 | 支持 | 依赖宿主系统信息与 Storage API |
 | 冷启动首帧 | 支持 | 支持 | 上报 `minigame.coldstart` |
 | FPS 与卡顿 | 支持 | 支持 | 依赖全局 `requestAnimationFrame` |
+| 小程序导航 / 渲染 / 资源 PerformanceObserver | 不适用 | 不适用 | 小游戏通常只有 `performance.now()`，默认性能集成自动跳过 |
 | 页面路由、点击面包屑 | 不适用 | 不适用 | 没有 Page 模型，自动跳过 |
 
 ## 冷启动与帧率数据在哪里看

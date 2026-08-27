@@ -47,6 +47,31 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     delete g.wx;
   });
 
+  it('小游戏宿主仅提供 performance.now 时默认集成静默 no-op', () => {
+    g.wx.getPerformance = vi.fn(() => ({ now: vi.fn(() => 1) }));
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const client = init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      transport: () => ({
+        send: () => Promise.resolve({ statusCode: 200 }),
+        flush: () => Promise.resolve(true),
+      }),
+    } as any);
+
+    const performance = client?.getIntegrationByName?.('PerformanceAPI') as any;
+    expect(performance).toBeDefined();
+    expect(performance._observers).toEqual([]);
+    expect(performance._reportTimer).toBeNull();
+    expect(
+      consoleSpy.mock.calls.some((call) =>
+        String(call[0]).includes('Failed to setup performance observers'),
+      ),
+    ).toBe(false);
+
+    consoleSpy.mockRestore();
+  });
+
   it('默认集成接收微信性能条目后会发送 transaction', async () => {
     const beforeSendTransaction = vi.fn((event: any) => event);
 

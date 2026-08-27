@@ -47,7 +47,7 @@ Sentry.init({
 | API 请求 | 作为 `http.client` span 查看请求耗时 |
 | 小游戏冷启动、FPS、jank | 作为小游戏专属 transaction 与 measurement |
 
-宿主没有对应 Performance API 时，相关采集会跳过，不影响异常上报。小游戏性能请看[小游戏接入与性能](/guide/minigame)。
+宿主没有 `createObserver` 时，默认性能集成会静默跳过，不设置已启用标记，也不会启动定时汇总。微信 / 抖音小游戏的 `Performance` 通常只提供 `now()`，其冷启动、FPS 和 jank 由小游戏专属集成采集；详见[小游戏接入与性能](/guide/minigame)。
 
 微信的 `wx.reportPerformance()` 属于小程序后台的自定义测速能力，不是 Sentry 性能监控的一部分；如需使用，请先在微信后台配置指标，再由业务代码主动调用。
 

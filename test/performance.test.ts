@@ -427,9 +427,25 @@ describe('PerformanceIntegration', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       integration.setupOnce();
 
-      expect(consoleSpy).toHaveBeenCalledWith('[sentry-miniapp] Performance API not available');
+      expect(consoleSpy).not.toHaveBeenCalled();
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
       expect((integration as any)._reportTimer).toBeNull();
+      expect(mockScope.setTag).not.toHaveBeenCalled();
+      expect(mockScope.setContext).not.toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should silently skip hosts that only expose performance.now', () => {
+      (getPerformanceManager as Mock).mockReturnValue({ now: vi.fn(() => 1) });
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      integration.setupOnce();
+
+      expect(consoleSpy).not.toHaveBeenCalled();
+      expect((integration as any)._reportTimer).toBeNull();
+      expect(mockScope.setTag).not.toHaveBeenCalled();
+      expect(mockScope.setContext).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
@@ -460,6 +476,7 @@ describe('PerformanceIntegration', () => {
       disabledIntegration.setupOnce();
 
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
+      expect((disabledIntegration as any)._reportTimer).toBeNull();
       disabledIntegration.cleanup();
     });
 
@@ -489,6 +506,9 @@ describe('PerformanceIntegration', () => {
         '[sentry-miniapp] Failed to setup performance observers:',
         error,
       );
+      expect((integration as any)._reportTimer).toBeNull();
+      expect(mockScope.setTag).not.toHaveBeenCalled();
+      expect(mockScope.setContext).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });

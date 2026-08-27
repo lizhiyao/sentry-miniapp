@@ -618,7 +618,8 @@ export interface PerformanceManager {
   clearMeasures(name?: string): void;
 
   // 观察者
-  createObserver(callback: PerformanceObserverCallback): PerformanceObserver;
+  // 小游戏 Performance 通常仅提供 now()，PerformanceObserver 只在部分小程序宿主可用。
+  createObserver?(callback: PerformanceObserverCallback): PerformanceObserver;
 }
 
 /**

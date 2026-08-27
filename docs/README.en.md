@@ -30,7 +30,7 @@ Mini program runtimes do not provide browser APIs like `window`, `fetch`, or `XM
 - **Performance and tracing**: Tracks startup, page rendering, resource loading, and API timing; with tracing enabled, requests can be reported as `http.client` spans for backend correlation.
 - **Source Map friendly stacks**: Normalizes platform-specific virtual stack paths to `app:///`, supports Source Maps / Debug IDs, and exposes `stackParser` for unusual runtimes.
 - **Weak-network and privacy flows**: Failed sends go into the local offline queue and retry when the network recovers; with `requireConsent`, events are buffered locally without sending to Sentry until `Sentry.setConsent(true)` is called.
-- **Mini game support**: WeChat / Douyin mini games can report first frame, FPS, and jank to help diagnose slow startup and stutter.
+- **Mini game support**: WeChat / Douyin mini games can report first frame, FPS, and jank to help diagnose slow startup and stutter. Mini games usually expose only `performance.now()`, so mini-program-only navigation, render, and resource observers are skipped automatically.
 - **Familiar Sentry APIs**: `captureException`, `setUser`, `addBreadcrumb`, `startSpan`, `captureFeedback`, `Sentry.logger.*`, and more.
 
 ---
