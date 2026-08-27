@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:shuffle": "vitest run --sequence.shuffle",
     "prepublishOnly": "npm run build",
     "prepare": "husky",
     "release": "commit-and-tag-version"

@@ -53,6 +53,7 @@ cp -r .agents/skills/sentry-miniapp-sdk ~/.agents/skills/sentry-miniapp-sdk
 - `yarn run lint` - 代码检查
 - `yarn run test` - 运行单元测试（Vitest）
 - `yarn run test:coverage` - 运行单元测试并检查覆盖率门槛
+- `yarn run test:shuffle` - 随机化用例顺序，检查测试隔离性
 - `yarn run build` - 构建项目
 - `yarn run build:miniapp` - 生成并检查微信示例使用的独立 bundle
 - `yarn run dev:miniapp` - 监听源码并持续构建微信示例 bundle
