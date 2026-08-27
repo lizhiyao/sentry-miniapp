@@ -457,6 +457,43 @@ describe('CrossPlatform', () => {
       expect(result?.brand).toBe('Xiaomi');
       expect(sync).toHaveBeenCalled();
     });
+
+    it('无旧 API 兜底时保留分体 API 已返回的部分信息', async () => {
+      (global as any).wx = {
+        getWindowInfo: vi.fn().mockReturnValue({ screenWidth: 390, screenHeight: 844 }),
+        getAppBaseInfo: vi.fn().mockReturnValue({ version: '8.0.0', SDKVersion: '3.0.0' }),
+      };
+
+      const { getSystemInfo } = await import('../src/crossPlatform');
+
+      expect(getSystemInfo()).toEqual({
+        screenWidth: 390,
+        screenHeight: 844,
+        version: '8.0.0',
+        SDKVersion: '3.0.0',
+      });
+    });
+  });
+
+  describe('getPerformanceManager', () => {
+    it('宿主性能 API 抛错时返回 null 而不是影响 SDK 初始化', async () => {
+      const error = new Error('performance unavailable');
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      (global as any).wx = {
+        getPerformance: vi.fn(() => {
+          throw error;
+        }),
+      };
+
+      const { getPerformanceManager } = await import('../src/crossPlatform');
+
+      try {
+        expect(getPerformanceManager()).toBeNull();
+        expect(warn).toHaveBeenCalledWith('Failed to get performance manager:', error);
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 
   describe('getAccountInfo', () => {
