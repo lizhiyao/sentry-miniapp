@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { flush, getClient } from '@sentry/core';
+import { flush, getClient, type Envelope, type Event } from '@sentry/core';
 import { init } from '../src/index';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 /**
  * 用真实 @sentry/core 验证默认性能集成的完整链路，避免工厂多返回一层函数时
@@ -9,7 +10,7 @@ import { init } from '../src/index';
 describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
   const g = global as any;
   let observerCallback: ((entries: any[]) => void) | undefined;
-  let captured: any[];
+  let captured: Envelope[];
 
   beforeEach(() => {
     observerCallback = undefined;
@@ -53,10 +54,7 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
 
     const client = init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
-      transport: () => ({
-        send: () => Promise.resolve({ statusCode: 200 }),
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     const performance = client?.getIntegrationByName?.('PerformanceAPI') as any;
@@ -79,13 +77,7 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
       dsn: 'https://test@o0.ingest.sentry.io/0',
       tracesSampleRate: 1,
       beforeSendTransaction,
-      transport: () => ({
-        send: (envelope: any) => {
-          captured.push(envelope);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     expect(client?.getIntegrationByName?.('PerformanceAPI')).toBeDefined();
@@ -103,11 +95,7 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     await flush(2000);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const transactions = captured.flatMap((envelope) =>
-      (envelope[1] as any[])
-        .filter((item) => item[0]?.type === 'transaction')
-        .map((item) => item[1]),
-    );
+    const transactions = collectEnvelopePayloads<Event>(captured, ['transaction']);
 
     expect(beforeSendTransaction).toHaveBeenCalled();
     const transaction = transactions.find(

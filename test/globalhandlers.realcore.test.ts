@@ -1,8 +1,16 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { captureException, getClient, flush, installedIntegrations } from '@sentry/core';
+import {
+  captureException,
+  getClient,
+  flush,
+  installedIntegrations,
+  type Envelope,
+  type Event,
+} from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init } from '../src/index';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 /**
  * GlobalHandlers 的真 @sentry/core 端到端验证：
@@ -11,22 +19,9 @@ import { init } from '../src/index';
  *
  * 历史单测把 captureException mock 掉，只断言「调用了」，测不到事件实际形态——本用例补这个真窟窿。
  */
-function collectEvents(captured: any[]): any[] {
-  const events: any[] = [];
-  for (const env of captured) {
-    const items = env[1];
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      const header = item[0];
-      if (header && header.type === 'event') events.push(item[1]);
-    }
-  }
-  return events;
-}
-
 describe('GlobalHandlers（真 @sentry/core 集成）', () => {
   const g = global as any;
-  let captured: any[];
+  let captured: Envelope[];
   let onErrorHandler: ((e: unknown) => void) | undefined;
   let onPageNotFoundHandler:
     | ((event: { path: string; query: Record<string, unknown>; isEntryPage: boolean }) => void)
@@ -65,13 +60,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     // GlobalHandlers.setupOnce 应已注册 wx.onError
@@ -81,7 +70,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     onErrorHandler!('boom from platform');
     await flush(2000);
 
-    const events = collectEvents(captured);
+    const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const errEvent = events.find((e) => e.exception?.values?.length);
     expect(errEvent).toBeDefined();
     const val = errEvent.exception.values[0];
@@ -93,13 +82,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     onErrorHandler!(
@@ -114,7 +97,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     );
     await flush(2000);
 
-    const events = collectEvents(captured);
+    const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const value = events[0]?.exception?.values?.[0];
     expect(value.mechanism).toEqual({ type: 'onerror', handled: false });
     expect(value.stacktrace?.frames).toEqual(
@@ -133,13 +116,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     onErrorHandler!({
@@ -154,7 +131,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     });
     await flush(2000);
 
-    const events = collectEvents(captured);
+    const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const value = events[0]?.exception?.values?.[0];
     expect(value.type).toBe('TypeError');
     expect(value.value).toBe('s.Ins.OnEventGameInit is not a function');
@@ -174,13 +151,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     expect(onPageNotFoundHandler).toBeDefined();
@@ -192,7 +163,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     captureException(new Error('unrelated after page-not-found'));
     await flush(2000);
 
-    const events = collectEvents(captured);
+    const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const pageEvent = events.find((event) =>
       event.exception?.values?.[0]?.value?.includes('页面无法找到'),
     );

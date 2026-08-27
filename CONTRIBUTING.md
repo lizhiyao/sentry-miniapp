@@ -65,6 +65,10 @@ This is critical: when modifying functionality, **always consider the impact on 
 
 - Write unit tests for all new features and bug fixes.
 - Test files should be placed in the `test/` directory, mirroring the `src/` structure.
+- Tests must execute production code from `src/` or repository scripts. Do not add tests which
+  only assert calls to mocks or helper logic defined inside the test itself.
+- Reuse `test/support/` for real `@sentry/core` transports and envelope assertions. Prefer fake
+  timers over real delays for time-dependent behavior.
 - Coverage must stay above the enforced global thresholds: 98.5% statements/lines,
   95% branches, and 99% functions. New changes should improve coverage without
   excluding production code from measurement.

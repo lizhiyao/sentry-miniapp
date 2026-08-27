@@ -1,11 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { captureException, flush, getClient, withScope } from '@sentry/core';
+import { captureException, flush, getClient, withScope, type Envelope, type Event } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { init } from '../src/index';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 describe('HttpContext（真 @sentry/core 集成）', () => {
   const g = global as any;
-  let captured: any[];
+  let captured: Envelope[];
 
   beforeEach(() => {
     captured = [];
@@ -42,38 +43,17 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
     resetPlatformCache();
   });
 
-  function collectErrors(): any[] {
-    const errors: any[] = [];
-    for (const env of captured) {
-      const items = env[1] as any[];
-      if (!Array.isArray(items)) continue;
-      for (const item of items) {
-        const header = item[0];
-        if (header && (header.type === 'event' || header.type === 'error')) {
-          errors.push(item[1]);
-        }
-      }
-    }
-    return errors;
-  }
-
   it('processEvent 直接补充当前事件的 runtime/app context', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
-      transport: () => ({
-        send: (envelope: any) => {
-          captured.push(envelope);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     captureException(new Error('HttpContext current event'));
     await flush(2000);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const event = collectErrors().find((item) =>
+    const event = collectEnvelopePayloads<Event>(captured, ['event']).find((item) =>
       item.exception?.values?.[0]?.value?.includes('HttpContext current event'),
     );
 
@@ -95,13 +75,7 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
   it('不覆盖用户显式设置的 app context', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
-      transport: () => ({
-        send: (envelope: any) => {
-          captured.push(envelope);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     withScope((scope) => {
@@ -116,7 +90,7 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
     await flush(2000);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const event = collectErrors().find((item) =>
+    const event = collectEnvelopePayloads<Event>(captured, ['event']).find((item) =>
       item.exception?.values?.[0]?.value?.includes('HttpContext custom app'),
     );
 
