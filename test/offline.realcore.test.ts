@@ -3,6 +3,7 @@ import { makeOfflineTransport } from '@sentry/core';
 import { createMiniappOfflineStore } from '../src/transports/offlineStore';
 import { createMiniappTransport } from '../src/transports/xhr';
 import { resetPlatformCache } from '../src/crossPlatform';
+import { createEventEnvelope } from './support/envelopes';
 
 /**
  * 离线缓存的真 @sentry/core 集成验证：把本 SDK 的 createMiniappOfflineStore 接到 core 的
@@ -11,18 +12,12 @@ import { resetPlatformCache } from '../src/crossPlatform';
  */
 const OFFLINE_KEY = 'sentry_offline_store';
 
-function makeEnvelope(id: string): any {
-  return [
-    { event_id: id, sent_at: '2022-01-01T00:00:00.000Z' },
-    [[{ type: 'event' }, { event_id: id }]],
-  ];
-}
-
 describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
   const g = global as any;
   let mem: Record<string, string>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     mem = {};
     g.wx = {
       setStorageSync: vi.fn((k: string, v: string) => {
@@ -38,6 +33,8 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
   });
 
   afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
     delete g.wx;
     resetPlatformCache();
   });
@@ -53,8 +50,7 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
       flushAtStartup: false,
     } as any);
 
-    await offline.send(makeEnvelope('off-1') as any);
-    await new Promise((r) => setTimeout(r, 20));
+    await offline.send(createEventEnvelope('off-1'));
 
     // 底层确实尝试发送但失败，envelope 被存进我们的小程序 store
     expect(baseSend).toHaveBeenCalled();
@@ -76,7 +72,9 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
       flushAtStartup: false,
     } as any);
 
-    await offline.send(makeEnvelope('timeout-1') as any);
+    const sendPromise = offline.send(createEventEnvelope('timeout-1'));
+    await vi.advanceTimersByTimeAsync(10);
+    await sendPromise;
 
     expect(abort).toHaveBeenCalledTimes(1);
     expect(mem[OFFLINE_KEY]).toBeDefined();
@@ -86,7 +84,7 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
   it('storage 中已有积压 → 恢复后经 makeOfflineTransport 取回重发', async () => {
     // 预置一条积压（新格式：{envelope, timestamp}[]）
     mem[OFFLINE_KEY] = JSON.stringify([
-      { envelope: makeEnvelope('queued-1'), timestamp: 1640995200000 },
+      { envelope: createEventEnvelope('queued-1'), timestamp: 1640995200000 },
     ]);
 
     const sent: any[] = [];
@@ -106,7 +104,7 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
     // 主动触发 flush：transport.flush() 用 MIN_DELAY(100ms) 排一次取回重发
     // （flushAtStartup 走 START_DELAY=5s，太慢不适合单测）。
     void offline.flush();
-    await new Promise((r) => setTimeout(r, 300));
+    await vi.runOnlyPendingTimersAsync();
 
     // 积压的 envelope 被取回并通过底层 send 重发
     expect(baseSend).toHaveBeenCalled();

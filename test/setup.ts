@@ -70,6 +70,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // 即使用例在 fake timers 阶段失败，也不能让后续用例继承虚拟时钟。
+  vi.useRealTimers();
   for (const k of PLATFORM_GLOBALS) {
     delete (global as any)[k];
   }
@@ -79,6 +81,8 @@ afterEach(() => {
 // Mock console methods to avoid noise in tests
 global.console = {
   ...console,
+  debug: vi.fn(),
+  info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
   log: vi.fn(),
