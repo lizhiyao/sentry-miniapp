@@ -3,25 +3,16 @@ import { makeOfflineTransport } from '@sentry/core';
 import { configureConsent, isConsentGranted, resetConsentState, setConsentGranted } from '../src/consent';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { createMiniappOfflineStore } from '../src/transports/offlineStore';
+import { createEventEnvelope } from './support/envelopes';
 
 const OFFLINE_KEY = 'sentry_offline_store';
-
-function makeEnvelope(id: string): any {
-  return [
-    { event_id: id, sent_at: '2022-01-01T00:00:00.000Z' },
-    [[{ type: 'event' }, { event_id: id }]],
-  ];
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 describe('Consent gate with real makeOfflineTransport', () => {
   const g = global as any;
   let mem: Record<string, string>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     mem = {};
     g.wx = {
       setStorageSync: vi.fn((key: string, value: string) => {
@@ -38,6 +29,8 @@ describe('Consent gate with real makeOfflineTransport', () => {
   });
 
   afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
     resetConsentState();
     delete g.wx;
     resetPlatformCache();
@@ -60,15 +53,14 @@ describe('Consent gate with real makeOfflineTransport', () => {
       flushAtStartup: false,
     } as any);
 
-    await transport.send(makeEnvelope('before-consent') as any);
-    await sleep(20);
+    await transport.send(createEventEnvelope('before-consent'));
 
     expect(baseSend).not.toHaveBeenCalled();
     expect(mem[OFFLINE_KEY]).toContain('before-consent');
 
     setConsentGranted(true);
     void transport.flush();
-    await sleep(300);
+    await vi.runOnlyPendingTimersAsync();
 
     expect(baseSend).toHaveBeenCalledTimes(1);
     const resentEnvelope = baseSend.mock.calls[0]?.[0];
@@ -78,8 +70,7 @@ describe('Consent gate with real makeOfflineTransport', () => {
     baseSend.mockClear();
     setConsentGranted(false);
 
-    await transport.send(makeEnvelope('blocked-again') as any);
-    await sleep(20);
+    await transport.send(createEventEnvelope('blocked-again'));
 
     expect(baseSend).not.toHaveBeenCalled();
     expect(mem[OFFLINE_KEY]).toContain('blocked-again');

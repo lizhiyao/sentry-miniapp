@@ -1,4 +1,13 @@
-import type { Envelope, EnvelopeItemType, Transport } from '@sentry/core';
+import type { Envelope, EnvelopeItemType, Event, Transport } from '@sentry/core';
+
+export function createEventEnvelope(eventId: string): Envelope {
+  const event: Event = { event_id: eventId };
+
+  return [
+    { event_id: eventId, sent_at: '2022-01-01T00:00:00.000Z' },
+    [[{ type: 'event' }, event]],
+  ];
+}
 
 export function createCapturingTransport(envelopes: Envelope[]): () => Transport {
   return () => ({
