@@ -8,8 +8,9 @@
   },
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
-    "build": "vite build && npm run check:build-output",
+    "build": "vite build && npm run check:build-output && npm run check:package",
     "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.esm.js dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
+    "check:package": "publint --level error",
     "build:miniapp": "vite build --mode miniapp && node scripts/internal/check-build-output.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-miniapp-bundle.mjs examples/wxapp/lib/sentry-miniapp.js",
     "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types",
     "dev": "vite build --watch",
@@ -71,6 +72,7 @@
     "lint-staged": "^16.4.0",
     "lodash": "4.18.1",
     "prettier": "^3.8.1",
+    "publint": "^0.3.24",
     "typescript": "^5.8.3",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.5.4",
