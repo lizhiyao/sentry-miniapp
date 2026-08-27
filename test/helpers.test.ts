@@ -182,6 +182,34 @@ describe('Helpers', () => {
       expect(obj.method).toBe(originalMethod);
     });
 
+    it('restores state held by an own host accessor', () => {
+      const original = vi.fn(() => 'original');
+      const wrapped = vi.fn(() => 'wrapped');
+      let current = original;
+      const host = {} as { method: () => string };
+      Object.defineProperty(host, 'method', {
+        configurable: true,
+        enumerable: true,
+        get: () => current,
+        set: (value) => {
+          current = value;
+        },
+      });
+
+      const result = fill(host, 'method', () => wrapped);
+      expect(host.method).toBe(wrapped);
+
+      result?.restore();
+
+      expect(host.method).toBe(original);
+      expect(Object.getOwnPropertyDescriptor(host, 'method')).toMatchObject({
+        configurable: true,
+        enumerable: true,
+        get: expect.any(Function),
+        set: expect.any(Function),
+      });
+    });
+
     it('should leave a non-configurable accessor unchanged when assignment is ignored', () => {
       const originalMethod = vi.fn(() => 'original');
       const obj = {} as { method: () => string };
@@ -369,6 +397,53 @@ describe('Helpers', () => {
       result?.restore();
       expect(Object.prototype.hasOwnProperty.call(obj, 'method')).toBe(false);
       expect(obj.method).toBe(original);
+    });
+
+    it('restores state owned by an inherited host accessor', () => {
+      const original = vi.fn(() => 'original');
+      const wrapped = vi.fn(() => 'wrapped');
+      let current = original;
+      const prototype = {} as { method: () => string };
+      Object.defineProperty(prototype, 'method', {
+        configurable: true,
+        get: () => current,
+        set: (value) => {
+          current = value;
+        },
+      });
+      const host = Object.create(prototype) as { method: () => string };
+
+      const result = fill(host, 'method', () => wrapped);
+      expect(host.method).toBe(wrapped);
+      expect(Object.prototype.hasOwnProperty.call(host, 'method')).toBe(false);
+
+      result?.restore();
+
+      expect(host.method).toBe(original);
+      expect(Object.prototype.hasOwnProperty.call(host, 'method')).toBe(false);
+    });
+
+    it('falls back to assignment when a host rejects exact descriptor restoration', () => {
+      const original = vi.fn(() => 'original');
+      const wrapped = vi.fn(() => 'wrapped');
+      const target = { method: original };
+      const host = new Proxy(target, {
+        set(targetObject, property, value) {
+          return Reflect.set(targetObject, property, value, targetObject);
+        },
+        defineProperty(targetObject, property, descriptor) {
+          if (property === 'method' && descriptor.value === original) {
+            throw new Error('descriptor restoration denied');
+          }
+          return Reflect.defineProperty(targetObject, property, descriptor);
+        },
+      });
+
+      const result = fill(host, 'method', () => wrapped);
+      expect(host.method).toBe(wrapped);
+
+      expect(() => result?.restore()).not.toThrow();
+      expect(host.method).toBe(original);
     });
 
     it('contains replacement prototype assignment failures', () => {

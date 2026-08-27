@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getConfiguredDefaultIntegrationsMode, MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
-import { SeverityLevel, getCurrentScope, parameterize } from '@sentry/core';
+import { Client, SeverityLevel, getCurrentScope, parameterize } from '@sentry/core';
 import { miniappStackParser } from '../src/stacktrace';
 
 describe('MiniappClient', () => {
@@ -479,6 +479,31 @@ describe('MiniappClient', () => {
       );
     });
 
+    it('core 事件准备失败时保留原事件并补齐默认上下文', async () => {
+      const error = new Error('scope unavailable');
+      const prepare = vi.spyOn(Client.prototype as any, '_prepareEvent').mockImplementation(() => {
+        throw error;
+      });
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const c = new MiniappClient({ debug: true });
+
+      try {
+        const event = await c['_prepareEvent']({ message: 'keep me' }, {});
+
+        expect(event?.message).toBe('keep me');
+        expect(event?.contexts?.['miniapp']).toEqual(
+          expect.objectContaining({ environment: 'miniapp', platform: 'wechat' }),
+        );
+        expect(warn).toHaveBeenCalledWith(
+          '[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:',
+          error,
+        );
+      } finally {
+        prepare.mockRestore();
+        warn.mockRestore();
+      }
+    });
+
     // F3：SDK 的 device/os/app 应为「缺省填充」，不得覆盖用户显式设置。
     it('fill-only：不覆盖 per-event 显式设置的 os（F3）', async () => {
       (global as any).wx = {
@@ -541,6 +566,33 @@ describe('MiniappClient', () => {
       );
 
       consoleWarnSpy.mockRestore();
+    });
+  });
+
+  describe('captureFeedback', () => {
+    it('通过当前 scope 使用 core feedback 管线', () => {
+      const scope = getCurrentScope();
+      const previousClient = scope.getClient();
+      const beforeSendFeedback = vi.fn();
+      client.on('beforeSendFeedback', beforeSendFeedback);
+      scope.setClient(client);
+
+      try {
+        const eventId = client.captureFeedback({ message: 'miniapp feedback' });
+
+        expect(eventId).toMatch(/^[a-f0-9]{32}$/);
+        expect(beforeSendFeedback).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'feedback',
+            contexts: expect.objectContaining({
+              feedback: expect.objectContaining({ message: 'miniapp feedback' }),
+            }),
+          }),
+          {},
+        );
+      } finally {
+        scope.setClient(previousClient);
+      }
     });
   });
 
