@@ -72,5 +72,8 @@ jobs:
     - name: Install dependencies
       run: yarn install --immutable
 
+    - name: Build and Validate Published Package
+      run: yarn run build
+
     - name: Run Tests in Random Order
       run: yarn run test:shuffle

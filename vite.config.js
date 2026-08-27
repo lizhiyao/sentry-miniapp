@@ -119,12 +119,12 @@ export default defineConfig(({ mode }) => {
         output: [
           {
             format: 'es',
-            entryFileNames: 'sentry-miniapp.esm.js',
+            entryFileNames: 'sentry-miniapp.mjs',
             exports: 'named'
           },
           {
             format: 'cjs',
-            entryFileNames: 'sentry-miniapp.cjs.js',
+            entryFileNames: 'sentry-miniapp.cjs',
             exports: 'auto'
           },
           {

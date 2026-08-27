@@ -6403,6 +6403,7 @@ __metadata:
     "@babel/plugin-transform-regenerator": "npm:^7.29.8"
     "@commitlint/cli": "npm:^20.5.0"
     "@commitlint/config-conventional": "npm:^20.5.0"
+    "@publint/pack": "npm:^0.1.7"
     "@sentry/core": "npm:10.70.0"
     "@types/node": "npm:^20.19.11"
     "@typescript-eslint/eslint-plugin": "npm:^8.57.1"
