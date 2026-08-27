@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import * as crossPlatform from '../src/crossPlatform';
 import { init } from '../src/index';
-import { getClient, captureException, flush } from '@sentry/core';
+import { getClient, captureException, flush, type Envelope, type Event } from '@sentry/core';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 /**
  * 与 minigame-framerate.test.ts 不同：此文件**不 mock** `@sentry/core`，而是用真实
@@ -14,7 +15,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
   let clock: number;
   let savedRaf: any;
   let hideCb: (() => void) | null;
-  let captured: any[];
+  let captured: Envelope[];
 
   function frame(t: number): void {
     clock = t;
@@ -63,20 +64,6 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     delete g.wx;
   });
 
-  /** 从捕获的 envelope 列表里收集所有 transaction item。 */
-  function collectTransactions(): any[] {
-    const txns: any[] = [];
-    for (const env of captured) {
-      const items = env[1] as any[];
-      if (!Array.isArray(items)) continue;
-      for (const it of items) {
-        const header = it[0];
-        if (header && header.type === 'transaction') txns.push(it[1]);
-      }
-    }
-    return txns;
-  }
-
   it('开启 tracing 后，分级会话汇总产出真实 transaction（含分档 measurement）', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
@@ -86,13 +73,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
         reportInterval: 10000,
         jankLevels: { minor: 17, major: 33, severe: 100 },
       },
-      transport: () => ({
-        send: (envelope: any) => {
-          captured.push(envelope);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     // setupOnce 已在 init 内执行：rAF loop 与 onHide 都应已注册。
@@ -107,7 +88,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     // transaction 经异步 prepareEvent 后才进 transport，放掉微任务 + 一个宏任务。
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const summary = collectTransactions().find(
+    const summary = collectEnvelopePayloads<Event>(captured, ['transaction']).find(
       (t) => t.transaction === 'minigame.framerate.summary',
     );
     expect(summary).toBeDefined();
@@ -133,10 +114,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     const client = init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       integrations: [probe],
-      transport: () => ({
-        send: () => Promise.resolve({ statusCode: 200 }),
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     expect(client).toBeDefined();
@@ -145,17 +123,11 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
   });
 
   it('ignoreErrors 经 EventFilters 生效：匹配错误被丢弃、其余保留', async () => {
-    const captured: any[] = [];
+    const captured: Envelope[] = [];
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       ignoreErrors: ['DropThisError'],
-      transport: () => ({
-        send: (envelope: any) => {
-          captured.push(envelope);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     captureException(new Error('DropThisError boom'));
@@ -163,18 +135,9 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     await flush(2000);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const values: string[] = [];
-    for (const env of captured) {
-      const items = env[1];
-      if (!Array.isArray(items)) continue;
-      for (const it of items) {
-        const header = it[0];
-        if (header && (header.type === 'event' || header.type === 'error')) {
-          const v = it[1]?.exception?.values?.[0]?.value;
-          if (typeof v === 'string') values.push(v);
-        }
-      }
-    }
+    const values = collectEnvelopePayloads<Event>(captured, ['event'])
+      .map((event) => event.exception?.values?.[0]?.value)
+      .filter((value): value is string => typeof value === 'string');
     expect(values.some((v) => v.includes('KeepThisError'))).toBe(true);
     expect(values.some((v) => v.includes('DropThisError'))).toBe(false);
   });

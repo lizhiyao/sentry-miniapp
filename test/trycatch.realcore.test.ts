@@ -1,25 +1,20 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { getClient, flush, captureException, installedIntegrations } from '@sentry/core';
+import {
+  getClient,
+  flush,
+  captureException,
+  installedIntegrations,
+  type Envelope,
+  type Event,
+} from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init, wrap as sdkWrap } from '../src/index';
-
-function collectEvents(captured: any[]): any[] {
-  const events: any[] = [];
-  for (const env of captured) {
-    const items = env[1];
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      const header = item[0];
-      if (header && header.type === 'event') events.push(item[1]);
-    }
-  }
-  return events;
-}
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 describe('TryCatch（真 @sentry/core 集成）', () => {
   const g = global as any;
-  let captured: any[];
+  let captured: Envelope[];
   let realSetTimeout: any;
   let realRequestAnimationFrame: any;
   let onErrorHandler: ((e: unknown) => void) | undefined;
@@ -68,13 +63,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
       enableOfflineCache: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     // 经 TryCatch 包装的 setTimeout：回调抛错被 wrap 捕获上报后 re-throw，故 try 包住
@@ -86,7 +75,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
 
     await flush(2000);
 
-    const events = collectEvents(captured);
+    const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const errEvent = events.find((e) =>
       e.exception?.values?.some((v: any) => v.value?.includes('timer boom')),
     );
@@ -110,13 +99,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       enableAutoSessionTracking: false,
       enableOfflineCache: false,
       enableMinigameFrameRate: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     let now = Date.now();
@@ -157,7 +140,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     }
     await flush(2000);
 
-    const events = collectEvents(captured).filter((event) =>
+    const events = collectEnvelopePayloads<Event>(captured, ['event']).filter((event) =>
       event.exception?.values?.some((value: any) => value.value === message),
     );
     expect(events).toHaveLength(1);
@@ -173,13 +156,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
       enableOfflineCache: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     const wrapped = sdkWrap(() => {
@@ -189,7 +166,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     onErrorHandler!('MiniProgramError\npublic wrap boom\nTypeError: public wrap boom');
     await flush(2000);
 
-    const events = collectEvents(captured).filter((event) =>
+    const events = collectEnvelopePayloads<Event>(captured, ['event']).filter((event) =>
       event.exception?.values?.some((value: any) => value.value === 'public wrap boom'),
     );
     expect(events).toHaveLength(1);
@@ -213,13 +190,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
       enableOfflineCache: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     expect(() => {
@@ -233,7 +204,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
 
     await flush(2000);
 
-    const events = collectEvents(captured);
+    const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const errEvent = events.find((e) =>
       e.exception?.values?.some((v: any) => v.value?.includes('outer timer boom')),
     );
@@ -254,7 +225,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     // 防回归：wrap() 必须用 withScope 把 mechanism 处理器限定在本次 capture，
     // 若退回 getCurrentScope().addEventProcessor，处理器会常驻并污染之后每个事件——
     // 把未处理错误误标成 handled:true，进而虚高 crash-free 率。
-    const captured: any[] = [];
+    const captured: Envelope[] = [];
     g.setTimeout = (cb: (...a: any[]) => any) => {
       cb();
       return 0 as any;
@@ -263,13 +234,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
       enableOfflineCache: false,
-      transport: () => ({
-        send: (env: any) => {
-          captured.push(env);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     // 先触发一次被包装回调抛错（注册了 instrument mechanism 处理器）
@@ -283,7 +248,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     captureException(new Error('unrelated later error'));
     await flush(2000);
 
-    const ev = collectEvents(captured).find((e) =>
+    const ev = collectEnvelopePayloads<Event>(captured, ['event']).find((e) =>
       e.exception?.values?.some((v: any) => v.value?.includes('unrelated later error')),
     );
     expect(ev).toBeDefined();

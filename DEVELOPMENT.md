@@ -75,14 +75,17 @@ sentry-miniapp/
 
 ## 🧪 测试和质量保证
 
-项目包含完善的测试覆盖率（650+ 个测试用例）：
+项目包含完善的测试覆盖率（700+ 个测试用例）：
 
 - **单元测试 (`yarn test`，Vitest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
+- **真实 core 集成测试 (`test/*.realcore.test.ts`)**：不 mock `@sentry/core`，验证事件、transaction、session 最终进入 envelope 的形态。自定义 transport 与 envelope 解析统一复用 `test/support/`。
+
+测试必须执行 `src/` 或仓库脚本中的生产逻辑；不要只调用测试文件里临时创建的 mock、示例重试函数或常量再断言自身行为。时间相关逻辑优先使用 Vitest fake timers，避免真实等待拖慢 CI。
 
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 
 ```bash
-yarn lint && yarn test
+yarn lint && yarn typecheck && yarn test:coverage
 ```
 
 ---

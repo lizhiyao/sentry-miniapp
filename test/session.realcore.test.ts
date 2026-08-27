@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { getClient, flush } from '@sentry/core';
+import { getClient, flush, type Envelope, type SerializedSession } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init } from '../src/index';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 /**
  * Session 的真 @sentry/core 端到端验证。
@@ -14,7 +15,7 @@ import { init } from '../src/index';
  */
 describe('Session（真 @sentry/core 集成）', () => {
   const g = global as any;
-  let captured: any[];
+  let captured: Envelope[];
   let savedApp: any;
 
   beforeEach(() => {
@@ -44,38 +45,19 @@ describe('Session（真 @sentry/core 集成）', () => {
     delete g.wx;
   });
 
-  function collectSessions(): any[] {
-    const sessions: any[] = [];
-    for (const env of captured) {
-      const items = env[1] as any[];
-      if (!Array.isArray(items)) continue;
-      for (const item of items) {
-        const header = item[0];
-        if (header && header.type === 'session') sessions.push(item[1]);
-      }
-    }
-    return sessions;
-  }
-
   it('App.onLaunch 启动 Session，未处理错误经 core 自动标记 crashed', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       release: 'test@1.0.0',
       enableAutoSessionTracking: true,
-      transport: () => ({
-        send: (envelope: any) => {
-          captured.push(envelope);
-          return Promise.resolve({ statusCode: 200 });
-        },
-        flush: () => Promise.resolve(true),
-      }),
+      transport: createCapturingTransport(captured),
     } as any);
 
     // 平台注册 App → wrapper 注入并回放 onLaunch → SessionIntegration 开启 Session。
     (globalThis as any).App({ onLaunch: vi.fn() });
     await flush(2000);
 
-    const afterLaunch = collectSessions();
+    const afterLaunch = collectEnvelopePayloads<SerializedSession>(captured, ['session']);
     // F2：Session 确实通过全局 App 启动并上报（若回退到旧 wx.App 死路，这里会是 0）。
     expect(afterLaunch.length).toBeGreaterThanOrEqual(1);
     expect(afterLaunch.some((s) => s.status !== 'crashed')).toBe(true);
@@ -90,6 +72,10 @@ describe('Session（真 @sentry/core 集成）', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // F1：core 自动把当前 Session 标记为 crashed 并补发，无需本集成手动钩子。
-    expect(collectSessions().some((s) => s.status === 'crashed')).toBe(true);
+    expect(
+      collectEnvelopePayloads<SerializedSession>(captured, ['session']).some(
+        (session) => session.status === 'crashed',
+      ),
+    ).toBe(true);
   });
 });
