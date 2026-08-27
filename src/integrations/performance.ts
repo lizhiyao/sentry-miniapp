@@ -119,7 +119,9 @@ export class PerformanceIntegration implements Integration {
     this._isSetup = true;
     this._setupEpochMilliseconds = epochNow();
     this._initializePerformanceManager();
-    this._setupPerformanceObservers();
+    if (!this._setupPerformanceObservers()) {
+      return;
+    }
     this._startAutoReporting();
     this._addPerformanceContext();
   }
@@ -131,18 +133,8 @@ export class PerformanceIntegration implements Integration {
     try {
       this._performanceManager = getPerformanceManager();
       if (!this._performanceManager) {
-        console.warn('[sentry-miniapp] Performance API not available');
         return;
       }
-
-      // 设置性能监控标签
-      const scope = getCurrentScope();
-      scope.setTag('performance.api.available', true);
-      scope.setContext('performance', {
-        api_version: 'miniapp-1.0',
-        sample_rate: this._options.sampleRate,
-        buffer_size: this._options.bufferSize,
-      });
     } catch (error) {
       console.warn('[sentry-miniapp] Failed to initialize performance manager:', error);
     }
@@ -151,12 +143,16 @@ export class PerformanceIntegration implements Integration {
   /**
    * 设置性能观察者
    */
-  private _setupPerformanceObservers(): void {
+  private _setupPerformanceObservers(): boolean {
     if (!this._performanceManager) {
-      return;
+      return false;
     }
 
     try {
+      if (typeof this._performanceManager.createObserver !== 'function') {
+        return false;
+      }
+
       const entryTypes: string[] = [];
 
       if (this._options.enableNavigation) {
@@ -212,7 +208,7 @@ export class PerformanceIntegration implements Integration {
       }
 
       if (entryTypes.length === 0) {
-        return;
+        return false;
       }
 
       // 创建性能观察者
@@ -246,8 +242,10 @@ export class PerformanceIntegration implements Integration {
       if (globalProcess && globalProcess.env && globalProcess.env.NODE_ENV !== 'production') {
         console.log('[sentry-miniapp] Performance observers setup for:', entryTypes);
       }
+      return true;
     } catch (error) {
       console.warn('[sentry-miniapp] Failed to setup performance observers:', error);
+      return false;
     }
   }
 
@@ -753,6 +751,13 @@ export class PerformanceIntegration implements Integration {
 
       // 检查 Performance API 支持情况
       const hasPerformanceAPI = !!currentSdk.getPerformance;
+
+      scope.setTag('performance.api.available', true);
+      scope.setContext('performance', {
+        api_version: 'miniapp-1.0',
+        sample_rate: this._options.sampleRate,
+        buffer_size: this._options.bufferSize,
+      });
 
       scope.setContext('performance_support', {
         has_performance_api: hasPerformanceAPI,

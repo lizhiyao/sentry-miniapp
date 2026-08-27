@@ -617,8 +617,8 @@ export interface PerformanceManager {
   clearMarks(name?: string): void;
   clearMeasures(name?: string): void;
 
-  // 观察者
-  createObserver(callback: PerformanceObserverCallback): PerformanceObserver;
+  /** 创建性能观察者；小游戏等宿主可能只提供 `now()`，因此该能力可选。 */
+  createObserver?(callback: PerformanceObserverCallback): PerformanceObserver;
 }
 
 /**
