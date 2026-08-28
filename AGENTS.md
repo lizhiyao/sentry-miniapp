@@ -51,6 +51,7 @@ cp -r .agents/skills/sentry-miniapp-sdk ~/.agents/skills/sentry-miniapp-sdk
 
 - `yarn install` - 安装依赖
 - `yarn run lint` - 代码检查
+- `yarn run typecheck` - 严格检查源码与测试代码的 TypeScript 类型
 - `yarn run test` - 运行单元测试（Vitest）
 - `yarn run test:coverage` - 运行单元测试并检查覆盖率门槛
 - `yarn run test:shuffle` - 随机化用例顺序，检查测试隔离性

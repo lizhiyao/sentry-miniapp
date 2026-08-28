@@ -1,5 +1,14 @@
 import type { Envelope, EnvelopeItemType, Event, Transport } from '@sentry/core';
 
+export function assertDefined<T>(
+  value: T,
+  message = 'Expected test value to be defined',
+): asserts value is NonNullable<T> {
+  if (value === undefined || value === null) {
+    throw new Error(message);
+  }
+}
+
 export function createEventEnvelope(eventId: string): Envelope {
   const event: Event = { event_id: eventId };
 

@@ -288,7 +288,7 @@ describe('Transport', () => {
         recordDroppedEvent: () => {},
       });
       const envelope: Envelope = [
-        { event_id: 'normalized-failure' },
+        { event_id: 'normalized-failure', sent_at: '2022-01-01T00:00:00.000Z' },
         [[{ type: 'event' }, { event_id: 'normalized-failure' }]],
       ];
 
@@ -310,7 +310,7 @@ describe('Transport', () => {
         recordDroppedEvent: () => {},
       });
       const envelope: Envelope = [
-        { event_id: 'sync-failure' },
+        { event_id: 'sync-failure', sent_at: '2022-01-01T00:00:00.000Z' },
         [[{ type: 'event' }, { event_id: 'sync-failure' }]],
       ];
 
@@ -328,7 +328,7 @@ describe('Transport', () => {
         recordDroppedEvent: () => {},
       });
       const envelope: Envelope = [
-        { event_id: 'missing-request' },
+        { event_id: 'missing-request', sent_at: '2022-01-01T00:00:00.000Z' },
         [[{ type: 'event' }, { event_id: 'missing-request' }]],
       ];
 
@@ -355,7 +355,7 @@ describe('Transport', () => {
           requestTimeout: 10,
         });
         const envelope: Envelope = [
-          { event_id: 'abort-failure' },
+          { event_id: 'abort-failure', sent_at: '2022-01-01T00:00:00.000Z' },
           [[{ type: 'event' }, { event_id: 'abort-failure' }]],
         ];
 

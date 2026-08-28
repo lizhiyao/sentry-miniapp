@@ -1,6 +1,21 @@
 import { vi, type Mock, type Mocked } from 'vitest';
 import type { PerformanceIntegration } from '../../src/integrations/performance';
-import type { PerformanceManager, PerformanceObserver } from '../../src/crossPlatform';
+import type {
+  PerformanceManager,
+  PerformanceObserver,
+  PerformanceObserverCallback,
+} from '../../src/crossPlatform';
+
+type MockPerformanceManager = {
+  getEntries: Mock<PerformanceManager['getEntries']>;
+  getEntriesByType: Mock<PerformanceManager['getEntriesByType']>;
+  getEntriesByName: Mock<PerformanceManager['getEntriesByName']>;
+  mark: Mock<PerformanceManager['mark']>;
+  measure: Mock<PerformanceManager['measure']>;
+  clearMarks: Mock<PerformanceManager['clearMarks']>;
+  clearMeasures: Mock<PerformanceManager['clearMeasures']>;
+  createObserver: Mock<(callback: PerformanceObserverCallback) => PerformanceObserver>;
+};
 
 interface PerformanceTestDependencies {
   PerformanceIntegration: new () => PerformanceIntegration;
@@ -15,7 +30,7 @@ interface PerformanceTestDependencies {
 
 export interface PerformanceTestHarness {
   integration: PerformanceIntegration;
-  mockPerformanceManager: Mocked<PerformanceManager>;
+  mockPerformanceManager: MockPerformanceManager;
   mockObserver: Mocked<PerformanceObserver>;
   mockScope: {
     setTag: Mock;
@@ -37,15 +52,17 @@ export function createPerformanceTestHarness(
     observe: vi.fn(),
     disconnect: vi.fn(),
   };
-  const mockPerformanceManager: Mocked<PerformanceManager> = {
-    getEntries: vi.fn(() => []),
-    getEntriesByType: vi.fn(() => []),
-    getEntriesByName: vi.fn(() => []),
-    mark: vi.fn(),
-    measure: vi.fn(),
-    clearMarks: vi.fn(),
-    clearMeasures: vi.fn(),
-    createObserver: vi.fn(() => mockObserver),
+  const mockPerformanceManager: MockPerformanceManager = {
+    getEntries: vi.fn<PerformanceManager['getEntries']>(() => []),
+    getEntriesByType: vi.fn<PerformanceManager['getEntriesByType']>(() => []),
+    getEntriesByName: vi.fn<PerformanceManager['getEntriesByName']>(() => []),
+    mark: vi.fn<PerformanceManager['mark']>(),
+    measure: vi.fn<PerformanceManager['measure']>(),
+    clearMarks: vi.fn<PerformanceManager['clearMarks']>(),
+    clearMeasures: vi.fn<PerformanceManager['clearMeasures']>(),
+    createObserver: vi.fn<(callback: PerformanceObserverCallback) => PerformanceObserver>(
+      () => mockObserver,
+    ),
   };
   const mockScope = {
     setTag: vi.fn(),

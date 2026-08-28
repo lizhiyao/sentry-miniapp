@@ -4,8 +4,9 @@ import {
   getClient,
   startSpan,
   type Envelope,
-  type Event,
+  type EventHint,
   type SpanJSON,
+  type TransactionEvent,
 } from '@sentry/core';
 import { init } from '../src/index';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -49,7 +50,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
 
   it('无 PerformanceObserver 和 active span 时上报独立 http.client segment span', async () => {
     const beforeSendSpan = vi.fn((span: SpanJSON) => span);
-    const beforeSendTransaction = vi.fn((event: Event) => event);
+    const beforeSendTransaction = vi.fn((event: TransactionEvent, _hint: EventHint) => event);
 
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',

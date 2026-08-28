@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import * as crossPlatform from '../src/crossPlatform';
 import { init } from '../src/index';
 import { getClient, captureException, flush, type Envelope, type Event } from '@sentry/core';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import {
+  assertDefined,
+  collectEnvelopePayloads,
+  createCapturingTransport,
+} from './support/envelopes';
 
 /**
  * 与 minigame-framerate.test.ts 不同：此文件**不 mock** `@sentry/core`，而是用真实
@@ -91,7 +95,8 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     const summary = collectEnvelopePayloads<Event>(captured, ['transaction']).find(
       (t) => t.transaction === 'minigame.framerate.summary',
     );
-    expect(summary).toBeDefined();
+    assertDefined(summary);
+    assertDefined(summary.contexts?.trace);
     expect(summary.contexts.trace.op).toBe('ui.framerate');
 
     const m = summary.measurements || {};

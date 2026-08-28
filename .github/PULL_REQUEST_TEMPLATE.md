@@ -23,6 +23,7 @@ Brief description of changes.
 - [ ] Code follows the existing code style (ESLint + Prettier)
 - [ ] Tests added/updated for the changes
 - [ ] `yarn lint` passes
+- [ ] `yarn typecheck` passes
 - [ ] `yarn test:coverage` passes
 - [ ] Cross-platform compatibility considered
 - [ ] Documentation updated (if applicable)

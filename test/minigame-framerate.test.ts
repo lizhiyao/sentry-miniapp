@@ -76,7 +76,7 @@ describe('MinigameFrameRateIntegration', () => {
 
     frame(16);
     hideCb?.();
-    showCb?.({});
+    showCb?.();
     integration.cleanup();
 
     expect(mockAddBreadcrumb).not.toHaveBeenCalled();

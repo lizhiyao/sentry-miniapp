@@ -10,7 +10,11 @@ import {
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init } from '../src/index';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import {
+  assertDefined,
+  collectEnvelopePayloads,
+  createCapturingTransport,
+} from './support/envelopes';
 
 /**
  * GlobalHandlers 的真 @sentry/core 端到端验证：
@@ -72,8 +76,9 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
 
     const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const errEvent = events.find((e) => e.exception?.values?.length);
-    expect(errEvent).toBeDefined();
-    const val = errEvent.exception.values[0];
+    assertDefined(errEvent);
+    const val = errEvent.exception?.values?.[0];
+    assertDefined(val);
     expect(val.value).toContain('boom from platform');
     expect(val.mechanism).toEqual({ type: 'onerror', handled: false });
   });
@@ -99,6 +104,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
 
     const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const value = events[0]?.exception?.values?.[0];
+    assertDefined(value);
     expect(value.mechanism).toEqual({ type: 'onerror', handled: false });
     expect(value.stacktrace?.frames).toEqual(
       expect.arrayContaining([
@@ -133,6 +139,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
 
     const events = collectEnvelopePayloads<Event>(captured, ['event']);
     const value = events[0]?.exception?.values?.[0];
+    assertDefined(value);
     expect(value.type).toBe('TypeError');
     expect(value.value).toBe('s.Ins.OnEventGameInit is not a function');
     expect(value.mechanism).toEqual({ type: 'onerror', handled: false });

@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { captureException, flush, getClient, withScope, type Envelope, type Event } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { init } from '../src/index';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import {
+  assertDefined,
+  collectEnvelopePayloads,
+  createCapturingTransport,
+} from './support/envelopes';
 
 describe('HttpContext（真 @sentry/core 集成）', () => {
   const g = global as any;
@@ -57,7 +61,8 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
       item.exception?.values?.[0]?.value?.includes('HttpContext current event'),
     );
 
-    expect(event).toBeDefined();
+    assertDefined(event);
+    assertDefined(event.contexts);
     expect(event.contexts.runtime).toEqual({
       name: 'miniapp',
       version: '2.0.0',
@@ -94,6 +99,8 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
       item.exception?.values?.[0]?.value?.includes('HttpContext custom app'),
     );
 
+    assertDefined(event);
+    assertDefined(event.contexts);
     expect(event.contexts.app).toEqual(
       expect.objectContaining({
         app_identifier: 'custom-app-id',
