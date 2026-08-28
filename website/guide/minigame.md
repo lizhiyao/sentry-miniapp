@@ -30,7 +30,7 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 | 能力 | 微信小游戏 | 抖音小游戏 | 说明 |
 |------|:----------:|:----------:|------|
 | 全局异常与 Promise rejection | 支持 | 支持 | 以宿主实际提供的监听 API 为准 |
-| 网络请求面包屑与 `http.client` span | 支持 | 支持 | 走 `wx.request` / `tt.request` |
+| 网络请求面包屑与 `http.client` span | 支持 | 支持 | 走 `wx.request` / `tt.request`，不依赖 PerformanceObserver |
 | 设备信息与离线缓存 | 支持 | 支持 | 依赖宿主系统信息与 Storage API |
 | 冷启动首帧 | 支持 | 支持 | 上报 `minigame.coldstart` |
 | FPS 与卡顿 | 支持 | 支持 | 依赖全局 `requestAnimationFrame` |
@@ -46,6 +46,8 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 - 汇总包含 `fps_avg`、`fps_p95`、`fps_min` 和 `jank_count`，不会每个采样窗口都发送事件。
 
 未开启 tracing 时，小游戏性能数据仍可作为上下文和面包屑附在后续错误事件上，但不会形成可聚合的独立 Performance 数据。
+
+API 请求 span 与小游戏 Performance API 能力分开采集。即使抖音小游戏只提供 `performance.now()`、没有 `createObserver`，开启 tracing 后，无业务父 span 的 `tt.request` 仍会作为独立 segment span 上报；在 `Sentry.startSpan()` 管理的流程内则作为子 span 上报。
 
 ## 调整帧率与卡顿参数
 

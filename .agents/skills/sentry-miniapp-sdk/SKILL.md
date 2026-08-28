@@ -244,6 +244,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `consentCacheMaxAge` | `number` | `86400000` | Drop consent-buffered events older than this (ms); default 24h |
 | `onConsentCacheDrop` | `function` | — | Called with `{ reason, dropped }` when consent buffer drops events |
 | `enableTracePropagation` | `boolean` | `true` | Inject distributed tracing headers (`sentry-trace`/`baggage`, plus optional `traceparent`) in outgoing requests |
+| `enableStandaloneHttpSpans` | `boolean` | `true` | Send parentless API requests as standalone segment spans; set false for child-only request tracing |
 | `tracePropagationTargets` | `Array` | `[]` | URL allowlist for trace header injection; empty means no injection because mini programs have no reliable same-origin baseline |
 | `propagateTraceparent` | `boolean` | `false` | Also inject W3C `traceparent` for OpenTelemetry / W3C Trace Context compatible backends |
 | `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |

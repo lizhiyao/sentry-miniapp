@@ -318,6 +318,7 @@ describe('SDK', () => {
         dsn: 'https://test@sentry.io/123',
         integrations: [],
         enableTracePropagation: false,
+        enableStandaloneHttpSpans: false,
         tracePropagationTargets: [/api\.example\.com/],
         propagateTraceparent: true,
       });
@@ -329,6 +330,7 @@ describe('SDK', () => {
       expect(networkBreadcrumbs).toBeDefined();
       expect(networkBreadcrumbs._propagateTraceparent).toBe(true);
       expect(networkBreadcrumbs._enableTracePropagation).toBe(false);
+      expect(networkBreadcrumbs._enableStandaloneHttpSpans).toBe(false);
       expect(networkBreadcrumbs._tracePropagationTargets).toEqual([/api\.example\.com/]);
     });
 

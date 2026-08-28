@@ -94,7 +94,8 @@ Sentry.init({
 - When `tracePropagationTargets` is empty (default), no business request receives trace headers
 - Only matching URLs receive trace headers; allowlist only API origins controlled by the application owner
 - Backend must have Sentry SDK with tracing enabled to complete the trace
-- An outgoing request becomes an `http.client` child span only when an active transaction exists; the SDK does not create one root transaction per parentless request
+- An outgoing request becomes an `http.client` child span when an active span exists; otherwise it is sent as a standalone segment span by default, without creating one root transaction per request
+- Set `enableStandaloneHttpSpans: false` to keep only child request spans; network breadcrumbs remain enabled
 
 ## Dynamic Sampling
 

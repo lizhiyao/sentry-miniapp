@@ -4,6 +4,7 @@ import {
   getClient,
   hasSpansEnabled,
   isSentryRequestUrl,
+  SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN,
   SPAN_STATUS_OK,
   SPAN_STATUS_ERROR,
   getTraceData,
@@ -40,6 +41,7 @@ export class NetworkBreadcrumbs implements Integration {
   private readonly _enableTracePropagation: boolean;
   private readonly _tracePropagationTargets: Array<string | RegExp>;
   private readonly _propagateTraceparent: boolean;
+  private readonly _enableStandaloneHttpSpans: boolean;
   private readonly _cleanupCallbacks = new Set<() => void>();
   private readonly _requestWrappers = new WeakMap<Function, Function>();
 
@@ -56,6 +58,8 @@ export class NetworkBreadcrumbs implements Integration {
       tracePropagationTargets?: Array<string | RegExp>;
       /** 是否额外注入 W3C traceparent 头（默认 false） */
       propagateTraceparent?: boolean;
+      /** 无 active span 时是否把请求作为独立 segment span 上报（默认 true） */
+      enableStandaloneHttpSpans?: boolean;
     } = {},
   ) {
     this._traceNetworkBody = !!options.traceNetworkBody;
@@ -84,6 +88,7 @@ export class NetworkBreadcrumbs implements Integration {
     this._enableTracePropagation = options.enableTracePropagation !== false;
     this._tracePropagationTargets = options.tracePropagationTargets || [];
     this._propagateTraceparent = options.propagateTraceparent === true;
+    this._enableStandaloneHttpSpans = options.enableStandaloneHttpSpans !== false;
   }
 
   /**
@@ -158,6 +163,7 @@ export class NetworkBreadcrumbs implements Integration {
     const enableTracePropagation = this._enableTracePropagation;
     const shouldPropagateTrace = this._shouldPropagateTrace.bind(this);
     const propagateTraceparent = this._propagateTraceparent;
+    const enableStandaloneHttpSpans = this._enableStandaloneHttpSpans;
 
     return function (this: any, options: any): any {
       if (!options || typeof options !== 'object') {
@@ -179,7 +185,7 @@ export class NetworkBreadcrumbs implements Integration {
       const method = normalizeMethod(options.method);
       const requestData = options.data;
       const startTime = Date.now();
-      const requestSpan = startRequestSpan(method, url);
+      const requestSpan = startRequestSpan(method, url, enableStandaloneHttpSpans);
       let requestSpanFinished = false;
       const finishSpanOnce = (finish: RequestSpanFinishOptions): void => {
         if (requestSpanFinished) return;
@@ -368,17 +374,27 @@ type RequestSpanFinishOptions = {
   errorMessage?: string;
 };
 
-function startRequestSpan(method: string, url: string): Span | null {
+function startRequestSpan(
+  method: string,
+  url: string,
+  enableStandaloneHttpSpans: boolean,
+): Span | null {
   try {
-    // 与官方 Browser SDK 一致：普通请求只作为已有 transaction 的子 span，
-    // 不为每个孤立请求制造一条根 transaction。
-    if (!hasSpansEnabled() || !getActiveSpan()) return null;
+    if (!hasSpansEnabled()) return null;
+    const parentSpan = getActiveSpan();
+    if (!parentSpan && !enableStandaloneHttpSpans) return null;
+
     const serverAddress = extractHost(url);
     return startInactiveSpan({
       name: `${method} ${sanitizeSpanNameUrl(url)}`,
       op: 'http.client',
       kind: 2,
+      parentSpan: parentSpan ?? null,
+      // 静态 trace 生命周期下，无父普通 span 会被转换成 transaction。standalone segment
+      // 直接发送 span envelope，既保留长生命周期小游戏的请求，又不制造高基数根 transaction。
+      ...(!parentSpan && { experimental: { standalone: true } }),
       attributes: {
+        [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: 'auto.http.miniapp',
         'http.request.method': method,
         'url.full': url,
         'server.address': serverAddress || undefined,
