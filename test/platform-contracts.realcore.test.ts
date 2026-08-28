@@ -4,6 +4,7 @@ import {
   getClient,
   getIsolationScope,
   installedIntegrations,
+  type SpanJSON,
 } from '@sentry/core';
 
 import { _resetAppLifecycle } from '../src/appLifecycle';
@@ -31,8 +32,11 @@ const PLATFORM_CONTRACTS: PlatformContract[] = [
   { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', objectStorage: false },
 ];
 
-function collectEvents(capturedRequests: Array<Record<string, any>>): any[] {
-  const events: any[] = [];
+function collectEnvelopePayloads<T>(
+  capturedRequests: Array<Record<string, any>>,
+  itemType: string,
+): T[] {
+  const payloads: T[] = [];
   for (const request of capturedRequests) {
     const body =
       typeof request.data === 'string'
@@ -42,10 +46,14 @@ function collectEvents(capturedRequests: Array<Record<string, any>>): any[] {
     for (let index = 1; index + 1 < lines.length; index += 2) {
       const itemHeader = JSON.parse(lines[index]!);
       const payload = JSON.parse(lines[index + 1]!);
-      if (itemHeader.type === 'event') events.push(payload);
+      if (itemHeader.type === itemType) payloads.push(payload as T);
     }
   }
-  return events;
+  return payloads;
+}
+
+function collectEvents(capturedRequests: Array<Record<string, any>>): any[] {
+  return collectEnvelopePayloads(capturedRequests, 'event');
 }
 
 describe.each(PLATFORM_CONTRACTS)(
@@ -436,6 +444,58 @@ describe.each(PLATFORM_CONTRACTS)(
       );
       expect(event?.contexts?.miniapp?.platform).toBe(platform);
       expect(event?.contexts?.device?.brand).toBe('unknown');
+      await client!.close(2000);
+    });
+
+    it('无 active span 时通过宿主请求 API 上报独立 HTTP span', async () => {
+      const client = init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        platform,
+        tracesSampleRate: 1,
+        tracePropagationTargets: ['api.example.com'],
+        enableOfflineCache: false,
+        enableAutoSessionTracking: false,
+        enableMinigameLifecycle: false,
+        enableMinigameFrameRate: false,
+      });
+
+      const requestTask = host[requestMethod]({
+        url: `https://api.example.com/${platform}/users?token=secret`,
+        method: 'POST',
+        header: { 'X-Business': 'preserved' },
+      });
+      expect(requestTask).toEqual(expect.objectContaining({ abort: expect.any(Function) }));
+      await client!.flush(2000);
+
+      const spans = collectEnvelopePayloads<SpanJSON>(capturedRequests, 'span');
+      expect(spans).toEqual([
+        expect.objectContaining({
+          description: `POST https://api.example.com/${platform}/users`,
+          op: 'http.client',
+          origin: 'auto.http.miniapp',
+          is_segment: true,
+          segment_id: expect.any(String),
+          status: 'ok',
+          data: expect.objectContaining({
+            'http.request.method': 'POST',
+            'http.response.status_code': 200,
+            'url.full': `https://api.example.com/${platform}/users?token=secret`,
+            'server.address': 'api.example.com',
+          }),
+        }),
+      ]);
+
+      const forwardedRequest = originalRequest.mock.calls.find(
+        ([options]) => options.url === `https://api.example.com/${platform}/users?token=secret`,
+      )?.[0];
+      expect(forwardedRequest?.header).toEqual(
+        expect.objectContaining({
+          'X-Business': 'preserved',
+          'sentry-trace': expect.any(String),
+          baggage: expect.stringContaining('sentry-'),
+        }),
+      );
+
       await client!.close(2000);
     });
   },
