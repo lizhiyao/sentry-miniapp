@@ -131,4 +131,115 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       }),
     ]);
   });
+
+  it('采样率为 0 时请求正常执行但不发送 span', async () => {
+    const beforeSendSpan = vi.fn((span: SpanJSON) => span);
+
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 0,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      beforeSendSpan,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/health' });
+    await flush(2000);
+
+    expect(requestMock).toHaveBeenCalledOnce();
+    expect(collectEnvelopePayloads(captured, ['span', 'transaction'])).toEqual([]);
+    expect(beforeSendSpan).not.toHaveBeenCalled();
+  });
+
+  it('关闭独立 HTTP span 后，无 active span 的请求不发送 span envelope', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableStandaloneHttpSpans: false,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/health' });
+    await flush(2000);
+
+    expect(requestMock).toHaveBeenCalledOnce();
+    expect(collectEnvelopePayloads(captured, ['span', 'transaction'])).toEqual([]);
+  });
+
+  it('请求失败时把错误原因写入独立 span，并标记为失败', async () => {
+    requestMock.mockImplementationOnce((options) => {
+      const error = { errMsg: 'request:fail timeout' };
+      options.fail?.(error);
+      options.complete?.(error);
+      return { abort: vi.fn() };
+    });
+
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/timeout' });
+    await flush(2000);
+
+    const spans = collectEnvelopePayloads<SpanJSON>(captured, ['span']);
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toEqual(
+      expect.objectContaining({
+        op: 'http.client',
+        is_segment: true,
+        data: expect.objectContaining({
+          'error.message': 'request:fail timeout',
+        }),
+      }),
+    );
+    expect(spans[0]?.status).toBe('request:fail timeout');
+  });
+
+  it('HTTP 5xx 响应保留状态码，并把独立 span 标记为失败', async () => {
+    requestMock.mockImplementationOnce((options) => {
+      const response = { statusCode: 503, data: { ok: false }, header: {} };
+      options.success?.(response);
+      options.complete?.(response);
+      return { abort: vi.fn() };
+    });
+
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/unavailable' });
+    await flush(2000);
+
+    const spans = collectEnvelopePayloads<SpanJSON>(captured, ['span']);
+    expect(spans).toHaveLength(1);
+    expect(spans[0]?.data).toEqual(
+      expect.objectContaining({
+        'http.response.status_code': 503,
+      }),
+    );
+    expect(spans[0]?.status).toBe('unavailable');
+  });
 });

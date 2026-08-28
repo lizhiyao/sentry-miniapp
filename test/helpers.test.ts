@@ -462,6 +462,67 @@ describe('Helpers', () => {
   });
 
   describe('getErrorDetails', () => {
+    it('should parse a string-form mini program error', () => {
+      const stack = [
+        'MiniProgramError',
+        'Cannot read properties of undefined',
+        'at onLoad (pages/index/index.js:10:5)',
+      ].join('\n');
+
+      expect(getErrorDetails(stack)).toEqual({
+        message: 'Cannot read properties of undefined',
+        stack,
+      });
+    });
+
+    it('should use an embedded host stack when the stack property is empty', () => {
+      const embeddedStack = [
+        'TypeError: player is undefined',
+        'at update (game.js:20:3)',
+      ].join('\n');
+
+      expect(getErrorDetails({ message: embeddedStack, stack: '' })).toEqual({
+        message: 'player is undefined',
+        stack: embeddedStack,
+        type: 'TypeError',
+      });
+    });
+
+    it.each([null, undefined, false, 0])(
+      'should ignore non-error primitive value %j',
+      value => {
+        expect(getErrorDetails(value)).toBeUndefined();
+      },
+    );
+
+    it('should contain host objects whose error properties throw', () => {
+      const value = new Proxy(
+        {},
+        {
+          get() {
+            throw new Error('host error is no longer readable');
+          },
+        },
+      );
+
+      expect(getErrorDetails(value)).toBeUndefined();
+    });
+
+    it('should preserve a standard Error-compatible object type', () => {
+      expect(getErrorDetails({ message: 'out of range', stack: '', name: 'RangeError' })).toEqual({
+        message: 'out of range',
+        stack: '',
+        type: 'RangeError',
+      });
+    });
+
+    it('should not treat an ordinary object constructor as an error type', () => {
+      expect(getErrorDetails({ message: 'host error', stack: '', name: '' })).toEqual({
+        message: 'host error',
+        stack: '',
+      });
+    });
+
     it('should tolerate a throwing name getter and still use the constructor type', () => {
       const value = {
         message: 'host error',
