@@ -85,6 +85,8 @@ sentry-miniapp/
 
 测试必须执行 `src/` 或仓库脚本中的生产逻辑；不要只调用测试文件里临时创建的 mock、示例重试函数或常量再断言自身行为。时间相关逻辑优先使用 Vitest fake timers，避免真实等待拖慢 CI。
 
+Taro / uni-app 示例依赖较重，不加入每个 PR 的必跑任务。`.github/workflows/framework-examples.yml` 会在相关示例或 workflow 发生变化的 PR、每周定时任务及手动触发时构建当前 SDK tarball，覆盖示例声明的发布版依赖后执行真实微信小程序构建，用于发现框架工具链和 SDK 入口的兼容性漂移。
+
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 
 ```bash

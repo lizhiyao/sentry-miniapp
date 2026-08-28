@@ -64,7 +64,7 @@ Taro 真机错误栈是微信合并后的 `appservice.app.js`，**分页 Source 
 
 ## 用本地源码而非已发布版
 
-示例默认依赖已发布的 `sentry-miniapp`（`package.json` 中 `"sentry-miniapp": "^1.11.0"`）。
+示例默认按 `package.json` 的 semver 范围安装已发布的 `sentry-miniapp`。
 若想验证仓库当前源码，先在仓库根执行 `yarn build`，再把本目录依赖改为：
 
 ```jsonc
@@ -75,4 +75,4 @@ Taro 真机错误栈是微信合并后的 `appservice.app.js`，**分页 Source 
 
 ## 说明
 
-本示例工程作为参考工程独立维护，不接入仓库 CI；`node_modules/`、`dist/`、锁文件等已在 `.gitignore` 中忽略，`fresh npm install` 即可运行。
+本示例不加入每个 PR 的必跑 CI，避免重复下载完整 Taro 工具链；仓库的 `Framework Examples` workflow 会在相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install 和真实构建。`node_modules/`、`dist/`、锁文件等已在 `.gitignore` 中忽略。
