@@ -110,6 +110,30 @@ describe('CrossPlatform', () => {
       expect(detectPlatform()).toEqual({ sdk: mockTt, name: 'bytedance' });
     });
 
+    it('wx / tt 共存时根据微信 AppID 保持使用 wx 宿主', async () => {
+      const mockWx = {
+        request: vi.fn(),
+        getAccountInfoSync: vi.fn(() => ({ miniProgram: { appId: 'wx1234567890' } })),
+      };
+      (global as any).wx = mockWx;
+      (global as any).tt = { request: vi.fn(), getSystemInfoSync: vi.fn(() => ({})) };
+
+      const { detectPlatform } = await import('../src/crossPlatform');
+      expect(detectPlatform()).toEqual({ sdk: mockWx, name: 'wechat' });
+    });
+
+    it('wx / tt 共存但 AppID 无法识别时保留历史 first-match', async () => {
+      const mockWx = { request: vi.fn() };
+      (global as any).wx = mockWx;
+      (global as any).tt = {
+        request: vi.fn(),
+        getAccountInfoSync: vi.fn(() => ({ miniProgram: { appId: 'unknown-app-id' } })),
+      };
+
+      const { detectPlatform } = await import('../src/crossPlatform');
+      expect(detectPlatform()).toEqual({ sdk: mockWx, name: 'wechat' });
+    });
+
     it.each([
       ['getEnvInfoSync', () => ({ microapp: { appId: 'tt1234567890' } })],
       ['getAccountInfoSync', () => ({ miniProgram: { appId: 'tt1234567890' } })],
