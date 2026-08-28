@@ -69,8 +69,8 @@ This is critical: when modifying functionality, **always consider the impact on 
   only assert calls to mocks or helper logic defined inside the test itself.
 - Reuse `test/support/` for real `@sentry/core` transports and envelope assertions. Prefer fake
   timers over real delays for time-dependent behavior.
-- Coverage must stay above the enforced global thresholds: 99% statements/lines,
-  95.25% branches, and 99.3% functions. New changes should improve coverage without
+- Coverage must stay above the enforced global thresholds: 99.2% statements/lines,
+  95.75% branches, and 99.3% functions. New changes should improve coverage without
   excluding production code from measurement.
 
 ## License
