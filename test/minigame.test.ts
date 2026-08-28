@@ -216,7 +216,7 @@ describe('MinigameIntegration', () => {
   it('onShow 缺少参数时仍记录安全的生命周期面包屑', () => {
     new MinigameIntegration().setupOnce();
 
-    expect(() => showCb!()).not.toThrow();
+    expect(() => (showCb as (() => void) | null)?.()).not.toThrow();
     expect(mockAddBreadcrumb).toHaveBeenLastCalledWith(
       expect.objectContaining({
         category: 'minigame.lifecycle',

@@ -13,10 +13,18 @@ import { init } from '../src/index';
 
 type PlatformGlobal = 'wx' | 'my' | 'tt' | 'dd' | 'qq' | 'swan' | 'ks';
 type RequestMethod = 'request' | 'httpRequest';
+type MiniappPlatform =
+  | 'wechat'
+  | 'alipay'
+  | 'bytedance'
+  | 'dingtalk'
+  | 'qq'
+  | 'swan'
+  | 'kuaishou';
 
 interface PlatformContract {
   globalName: PlatformGlobal;
-  platform: string;
+  platform: MiniappPlatform;
   requestMethod: RequestMethod;
   objectStorage: boolean;
 }

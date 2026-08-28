@@ -10,7 +10,11 @@ import {
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init, wrap as sdkWrap } from '../src/index';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import {
+  assertDefined,
+  collectEnvelopePayloads,
+  createCapturingTransport,
+} from './support/envelopes';
 
 describe('TryCatch（真 @sentry/core 集成）', () => {
   const g = global as any;
@@ -79,12 +83,13 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     const errEvent = events.find((e) =>
       e.exception?.values?.some((v: any) => v.value?.includes('timer boom')),
     );
-    expect(errEvent).toBeDefined();
+    assertDefined(errEvent);
 
     // wrap() 通过 scope event processor 给事件打上 instrument mechanism，并塞入 extra.arguments。
     // mechanism 必须落在标准位置 exception.values[].mechanism（Sentry 后端读这里），
     // 而非容器级 exception.mechanism——后者后端读不到，等于没标记。
-    const val = errEvent.exception.values.find((v: any) => v.value?.includes('timer boom'));
+    const val = errEvent.exception?.values?.find((v: any) => v.value?.includes('timer boom'));
+    assertDefined(val);
     expect(val.mechanism?.type).toBe('instrument');
     expect(val.mechanism?.handled).toBe(false);
     expect((errEvent.exception as any).mechanism).toBeUndefined(); // 不再误挂容器级
@@ -144,8 +149,11 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       event.exception?.values?.some((value: any) => value.value === message),
     );
     expect(events).toHaveLength(1);
-    expect(events[0].exception.values[0].type).toBe('TypeError');
-    expect(events[0].exception.values[0].mechanism).toMatchObject({
+    const event = events[0];
+    const value = event?.exception?.values?.[0];
+    assertDefined(value);
+    expect(value.type).toBe('TypeError');
+    expect(value.mechanism).toMatchObject({
       type: 'instrument',
       handled: false,
     });
@@ -170,7 +178,9 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       event.exception?.values?.some((value: any) => value.value === 'public wrap boom'),
     );
     expect(events).toHaveLength(1);
-    expect(events[0].exception.values[0].mechanism).toMatchObject({
+    const value = events[0]?.exception?.values?.[0];
+    assertDefined(value);
+    expect(value.mechanism).toMatchObject({
       type: 'instrument',
       handled: false,
       data: { function: 'wrap' },
@@ -208,13 +218,14 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     const errEvent = events.find((e) =>
       e.exception?.values?.some((v: any) => v.value?.includes('outer timer boom')),
     );
-    expect(errEvent).toBeDefined();
+    assertDefined(errEvent);
 
-    const values = errEvent.exception.values;
+    const values = errEvent.exception?.values;
+    assertDefined(values);
     const root = values.find((v: any) => v.value?.includes('root cause'));
     const outer = values.find((v: any) => v.value?.includes('outer timer boom'));
-    expect(root).toBeDefined();
-    expect(outer).toBeDefined();
+    assertDefined(root);
+    assertDefined(outer);
     expect(outer.mechanism?.type).toBe('generic');
     expect(outer.mechanism?.handled).toBe(true);
     expect(root.mechanism?.type).toBe('instrument');
@@ -251,9 +262,11 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     const ev = collectEnvelopePayloads<Event>(captured, ['event']).find((e) =>
       e.exception?.values?.some((v: any) => v.value?.includes('unrelated later error')),
     );
-    expect(ev).toBeDefined();
+    assertDefined(ev);
+    const value = ev.exception?.values?.[0];
+    assertDefined(value);
     // 不被上一次 wrap 的 mechanism / arguments 污染
-    expect(ev.exception.values[0].mechanism).toEqual({
+    expect(value.mechanism).toEqual({
       handled: true,
       type: 'generic',
     });

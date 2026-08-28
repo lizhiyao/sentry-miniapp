@@ -51,8 +51,10 @@ describe('LinkedErrors fallbacks', () => {
   it('prepends a linked cause chain while preserving root-to-parent order', () => {
     mockGetCurrentScope.mockReturnValue({ getClient: () => ({}) });
     const root = new NativeError('root');
-    const middle = new NativeError('middle', { cause: root });
-    const outer = new NativeError('outer', { cause: middle });
+    const middle = new NativeError('middle') as Error & { cause?: Error };
+    const outer = new NativeError('outer') as Error & { cause?: Error };
+    middle.cause = root;
+    outer.cause = middle;
     const event: Event = {
       exception: { values: [{ type: 'Error', value: 'outer' }] },
     };

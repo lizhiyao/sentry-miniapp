@@ -10,7 +10,11 @@ import {
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init } from '../src/index';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import {
+  assertDefined,
+  collectEnvelopePayloads,
+  createCapturingTransport,
+} from './support/envelopes';
 
 /**
  * 非 wx 平台（支付宝 `my`）的真 @sentry/core 端到端验证。
@@ -72,7 +76,7 @@ describe('支付宝 my 平台（真 @sentry/core 集成）', () => {
     const ev = events.find((e) =>
       e.exception?.values?.some((v: any) => v.value?.includes('alipay boom')),
     );
-    expect(ev).toBeDefined();
+    assertDefined(ev);
     // 平台标记由 appName() 写入，应识别为 alipay（而非默认 wechat / unknown）
     expect(ev.contexts?.miniapp?.platform).toBe('alipay');
     // 设备信息取自 my.getSystemInfoSync

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+type ActiveSpanStub = { spanContext: () => { spanId: string } };
+type TraceDataStub = { 'sentry-trace'?: string; baggage?: string };
+
 const {
   mockSpanSetAttribute,
   mockSpanSetStatus,
@@ -28,10 +31,12 @@ const {
     mockSpanEnd,
     mockSpan,
     mockStartInactiveSpan: vi.fn(() => mockSpan),
-    mockGetActiveSpan: vi.fn(() => ({ spanContext: () => ({ spanId: 'parent' }) })),
+    mockGetActiveSpan: vi.fn<() => ActiveSpanStub | undefined>(() => ({
+      spanContext: () => ({ spanId: 'parent' }),
+    })),
     mockHasSpansEnabled: vi.fn(() => true),
     mockIsSentryRequestUrl: vi.fn(() => false),
-    mockGetTraceData: vi.fn(() => ({
+    mockGetTraceData: vi.fn<() => TraceDataStub>(() => ({
       'sentry-trace': 'trace-id-span-id-1',
       baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
     })),

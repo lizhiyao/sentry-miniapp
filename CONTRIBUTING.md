@@ -39,7 +39,7 @@ git checkout -b fix/my-fix
 3. Ensure all checks pass:
 
 ```bash
-yarn lint && yarn test
+yarn lint && yarn typecheck && yarn test
 ```
 
 4. Commit using [Conventional Commits](https://www.conventionalcommits.org/) format:
@@ -69,6 +69,8 @@ This is critical: when modifying functionality, **always consider the impact on 
   only assert calls to mocks or helper logic defined inside the test itself.
 - Reuse `test/support/` for real `@sentry/core` transports and envelope assertions. Prefer fake
   timers over real delays for time-dependent behavior.
+- `yarn typecheck` checks both production code and tests. Keep mocks compatible with the real
+  function signatures instead of bypassing test type errors with broad casts.
 - Coverage must stay above the enforced global thresholds: 99.2% statements/lines,
   95.75% branches, and 99.3% functions. New changes should improve coverage without
   excluding production code from measurement.

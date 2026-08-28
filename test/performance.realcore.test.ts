@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flush, getClient, type Envelope, type Event } from '@sentry/core';
 import { init } from '../src/index';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import {
+  assertDefined,
+  collectEnvelopePayloads,
+  createCapturingTransport,
+} from './support/envelopes';
 
 /**
  * 用真实 @sentry/core 验证默认性能集成的完整链路，避免工厂多返回一层函数时
@@ -101,7 +105,9 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     const transaction = transactions.find(
       (event) => event.transaction === 'Navigation: appLaunch',
     );
-    expect(transaction).toBeDefined();
+    assertDefined(transaction);
+    assertDefined(transaction.start_timestamp);
+    assertDefined(transaction.timestamp);
     expect(transaction.start_timestamp).toBeGreaterThan(1_000_000_000);
     expect(transaction.timestamp).toBeGreaterThanOrEqual(transaction.start_timestamp);
     expect(transaction.spans).toEqual(

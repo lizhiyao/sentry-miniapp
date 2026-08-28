@@ -32,6 +32,7 @@ yarn install
 | `yarn test:coverage` | 运行单元测试并检查覆盖率门槛 |
 | `yarn test:shuffle` | 随机化用例顺序，排查测试状态污染与顺序依赖 |
 | `yarn lint` | 运行 ESLint 检查 |
+| `yarn typecheck` | 严格检查源码与测试代码的 TypeScript 类型 |
 
 ---
 
@@ -80,6 +81,7 @@ sentry-miniapp/
 
 - **单元测试 (`yarn test`，Vitest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
 - **真实 core 集成测试 (`test/*.realcore.test.ts`)**：不 mock `@sentry/core`，验证事件、transaction、session 最终进入 envelope 的形态。自定义 transport 与 envelope 解析统一复用 `test/support/`。
+- **测试类型检查 (`yarn typecheck`)**：源码使用 `tsconfig.json`，测试使用 `tsconfig.test.json`；测试保留严格函数签名检查，仅放宽动态 fixture 的索引访问规则。
 
 测试必须执行 `src/` 或仓库脚本中的生产逻辑；不要只调用测试文件里临时创建的 mock、示例重试函数或常量再断言自身行为。时间相关逻辑优先使用 Vitest fake timers，避免真实等待拖慢 CI。
 

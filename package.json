@@ -22,7 +22,8 @@
     "docs:preview": "vitepress preview website",
     "sourcemap:doctor": "node scripts/doctor-sourcemap.mjs",
     "lint": "eslint src test scripts --ext .ts,.js,.mjs --max-warnings 0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm run typecheck:test",
+    "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:shuffle": "vitest run --sequence.shuffle",
@@ -96,9 +97,12 @@
     "vite@npm:^5.4.14": "npm:6.4.3"
   },
   "lint-staged": {
-    "{src,test,scripts}/**/*.{ts,js,mjs}": [
+    "{src,scripts}/**/*.{ts,js,mjs}": [
       "eslint --fix",
       "prettier --write"
+    ],
+    "test/**/*.ts": [
+      "eslint --fix"
     ],
     "yarn.lock": [
       "node -e \"const fs = require('fs'); const content = fs.readFileSync('yarn.lock', 'utf8'); if (/registry\\.(?!npmjs\\.org)[a-zA-Z0-9-]+\\.(cn|net|com|org)/i.test(content)) { console.error('Error: yarn.lock contains non-official registry URLs. Please clean it.'); process.exit(1); }\""

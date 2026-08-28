@@ -132,7 +132,13 @@ describe('GlobalHandlers', () => {
   describe('event-level onError deduplication', () => {
     const event = (mechanism: string, type?: string, value?: string): Event => ({
       exception: {
-        values: [{ mechanism: { type: mechanism, handled: false }, type, value }],
+        values: [
+          {
+            mechanism: { type: mechanism, handled: false },
+            ...(type === undefined ? {} : { type }),
+            ...(value === undefined ? {} : { value }),
+          },
+        ],
       },
     });
 

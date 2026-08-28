@@ -10,7 +10,11 @@ import {
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { init } from '../src/index';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import {
+  assertDefined,
+  collectEnvelopePayloads,
+  createCapturingTransport,
+} from './support/envelopes';
 
 describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
   const g = global as any;
@@ -68,7 +72,7 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
         value.value?.includes('bytedance auto detection'),
       ),
     );
-    expect(event).toBeDefined();
+    assertDefined(event);
     expect(event.platform).toBe('javascript');
     expect(event.contexts?.miniapp?.platform).toBe('bytedance');
     expect(event.contexts?.device?.brand).toBe('ByteDance');
@@ -100,7 +104,7 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
         value.value?.includes('bytedance explicit fallback'),
       ),
     );
-    expect(event).toBeDefined();
+    assertDefined(event);
     expect(event.platform).toBe('javascript');
     expect(event.contexts?.miniapp?.platform).toBe('bytedance');
   });
