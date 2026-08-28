@@ -1,0 +1,59 @@
+name: Framework Examples
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/framework-examples.yml'
+      - 'examples/taro/**'
+      - 'examples/uniapp/**'
+  schedule:
+    - cron: '0 3 * * 1'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }} example
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Taro
+            directory: examples/taro
+            script: build:weapp
+          - name: uni-app
+            directory: examples/uniapp
+            script: build:mp-weixin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install SDK dependencies
+        run: yarn install --immutable
+
+      - name: Build and pack current SDK
+        run: |
+          yarn run build
+          yarn pack --out "$RUNNER_TEMP/sentry-miniapp.tgz"
+
+      - name: Install example dependencies with current SDK
+        working-directory: ${{ matrix.directory }}
+        run: npm install --no-save --no-package-lock --no-audit --no-fund "$RUNNER_TEMP/sentry-miniapp.tgz"
+
+      - name: Build example
+        working-directory: ${{ matrix.directory }}
+        run: npm run ${{ matrix.script }}

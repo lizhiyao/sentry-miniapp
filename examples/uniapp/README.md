@@ -39,7 +39,7 @@ npm run build:mp-weixin
 
 ## 用本地源码而非已发布版
 
-示例默认依赖已发布的 `sentry-miniapp`（`package.json` 中 `"sentry-miniapp": "^1.9.0"`）。
+示例默认按 `package.json` 的 semver 范围安装已发布的 `sentry-miniapp`。
 若想验证仓库当前源码，先在仓库根执行 `yarn build`，再把本目录依赖改为：
 
 ```jsonc
@@ -50,4 +50,4 @@ npm run build:mp-weixin
 
 ## 说明
 
-本示例工程不接入仓库的 CI 与 `sync:examples`，作为参考工程独立维护；`node_modules/`、`dist/`、`unpackage/` 已在 `.gitignore` 中忽略。
+本示例不加入每个 PR 的必跑 CI，避免重复下载完整 uni-app 工具链；仓库的 `Framework Examples` workflow 会在相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install 和真实构建。`node_modules/`、`dist/`、`unpackage/` 已在 `.gitignore` 中忽略。
