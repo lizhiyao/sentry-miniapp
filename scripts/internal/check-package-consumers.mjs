@@ -25,6 +25,15 @@ const requiredExports = [
   'setUser',
   'startSpan',
 ];
+const platformContracts = [
+  { globalName: 'wx', platform: 'wechat', requestMethod: 'request', statusKey: 'statusCode' },
+  { globalName: 'my', platform: 'alipay', requestMethod: 'httpRequest', statusKey: 'status' },
+  { globalName: 'tt', platform: 'bytedance', requestMethod: 'request', statusKey: 'statusCode' },
+  { globalName: 'dd', platform: 'dingtalk', requestMethod: 'httpRequest', statusKey: 'statusCode' },
+  { globalName: 'qq', platform: 'qq', requestMethod: 'request', statusKey: 'statusCode' },
+  { globalName: 'swan', platform: 'swan', requestMethod: 'request', statusKey: 'statusCode' },
+  { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', statusKey: 'statusCode' },
+];
 
 async function writeConsumer(file, source) {
   await writeFile(file, source, 'utf8');
@@ -54,6 +63,7 @@ async function unpackPackage(tarball, packageRoot) {
 
 function runtimeProbe(moduleSyntax) {
   const required = JSON.stringify(requiredExports);
+  const platforms = JSON.stringify(platformContracts);
   const load =
     moduleSyntax === 'esm'
       ? "import * as sdk from 'sentry-miniapp';\nimport assert from 'node:assert/strict';"
@@ -76,16 +86,25 @@ for (const name of required) {
   assert.ok(name in sdk, \`Missing public export: \${name}\`);
 }
 
+const platformName = process.argv[2] || 'wechat';
+const contract = ${platforms}.find(candidate => candidate.platform === platformName);
+assert.ok(contract, \`Unknown platform contract: \${platformName}\`);
+
 const envelopes = [];
-globalThis.wx = {
-  request(options) {
+globalThis[contract.globalName] = {
+  [contract.requestMethod](options) {
     const headers = { ...(options.headers || {}), ...(options.header || {}) };
     const contentType = Object.entries(headers).find(
       ([name]) => name.toLowerCase() === 'content-type',
     )?.[1];
     if (contentType === 'application/x-sentry-envelope') envelopes.push(options.data);
 
-    const response = { statusCode: 200, data: { ok: true }, header: {} };
+    const response = {
+      [contract.statusKey]: 200,
+      data: { ok: true },
+      header: {},
+      headers: {},
+    };
     options.success?.(response);
     options.complete?.(response);
     return { abort() {} };
@@ -97,7 +116,6 @@ globalThis.wx = {
 
 sdk.init({
   dsn: 'https://test@o0.ingest.sentry.io/0',
-  platform: 'wechat',
   enableOfflineCache: false,
   enableAutoSessionTracking: false,
   enableMinigameLifecycle: false,
@@ -112,6 +130,7 @@ process.stdout.write(JSON.stringify({
   keys: Object.keys(sdk).sort(),
   version: sdk.SDK_VERSION,
   envelopes: envelopes.length,
+  platform: platformName,
 }));
 ${runEnd}
 `;
@@ -227,13 +246,29 @@ try {
   await writeConsumer(cjsConsumer, runtimeProbe('cjs'));
   await writeConsumer(esmConsumer, runtimeProbe('esm'));
 
-  const cjsExecution = await runNode(cjsConsumer, tempRoot);
-  const esmExecution = await runNode(esmConsumer, tempRoot);
+  const cjsExecution = await runNode(cjsConsumer, tempRoot, {
+    scriptArgs: ['wechat'],
+  });
+  const esmExecutions = await Promise.all(
+    platformContracts.map(({ platform }) =>
+      runNode(esmConsumer, tempRoot, {
+        scriptArgs: [platform],
+      }),
+    ),
+  );
   assert.equal(cjsExecution.stderr, '', `CJS import emitted stderr:\n${cjsExecution.stderr}`);
-  assert.equal(esmExecution.stderr, '', `ESM import emitted stderr:\n${esmExecution.stderr}`);
+  for (const [index, execution] of esmExecutions.entries()) {
+    assert.equal(
+      execution.stderr,
+      '',
+      `ESM ${platformContracts[index].platform} probe emitted stderr:\n${execution.stderr}`,
+    );
+  }
 
   const cjsResult = JSON.parse(cjsExecution.stdout);
-  const esmResult = JSON.parse(esmExecution.stdout);
+  const esmResults = esmExecutions.map(({ stdout }) => JSON.parse(stdout));
+  const esmResult = esmResults.find(({ platform }) => platform === 'wechat');
+  assert.ok(esmResult, 'ESM WeChat probe did not produce a result');
   assert.deepEqual(esmResult.keys, cjsResult.keys, 'ESM and CJS exports differ');
   assert.equal(
     cjsResult.version,
@@ -246,7 +281,14 @@ try {
     'ESM SDK_VERSION differs from package version',
   );
   assert.ok(cjsResult.envelopes > 0, 'CJS runtime probe did not send an envelope');
-  assert.ok(esmResult.envelopes > 0, 'ESM runtime probe did not send an envelope');
+  for (const contract of platformContracts) {
+    const result = esmResults.find(({ platform }) => platform === contract.platform);
+    assert.ok(result, `Missing ESM runtime result for ${contract.platform}`);
+    assert.ok(
+      result.envelopes > 0,
+      `ESM ${contract.platform} probe did not send an envelope through ${contract.globalName}.${contract.requestMethod}`,
+    );
+  }
   const umdKeys = await runUmdProbe(packageRoot, packageJson.version);
   assert.deepEqual(umdKeys, cjsResult.keys, 'UMD and CJS exports differ');
 
@@ -272,7 +314,7 @@ try {
   });
 
   console.log(
-    `Package consumer checks passed for CJS, ESM, UMD and TypeScript (${cjsResult.keys.length} exports).`,
+    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms), UMD and TypeScript (${cjsResult.keys.length} exports).`,
   );
 } finally {
   await rm(tempRoot, { force: true, recursive: true });
