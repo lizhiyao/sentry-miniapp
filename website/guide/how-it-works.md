@@ -49,7 +49,7 @@ sentry-miniapp（init + 默认集成）
 
 ### 网络面包屑与追踪
 
-默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API）。开启性能采样后，活跃 transaction 内的请求会记为 `http.client` 子 span。仅对 `tracePropagationTargets` 明确授权的域名注入 `sentry-trace` / `baggage`；需要 OpenTelemetry / W3C Trace Context 时再开启 `propagateTraceparent`。
+默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API）。开启性能采样后，请求在活跃 span 内记为 `http.client` 子 span，没有父级时记为独立 segment span；该采集不依赖宿主 `PerformanceObserver`。仅对 `tracePropagationTargets` 明确授权的域名注入 `sentry-trace` / `baggage`；需要 OpenTelemetry / W3C Trace Context 时再开启 `propagateTraceparent`。
 
 ### 多次初始化与全局 instrumentation
 

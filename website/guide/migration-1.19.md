@@ -67,8 +67,9 @@ Sentry.init({
 
 ## 性能与错误数据变化
 
-- 普通 API 请求只在已有活跃 transaction 时创建 `http.client` 子 span，不再为每个孤立请求
-  创建根 transaction。需要追踪业务流程时，用 `Sentry.startSpan()` 包裹该流程。
+- 1.19.0 最初只在已有活跃 transaction 时创建 `http.client` 请求子 span，以避免为每个孤立请求
+  创建根 transaction；后续补丁在保留子 span 行为的同时，将无父请求改为独立 segment span。
+  这样小游戏长时间没有页面 transaction 时也不会丢失请求追踪，同时仍不会制造根 transaction。
 - Performance API 条目会转换为 Unix epoch 时间，并丢弃明显过旧、未来或异常的宿主时间值。
 - 定时器和 `requestAnimationFrame` 回调中的异常捕获后仍会重新抛出，因此 mechanism 记为
   `handled: false`。升级后 crash-free 指标或相关告警可能出现一次符合真实语义的变化。

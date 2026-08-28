@@ -54,6 +54,7 @@ vi.mock('@sentry/core', () => {
     isSentryRequestUrl: mockIsSentryRequestUrl,
     getTraceData: mockGetTraceData,
     setHttpStatus: mockSetHttpStatus,
+    SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN: 'sentry.origin',
     SPAN_STATUS_OK: 1,
     SPAN_STATUS_ERROR: 2,
     startInactiveSpan: mockStartInactiveSpan,
@@ -127,7 +128,9 @@ describe('NetworkBreadcrumbs Integration', () => {
         name: 'POST https://api.example.com/users',
         op: 'http.client',
         kind: 2,
+        parentSpan: expect.any(Object),
         attributes: expect.objectContaining({
+          'sentry.origin': 'auto.http.miniapp',
           'http.request.method': 'POST',
           'url.full': 'https://api.example.com/users',
           'server.address': 'api.example.com',
@@ -871,9 +874,36 @@ describe('NetworkBreadcrumbs Integration', () => {
     });
   });
 
-  it('injects scope trace headers without creating a standalone request transaction', () => {
+  it('creates a standalone segment span when no active span exists', () => {
     mockGetActiveSpan.mockReturnValueOnce(undefined);
     const integration = new NetworkBreadcrumbs({
+      tracePropagationTargets: ['api.example.com'],
+    });
+    setupIntegration(integration);
+
+    crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'GET https://api.example.com/users',
+        op: 'http.client',
+        parentSpan: null,
+        experimental: { standalone: true },
+        attributes: expect.objectContaining({
+          'sentry.origin': 'auto.http.miniapp',
+        }),
+      }),
+    );
+    expect(mockGetTraceData).toHaveBeenCalledWith({ span: mockSpan });
+    expect(requestMock.mock.calls[0]![0].header).toEqual(
+      expect.objectContaining({ 'sentry-trace': 'trace-id-span-id-1' }),
+    );
+  });
+
+  it('supports child-only request spans when standalone spans are disabled', () => {
+    mockGetActiveSpan.mockReturnValueOnce(undefined);
+    const integration = new NetworkBreadcrumbs({
+      enableStandaloneHttpSpans: false,
       tracePropagationTargets: ['api.example.com'],
     });
     setupIntegration(integration);
@@ -885,6 +915,18 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(requestMock.mock.calls[0]![0].header).toEqual(
       expect.objectContaining({ 'sentry-trace': 'trace-id-span-id-1' }),
     );
+  });
+
+  it('does not create request spans when tracing is disabled', () => {
+    mockHasSpansEnabled.mockReturnValueOnce(false);
+    const integration = new NetworkBreadcrumbs();
+    setupIntegration(integration);
+
+    crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
+
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    expect(mockGetActiveSpan).not.toHaveBeenCalled();
+    expect(mockSpanEnd).not.toHaveBeenCalled();
   });
 
   it('forwards non-object request options without instrumentation', () => {

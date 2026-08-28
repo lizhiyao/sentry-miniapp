@@ -76,6 +76,9 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   if (options.propagateTraceparent !== undefined) {
     networkOptions['propagateTraceparent'] = options.propagateTraceparent;
   }
+  if (options.enableStandaloneHttpSpans !== undefined) {
+    networkOptions['enableStandaloneHttpSpans'] = options.enableStandaloneHttpSpans;
+  }
   integrations.push(new NetworkBreadcrumbs(networkOptions));
 
   if (options.enableAutoSessionTracking !== false) {

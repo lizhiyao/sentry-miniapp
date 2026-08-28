@@ -112,6 +112,12 @@ export interface MiniappOptions extends CoreOptions<MiniappTransportOptions> {
   /** 是否启用分布式追踪头注入（默认 true）。只控制 sentry-trace/baggage，以及 propagateTraceparent 开启后的 traceparent 传播，不关闭本地 API 请求 span。 */
   enableTracePropagation?: boolean;
 
+  /**
+   * 无 active span 时，是否把 API 请求作为独立 segment span 上报（默认 true）。
+   * 设为 false 后只记录已有 transaction 下的请求子 span；网络面包屑不受影响。
+   */
+  enableStandaloneHttpSpans?: boolean;
+
   /** 是否启用自动 Session 管理（默认 true），为 Sentry Release Health 提供会话数据 */
   enableAutoSessionTracking?: boolean;
 
@@ -163,6 +169,7 @@ export interface MiniappDiagnosticsOptions {
   requireConsent: boolean;
   consentGranted: boolean;
   enableTracePropagation: boolean;
+  enableStandaloneHttpSpans: boolean;
   tracePropagationTargetsCount: number;
   propagateTraceparent: boolean;
   enableAutoSessionTracking: boolean;

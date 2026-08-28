@@ -77,6 +77,7 @@ function buildOptionsDiagnostics(
     requireConsent: options.requireConsent === true,
     consentGranted: isConsentGranted(),
     enableTracePropagation: options.enableTracePropagation !== false,
+    enableStandaloneHttpSpans: options.enableStandaloneHttpSpans !== false,
     tracePropagationTargetsCount: options.tracePropagationTargets?.length ?? 0,
     propagateTraceparent: options.propagateTraceparent === true,
     enableAutoSessionTracking: options.enableAutoSessionTracking !== false,

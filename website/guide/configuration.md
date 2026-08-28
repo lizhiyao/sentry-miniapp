@@ -19,7 +19,7 @@
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `sampleRate` | `number` | `1.0` | 错误事件采样率（0.0–1.0） |
-| `tracesSampleRate` | `number` | 未设 | 性能采样率。API 请求在存在活跃 transaction 时记为 `http.client` 子 span，不为孤立请求制造根 transaction |
+| `tracesSampleRate` | `number` | 未设 | 性能采样率。API 请求有父级时记为子 span，无父级时默认记为独立 segment span |
 | `tracesSampler` | `function` | — | 动态采样回调，按页面 / 场景返回采样率。**设置后 `tracesSampleRate` 被忽略**（优先级更高） |
 
 ```js
@@ -30,7 +30,7 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 },
 ```
 
-> **关于 `http.client` span 名的基数**：API 请求的 span 名形如 `GET https://api.example.com/users/123`。SDK 已自动去掉 query/fragment 与 URL 内的账号密码，但**保留路径**——无法推断 REST 路由模板，强行参数化会误伤合法路径。若路径 id（`/users/123`、`/orders/abc`）导致 tracing 维度过高，可用 `beforeSendTransaction` 统一改写事务与 span 名（把数字 / UUID 段替换为 `:id`）。
+> **关于 `http.client` span 名的基数**：API 请求的 span 名形如 `GET https://api.example.com/users/123`。SDK 已自动去掉 query/fragment 与 URL 内的账号密码，但**保留路径**——无法推断 REST 路由模板，强行参数化会误伤合法路径。若路径 id（`/users/123`、`/orders/abc`）导致 tracing 维度过高，可用 `beforeSendSpan` 统一改写 span 名（把数字 / UUID 段替换为 `:id`）。
 
 ## 面包屑
 
@@ -145,7 +145,8 @@ Sentry.setConsent(false);
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `enableTracePropagation` | `boolean` | `true` | 是否允许向 `tracePropagationTargets` 匹配的请求注入追踪头（`sentry-trace` / `baggage`，以及可选 `traceparent`）。只控制传播，不关闭活跃 transaction 下的请求子 span |
+| `enableTracePropagation` | `boolean` | `true` | 是否允许向 `tracePropagationTargets` 匹配的请求注入追踪头（`sentry-trace` / `baggage`，以及可选 `traceparent`）。只控制传播，不关闭本地请求 span |
+| `enableStandaloneHttpSpans` | `boolean` | `true` | 无活跃 span 时，把 API 请求作为独立 segment span 上报；设为 `false` 后只保留业务流程内的请求子 span，网络面包屑不受影响 |
 | `tracePropagationTargets` | `Array<string｜RegExp>` | `[]`（不注入） | 追踪头域名白名单。小程序没有可靠的 same-origin，未配置时不向任意业务域名注入；仅添加自己控制的 API |
 | `propagateTraceparent` | `boolean` | `false` | 额外注入 W3C `traceparent` 头，用于和 OpenTelemetry / W3C Trace Context 兼容的后端链路串联 |
 
@@ -177,6 +178,7 @@ Sentry.setConsent(false);
 | `ignoreErrors` | `Array<string｜RegExp>` | 空 | 消息/类型匹配的错误直接丢弃 |
 | `beforeSend` | `function` | — | 事件发送前的钩子，可修改或返回 `null` 丢弃 |
 | `beforeSendTransaction` | `function` | — | Transaction 事件发送前的钩子，可修改或返回 `null` 丢弃 |
+| `beforeSendSpan` | `function` | — | Span 发送前的钩子，可修改请求等 span；独立 segment span 也会经过该钩子 |
 | `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |
 | `transportOptions` | `object` | 见下 | 内置上报通道选项：请求头、超时和 Sentry 网络并发上限 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |

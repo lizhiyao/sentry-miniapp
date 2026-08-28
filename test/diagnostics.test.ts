@@ -21,6 +21,7 @@ describe('getDiagnostics', () => {
       environment: 'production',
       enableLogs: true,
       tracesSampleRate: 0.5,
+      enableStandaloneHttpSpans: false,
       propagateTraceparent: true,
       tracePropagationTargets: [/api/],
     });
@@ -44,6 +45,7 @@ describe('getDiagnostics', () => {
       environment: 'production',
       enableLogs: true,
       tracesSampleRate: 0.5,
+      enableStandaloneHttpSpans: false,
       propagateTraceparent: true,
       tracePropagationTargetsCount: 1,
       defaultIntegrations: 'enabled',
