@@ -8,8 +8,5 @@ module.exports.readVersion = function (contents) {
 };
 
 module.exports.writeVersion = function (contents, version) {
-  return contents.replace(
-    /SDK_VERSION\s*=\s*'[^']+'/,
-    `SDK_VERSION = '${version}'`,
-  );
+  return contents.replace(/SDK_VERSION\s*=\s*'[^']+'/, `SDK_VERSION = '${version}'`);
 };

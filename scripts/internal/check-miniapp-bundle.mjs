@@ -22,7 +22,7 @@ assert.equal(sourceMap.version, 3, 'source map must use version 3');
 assert.ok(sourceMap.sources?.length > 0, 'source map must contain sources');
 assert.ok(
   code.includes(`sourceMappingURL=${basename(sourceMapPath)}`),
-  'bundle must reference its adjacent source map'
+  'bundle must reference its adjacent source map',
 );
 
 const tempDirectory = await mkdtemp(join(tmpdir(), 'sentry-miniapp-bundle-'));
