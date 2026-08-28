@@ -66,8 +66,14 @@ function runtimeProbe(moduleSyntax) {
   const platforms = JSON.stringify(platformContracts);
   const load =
     moduleSyntax === 'esm'
-      ? "import * as sdk from 'sentry-miniapp';\nimport assert from 'node:assert/strict';"
-      : "const sdk = require('sentry-miniapp');\nconst assert = require('node:assert/strict');";
+      ? `import assert from 'node:assert/strict';
+const nativeURLSearchParams = globalThis.URLSearchParams;
+assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
+const sdk = await import('sentry-miniapp');`
+      : `const assert = require('node:assert/strict');
+const nativeURLSearchParams = globalThis.URLSearchParams;
+assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
+const sdk = require('sentry-miniapp');`;
 
   const runStart = moduleSyntax === 'esm' ? '' : 'async function main() {';
   const runEnd =
@@ -85,6 +91,16 @@ const required = ${required};
 for (const name of required) {
   assert.ok(name in sdk, \`Missing public export: \${name}\`);
 }
+assert.equal(
+  typeof globalThis.URLSearchParams,
+  'function',
+  'Package entrypoint did not install the URLSearchParams polyfill',
+);
+assert.notEqual(
+  globalThis.URLSearchParams,
+  nativeURLSearchParams,
+  'Package runtime probe unexpectedly kept the native URLSearchParams',
+);
 
 const platformName = process.argv[2] || 'wechat';
 const contract = ${platforms}.find(candidate => candidate.platform === platformName);
@@ -142,10 +158,6 @@ async function runUmdProbe(packageRoot, expectedVersion) {
     clearTimeout,
     console,
     setTimeout,
-    TextDecoder,
-    TextEncoder,
-    URL,
-    URLSearchParams,
     wx: {
       request(options) {
         const headers = { ...(options.headers || {}), ...(options.header || {}) };
@@ -170,6 +182,22 @@ async function runUmdProbe(packageRoot, expectedVersion) {
 
   const sdk = sandbox.SentryMiniapp;
   assert.ok(sdk, 'UMD bundle did not expose globalThis.SentryMiniapp');
+  assert.equal(
+    typeof sandbox.URLSearchParams,
+    'function',
+    'UMD bundle did not install the URLSearchParams polyfill',
+  );
+  assert.equal(sandbox.URL, undefined, 'UMD runtime probe unexpectedly received URL');
+  assert.equal(
+    sandbox.TextEncoder,
+    undefined,
+    'UMD runtime probe unexpectedly received TextEncoder',
+  );
+  assert.equal(
+    sandbox.TextDecoder,
+    undefined,
+    'UMD runtime probe unexpectedly received TextDecoder',
+  );
   for (const name of requiredExports) {
     assert.ok(name in sdk, `UMD bundle is missing public export: ${name}`);
   }
