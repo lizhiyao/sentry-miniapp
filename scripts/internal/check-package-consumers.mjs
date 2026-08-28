@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { runInNewContext } from 'node:vm';
 import { pack, unpack } from '@publint/pack';
 
 const execFileAsync = promisify(execFile);
@@ -58,16 +59,117 @@ function runtimeProbe(moduleSyntax) {
       ? "import * as sdk from 'sentry-miniapp';\nimport assert from 'node:assert/strict';"
       : "const sdk = require('sentry-miniapp');\nconst assert = require('node:assert/strict');";
 
+  const runStart = moduleSyntax === 'esm' ? '' : 'async function main() {';
+  const runEnd =
+    moduleSyntax === 'esm'
+      ? ''
+      : `}
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});`;
+
   return `${load}
+${runStart}
 const required = ${required};
 for (const name of required) {
   assert.ok(name in sdk, \`Missing public export: \${name}\`);
 }
+
+const envelopes = [];
+globalThis.wx = {
+  request(options) {
+    const headers = { ...(options.headers || {}), ...(options.header || {}) };
+    const contentType = Object.entries(headers).find(
+      ([name]) => name.toLowerCase() === 'content-type',
+    )?.[1];
+    if (contentType === 'application/x-sentry-envelope') envelopes.push(options.data);
+
+    const response = { statusCode: 200, data: { ok: true }, header: {} };
+    options.success?.(response);
+    options.complete?.(response);
+    return { abort() {} };
+  },
+  getSystemInfoSync() {
+    return { platform: 'devtools', brand: 'package-smoke' };
+  },
+};
+
+sdk.init({
+  dsn: 'https://test@o0.ingest.sentry.io/0',
+  platform: 'wechat',
+  enableOfflineCache: false,
+  enableAutoSessionTracking: false,
+  enableMinigameLifecycle: false,
+  enableMinigameFrameRate: false,
+});
+sdk.captureMessage('package consumer runtime smoke');
+assert.equal(await sdk.flush(2000), true, 'SDK flush failed');
+assert.ok(envelopes.length > 0, 'SDK did not send an envelope through the mini program host');
+await sdk.close(0);
+
 process.stdout.write(JSON.stringify({
   keys: Object.keys(sdk).sort(),
   version: sdk.SDK_VERSION,
+  envelopes: envelopes.length,
 }));
+${runEnd}
 `;
+}
+
+async function runUmdProbe(packageRoot, expectedVersion) {
+  const envelopes = [];
+  const sandbox = {
+    clearTimeout,
+    console,
+    setTimeout,
+    TextDecoder,
+    TextEncoder,
+    URL,
+    URLSearchParams,
+    wx: {
+      request(options) {
+        const headers = { ...(options.headers || {}), ...(options.header || {}) };
+        const contentType = Object.entries(headers).find(
+          ([name]) => name.toLowerCase() === 'content-type',
+        )?.[1];
+        if (contentType === 'application/x-sentry-envelope') envelopes.push(options.data);
+
+        const response = { statusCode: 200, data: { ok: true }, header: {} };
+        options.success?.(response);
+        options.complete?.(response);
+        return { abort() {} };
+      },
+      getSystemInfoSync() {
+        return { platform: 'devtools', brand: 'package-smoke' };
+      },
+    },
+  };
+  const umdPath = join(packageRoot, 'dist/sentry-miniapp.umd.js');
+  const code = await readFile(umdPath, 'utf8');
+  runInNewContext(code, sandbox, { filename: umdPath });
+
+  const sdk = sandbox.SentryMiniapp;
+  assert.ok(sdk, 'UMD bundle did not expose globalThis.SentryMiniapp');
+  for (const name of requiredExports) {
+    assert.ok(name in sdk, `UMD bundle is missing public export: ${name}`);
+  }
+  assert.equal(sdk.SDK_VERSION, expectedVersion, 'UMD SDK_VERSION differs from package version');
+
+  sdk.init({
+    dsn: 'https://test@o0.ingest.sentry.io/0',
+    platform: 'wechat',
+    enableOfflineCache: false,
+    enableAutoSessionTracking: false,
+    enableMinigameLifecycle: false,
+    enableMinigameFrameRate: false,
+  });
+  sdk.captureMessage('UMD package consumer runtime smoke');
+  assert.equal(await sdk.flush(2000), true, 'UMD SDK flush failed');
+  assert.ok(envelopes.length > 0, 'UMD SDK did not send an envelope through the host');
+  await sdk.close(0);
+
+  return Object.keys(sdk).sort();
 }
 
 const typeProbe = `
@@ -143,6 +245,10 @@ try {
     packageJson.version,
     'ESM SDK_VERSION differs from package version',
   );
+  assert.ok(cjsResult.envelopes > 0, 'CJS runtime probe did not send an envelope');
+  assert.ok(esmResult.envelopes > 0, 'ESM runtime probe did not send an envelope');
+  const umdKeys = await runUmdProbe(packageRoot, packageJson.version);
+  assert.deepEqual(umdKeys, cjsResult.keys, 'UMD and CJS exports differ');
 
   await writeConsumer(join(tempRoot, 'consumer.mts'), typeProbe);
   await writeConsumer(join(tempRoot, 'consumer.cts'), typeProbe);
@@ -166,7 +272,7 @@ try {
   });
 
   console.log(
-    `Package consumer checks passed for CJS, ESM and TypeScript (${cjsResult.keys.length} exports).`,
+    `Package consumer checks passed for CJS, ESM, UMD and TypeScript (${cjsResult.keys.length} exports).`,
   );
 } finally {
   await rm(tempRoot, { force: true, recursive: true });
