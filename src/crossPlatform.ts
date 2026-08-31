@@ -60,6 +60,9 @@ export type AppName =
   | 'kuaishou'
   | 'unknown';
 
+/** 可显式配置的小程序宿主平台。`unknown` 仅供自动检测结果使用。 */
+export type MiniappPlatform = Exclude<AppName, 'unknown'>;
+
 /**
  * 系统信息接口
  */
@@ -148,7 +151,7 @@ const isBrowserRuntime = (): boolean => {
  * isMiniappEnvironment() 均基于此。数组顺序只作为宿主信号无法消除多对象歧义时的兼容回退，
  * 新增平台只需改这一处。
  */
-const PLATFORMS: ReadonlyArray<{ global: string; name: AppName }> = [
+const PLATFORMS: ReadonlyArray<{ global: string; name: MiniappPlatform }> = [
   { global: 'wx', name: 'wechat' },
   { global: 'my', name: 'alipay' },
   { global: 'tt', name: 'bytedance' },
@@ -472,7 +475,7 @@ const isMiniappEnvironment = (): boolean => {
 
 // 懒加载 SDK 和 appName，避免在模块导入时就执行平台检测
 export let _sdk: SDK | null = null;
-let _appName: string | null = null;
+let _appName: AppName | null = null;
 
 export const sdk = (): SDK => {
   if (_sdk === null) {
@@ -481,11 +484,38 @@ export const sdk = (): SDK => {
   return _sdk;
 };
 
-export const appName = (): string => {
+export const appName = (): AppName => {
   if (_appName === null) {
     _appName = getAppName();
   }
   return _appName;
+};
+
+const MINIAPP_PLATFORMS = new Set<MiniappPlatform>(PLATFORMS.map((platform) => platform.name));
+
+/**
+ * 解析事件使用的小程序宿主标记。`miniappPlatform` 是公开主选项，旧 `platform`
+ * 仅作兼容别名；非法 JavaScript 入参不会污染 Sentry 顶层平台语义。
+ */
+export const resolveMiniappPlatform = (options: {
+  miniappPlatform?: unknown;
+  platform?: unknown;
+}): AppName => {
+  const optionName = options.miniappPlatform !== undefined ? 'miniappPlatform' : 'platform';
+  const configured = options[optionName];
+
+  if (configured === undefined) {
+    return appName();
+  }
+  if (typeof configured === 'string' && MINIAPP_PLATFORMS.has(configured as MiniappPlatform)) {
+    return configured as MiniappPlatform;
+  }
+
+  console.warn(
+    `[sentry-miniapp] 忽略无效的 ${optionName}=${String(configured)}；` +
+      '请使用 wechat、alipay、bytedance、qq、swan、dingtalk 或 kuaishou，SDK 将改用自动识别结果。',
+  );
+  return appName();
 };
 
 // 小游戏环境检测缓存

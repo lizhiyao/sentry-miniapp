@@ -12,7 +12,8 @@
 | `release` | `string` | — | 版本号；**Source Map 解析的关键**，需与上传时的 release 完全一致 |
 | `environment` | `string` | — | 环境标识，如 `production` / `staging` |
 | `debug` | `boolean` | `false` | 开启 SDK 调试日志 |
-| `platform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 小程序宿主标记，写入 `contexts.miniapp.platform`。事件顶层 `platform` 固定为 Sentry 标准值 `javascript`，以保持 JavaScript 堆栈解析与聚合语义。SDK 会结合平台对象、宿主名称、数据路径和 AppID 消除歧义；仅在信息缺失或冲突时手动指定。该选项不切换底层运行时 API。百度小程序使用 `swan` |
+| `miniappPlatform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 小程序宿主标记，写入 `contexts.miniapp.platform`。事件顶层 `platform` 固定为 Sentry 标准值 `javascript`。SDK 会结合平台对象、宿主名称、数据路径和 AppID 消除歧义；仅在信息缺失或冲突时手动指定。该选项不切换底层运行时 API。百度小程序使用 `swan` |
+| `platform` | 同 `miniappPlatform` | — | 已弃用的兼容别名，请改用 `miniappPlatform`；两者同时传入时后者优先 |
 
 ## 采样
 

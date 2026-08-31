@@ -1,6 +1,8 @@
 import type { Options as CoreOptions } from '@sentry/core';
 import type { MiniappTransportOptions } from './transports';
-import type { AppName } from './crossPlatform';
+import type { AppName, MiniappPlatform } from './crossPlatform';
+
+export type { MiniappPlatform } from './crossPlatform';
 
 /**
  * 分级卡顿阈值（毫秒）。各档全 optional，可只启用其中一两档（如只给 major + severe）。
@@ -51,7 +53,13 @@ export interface MiniappOptions extends CoreOptions<MiniappTransportOptions> {
    * 默认按宿主全局对象及平台专属宿主信息自动识别；无法消除多对象歧义时可显式指定。
    * 此选项不切换底层运行时 API。百度小程序使用 `swan`，没有单独的 `baidu`。
    */
-  platform?: 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou';
+  miniappPlatform?: MiniappPlatform;
+
+  /**
+   * @deprecated 请改用 `miniappPlatform`。此兼容别名将在未来主版本移除；两者同时传入时
+   * `miniappPlatform` 优先。
+   */
+  platform?: MiniappPlatform;
 
   /** Whether to enable system info collection */
   enableSystemInfo?: boolean;

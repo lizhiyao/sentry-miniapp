@@ -300,13 +300,16 @@ import {
   logger,
   miniappStackParser,
   type MiniappOptions,
+  type MiniappPlatform,
   type PerformanceIntegrationOptions,
 } from 'sentry-miniapp';
 
 declare const options: MiniappOptions;
+const miniappPlatform: MiniappPlatform = 'wechat';
 const performanceOptions: PerformanceIntegrationOptions = {};
 
 init(options);
+init({ miniappPlatform });
 captureException(new Error('consumer type probe'));
 logger.info('consumer type probe');
 Integrations.performanceIntegration(performanceOptions);

@@ -48,7 +48,7 @@ ls yarn.lock pnpm-lock.yaml package-lock.json 2>/dev/null
 
 | Question | Impact |
 |----------|--------|
-| Which mini program platform? | Determines `platform` option and API differences |
+| Which mini program platform? | Determines whether `miniappPlatform` is needed and which host APIs are used |
 | Native or cross-platform framework (Taro/uni-app)? | Determines init pattern and build config |
 | Is `sentry-miniapp` already installed? | Skip install if present, check version |
 | Where is the app entry point? | Determines where to place `Sentry.init()` |
@@ -163,14 +163,14 @@ Sentry.init({
 
 ### Step 3: Configure Platform (if needed)
 
-The SDK auto-detects the platform at runtime. When multiple platform globals are present, it uses platform-specific host names, data paths, and App IDs to disambiguate them. Set `platform` only when those runtime signals are unavailable, conflicting, or the detected event label still does not match the release target.
+The SDK auto-detects the platform at runtime. When multiple platform globals are present, it uses platform-specific host names, data paths, and App IDs to disambiguate them. Set `miniappPlatform` only when those runtime signals are unavailable, conflicting, or the detected event label still does not match the release target.
 
 If you need to override the event's miniapp platform label:
 
 ```javascript
 Sentry.init({
   dsn: '...',
-  platform: 'bytedance', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou'
+  miniappPlatform: 'bytedance', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou'
   // Note: Baidu's global object is `swan`, so use 'swan' (there is no 'baidu' value).
 });
 ```

@@ -18,7 +18,8 @@ import type {
   SeverityLevel,
 } from '@sentry/core';
 
-import { appName, getAccountInfo, getSystemInfo } from './crossPlatform';
+import { getAccountInfo, getSystemInfo, resolveMiniappPlatform } from './crossPlatform';
+import type { AppName } from './crossPlatform';
 import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
@@ -29,12 +30,12 @@ import { miniappStackParser } from './stacktrace';
 
 export type MiniappClientOptions = Omit<
   MiniappOptions,
-  'integrations' | 'platform' | 'stackParser' | 'transport'
+  'integrations' | 'miniappPlatform' | 'platform' | 'stackParser' | 'transport'
 > &
   ClientOptions<MiniappTransportOptions> & {
     platform: string;
     /** 小程序宿主标识；与 Sentry 顶层 event.platform 分离。 */
-    miniappPlatform?: string | undefined;
+    miniappPlatform?: AppName | undefined;
   };
 
 const clientsWithCustomTransport = new WeakSet<MiniappClient>();
@@ -92,8 +93,11 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   public constructor(options: MiniappOptions | MiniappClientOptions = {}) {
     const usesCustomTransport = typeof options.transport === 'function';
     const defaultIntegrationsMode = resolveDefaultIntegrationsMode(options.defaultIntegrations);
-    const miniappPlatform =
-      ('miniappPlatform' in options && options.miniappPlatform) || options.platform;
+    const hasConfiguredMiniappPlatform =
+      options.miniappPlatform !== undefined || options.platform !== undefined;
+    const miniappPlatform = hasConfiguredMiniappPlatform
+      ? resolveMiniappPlatform(options)
+      : undefined;
 
     // 配置隐私合规「同意门禁」。必须在 super() 之前——transport 工厂在 super() 执行期间被 core
     // 调用建立，其 shouldSend / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
@@ -260,7 +264,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     contexts['miniapp'] = {
       environment: 'miniapp',
       ...contexts['miniapp'],
-      platform: this.getOptions().miniappPlatform || appName(),
+      platform: this.getOptions().miniappPlatform ?? resolveMiniappPlatform({}),
       sdk_version: SDK_VERSION,
     };
 

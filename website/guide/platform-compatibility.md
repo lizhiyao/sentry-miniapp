@@ -18,7 +18,7 @@ SDK 初始化时按当前运行时的全局对象识别平台，业务代码不�
 | 百度智能小程序 | `swan` | `swan` | `swan.request` |
 | 快手小程序 | `ks` | `kuaishou` | `ks.request` |
 
-识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常无需手动设置 `platform`。
+识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常无需手动设置 `miniappPlatform`。
 
 只有一个平台对象时，SDK 直接使用它。运行时同时存在多个平台对象时，SDK 会进一步读取同步宿主信息，以平台专属信号消除歧义：
 
@@ -31,11 +31,11 @@ SDK 初始化时按当前运行时的全局对象识别平台，业务代码不�
 ```js
 Sentry.init({
   dsn: 'YOUR_DSN',
-  platform: 'bytedance',
+  miniappPlatform: 'bytedance',
 });
 ```
 
-显式配置只覆盖 `contexts.miniapp.platform`，不会切换底层宿主对象。事件顶层 `platform` 始终是 `javascript`，与 Sentry 官方 JavaScript SDK 的堆栈解析和 Source Map 语义保持一致；异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API。
+显式配置只覆盖 `contexts.miniapp.platform`，不会切换底层宿主对象。事件顶层 `platform` 始终是 `javascript`，与 Sentry 官方 JavaScript SDK 的堆栈解析和 Source Map 语义保持一致；异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API。旧 `platform` 选项仍可兼容，但已弃用；两者同时传入时 `miniappPlatform` 优先，非法值会给出警告并回退自动识别。
 
 ## 网络请求差异
 
