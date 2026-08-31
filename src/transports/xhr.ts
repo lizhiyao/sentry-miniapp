@@ -2,6 +2,7 @@ import type { BaseTransportOptions, Transport, TransportMakeRequestResponse } fr
 import { createTransport } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
+import { markSentryRequest } from './requestMarker';
 
 const SENTRY_ENVELOPE_CONTENT_TYPE = 'application/x-sentry-envelope';
 export const DEFAULT_TRANSPORT_REQUEST_TIMEOUT = 3000;
@@ -127,6 +128,8 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
           settle(() => reject(networkError(error)));
         },
       };
+
+      markSentryRequest(requestOptions);
 
       // Use the appropriate request method based on the platform
       try {

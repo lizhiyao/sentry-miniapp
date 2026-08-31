@@ -59,7 +59,9 @@ vi.mock('@sentry/core', () => {
     isSentryRequestUrl: mockIsSentryRequestUrl,
     getTraceData: mockGetTraceData,
     setHttpStatus: mockSetHttpStatus,
+    SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME: 'sentry.exclusive_time',
     SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN: 'sentry.origin',
+    SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME: 'sentry.segment.name',
     SPAN_STATUS_OK: 1,
     SPAN_STATUS_ERROR: 2,
     startInactiveSpan: mockStartInactiveSpan,
@@ -381,6 +383,7 @@ describe('NetworkBreadcrumbs tracing', () => {
 
   it('creates a standalone segment span when no active span exists', () => {
     mockGetActiveSpan.mockReturnValueOnce(undefined);
+    vi.mocked(Date.now).mockReturnValueOnce(1000).mockReturnValueOnce(1125);
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
@@ -396,12 +399,33 @@ describe('NetworkBreadcrumbs tracing', () => {
         experimental: { standalone: true },
         attributes: expect.objectContaining({
           'sentry.origin': 'auto.http.miniapp',
+          'sentry.segment.name': 'GET https://api.example.com/users',
         }),
       }),
     );
+    expect(mockSpanSetAttribute).toHaveBeenCalledWith('sentry.exclusive_time', 125);
     expect(mockGetTraceData).toHaveBeenCalledWith({ span: mockSpan });
     expect(requestMock.mock.calls[0]![0].header).toEqual(
       expect.objectContaining({ 'sentry-trace': 'trace-id-span-id-1' }),
+    );
+  });
+
+  it('does not set standalone-only attributes on child request spans', () => {
+    const integration = new NetworkBreadcrumbs();
+    setupIntegration(integration);
+
+    crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: expect.not.objectContaining({
+          'sentry.segment.name': expect.anything(),
+        }),
+      }),
+    );
+    expect(mockSpanSetAttribute).not.toHaveBeenCalledWith(
+      'sentry.exclusive_time',
+      expect.anything(),
     );
   });
 
