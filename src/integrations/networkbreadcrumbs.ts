@@ -4,7 +4,9 @@ import {
   getClient,
   hasSpansEnabled,
   isSentryRequestUrl,
+  SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME,
   SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN,
+  SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME,
   SPAN_STATUS_OK,
   SPAN_STATUS_ERROR,
   getTraceData,
@@ -17,6 +19,7 @@ import {
   addFunctionInstrumentationHandler,
   ensureFunctionInstrumentation,
 } from '../instrumentation';
+import { isMarkedSentryRequest } from '../transports/requestMarker';
 
 /**
  * Network Breadcrumbs Integration.
@@ -170,6 +173,11 @@ export class NetworkBreadcrumbs implements Integration {
         return originalRequest.call(this, options);
       }
 
+      // 内置 transport 的请求由共享 WeakSet 标记，避免依赖小游戏中可能缺失或残缺的 URL。
+      if (isMarkedSentryRequest(options)) {
+        return originalRequest.call(this, options);
+      }
+
       const url = normalizeUrl(options.url);
 
       const client = getClient();
@@ -226,6 +234,7 @@ export class NetworkBreadcrumbs implements Integration {
         finishSpanOnce({
           statusCode,
           status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
+          durationMs: duration,
         });
 
         if (traceNetworkBody && res.data && !shouldDenyBodyUrl(url)) {
@@ -267,6 +276,7 @@ export class NetworkBreadcrumbs implements Integration {
         finishSpanOnce({
           status: 'error',
           errorMessage,
+          durationMs: duration,
         });
 
         addBreadcrumb({
@@ -287,6 +297,7 @@ export class NetworkBreadcrumbs implements Integration {
         finishSpanOnce({
           statusCode,
           status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
+          durationMs: Date.now() - startTime,
         });
 
         if (typeof originalComplete === 'function') {
@@ -300,6 +311,7 @@ export class NetworkBreadcrumbs implements Integration {
         finishSpanOnce({
           status: 'error',
           errorMessage: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
         });
         throw error;
       }
@@ -372,21 +384,29 @@ type RequestSpanFinishOptions = {
   status: 'ok' | 'error';
   statusCode?: unknown;
   errorMessage?: string;
+  durationMs: number;
+};
+
+type RequestSpan = {
+  span: Span;
+  standalone: boolean;
 };
 
 function startRequestSpan(
   method: string,
   url: string,
   enableStandaloneHttpSpans: boolean,
-): Span | null {
+): RequestSpan | null {
   try {
     if (!hasSpansEnabled()) return null;
     const parentSpan = getActiveSpan();
     if (!parentSpan && !enableStandaloneHttpSpans) return null;
 
     const serverAddress = extractHost(url);
-    return startInactiveSpan({
-      name: `${method} ${sanitizeSpanNameUrl(url)}`,
+    const spanName = `${method} ${sanitizeSpanNameUrl(url)}`;
+    const standalone = !parentSpan;
+    const span = startInactiveSpan({
+      name: spanName,
       op: 'http.client',
       kind: 2,
       parentSpan: parentSpan ?? null,
@@ -395,11 +415,13 @@ function startRequestSpan(
       ...(!parentSpan && { experimental: { standalone: true } }),
       attributes: {
         [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: 'auto.http.miniapp',
+        ...(standalone && { [SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME]: spanName }),
         'http.request.method': method,
         'url.full': url,
         'server.address': serverAddress || undefined,
       },
     });
+    return { span, standalone };
   } catch (_e) {
     return null;
   }
@@ -436,8 +458,13 @@ function stripDataUrlContent(url: string): string {
   return `data:${mimeType}`;
 }
 
-function injectTraceHeaders(options: any, span: Span | null, propagateTraceparent: boolean): void {
+function injectTraceHeaders(
+  options: any,
+  requestSpan: RequestSpan | null,
+  propagateTraceparent: boolean,
+): void {
   try {
+    const span = requestSpan?.span;
     const traceData = getTraceData(
       span
         ? propagateTraceparent
@@ -475,10 +502,14 @@ function injectTraceHeaders(options: any, span: Span | null, propagateTraceparen
   }
 }
 
-function finishRequestSpan(span: Span | null, options: RequestSpanFinishOptions): void {
-  if (!span) return;
+function finishRequestSpan(
+  requestSpan: RequestSpan | null,
+  options: RequestSpanFinishOptions,
+): void {
+  if (!requestSpan) return;
 
   try {
+    const { span, standalone } = requestSpan;
     const statusCode = normalizeStatusCode(options.statusCode);
     if (statusCode !== undefined) {
       setHttpStatus(span, statusCode);
@@ -490,6 +521,9 @@ function finishRequestSpan(span: Span | null, options: RequestSpanFinishOptions)
     }
     if (options.errorMessage) {
       span.setAttribute('error.message', options.errorMessage);
+    }
+    if (standalone) {
+      span.setAttribute(SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME, Math.max(0, options.durationMs));
     }
     span.end();
   } catch (_e) {

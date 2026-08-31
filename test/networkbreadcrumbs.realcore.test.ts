@@ -17,10 +17,12 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
   let captured: Envelope[];
   let requestMock: ReturnType<typeof vi.fn>;
   let savedWx: unknown;
+  let savedURL: unknown;
 
   beforeEach(() => {
     captured = [];
     savedWx = g.wx;
+    savedURL = g.URL;
     delete g.wx;
     resetPlatformCache();
 
@@ -45,6 +47,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     if (client) await client.close(0);
     delete g.tt;
     g.wx = savedWx;
+    g.URL = savedURL;
     resetPlatformCache();
   });
 
@@ -81,10 +84,12 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
         origin: 'auto.http.miniapp',
         is_segment: true,
         segment_id: expect.any(String),
+        exclusive_time: expect.any(Number),
         status: 'ok',
         data: expect.objectContaining({
           'http.request.method': 'POST',
           'http.response.status_code': 201,
+          'sentry.segment.name': 'POST https://api.example.com/v1/login',
           'url.full': 'https://api.example.com/v1/login?token=secret',
           'server.address': 'api.example.com',
         }),
@@ -99,6 +104,37 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
         baggage: expect.stringContaining('sentry-'),
       }),
     );
+  });
+
+  it.each([
+    ['缺失', () => delete g.URL],
+    [
+      '残缺',
+      () => {
+        g.URL = { createObjectURL: vi.fn(), revokeObjectURL: vi.fn() };
+        return true;
+      },
+    ],
+  ])('全局 URL %s时内置 transport 请求不会被重复追踪', async (_name, setURL) => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+    });
+    setURL();
+
+    g.tt.request({ url: 'https://api.example.com/v1/login', method: 'POST' });
+    await flush(2000);
+
+    const requestedUrls = requestMock.mock.calls.map(([options]) => options.url);
+    expect(requestedUrls).toEqual([
+      'https://api.example.com/v1/login',
+      expect.stringMatching(/^https:\/\/o0\.ingest\.sentry\.io\/api\/0\/envelope\//),
+    ]);
   });
 
   it('有 active span 时仍把请求记录为现有 transaction 的子 span', async () => {
