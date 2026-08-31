@@ -30,7 +30,6 @@ Sentry.init({
   debug: false,
 
   // 小程序特有配置
-  platform: 'wechat',
   enableSystemInfo: true,
   enableUserInteractionBreadcrumbs: true,
   enableConsoleBreadcrumbs: true,

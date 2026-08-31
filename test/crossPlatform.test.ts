@@ -698,6 +698,23 @@ describe('CrossPlatform', () => {
       expect(result1).toBe('wechat');
       expect(result2).toBe('wechat'); // Should return cached value
     });
+
+    it('无效 miniappPlatform 会警告并回退自动识别，不使用旧别名', async () => {
+      (global as any).wx = { request: vi.fn() };
+      const { resolveMiniappPlatform } = await import('../src/crossPlatform');
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        expect(
+          resolveMiniappPlatform({ miniappPlatform: 'javascript', platform: 'qq' }),
+        ).toBe('wechat');
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('无效的 miniappPlatform=javascript'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 
   describe('Storage API wrapping for Alipay/DingTalk', () => {

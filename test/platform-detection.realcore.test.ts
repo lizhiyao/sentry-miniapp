@@ -78,7 +78,7 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
     expect(event.contexts?.device?.brand).toBe('ByteDance');
   });
 
-  it('宿主信号不足时允许 platform=bytedance 覆盖小程序宿主标记', async () => {
+  it('宿主信号不足时允许 miniappPlatform=bytedance 覆盖小程序宿主标记', async () => {
     tt.getSystemInfoSync.mockReturnValue({
       brand: 'Unknown Adapter',
       model: 'Unknown Device',
@@ -88,7 +88,7 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
     const wxOnError = g.wx.onError;
     const client = init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
-      platform: 'bytedance',
+      miniappPlatform: 'bytedance',
       enableAutoSessionTracking: false,
       transport: createCapturingTransport(captured),
     });
@@ -107,5 +107,63 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
     assertDefined(event);
     expect(event.platform).toBe('javascript');
     expect(event.contexts?.miniapp?.platform).toBe('bytedance');
+  });
+
+  it('兼容旧 platform 别名，但事件顶层 platform 始终是 javascript', async () => {
+    const client = init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      enableAutoSessionTracking: false,
+      transport: createCapturingTransport(captured),
+    });
+    expect(client).toBeDefined();
+
+    captureException(new Error('legacy platform alias'));
+    await flush(2000);
+
+    const event = collectEnvelopePayloads<Event>(captured, ['event']).find((item) =>
+      item.exception?.values?.some((value: any) => value.value?.includes('legacy platform alias')),
+    );
+    assertDefined(event);
+    expect(event.platform).toBe('javascript');
+    expect(event.contexts?.miniapp?.platform).toBe('bytedance');
+  });
+
+  it('JavaScript 传入无效 platform 时警告并回退自动识别', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'javascript',
+      enableAutoSessionTracking: false,
+      transport: createCapturingTransport(captured),
+    } as any);
+    expect(client).toBeDefined();
+
+    captureException(new Error('invalid platform fallback'));
+    await flush(2000);
+
+    const event = collectEnvelopePayloads<Event>(captured, ['event']).find((item) =>
+      item.exception?.values?.some((value: any) =>
+        value.value?.includes('invalid platform fallback'),
+      ),
+    );
+    assertDefined(event);
+    expect(event.platform).toBe('javascript');
+    expect(event.contexts?.miniapp?.platform).toBe('bytedance');
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('无效的 platform=javascript'));
+    warnSpy.mockRestore();
+  });
+
+  it('miniappPlatform 优先于兼容 platform 别名', () => {
+    const client = init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      miniappPlatform: 'qq',
+      platform: 'wechat',
+      enableAutoSessionTracking: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    expect(client?.getOptions().miniappPlatform).toBe('qq');
+    expect(client?.getOptions().platform).toBe('javascript');
   });
 });

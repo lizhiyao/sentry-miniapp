@@ -79,6 +79,7 @@ export type {
   SendFeedbackParams,
   MinigameFrameRateOptions,
   MinigameJankLevels,
+  MiniappPlatform,
 } from './types';
 export { MiniappClient } from './client';
 export * as Integrations from './integrations/index';

@@ -16,8 +16,6 @@ Sentry.init({
   environment: 'production',
   debug: false,
 
-  // 小程序平台标识
-  platform: 'wechat',
   enableSystemInfo: true,
   enableUserInteractionBreadcrumbs: true,
   enableConsoleBreadcrumbs: true,
