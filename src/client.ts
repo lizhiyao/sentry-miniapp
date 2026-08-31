@@ -116,6 +116,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       // 小程序宿主类型单独放在 contexts.miniapp.platform。
       platform: 'javascript',
       miniappPlatform,
+      // @sentry/core 10.71 起默认开启 Logs；保留 sentry-miniapp 的显式 opt-in 契约。
+      enableLogs: options.enableLogs ?? false,
       integrations: Array.isArray(options.integrations) ? options.integrations : [],
       stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
       transport: (transportOptions: BaseTransportOptions) => {

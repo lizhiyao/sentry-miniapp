@@ -597,6 +597,11 @@ describe('MiniappClient', () => {
   });
 
   describe('client configuration and cleanup', () => {
+    it('默认关闭 Logs，并保留用户显式开启配置', () => {
+      expect(new MiniappClient().getOptions().enableLogs).toBe(false);
+      expect(new MiniappClient({ enableLogs: true }).getOptions().enableLogs).toBe(true);
+    });
+
     it('derives the default integration mode for clients outside the constructor cache', () => {
       const fakeClient = {
         getOptions: () => ({ defaultIntegrations: false }),
