@@ -319,6 +319,36 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(requestMock).toHaveBeenCalled();
   });
 
+  it('should identify a DSN envelope without relying on the global URL API', () => {
+    const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
+    setupIntegration(integration);
+
+    crossPlatform.sdk().request({
+      url: 'https://o113510.ingest.sentry.io/api/123/envelope/?sentry_key=key',
+      method: 'POST',
+    });
+
+    expect(mockIsSentryRequestUrl).toHaveReturnedWith(false);
+    expect(addBreadcrumb).not.toHaveBeenCalled();
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    expect(requestMock).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    'https://sentry.io/api/business',
+    'https://sentry.io.evil.com/api/envelope/?sentry_key=key',
+    'https://evil-sentry.io/api/envelope/?sentry_key=key',
+    'https://sentry.io/api/business#?sentry_key=key',
+  ])('should not treat a business or lookalike URL as an SDK envelope: %s', (url) => {
+    const integration = new NetworkBreadcrumbs({ traceNetworkBody: true });
+    setupIntegration(integration);
+
+    crossPlatform.sdk().request({ url, method: 'POST' });
+
+    expect(addBreadcrumb).toHaveBeenCalledOnce();
+    expect(mockStartInactiveSpan).toHaveBeenCalledOnce();
+  });
+
   it('should ignore self-hosted or tunneled envelopes identified by core', () => {
     mockIsSentryRequestUrl.mockReturnValueOnce(true);
 

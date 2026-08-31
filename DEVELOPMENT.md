@@ -24,7 +24,7 @@ yarn install
 | 命令 | 说明 |
 |------|------|
 | `yarn dev` | 监听源码并持续构建标准 ESM/CJS/UMD 产物 |
-| `yarn build` | 构建标准 ESM/CJS/UMD 产物与类型声明 |
+| `yarn build` | 构建标准 ESM/CJS/UMD 产物与类型声明，并检查 npm 包入口、七平台消费与自请求递归 |
 | `yarn build:miniapp` | 构建微信示例使用的独立 CommonJS bundle，并执行兼容性与加载检查 |
 | `yarn dev:miniapp` | 监听源码并持续构建微信示例 bundle |
 | `yarn build:types` | 构建类型定义文件（d.ts） |
@@ -81,6 +81,7 @@ sentry-miniapp/
 
 - **单元测试 (`yarn test`，Vitest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
 - **真实 core 集成测试 (`test/*.realcore.test.ts`)**：不 mock `@sentry/core`，验证事件、transaction、session 最终进入 envelope 的形态。自定义 transport 与 envelope 解析统一复用 `test/support/`。
+- **发布包消费测试 (`yarn build`)**：把当前 npm tarball 解包到隔离目录，验证 CJS / ESM / UMD 与类型入口；七个平台还会分别在全局 `URL` 缺失和残缺时安装会复制请求参数的外层 wrapper，断言一次业务请求只能产生一次 Sentry envelope，防止 SDK 自请求递归。
 - **测试类型检查 (`yarn typecheck`)**：源码使用 `tsconfig.json`，测试使用 `tsconfig.test.json`；测试保留严格函数签名检查，仅放宽动态 fixture 的索引访问规则。
 
 测试必须执行 `src/` 或仓库脚本中的生产逻辑；不要只调用测试文件里临时创建的 mock、示例重试函数或常量再断言自身行为。时间相关逻辑优先使用 Vitest fake timers，避免真实等待拖慢 CI。

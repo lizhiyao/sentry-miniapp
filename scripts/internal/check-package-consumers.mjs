@@ -34,6 +34,7 @@ const platformContracts = [
   { globalName: 'swan', platform: 'swan', requestMethod: 'request', statusKey: 'statusCode' },
   { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', statusKey: 'statusCode' },
 ];
+const selfRequestRuntimeModes = ['missing-url', 'partial-url'];
 
 async function writeConsumer(file, source) {
   await writeFile(file, source, 'utf8');
@@ -67,12 +68,24 @@ function runtimeProbe(moduleSyntax) {
   const load =
     moduleSyntax === 'esm'
       ? `import assert from 'node:assert/strict';
+const runtimeMode = process.argv[3] || 'standard';
 const nativeURLSearchParams = globalThis.URLSearchParams;
 assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
+if (runtimeMode === 'missing-url') {
+  assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
+} else if (runtimeMode === 'partial-url') {
+  globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
+}
 const sdk = await import('sentry-miniapp');`
       : `const assert = require('node:assert/strict');
+const runtimeMode = process.argv[3] || 'standard';
 const nativeURLSearchParams = globalThis.URLSearchParams;
 assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
+if (runtimeMode === 'missing-url') {
+  assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
+} else if (runtimeMode === 'partial-url') {
+  globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
+}
 const sdk = require('sentry-miniapp');`;
 
   const runStart = moduleSyntax === 'esm' ? '' : 'async function main() {';
@@ -105,10 +118,17 @@ assert.notEqual(
 const platformName = process.argv[2] || 'wechat';
 const contract = ${platforms}.find(candidate => candidate.platform === platformName);
 assert.ok(contract, \`Unknown platform contract: \${platformName}\`);
+assert.ok(
+  runtimeMode === 'standard' || ${JSON.stringify(selfRequestRuntimeModes)}.includes(runtimeMode),
+  \`Unknown runtime mode: \${runtimeMode}\`,
+);
 
 const envelopes = [];
-globalThis[contract.globalName] = {
-  [contract.requestMethod](options) {
+const requestedUrls = [];
+let rawRequestCalls = 0;
+const rawRequest = function(options) {
+    rawRequestCalls += 1;
+    requestedUrls.push(options.url);
     const headers = { ...(options.headers || {}), ...(options.header || {}) };
     const contentType = Object.entries(headers).find(
       ([name]) => name.toLowerCase() === 'content-type',
@@ -124,22 +144,72 @@ globalThis[contract.globalName] = {
     options.success?.(response);
     options.complete?.(response);
     return { abort() {} };
-  },
+};
+const host = {
+  [contract.requestMethod]: rawRequest,
   getSystemInfoSync() {
     return { platform: 'devtools', brand: 'package-smoke' };
   },
 };
+globalThis[contract.globalName] = host;
 
 sdk.init({
   dsn: 'https://test@o0.ingest.sentry.io/0',
+  platform: contract.platform,
+  tracesSampleRate: runtimeMode === 'standard' ? undefined : 1,
   enableOfflineCache: false,
   enableAutoSessionTracking: false,
   enableMinigameLifecycle: false,
   enableMinigameFrameRate: false,
 });
-sdk.captureMessage('package consumer runtime smoke');
+
+if (runtimeMode === 'standard') {
+  sdk.captureMessage('package consumer runtime smoke');
+} else {
+  const sentryWrappedRequest = host[contract.requestMethod];
+  let outerRequestCalls = 0;
+  host[contract.requestMethod] = function(options) {
+    outerRequestCalls += 1;
+    // A broken self-request guard would recurse forever. Bypass instrumentation after a few calls
+    // so the probe fails with a finite request list instead of hanging CI.
+    if (outerRequestCalls > 6) return rawRequest.call(this, options);
+    return sentryWrappedRequest.call(this, {
+      ...options,
+      ...(options.header && { header: { ...options.header } }),
+      ...(options.headers && { headers: { ...options.headers } }),
+    });
+  };
+  host[contract.requestMethod]({
+    url: 'https://api.example.com/package-self-request-smoke',
+    method: 'POST',
+  });
+}
+
 assert.equal(await sdk.flush(2000), true, 'SDK flush failed');
 assert.ok(envelopes.length > 0, 'SDK did not send an envelope through the mini program host');
+if (runtimeMode !== 'standard') {
+  assert.equal(
+    requestedUrls.length,
+    2,
+    \`\${platformName} \${runtimeMode} recursively traced an SDK envelope\`,
+  );
+  assert.equal(
+    requestedUrls[0],
+    'https://api.example.com/package-self-request-smoke',
+    \`\${platformName} \${runtimeMode} did not send the business request first\`,
+  );
+  assert.ok(
+    requestedUrls[1].startsWith('https://o0.ingest.sentry.io/api/0/envelope/'),
+    \`\${platformName} \${runtimeMode} used an unexpected envelope endpoint\`,
+  );
+  const envelopeQuery = requestedUrls[1].split('?')[1] || '';
+  assert.ok(
+    envelopeQuery.split('&').includes('sentry_key=test'),
+    \`\${platformName} \${runtimeMode} envelope URL omitted sentry_key\`,
+  );
+  assert.equal(rawRequestCalls, 2, \`\${platformName} \${runtimeMode} used extra host requests\`);
+  assert.equal(envelopes.length, 1, \`\${platformName} \${runtimeMode} sent extra envelopes\`);
+}
 await sdk.close(0);
 
 process.stdout.write(JSON.stringify({
@@ -147,6 +217,8 @@ process.stdout.write(JSON.stringify({
   version: sdk.SDK_VERSION,
   envelopes: envelopes.length,
   platform: platformName,
+  requests: requestedUrls.length,
+  runtimeMode,
 }));
 ${runEnd}
 `;
@@ -275,12 +347,15 @@ try {
   await writeConsumer(esmConsumer, runtimeProbe('esm'));
 
   const cjsExecution = await runNode(cjsConsumer, tempRoot, {
-    scriptArgs: ['wechat'],
+    scriptArgs: ['wechat', 'missing-url'],
   });
+  const esmScenarios = platformContracts.flatMap((contract) =>
+    selfRequestRuntimeModes.map((runtimeMode) => ({ contract, runtimeMode })),
+  );
   const esmExecutions = await Promise.all(
-    platformContracts.map(({ platform }) =>
+    esmScenarios.map(({ contract, runtimeMode }) =>
       runNode(esmConsumer, tempRoot, {
-        scriptArgs: [platform],
+        scriptArgs: [contract.platform, runtimeMode],
       }),
     ),
   );
@@ -289,13 +364,15 @@ try {
     assert.equal(
       execution.stderr,
       '',
-      `ESM ${platformContracts[index].platform} probe emitted stderr:\n${execution.stderr}`,
+      `ESM ${esmScenarios[index].contract.platform} ${esmScenarios[index].runtimeMode} probe emitted stderr:\n${execution.stderr}`,
     );
   }
 
   const cjsResult = JSON.parse(cjsExecution.stdout);
   const esmResults = esmExecutions.map(({ stdout }) => JSON.parse(stdout));
-  const esmResult = esmResults.find(({ platform }) => platform === 'wechat');
+  const esmResult = esmResults.find(
+    ({ platform, runtimeMode }) => platform === 'wechat' && runtimeMode === 'missing-url',
+  );
   assert.ok(esmResult, 'ESM WeChat probe did not produce a result');
   assert.deepEqual(esmResult.keys, cjsResult.keys, 'ESM and CJS exports differ');
   assert.equal(
@@ -308,13 +385,23 @@ try {
     packageJson.version,
     'ESM SDK_VERSION differs from package version',
   );
-  assert.ok(cjsResult.envelopes > 0, 'CJS runtime probe did not send an envelope');
-  for (const contract of platformContracts) {
-    const result = esmResults.find(({ platform }) => platform === contract.platform);
-    assert.ok(result, `Missing ESM runtime result for ${contract.platform}`);
-    assert.ok(
-      result.envelopes > 0,
-      `ESM ${contract.platform} probe did not send an envelope through ${contract.globalName}.${contract.requestMethod}`,
+  assert.equal(cjsResult.envelopes, 1, 'CJS runtime probe sent unexpected envelopes');
+  assert.equal(cjsResult.requests, 2, 'CJS runtime probe used unexpected host requests');
+  for (const { contract, runtimeMode } of esmScenarios) {
+    const result = esmResults.find(
+      (candidate) =>
+        candidate.platform === contract.platform && candidate.runtimeMode === runtimeMode,
+    );
+    assert.ok(result, `Missing ESM runtime result for ${contract.platform} ${runtimeMode}`);
+    assert.equal(
+      result.envelopes,
+      1,
+      `ESM ${contract.platform} ${runtimeMode} sent unexpected envelopes through ${contract.globalName}.${contract.requestMethod}`,
+    );
+    assert.equal(
+      result.requests,
+      2,
+      `ESM ${contract.platform} ${runtimeMode} used unexpected host requests`,
     );
   }
   const umdKeys = await runUmdProbe(packageRoot, packageJson.version);
@@ -342,7 +429,7 @@ try {
   });
 
   console.log(
-    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms), UMD and TypeScript (${cjsResult.keys.length} exports).`,
+    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${selfRequestRuntimeModes.length} URL modes), UMD and TypeScript (${cjsResult.keys.length} exports).`,
   );
 } finally {
   await rm(tempRoot, { force: true, recursive: true });

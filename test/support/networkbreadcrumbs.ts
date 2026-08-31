@@ -39,6 +39,7 @@ export function createNetworkBreadcrumbsTestHarness(
     setupIntegration(integration: NetworkBreadcrumbs): void {
       const client = {
         getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
+        getDsn: () => ({ host: 'sentry.io' }),
         registerCleanup: vi.fn(),
       } as any;
       dependencies.mockGetClient.mockReturnValue(client);
