@@ -137,6 +137,36 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     ]);
   });
 
+  it('外层请求 wrapper 复制参数和请求头且缺少全局 URL 时不会递归上报', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+    });
+
+    const sentryWrappedRequest = g.tt.request;
+    g.tt.request = (options: Record<string, any>) =>
+      sentryWrappedRequest({
+        ...options,
+        ...(options.header && { header: { ...options.header } }),
+        ...(options.headers && { headers: { ...options.headers } }),
+      });
+    delete g.URL;
+
+    g.tt.request({ url: 'https://api.example.com/v1/login', method: 'POST' });
+    await flush(2000);
+
+    const requestedUrls = requestMock.mock.calls.map(([options]) => options.url);
+    expect(requestedUrls).toEqual([
+      'https://api.example.com/v1/login',
+      expect.stringMatching(/^https:\/\/o0\.ingest\.sentry\.io\/api\/0\/envelope\//),
+    ]);
+  });
+
   it('有 active span 时仍把请求记录为现有 transaction 的子 span', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',

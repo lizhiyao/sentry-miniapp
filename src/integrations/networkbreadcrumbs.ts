@@ -173,7 +173,7 @@ export class NetworkBreadcrumbs implements Integration {
         return originalRequest.call(this, options);
       }
 
-      // 内置 transport 的请求由共享 WeakSet 标记，避免依赖小游戏中可能缺失或残缺的 URL。
+      // 内置 transport 会标记 options 及 header 身份，常见浅拷贝 wrapper 也无需依赖全局 URL。
       if (isMarkedSentryRequest(options)) {
         return originalRequest.call(this, options);
       }
@@ -182,7 +182,7 @@ export class NetworkBreadcrumbs implements Integration {
 
       const client = getClient();
       // 使用 core 的 DSN/tunnel 规则识别 SDK 自身 envelope，避免将同域业务请求误排除。
-      if (isSentryRequestUrl(url, client)) {
+      if (isSentryRequestUrl(url, client) || isSentryDsnRequestWithoutURL(url, client)) {
         return originalRequest.call(this, options);
       }
 
@@ -543,6 +543,30 @@ function normalizeUrl(url: unknown): string {
   return String(url);
 }
 
+/**
+ * `@sentry/core` 的自请求识别依赖全局 `URL`。部分小游戏运行时没有完整实现该 API，且外层请求库
+ * 可能通过浅拷贝丢失 transport 的对象身份标记，因此这里用同一组 DSN 约束做无 `URL` 回退。
+ * 同时要求匹配 DSN 主机和 `sentry_key` 查询参数，不能仅按域名过滤业务请求。
+ */
+function isSentryDsnRequestWithoutURL(url: string, client: Client | undefined): boolean {
+  const dsnHost = client?.getDsn()?.host.toLowerCase();
+  if (!dsnHost || !hasSentryKeyQueryParameter(url)) return false;
+
+  const requestHost = extractHost(url).toLowerCase();
+  return requestHost === dsnHost || requestHost.endsWith(`.${dsnHost}`);
+}
+
+function hasSentryKeyQueryParameter(url: string): boolean {
+  const queryStart = url.indexOf('?');
+  if (queryStart === -1) return false;
+
+  const fragmentStart = url.indexOf('#');
+  if (fragmentStart !== -1 && fragmentStart < queryStart) return false;
+
+  const search = url.slice(queryStart, fragmentStart === -1 ? undefined : fragmentStart);
+  return /(^|[?&])sentry_key=/.test(search);
+}
+
 function normalizeMethod(method: unknown): string {
   return typeof method === 'string' && method.trim() !== '' ? method.toUpperCase() : 'GET';
 }
@@ -609,8 +633,16 @@ function normalizeStatusCode(statusCode: unknown): number | undefined {
 
 function extractHost(url: string): string {
   try {
-    const hostMatch = url.match(/^https?:\/\/([^:/\n]+)/i);
-    return hostMatch && hostMatch[1] ? hostMatch[1] : '';
+    const authorityMatch = url.match(/^https?:\/\/([^/?#\n]+)/i);
+    if (!authorityMatch || !authorityMatch[1]) return '';
+
+    const authority = authorityMatch[1].slice(authorityMatch[1].lastIndexOf('@') + 1);
+    if (authority.startsWith('[')) {
+      const closingBracket = authority.indexOf(']');
+      return closingBracket === -1 ? '' : authority.slice(0, closingBracket + 1);
+    }
+
+    return authority.split(':', 1)[0] || '';
   } catch (_e) {
     return '';
   }
