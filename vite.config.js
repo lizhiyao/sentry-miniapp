@@ -124,7 +124,7 @@ export default defineConfig(({ mode }) => {
           },
           {
             format: 'cjs',
-            entryFileNames: 'sentry-miniapp.cjs',
+            entryFileNames: 'sentry-miniapp.cjs.js',
             exports: 'auto'
           },
           {
