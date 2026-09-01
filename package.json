@@ -10,7 +10,7 @@
   "scripts": {
     "build": "vite build && npm run build:type-entrypoints && npm run check:build-output && npm run check:package && npm run check:package-consumers",
     "build:type-entrypoints": "node scripts/internal/create-type-entrypoints.mjs",
-    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs dist/sentry-miniapp.umd.js",
+    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
     "check:package": "publint --level error",
     "check:package-consumers": "node scripts/internal/check-package-consumers.mjs",
     "build:miniapp": "vite build --mode miniapp && node scripts/internal/check-build-output.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-miniapp-bundle.mjs examples/wxapp/lib/sentry-miniapp.js",
@@ -39,7 +39,7 @@
   "engines": {
     "node": ">=20"
   },
-  "main": "dist/sentry-miniapp.cjs",
+  "main": "dist/sentry-miniapp.cjs.js",
   "module": "dist/sentry-miniapp.mjs",
   "types": "dist/types/index.d.ts",
   "bin": {
@@ -54,7 +54,7 @@
       },
       "require": {
         "types": "./dist/types/index.d.cts",
-        "default": "./dist/sentry-miniapp.cjs"
+        "default": "./dist/sentry-miniapp.cjs.js"
       }
     }
   },

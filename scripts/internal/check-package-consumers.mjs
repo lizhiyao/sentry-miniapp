@@ -335,7 +335,11 @@ try {
   });
 
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+  const wechatMain = packageJson.main || 'index.js';
+  const wechatEntry = /\.(?:js|json)$/.test(wechatMain) ? wechatMain : `${wechatMain}.js`;
   await Promise.all([
+    // miniprogram-ci 2.x appends .js when main does not already end in .js or .json.
+    access(join(packageRoot, wechatEntry)),
     access(join(packageRoot, packageJson.exports['.'].import.types)),
     access(join(packageRoot, packageJson.exports['.'].require.types)),
   ]);
