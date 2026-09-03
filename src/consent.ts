@@ -5,9 +5,9 @@
  * `setConsent(true)` 后补发并恢复正常上报。
  *
  * 采用模块级单例（对齐 `crossPlatform.ts` 的缓存 + `resetPlatformCache` 范式）：门禁状态
- * 要同时被 transport 的 `shouldSend` 钩子（在 `MiniappClient` 构造时建立）读取、被公开的
- * `setConsent` API 写入，二者跨文件，需共享同一处状态。这也是它放在 `src/` 顶层而非
- * `integrations/` 的原因——门禁挂在 transport 上、早于集成 setupOnce，集成来不及提供状态。
+ * 要同时被 transport（在 `MiniappClient` 构造时建立）读取、被公开的 `setConsent` API 写入，
+ * 二者跨文件，需共享同一处状态。这也是它放在 `src/` 顶层而非 `integrations/` 的原因——
+ * 门禁挂在 transport 上、早于集成 setupOnce，集成来不及提供状态。
  */
 
 /** `onConsentCacheDrop` 回调的丢弃原因。 */

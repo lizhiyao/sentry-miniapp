@@ -7,6 +7,7 @@ import {
   getIsolationScope,
   getCurrentScope,
   makeOfflineTransport,
+  resolvedSyncPromise,
   stackParserFromStackParserOptions,
 } from '@sentry/core';
 import type {
@@ -24,6 +25,7 @@ import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
 import type { MiniappTransportOptions } from './transports';
+import { createConsentAwareOfflineTransport } from './transports/consent';
 import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
 import { miniappStackParser } from './stacktrace';
@@ -100,7 +102,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       : undefined;
 
     // 配置隐私合规「同意门禁」。必须在 super() 之前——transport 工厂在 super() 执行期间被 core
-    // 调用建立，其 shouldSend / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
+    // 调用建立，其同意门禁 / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
     // 不触碰 this，故在 super 前调用合法。requireConsent=false 时它把门禁置为「恒放行」，行为不变。
     configureConsent({
       required: options.requireConsent === true,
@@ -129,27 +131,30 @@ export class MiniappClient extends Client<MiniappClientOptions> {
               headers: miniappTransportOptions.headers ?? {},
             });
 
-        // 同意门禁：用 core offline transport 的 shouldSend 闸断网络（同意前 envelope 不发、
-        // 转入本地缓冲），setConsent(true) 后由 transport.flush() 补发。即便用户关了
+        // 同意门禁：在调用 core offline transport 前同步闸断网络（同意前 envelope 不发、
+        // 直接转入本地缓冲），setConsent(true) 后由 transport.flush() 补发。即便用户关了
         // enableOfflineCache，requireConsent 仍需缓冲，故强制走 offline 路径；若用户传了自定义
         // transport，也要包住它，避免合规开关被高级用法绕过。
         if (options.requireConsent === true) {
-          return makeOfflineTransport(() => baseTransport)({
+          const store = createMiniappOfflineStore({
             ...transportOptions,
-            createStore: (storeOptions: any) =>
-              createMiniappOfflineStore({
-                ...storeOptions,
-                // 同意前缓存用独立上限 + 冷启动优先（保留最旧）淘汰，区别于弱网那套默认值。
-                offlineCacheLimit: options.consentCacheLimit ?? 100,
-                offlineCacheMaxAge: options.consentCacheMaxAge,
-                maxBytes: options.consentCacheMaxBytes,
-                evictionMode: 'preserve-oldest',
-                onDrop: notifyConsentDrop,
-              }),
-            // 返回 false → core 不发网络、转 shouldStore 入缓存。同意后恒为 true。
-            shouldSend: () => isConsentGranted(),
-            flushAtStartup: true,
-          } as any);
+            // 同意前缓存用独立上限 + 冷启动优先（保留最旧）淘汰，区别于弱网那套默认值。
+            offlineCacheLimit: options.consentCacheLimit ?? 100,
+            ...(options.consentCacheMaxAge !== undefined && {
+              offlineCacheMaxAge: options.consentCacheMaxAge,
+            }),
+            ...(options.consentCacheMaxBytes !== undefined && {
+              maxBytes: options.consentCacheMaxBytes,
+            }),
+            evictionMode: 'preserve-oldest',
+            onDrop: notifyConsentDrop,
+          });
+          return createConsentAwareOfflineTransport(
+            baseTransport,
+            miniappTransportOptions,
+            store,
+            isConsentGranted,
+          );
         }
 
         if (!options.transport && options.enableOfflineCache !== false) {
@@ -183,7 +188,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   public eventFromException(exception: unknown, hint?: EventHint): PromiseLike<Event> {
     const event = eventFromUnknownInput(this, this.getOptions().stackParser, exception, hint);
     event.level = 'error';
-    return Promise.resolve(event);
+    return resolvedSyncPromise(event);
   }
 
   public eventFromMessage(
@@ -191,7 +196,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     level: SeverityLevel = 'info',
     hint?: EventHint,
   ): PromiseLike<Event> {
-    return Promise.resolve(
+    return resolvedSyncPromise(
       eventFromMessageCore(
         this.getOptions().stackParser,
         message,
@@ -235,15 +240,17 @@ export class MiniappClient extends Client<MiniappClientOptions> {
 
       const currentScope = scope || getCurrentScope();
       const isolationScope = getIsolationScope();
-      return Promise.resolve(
-        super._prepareEvent(event, hint || {}, currentScope, isolationScope),
-      ).then((prepared) => this._fillDefaultContexts(prepared));
+      // 保留 core SyncPromise 的同步完成语义：抖音小游戏 onHide 返回后可能立即冻结 JS，
+      // 若用原生 Promise 包裹，底层 request 会被推迟到下次 onShow，甚至因进程回收而丢失。
+      return super
+        ._prepareEvent(event, hint || {}, currentScope, isolationScope)
+        .then((prepared) => this._fillDefaultContexts(prepared));
     } catch (error) {
       // Fallback if scopes are not properly initialized
       if (this.getOptions().debug) {
         console.warn('[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:', error);
       }
-      return Promise.resolve(this._fillDefaultContexts(event));
+      return resolvedSyncPromise(this._fillDefaultContexts(event));
     }
   }
 
