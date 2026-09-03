@@ -68,7 +68,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     delete g.wx;
   });
 
-  it('开启 tracing 后，分级会话汇总产出真实 transaction（含分档 measurement）', async () => {
+  it('onHide 返回前同步产出真实 transaction（含分档 measurement）', () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       tracesSampleRate: 1.0,
@@ -88,9 +88,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     frame(85); // delta 65 → major（33<65≤100）
     frame(285); // delta 200 → severe（>100）
 
-    hideCb!(); // 退后台 → 发会话汇总 transaction
-    // transaction 经异步 prepareEvent 后才进 transport，放掉微任务 + 一个宏任务。
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    hideCb!(); // 退后台后 JS 线程可能立即冻结，transport 必须已收到 transaction。
 
     const summary = collectEnvelopePayloads<Event>(captured, ['transaction']).find(
       (t) => t.transaction === 'minigame.framerate.summary',

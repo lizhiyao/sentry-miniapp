@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { makeOfflineTransport } from '@sentry/core';
 import { configureConsent, isConsentGranted, resetConsentState, setConsentGranted } from '../src/consent';
 import { resetPlatformCache } from '../src/crossPlatform';
+import { createConsentAwareOfflineTransport } from '../src/transports/consent';
 import { createMiniappOfflineStore } from '../src/transports/offlineStore';
 import { createEventEnvelope } from './support/envelopes';
 
@@ -38,25 +38,28 @@ describe('Consent gate with real makeOfflineTransport', () => {
 
   it('queues before consent, flushes after consent, and blocks again when consent is revoked', async () => {
     const baseSend = vi.fn((_: any) => Promise.resolve({ statusCode: 200 }));
-    const makeBase = () => ({ send: baseSend, flush: () => Promise.resolve(true) });
-
-    const transport = makeOfflineTransport(makeBase as any)({
+    const baseTransport = { send: baseSend, flush: () => Promise.resolve(true) };
+    const options = {
       url: 'https://o0.ingest.sentry.io/api/0/envelope/',
       recordDroppedEvent: () => {},
-      createStore: (options: any) =>
-        createMiniappOfflineStore({
-          ...options,
-          offlineCacheLimit: 100,
-          evictionMode: 'preserve-oldest',
-        }),
-      shouldSend: () => isConsentGranted(),
-      flushAtStartup: false,
-    } as any);
+    };
+    const store = createMiniappOfflineStore({
+      ...options,
+      offlineCacheLimit: 100,
+      evictionMode: 'preserve-oldest',
+    });
+    const transport = createConsentAwareOfflineTransport(
+      baseTransport,
+      options,
+      store,
+      isConsentGranted,
+    );
 
-    await transport.send(createEventEnvelope('before-consent'));
+    const blockedSend = transport.send(createEventEnvelope('before-consent'));
 
     expect(baseSend).not.toHaveBeenCalled();
     expect(mem[OFFLINE_KEY]).toContain('before-consent');
+    await blockedSend;
 
     setConsentGranted(true);
     void transport.flush();
@@ -70,9 +73,10 @@ describe('Consent gate with real makeOfflineTransport', () => {
     baseSend.mockClear();
     setConsentGranted(false);
 
-    await transport.send(createEventEnvelope('blocked-again'));
+    const blockedAgain = transport.send(createEventEnvelope('blocked-again'));
 
     expect(baseSend).not.toHaveBeenCalled();
     expect(mem[OFFLINE_KEY]).toContain('blocked-again');
+    await blockedAgain;
   });
 });
