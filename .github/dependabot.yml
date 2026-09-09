@@ -29,13 +29,23 @@ updates:
           - minor
           - patch
     ignore:
-      # Vitest 5 requires Node 22, while the project still supports Node 20.
+      # These major versions require Node 22, while the project still supports Node 20.
+      - dependency-name: '@babel/core'
+        update-types:
+          - version-update:semver-major
+      - dependency-name: '@commitlint/*'
+        update-types:
+          - version-update:semver-major
+      - dependency-name: lint-staged
+        update-types:
+          - version-update:semver-major
       - dependency-name: vitest
         update-types:
           - version-update:semver-major
       - dependency-name: '@vitest/*'
         update-types:
           - version-update:semver-major
+      # Keep type definitions aligned with the supported Node 20 baseline.
       - dependency-name: '@types/node'
         update-types:
           - version-update:semver-major
