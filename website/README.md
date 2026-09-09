@@ -13,6 +13,8 @@ yarn docs:build      # 构建到 website/.vitepress/dist
 yarn docs:preview    # 预览构建产物
 ```
 
+仓库继续使用稳定版 VitePress 1；其 Vite 依赖通过根 `resolutions` 覆盖到仍接收安全修复的 Vite 6。CI 会执行 `yarn docs:build`，依赖升级时必须保持文档站构建兼容。
+
 ## 内容边界与单一来源
 
 `website/` 是面向 SDK 用户的主文档入口：接入、配置、框架指南、平台能力和排障内容都应在站内可发现，不应要求用户跳回仓库查找答案。
