@@ -20,28 +20,31 @@ updates:
   - package-ecosystem: npm
     directory: /examples/uniapp
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: '09:15'
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
+    # Examples are compatibility fixtures; follow the framework, then update its
+    # pinned build tool manually according to the new peer dependency contract.
+    allow:
+      - dependency-name: '@dcloudio/*'
     groups:
-      uni-app-toolchain:
+      uni-app-framework:
         patterns:
           - '@dcloudio/*'
-          - vite
 
   - package-ecosystem: npm
     directory: /examples/taro
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: '09:30'
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: '@tarojs/*'
+      - dependency-name: babel-preset-taro
     groups:
-      taro-toolchain:
+      taro-framework:
         patterns:
           - '@tarojs/*'
           - babel-preset-taro
-          - webpack
