@@ -6,7 +6,7 @@
 
 ### 0. 环境要求
 
-- **Node.js** ≥ 20
+- **Node.js** ≥ 20.19
 - **Yarn 4**：项目通过 `package.json` 的 `packageManager` 字段固定 Yarn 版本，推荐用 [Corepack](https://nodejs.org/api/corepack.html) 自动对齐，无需全局手动安装：
 
   ```bash
