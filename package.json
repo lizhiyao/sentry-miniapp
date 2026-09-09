@@ -65,7 +65,7 @@
     "LICENSE"
   ],
   "devDependencies": {
-    "@babel/core": "^7.29.7",
+    "@babel/core": "^8.0.1",
     "@babel/plugin-transform-regenerator": "^7.29.8",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
