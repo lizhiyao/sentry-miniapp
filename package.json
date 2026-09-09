@@ -87,7 +87,7 @@
     "publint": "^0.3.24",
     "typescript": "^5.8.3",
     "vite": "^8.2.2",
-    "vite-plugin-dts": "^4.5.4",
+    "vite-plugin-dts": "^5.1.0",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.11"
   },
