@@ -39,6 +39,9 @@ jobs:
     - name: Build Project
       run: yarn run build
 
+    - name: Build Documentation
+      run: yarn run docs:build
+
     - name: Build and Check Mini Program Example Bundle
       run: yarn run build:miniapp
 
