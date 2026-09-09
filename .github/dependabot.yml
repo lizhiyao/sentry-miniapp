@@ -16,6 +16,20 @@ updates:
           - vite-plugin-dts
           - vitest
           - '@vitest/*'
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Vitest 5 requires Node 22, while the project still supports Node 20.
+      - dependency-name: vitest
+        update-types:
+          - version-update:semver-major
+      - dependency-name: '@vitest/*'
+        update-types:
+          - version-update:semver-major
+      - dependency-name: '@types/node'
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: npm
     directory: /examples/uniapp
