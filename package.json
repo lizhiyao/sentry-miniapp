@@ -87,7 +87,7 @@
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.5.4",
     "vitepress": "^1.6.4",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "@sentry/core": "10.73.0"
