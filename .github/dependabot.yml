@@ -10,6 +10,12 @@ updates:
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
     groups:
+      commitlint-toolchain:
+        patterns:
+          - '@commitlint/*'
+        update-types:
+          - minor
+          - patch
       lint-toolchain:
         patterns:
           - eslint
@@ -37,6 +43,9 @@ updates:
         update-types:
           - version-update:semver-major
       - dependency-name: lint-staged
+        update-types:
+          - version-update:semver-major
+      - dependency-name: commit-and-tag-version
         update-types:
           - version-update:semver-major
       - dependency-name: vitest
