@@ -143,7 +143,7 @@ export default defineConfig(({ mode }) => {
       dts({
         include: ['src/**/*'],
         exclude: ['src/**/*.test.ts', 'test/**/*'],
-        outDir: 'dist/types'
+        outDirs: 'dist/types'
       })
     ],
     define: {
