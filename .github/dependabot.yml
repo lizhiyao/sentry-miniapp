@@ -1,0 +1,47 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    groups:
+      vite-test-toolchain:
+        patterns:
+          - vite
+          - vite-plugin-dts
+          - vitest
+          - '@vitest/*'
+
+  - package-ecosystem: npm
+    directory: /examples/uniapp
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:15'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    groups:
+      uni-app-toolchain:
+        patterns:
+          - '@dcloudio/*'
+          - vite
+
+  - package-ecosystem: npm
+    directory: /examples/taro
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:30'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    groups:
+      taro-toolchain:
+        patterns:
+          - '@tarojs/*'
+          - babel-preset-taro
+          - webpack
