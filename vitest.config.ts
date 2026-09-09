@@ -22,11 +22,12 @@ export default defineConfig({
       exclude: ['src/**/*.d.ts'],
       reportsDirectory: 'coverage',
       reporter: ['text', 'lcov', 'html'],
+      // Vitest 4 uses AST-aware V8 remapping, so preserve its measured baseline.
       thresholds: {
-        statements: 99.2,
-        branches: 95.75,
-        functions: 99.3,
-        lines: 99.2,
+        statements: 98.7,
+        branches: 93.4,
+        functions: 98.7,
+        lines: 99.3,
       },
     },
   },
