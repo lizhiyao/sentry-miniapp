@@ -84,7 +84,7 @@
     "prettier": "^3.8.1",
     "publint": "^0.3.24",
     "typescript": "^5.8.3",
-    "vite": "^6.4.1",
+    "vite": "^8.2.2",
     "vite-plugin-dts": "^4.5.4",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.11"
@@ -93,9 +93,7 @@
     "@sentry/core": "10.73.0"
   },
   "resolutions": {
-    "js-yaml": "4.3.2",
-    "vite@npm:^5.4.14": "npm:6.4.3",
-    "vite@npm:^6.0.0 || ^7.0.0 || ^8.0.0": "npm:6.4.3"
+    "js-yaml": "4.3.2"
   },
   "lint-staged": {
     "{src,scripts}/**/*.{ts,js,mjs}": [

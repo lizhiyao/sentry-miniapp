@@ -71,9 +71,8 @@ This is critical: when modifying functionality, **always consider the impact on 
   timers over real delays for time-dependent behavior.
 - `yarn typecheck` checks both production code and tests. Keep mocks compatible with the real
   function signatures instead of bypassing test type errors with broad casts.
-- Coverage must stay above the enforced global thresholds: 99.2% statements/lines,
-  95.75% branches, and 99.3% functions. New changes should improve coverage without
-  excluding production code from measurement.
+- Coverage must stay above the global thresholds enforced by `vitest.config.mts`.
+  New changes should improve coverage without excluding production code from measurement.
 
 ## License
 

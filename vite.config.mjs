@@ -64,12 +64,12 @@ function transformGenerators() {
 const baseConfig = {
   build: {
     sourcemap: true,
-    minify: 'esbuild',
+    minify: 'oxc',
     target: 'es2015',
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': resolve(import.meta.dirname, 'src')
     }
   }
 };
@@ -82,13 +82,13 @@ export default defineConfig(({ mode }) => {
       build: {
         ...baseConfig.build,
         lib: {
-          entry: resolve(__dirname, 'src/index.ts'),
+          entry: resolve(import.meta.dirname, 'src/index.ts'),
           name: 'SentryMiniapp',
           fileName: 'sentry-miniapp',
           formats: ['cjs'] // 小程序只需要 CommonJS 格式
         },
         outDir: 'examples/wxapp/lib',
-        rollupOptions: {
+        rolldownOptions: {
           // 小程序版本内联所有依赖
           external: [],
           output: {
@@ -110,11 +110,11 @@ export default defineConfig(({ mode }) => {
     build: {
       ...baseConfig.build,
       lib: {
-        entry: resolve(__dirname, 'src/index.ts'),
+        entry: resolve(import.meta.dirname, 'src/index.ts'),
         name: 'SentryMiniapp',
       },
       outDir: 'dist',
-      rollupOptions: {
+      rolldownOptions: {
         external: [],
         output: [
           {
