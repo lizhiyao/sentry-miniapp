@@ -243,7 +243,6 @@ export class Dedupe implements Integration {
     if (exception) {
       try {
         // @ts-expect-error Object could be undefined
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         return exception.values[0].stacktrace.frames;
       } catch (_oO) {
         // ignore

@@ -76,41 +76,6 @@ describe('Integrations', () => {
     it('should have correct name', () => {
       expect(integration.name).toBe('System');
     });
-
-    it('should add system context to events', () => {
-      let eventProcessor: Function | undefined;
-      expect(() => integration.setupOnce()).not.toThrow();
-
-      // Test event processing
-      if (eventProcessor) {
-        const event = { message: 'test' };
-        const processedEvent = eventProcessor?.(event);
-
-        expect(processedEvent.contexts?.device).toBeDefined();
-        expect(processedEvent.contexts?.os).toBeDefined();
-        expect(processedEvent.contexts?.miniapp).toBeDefined();
-      }
-    });
-
-    it('should preserve existing contexts', () => {
-      let eventProcessor: Function | undefined;
-      integration.setupOnce();
-
-      // Simplified test - just check that setupOnce runs without error
-
-      if (eventProcessor) {
-        const event = {
-          message: 'test',
-          contexts: {
-            custom: { data: 'value' },
-          },
-        };
-        const processedEvent = eventProcessor?.(event);
-
-        expect(processedEvent.contexts?.custom).toEqual({ data: 'value' });
-        expect(processedEvent.contexts?.device).toBeDefined();
-      }
-    });
   });
 
   describe('HttpContext', () => {
@@ -151,32 +116,8 @@ describe('Integrations', () => {
       expect(integration.name).toBe('LinkedErrors');
     });
 
-    it('should process linked errors', () => {
-      let eventProcessor: Function | undefined;
+    it('should complete setup without throwing', () => {
       expect(() => integration.setupOnce()).not.toThrow();
-
-      // Test with error that has cause
-      if (eventProcessor) {
-        const cause = new Error('Root cause');
-        const error = new Error('Main error');
-        (error as any).cause = cause;
-
-        const event = {
-          exception: {
-            values: [
-              {
-                type: 'Error',
-                value: 'Main error',
-              },
-            ],
-          },
-        };
-
-        const hint = { originalException: error };
-        const processedEvent = eventProcessor?.(event, hint);
-
-        expect(processedEvent).toBeDefined();
-      }
     });
   });
 });

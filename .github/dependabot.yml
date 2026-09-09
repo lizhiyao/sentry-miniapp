@@ -10,6 +10,15 @@ updates:
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
     groups:
+      lint-toolchain:
+        patterns:
+          - eslint
+          - '@eslint/*'
+          - '@typescript-eslint/*'
+          - globals
+        update-types:
+          - minor
+          - patch
       vite-test-toolchain:
         patterns:
           - vite

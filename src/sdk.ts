@@ -210,7 +210,6 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
 
   // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
   // 更宽的公开 MiniappOptions，并在构造期间补齐 transport / stackParser，因此这里仅作边界适配。
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   initAndBind(MiniappClient as any, opts as any);
   const client = getCurrentScope().getClient() as MiniappClient | undefined;
   if (client) {
