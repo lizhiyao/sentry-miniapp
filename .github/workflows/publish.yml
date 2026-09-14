@@ -3,12 +3,11 @@ name: CD - Publish
 on:
   push:
     tags:
-      - 'v*' # 仅在推送以 'v' 开头的 Tag 时触发，例如 v1.4.0
+      - 'v*'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-# 同一 ref 的发布串行，避免重复推 tag 并发触发两次发布
 concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
@@ -16,9 +15,12 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # The test deadline is 8 minutes; leave room for build, install and evidence upload.
+    timeout-minutes: 25
     permissions:
-      contents: write # 发布成功后创建 / 更新 GitHub Release
-      id-token: write # npm Trusted Publishing 通过 OIDC 获取短期发布凭证
+      actions: read
+      contents: write
+      id-token: write
 
     steps:
     - name: Checkout Code
@@ -31,51 +33,118 @@ jobs:
         registry-url: 'https://registry.npmjs.org'
         package-manager-cache: false
 
-    # npm Trusted Publishing 要求 npm >= 11.5.1；固定版本避免 runner 镜像变化影响发版。
+    - name: Validate release source and version
+      id: source
+      env:
+        TAG_NAME: ${{ github.ref_name }}
+      run: |
+        mkdir -p diagnostics release-package
+        node --input-type=module <<'NODE'
+        import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+        import { execFileSync } from 'node:child_process';
+        import assert from 'node:assert/strict';
+        const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+        assert.equal(process.env.TAG_NAME, `v${pkg.version}`);
+        assert.equal(pkg.name, 'sentry-miniapp');
+        const versionSource = readFileSync('src/version.ts', 'utf8');
+        assert.equal(versionSource.match(/SDK_VERSION\s*=\s*'([^']+)'/)?.[1], pkg.version);
+        const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+        const source = { sha, tag: process.env.TAG_NAME, name: pkg.name, version: pkg.version, run: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT };
+        writeFileSync('release-package/source.json', JSON.stringify(source, null, 2));
+        writeFileSync('release-package/ci-evidence.json', JSON.stringify({ reused: false, reason: 'No accepted CI evidence; CD fallback required' }, null, 2));
+        appendFileSync(process.env.GITHUB_OUTPUT, `sha=${sha}\n`);
+        NODE
+
+    - name: Find exact successful CI evidence
+      id: evidence
+      continue-on-error: true
+      timeout-minutes: 2
+      uses: actions/github-script@v8
+      env:
+        RELEASE_SHA: ${{ steps.source.outputs.sha }}
+      with:
+        script: |
+          const fs = require('node:fs');
+          const { findCiEvidence } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/internal/ci-evidence.mjs`);
+          let evidence = null;
+          let reason = 'No complete successful master push CI for release SHA';
+          try {
+            evidence = await findCiEvidence(github, context.repo, process.env.RELEASE_SHA);
+          } catch (error) {
+            reason = `CI evidence unavailable: ${error.message}`;
+            core.warning(reason);
+          }
+          fs.writeFileSync('release-package/ci-evidence.json', JSON.stringify({ reused: Boolean(evidence), evidence, reason: evidence ? undefined : reason }, null, 2));
+          core.setOutput('reuse', evidence ? 'true' : 'false');
+          await core.summary.addRaw(evidence ? `Reusing CI: ${evidence.url} (SHA ${evidence.sha})` : `${reason}; running CD fallback checks.`).write();
+
+    # Pin npm for Trusted Publishing. Explicit tarball publish never rebuilds the package.
     - name: Setup npm for Trusted Publishing
+      timeout-minutes: 2
       run: npm install --global npm@11.19.0
 
     - name: Enable Corepack
       run: corepack enable
 
     - name: Install dependencies
+      timeout-minutes: 4
       run: yarn install --immutable
 
-    - name: Run Lint
-      run: yarn run lint
+    - name: Run fallback Lint
+      if: steps.evidence.outcome != 'success' || steps.evidence.outputs.reuse != 'true'
+      run: node scripts/internal/run-diagnosed.mjs lint 120 yarn run lint
 
-    - name: Type Check
-      run: yarn run typecheck
+    - name: Run fallback Type Check
+      if: steps.evidence.outcome != 'success' || steps.evidence.outputs.reuse != 'true'
+      run: node scripts/internal/run-diagnosed.mjs typecheck 120 yarn run typecheck
 
-    - name: Run Tests
-      run: yarn run test
+    - name: Run fallback Tests
+      if: steps.evidence.outcome != 'success' || steps.evidence.outputs.reuse != 'true'
+      run: node scripts/internal/run-diagnosed.mjs tests 480 yarn run test --maxWorkers=2 --reporter=verbose --reporter=junit --outputFile.junit=diagnostics/tests/junit.xml
 
-    - name: Build Project
-      run: yarn run build
+    - name: Save validation diagnostics before build
+      if: always()
+      timeout-minutes: 2
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-validation-${{ github.ref_name }}-${{ github.run_attempt }}
+        path: diagnostics/
+        if-no-files-found: ignore
+        retention-days: 30
 
-    - name: Publish to NPM
-      env:
-        TAG_NAME: ${{ github.ref_name }}
+    - name: Build release once
+      run: node scripts/internal/run-diagnosed.mjs build 180 yarn run build:release
+
+    - name: Pack release
       run: |
-        VERSION="${TAG_NAME#v}"
-        PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-        PUBLISH_TAG="latest"
+        npm pack --ignore-scripts --json --pack-destination release-package > release-package/pack.json
+        node --input-type=module <<'NODE'
+        import { readFileSync, writeFileSync } from 'node:fs';
+        import { createHash } from 'node:crypto';
+        import assert from 'node:assert/strict';
+        const [pack] = JSON.parse(readFileSync('release-package/pack.json', 'utf8'));
+        const source = JSON.parse(readFileSync('release-package/source.json', 'utf8'));
+        assert.equal(pack.name, source.name);
+        assert.equal(pack.version, source.version);
+        assert.equal(pack.filename, `${source.name}-${source.version}.tgz`);
+        const bytes = readFileSync(`release-package/${pack.filename}`);
+        const sha256 = createHash('sha256').update(bytes).digest('hex');
+        const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+        writeFileSync('release-package/manifest.json', JSON.stringify({ ...source, filename: pack.filename, sha256, integrity }, null, 2));
+        writeFileSync('release-package/SHA256SUMS', `${sha256}  release-package/${pack.filename}\n`);
+        NODE
 
-        if [[ "$VERSION" == *-* ]]; then
-          PUBLISH_TAG="next"
-        fi
+    - name: Install and validate exact release tarball
+      run: |
+        TARBALL="$(node -p "require('./release-package/manifest.json').filename")"
+        node scripts/internal/run-diagnosed.mjs package 240 node scripts/internal/check-package-consumers.mjs "release-package/$TARBALL"
+        sha256sum --check release-package/SHA256SUMS
 
-        if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
-          echo "package.json version ($PACKAGE_VERSION) does not match tag ($TAG_NAME)"
-          exit 1
-        fi
-
-        if npm view "sentry-miniapp@$VERSION" version >/dev/null 2>&1; then
-          echo "sentry-miniapp@$VERSION is already published; skipping npm publish."
-        else
-          echo "Publishing sentry-miniapp@$VERSION with dist-tag $PUBLISH_TAG"
-          npm publish --access public --tag "$PUBLISH_TAG"
-        fi
+    - name: Publish exact verified tarball
+      timeout-minutes: 3
+      run: |
+        sha256sum --check release-package/SHA256SUMS
+        node scripts/internal/publish-tarball.mjs
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v3
@@ -86,3 +155,17 @@ jobs:
         files: |
           dist/sentry-miniapp.umd.js
           dist/sentry-miniapp.umd.js.map
+          release-package/*.tgz
+          release-package/manifest.json
+
+    - name: Save release evidence and diagnostics
+      if: always()
+      timeout-minutes: 2
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ github.ref_name }}-${{ github.run_attempt }}
+        path: |
+          diagnostics/
+          release-package/
+        if-no-files-found: warn
+        retention-days: 30

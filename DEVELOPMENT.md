@@ -130,3 +130,20 @@ yarn lint && yarn typecheck && yarn test:coverage
 首次 OIDC 发版验证成功后，应在 npm 的 Publishing access 中选择 **Require two-factor authentication and disallow tokens**，删除仓库中的 `NPM_TOKEN` Secret，并撤销 npm 账户里不再使用的发布 token。若发布报 `ENEEDAUTH`，优先检查 npm Trusted Publisher 的仓库名、workflow 文件名和可执行 action 是否完全一致。
 
 仓库不再保留单独的 `CHANGELOG.md`。PR title / description 是发版说明的唯一信息源，包含 BREAKING CHANGE、迁移方式或兼容性注意事项的改动必须在 PR 描述里写清楚。
+
+### CI/CD 超时、诊断与发布包一致性
+
+CI 与 CD 作业上限为 25 分钟，测试进程上限为 8 分钟、最多 2 个 worker。
+`scripts/internal/run-diagnosed.mjs` 持续保存测试输出，每 15 秒记录进程树、CPU/RSS、Linux 内存和 cgroup OOM 计数；超时先采样，再向进程组发送 TERM，2 秒后强制 KILL，并以 124 退出。
+产物包含 `output.log`、`resources.log`、`result.json` 和正常生成的 JUnit 报告。卡死时 JUnit 可能不完整，以持续日志和退出记录为准。
+CD 在测试之后立即上传一次诊断，结束时再次保存发布证据；CI 诊断保留 14 天，CD 保留 30 天。runner 丢失或平台强制取消仍可能中断上传，不能将 `always()` 当作上传成功保证。
+
+CD 只复用本仓库 `.github/workflows/ci.yml` 在 **master push、精确发布 SHA** 上的成功运行，并核验同一 run attempt 的 `Quality (Node 24.x)`、`build-and-test (20.x)` 和 `build-and-test (22.x)` 全部成功。
+不使用 PR 合并 SHA、祖先提交或最近一次成功运行代替；查询失败、运行未完成、作业缺失或 SHA 不同都会回退到 CD 的 lint、类型检查和完整单测。
+现有发版流程中 tag 可能指向 merge commit 的父提交，此时正常走回退验证；不要为了复用 CI 移动已经发布的 tag。
+
+发布阶段执行 `yarn build:release` 一次，然后 `npm pack --ignore-scripts` 生成 tarball。
+验收脚本接收该 tarball，在系统临时目录用 npm 安装真实生产依赖（禁用安装脚本），检查 CJS、ESM、UMD、类型入口和七平台降级场景。原有 `yarn build` 保留本地打包消费检查。
+CD 核对 tag、package.json、SDK_VERSION、tarball 元数据，保存提交 SHA、CI 证据、SHA-256/SHA-512 摘要和安装锁文件，并只发布验收过的 tarball，显式禁用发布生命周期脚本以避免再次构建。
+同版本已经存在时仅在 registry integrity 与本次 tarball 一致时跳过发布；网络或鉴权失败不会被当成“版本不存在”。
+发布成功后 GitHub Release 额外附带 tarball 和来源清单；完整诊断、CI 证据与安装记录在 Actions artifact 中。

@@ -44,6 +44,8 @@ async function runNode(file, cwd, { nodeArgs = [], scriptArgs = [] } = {}) {
   return execFileAsync(process.execPath, [...nodeArgs, file, ...scriptArgs], {
     cwd,
     encoding: 'utf8',
+    timeout: 60_000,
+    killSignal: 'SIGKILL',
   });
 }
 
@@ -317,24 +319,53 @@ Transports.createMiniappTransport;
 miniappStackParser;
 `;
 
+const suppliedTarball = process.argv[2] ? resolve(process.argv[2]) : undefined;
 const tempRoot = await mkdtemp(join(tmpdir(), 'sentry-miniapp-package-consumers-'));
 
 try {
-  const tarball = await pack(repoRoot, {
-    destination: tempRoot,
-    packageManager: 'yarn',
-  });
+  const tarball =
+    suppliedTarball ||
+    (await pack(repoRoot, {
+      destination: tempRoot,
+      packageManager: 'yarn',
+    }));
   const nodeModules = join(tempRoot, 'node_modules');
   const packageRoot = join(nodeModules, 'sentry-miniapp');
 
-  await mkdir(packageRoot, { recursive: true });
-  await unpackPackage(tarball, packageRoot);
-  await cp(join(repoRoot, 'node_modules/@sentry'), join(nodeModules, '@sentry'), {
-    dereference: true,
-    recursive: true,
-  });
+  if (suppliedTarball) {
+    await writeConsumer(join(tempRoot, 'package.json'), JSON.stringify({ private: true }));
+    const installed = await execFileAsync(
+      'npm',
+      [
+        'install',
+        tarball,
+        '--ignore-scripts',
+        '--no-audit',
+        '--no-fund',
+        '--registry=https://registry.npmjs.org',
+      ],
+      {
+        cwd: tempRoot,
+        encoding: 'utf8',
+        timeout: 120_000,
+        killSignal: 'SIGKILL',
+        env: { ...process.env, NODE_PATH: '', npm_config_cache: join(tempRoot, '.npm-cache') },
+      },
+    );
+    console.log(installed.stdout);
+  } else {
+    await mkdir(packageRoot, { recursive: true });
+    await unpackPackage(tarball, packageRoot);
+    await cp(join(repoRoot, 'node_modules/@sentry'), join(nodeModules, '@sentry'), {
+      dereference: true,
+      recursive: true,
+    });
+  }
 
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
+  const expected = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8'));
+  assert.equal(packageJson.name, expected.name);
+  assert.equal(packageJson.version, expected.version);
   const wechatMain = packageJson.main || 'index.js';
   const wechatEntry = /\.(?:js|json)$/.test(wechatMain) ? wechatMain : `${wechatMain}.js`;
   await Promise.all([
@@ -359,13 +390,15 @@ try {
   const esmScenarios = platformContracts.flatMap((contract) =>
     selfRequestRuntimeModes.map((runtimeMode) => ({ contract, runtimeMode })),
   );
-  const esmExecutions = await Promise.all(
-    esmScenarios.map(({ contract, runtimeMode }) =>
-      runNode(esmConsumer, tempRoot, {
+  const esmExecutions = [];
+  for (const { contract, runtimeMode } of esmScenarios) {
+    console.log(`Checking ESM ${contract.platform} ${runtimeMode}`);
+    esmExecutions.push(
+      await runNode(esmConsumer, tempRoot, {
         scriptArgs: [contract.platform, runtimeMode],
       }),
-    ),
-  );
+    );
+  }
   assert.equal(cjsExecution.stderr, '', `CJS import emitted stderr:\n${cjsExecution.stderr}`);
   for (const [index, execution] of esmExecutions.entries()) {
     assert.equal(
@@ -439,5 +472,22 @@ try {
     `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${selfRequestRuntimeModes.length} URL modes), UMD and TypeScript (${cjsResult.keys.length} exports).`,
   );
 } finally {
+  if (suppliedTarball && process.env.DIAGNOSTICS_DIR) {
+    const evidenceRoot = resolve(process.env.DIAGNOSTICS_DIR, 'package');
+    await mkdir(evidenceRoot, { recursive: true });
+    for (const name of [
+      'package-lock.json',
+      'package.json',
+      'consumer.mts',
+      'consumer.cts',
+      'tsconfig.json',
+    ]) {
+      try {
+        await cp(join(tempRoot, name), join(evidenceRoot, name));
+      } catch (error) {
+        if (error.code !== 'ENOENT') console.warn(`Could not save ${name}: ${error.message}`);
+      }
+    }
+  }
   await rm(tempRoot, { force: true, recursive: true });
 }

@@ -13,6 +13,7 @@ jobs:
   quality:
     name: Quality (Node 24.x)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
 
@@ -49,11 +50,24 @@ jobs:
       run: git diff --exit-code
 
     - name: Run Tests with Coverage
-      run: yarn run test:coverage
+      run: node scripts/internal/run-diagnosed.mjs tests 480 yarn run test:coverage --maxWorkers=2 --reporter=verbose --reporter=junit --outputFile.junit=diagnostics/tests/junit.xml
+
+    - name: Save diagnostics
+      if: always()
+      timeout-minutes: 2
+      uses: actions/upload-artifact@v4
+      with:
+        name: ci-quality-${{ github.run_attempt }}
+        path: |
+          diagnostics/
+          coverage/
+        if-no-files-found: ignore
+        retention-days: 14
 
   # 保留 job id，使分支保护中的 build-and-test (20.x/22.x) 检查名继续有效。
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
 
@@ -79,4 +93,16 @@ jobs:
       run: yarn run build
 
     - name: Run Tests in Random Order
-      run: yarn run test:shuffle
+      run: node scripts/internal/run-diagnosed.mjs tests 480 yarn run test:shuffle --maxWorkers=2 --reporter=verbose --reporter=junit --outputFile.junit=diagnostics/tests/junit.xml
+
+    - name: Save diagnostics
+      if: always()
+      timeout-minutes: 2
+      uses: actions/upload-artifact@v4
+      with:
+        name: ci-node-${{ matrix.node-version }}-${{ github.run_attempt }}
+        path: |
+          diagnostics/
+          coverage/
+        if-no-files-found: ignore
+        retention-days: 14

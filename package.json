@@ -8,7 +8,8 @@
   },
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
-    "build": "vite build && npm run build:type-entrypoints && npm run check:build-output && npm run check:package && npm run check:package-consumers",
+    "build": "npm run build:release && npm run check:package-consumers",
+    "build:release": "vite build && npm run build:type-entrypoints && npm run check:build-output && npm run check:package",
     "build:type-entrypoints": "node scripts/internal/create-type-entrypoints.mjs",
     "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
     "check:package": "publint --level error",
