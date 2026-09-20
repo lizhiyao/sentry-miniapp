@@ -59,8 +59,11 @@ vi.mock('@sentry/core', () => {
     isSentryRequestUrl: mockIsSentryRequestUrl,
     getTraceData: mockGetTraceData,
     setHttpStatus: mockSetHttpStatus,
+    DEFAULT_ENVIRONMENT: 'production',
     SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME: 'sentry.exclusive_time',
+    SEMANTIC_ATTRIBUTE_SENTRY_ENVIRONMENT: 'sentry.environment',
     SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN: 'sentry.origin',
+    SEMANTIC_ATTRIBUTE_SENTRY_RELEASE: 'sentry.release',
     SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME: 'sentry.segment.name',
     SPAN_STATUS_OK: 1,
     SPAN_STATUS_ERROR: 2,
@@ -74,8 +77,11 @@ import { createNetworkBreadcrumbsTestHarness } from './support/networkbreadcrumb
 
 const harness = createNetworkBreadcrumbsTestHarness({ crossPlatform, mockGetClient });
 
-function setupIntegration(integration: NetworkBreadcrumbs): void {
-  harness.setupIntegration(integration);
+function setupIntegration(
+  integration: NetworkBreadcrumbs,
+  clientOptions?: Record<string, unknown>,
+): void {
+  harness.setupIntegration(integration, clientOptions);
 }
 
 describe('NetworkBreadcrumbs tracing', () => {
@@ -387,7 +393,10 @@ describe('NetworkBreadcrumbs tracing', () => {
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],
     });
-    setupIntegration(integration);
+    setupIntegration(integration, {
+      release: 'miniapp@1.2.3',
+      environment: 'staging',
+    });
 
     crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
 
@@ -400,6 +409,8 @@ describe('NetworkBreadcrumbs tracing', () => {
         attributes: expect.objectContaining({
           'sentry.origin': 'auto.http.miniapp',
           'sentry.segment.name': 'GET https://api.example.com/users',
+          'sentry.release': 'miniapp@1.2.3',
+          'sentry.environment': 'staging',
         }),
       }),
     );
@@ -410,9 +421,29 @@ describe('NetworkBreadcrumbs tracing', () => {
     );
   });
 
+  it('uses the default production environment for standalone spans', () => {
+    mockGetActiveSpan.mockReturnValueOnce(undefined);
+    const integration = new NetworkBreadcrumbs();
+    setupIntegration(integration, { release: 'miniapp@1.2.3' });
+
+    crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
+
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({
+          'sentry.release': 'miniapp@1.2.3',
+          'sentry.environment': 'production',
+        }),
+      }),
+    );
+  });
+
   it('does not set standalone-only attributes on child request spans', () => {
     const integration = new NetworkBreadcrumbs();
-    setupIntegration(integration);
+    setupIntegration(integration, {
+      release: 'miniapp@1.2.3',
+      environment: 'staging',
+    });
 
     crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
 
@@ -420,6 +451,8 @@ describe('NetworkBreadcrumbs tracing', () => {
       expect.objectContaining({
         attributes: expect.not.objectContaining({
           'sentry.segment.name': expect.anything(),
+          'sentry.release': expect.anything(),
+          'sentry.environment': expect.anything(),
         }),
       }),
     );

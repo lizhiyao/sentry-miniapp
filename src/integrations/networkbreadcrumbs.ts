@@ -1,11 +1,14 @@
 import {
   addBreadcrumb,
+  DEFAULT_ENVIRONMENT,
   getActiveSpan,
   getClient,
   hasSpansEnabled,
   isSentryRequestUrl,
   SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME,
+  SEMANTIC_ATTRIBUTE_SENTRY_ENVIRONMENT,
   SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN,
+  SEMANTIC_ATTRIBUTE_SENTRY_RELEASE,
   SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME,
   SPAN_STATUS_OK,
   SPAN_STATUS_ERROR,
@@ -193,7 +196,7 @@ export class NetworkBreadcrumbs implements Integration {
       const method = normalizeMethod(options.method);
       const requestData = options.data;
       const startTime = Date.now();
-      const requestSpan = startRequestSpan(method, url, enableStandaloneHttpSpans);
+      const requestSpan = startRequestSpan(method, url, enableStandaloneHttpSpans, client);
       let requestSpanFinished = false;
       const finishSpanOnce = (finish: RequestSpanFinishOptions): void => {
         if (requestSpanFinished) return;
@@ -396,6 +399,7 @@ function startRequestSpan(
   method: string,
   url: string,
   enableStandaloneHttpSpans: boolean,
+  client: Client | undefined,
 ): RequestSpan | null {
   try {
     if (!hasSpansEnabled()) return null;
@@ -405,6 +409,7 @@ function startRequestSpan(
     const serverAddress = extractHost(url);
     const spanName = `${method} ${sanitizeSpanNameUrl(url)}`;
     const standalone = !parentSpan;
+    const standaloneClientOptions = standalone ? client?.getOptions() : undefined;
     const span = startInactiveSpan({
       name: spanName,
       op: 'http.client',
@@ -415,7 +420,12 @@ function startRequestSpan(
       ...(!parentSpan && { experimental: { standalone: true } }),
       attributes: {
         [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: 'auto.http.miniapp',
-        ...(standalone && { [SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME]: spanName }),
+        ...(standalone && {
+          [SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME]: spanName,
+          [SEMANTIC_ATTRIBUTE_SENTRY_RELEASE]: standaloneClientOptions?.release,
+          [SEMANTIC_ATTRIBUTE_SENTRY_ENVIRONMENT]:
+            standaloneClientOptions?.environment || DEFAULT_ENVIRONMENT,
+        }),
         'http.request.method': method,
         'url.full': url,
         'server.address': serverAddress || undefined,
