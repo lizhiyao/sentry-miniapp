@@ -12,7 +12,10 @@ export function createNetworkBreadcrumbsTestHarness(
 ): {
   beforeEach: () => Mock;
   afterEach: () => void;
-  setupIntegration: (integration: NetworkBreadcrumbs) => void;
+  setupIntegration: (
+    integration: NetworkBreadcrumbs,
+    clientOptions?: Record<string, unknown>,
+  ) => void;
 } {
   const activeIntegrations = new Set<NetworkBreadcrumbs>();
 
@@ -36,9 +39,12 @@ export function createNetworkBreadcrumbsTestHarness(
       vi.restoreAllMocks();
     },
 
-    setupIntegration(integration: NetworkBreadcrumbs): void {
+    setupIntegration(
+      integration: NetworkBreadcrumbs,
+      clientOptions: Record<string, unknown> = {},
+    ): void {
       const client = {
-        getOptions: () => ({ dsn: 'https://key@sentry.io/123' }),
+        getOptions: () => ({ dsn: 'https://key@sentry.io/123', ...clientOptions }),
         getDsn: () => ({ host: 'sentry.io' }),
         registerCleanup: vi.fn(),
       } as any;

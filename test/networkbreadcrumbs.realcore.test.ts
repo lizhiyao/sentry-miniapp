@@ -58,6 +58,8 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       platform: 'bytedance',
+      release: 'minigame@1.2.3',
+      environment: 'staging',
       tracesSampler: () => true,
       tracePropagationTargets: ['api.example.com'],
       enableOfflineCache: false,
@@ -89,6 +91,8 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
         data: expect.objectContaining({
           'http.request.method': 'POST',
           'http.response.status_code': 201,
+          'sentry.environment': 'staging',
+          'sentry.release': 'minigame@1.2.3',
           'sentry.segment.name': 'POST https://api.example.com/v1/login',
           'url.full': 'https://api.example.com/v1/login?token=secret',
           'server.address': 'api.example.com',
