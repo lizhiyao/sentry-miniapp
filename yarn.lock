@@ -1435,12 +1435,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/core@npm:10.74.0":
-  version: 10.74.0
-  resolution: "@sentry/core@npm:10.74.0"
+"@sentry/core@npm:10.75.0":
+  version: 10.75.0
+  resolution: "@sentry/core@npm:10.75.0"
   dependencies:
     "@sentry/conventions": "npm:^0.16.0"
-  checksum: 10c0/3560388187db34f407f346eedea136ef36336d64140f66ff9e0a64b3a98999732cd6a9f10fd7f64e7b785c8faa7b06c4f98decc003777754dbe3f9b26f8a9cf7
+  checksum: 10c0/520545b743dfeb6f4b16ba74485e4ea19ccb57934e4e5702daaf3ab479150ea9a16034604a36681ac933345490994193690c10831588f78693a740e2de6ee157
   languageName: node
   linkType: hard
 
@@ -5587,7 +5587,7 @@ __metadata:
     "@commitlint/config-conventional": "npm:^20.5.3"
     "@eslint/js": "npm:^10.0.1"
     "@publint/pack": "npm:^0.1.7"
-    "@sentry/core": "npm:10.74.0"
+    "@sentry/core": "npm:10.75.0"
     "@types/node": "npm:^20.19.11"
     "@typescript-eslint/eslint-plugin": "npm:^8.70.0"
     "@typescript-eslint/parser": "npm:^8.70.0"

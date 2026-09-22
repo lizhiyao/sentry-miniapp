@@ -92,7 +92,7 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "@sentry/core": "10.74.0"
+    "@sentry/core": "10.75.0"
   },
   "resolutions": {
     "js-yaml": "5.4.2",
