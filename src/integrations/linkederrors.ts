@@ -82,9 +82,9 @@ export class LinkedErrors implements Integration {
    * @inheritDoc
    */
   private _walkErrorTree(error: Error, key: string, stack: Exception[] = []): Exception[] {
-    // core 11 收紧了链式错误的类型（索引为 unknown），而 Error 本身没有索引签名，
-    // cause 这类动态键只能按普通对象读取。
-    const chainedError = (error as unknown as Record<string, unknown>)[key];
+    // core 11 把 ExtendedError 的索引收紧成 unknown，而 Error 本身没有索引签名；
+    // Reflect.get 与 error[key] 同样走原型链，免去类型断言。
+    const chainedError: unknown = Reflect.get(error, key);
     if (!isInstanceOf(chainedError, Error) || stack.length + 1 >= this._limit) {
       return stack;
     }
