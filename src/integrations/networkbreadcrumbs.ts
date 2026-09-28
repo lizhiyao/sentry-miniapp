@@ -413,13 +413,14 @@ function startRequestSpan(
     const span = startInactiveSpan({
       name: spanName,
       op: 'http.client',
-      kind: 2,
       parentSpan: parentSpan ?? null,
       // 静态 trace 生命周期下，无父普通 span 会被转换成 transaction。standalone segment
       // 直接发送 span envelope，既保留长生命周期小游戏的请求，又不制造高基数根 transaction。
       ...(!parentSpan && { experimental: { standalone: true } }),
       attributes: {
         [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: 'auto.http.miniapp',
+        // core 11 移除了数字 `kind`，OTEL SpanKind.CLIENT 改由 'sentry.kind' 属性表达。
+        'sentry.kind': 'client',
         ...(standalone && {
           [SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME]: spanName,
           [SEMANTIC_ATTRIBUTE_SENTRY_RELEASE]: standaloneClientOptions?.release,
