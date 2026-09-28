@@ -1,4 +1,4 @@
-import type { Options as CoreOptions, SpanJSON } from '@sentry/core';
+import type { Options as CoreOptions } from '@sentry/core';
 import type { MiniappTransportOptions } from './transports';
 import type { AppName, MiniappPlatform } from './crossPlatform';
 
@@ -46,17 +46,7 @@ export interface MinigameFrameRateOptions {
 /**
  * Configuration options for the Sentry Miniapp SDK.
  */
-export interface MiniappOptions extends Omit<CoreOptions<MiniappTransportOptions>, 'beforeSendSpan'> {
-  /**
-   * Span 发送前的钩子，可修改请求等独立 span。
-   *
-   * 本 SDK 默认 `traceLifecycle: 'static'`，回调收到的是扁平的 `SpanJSON`
-   * （`description` / `op` / `origin` / `data` 等字段），与 core 10 的写法一致；
-   * 只有显式改用 `'stream'` 时才会收到 core 11 的 `StreamedSpanJSON`（`name` / `attributes`）。
-   * core 的类型只声明了后者，所以这里按 SDK 默认行为重新声明。
-   */
-  beforeSendSpan?: (span: SpanJSON) => SpanJSON;
-
+export interface MiniappOptions extends CoreOptions<MiniappTransportOptions> {
   /**
    * 上报 `Sentry.logger.trace/debug/info/warn/error/fatal` 到 Sentry Logs。
    * 默认 `false`；`@sentry/core` 11 移除了同名选项，SDK 用 `beforeSendLog` 维持该 opt-in 契约。

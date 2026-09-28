@@ -5,13 +5,15 @@ import { getClient, captureException, flush, type Envelope, type Event } from '@
 import {
   assertDefined,
   collectEnvelopePayloads,
+  collectSpans,
   createCapturingTransport,
+  spanAttribute,
 } from './support/envelopes';
 
 /**
  * 与 minigame-framerate.test.ts 不同：此文件**不 mock** `@sentry/core`，而是用真实
  * init → tracing → 自定义 transport，验证「会话汇总」确实产出一条合法 transaction，
- * 且分档 measurement 真的挂在 transaction 上（堵住「全 mock 只验调用形状」的盲区）。
+ * 且分档指标真的挂在汇总 span 的属性上（堵住「全 mock 只验调用形状」的盲区）。
  */
 describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
   const g = global as any;
@@ -68,7 +70,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     delete g.wx;
   });
 
-  it('onHide 返回前同步产出真实 transaction（含分档 measurement）', () => {
+  it('onHide 返回前同步发出帧率汇总 segment span（含分档属性）', () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       tracesSampleRate: 1.0,
@@ -88,21 +90,21 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
     frame(85); // delta 65 → major（33<65≤100）
     frame(285); // delta 200 → severe（>100）
 
-    hideCb!(); // 退后台后 JS 线程可能立即冻结，transport 必须已收到 transaction。
+    hideCb!(); // 退后台后 JS 线程可能立即冻结，transport 必须已收到汇总 span。
 
-    const summary = collectEnvelopePayloads<Event>(captured, ['transaction']).find(
-      (t) => t.transaction === 'minigame.framerate.summary',
+    // stream 生命周期靠 core flush 时同步 drain 的 span buffer 发出，断言不能等 tick。
+    const summary = collectSpans(captured).find(
+      (span) => span.name === 'minigame.framerate.summary',
     );
     assertDefined(summary);
-    assertDefined(summary.contexts?.trace);
-    expect(summary.contexts.trace.op).toBe('ui.framerate');
-
-    const m = summary.measurements || {};
-    expect(m.jank_count?.value).toBe(3); // 总数
-    expect(m.jank_minor_count?.value).toBe(1);
-    expect(m.jank_major_count?.value).toBe(1);
-    expect(m.jank_severe_count?.value).toBe(1);
-    expect(m.fps_avg).toBeDefined();
+    expect(summary.is_segment).toBe(true);
+    expect(spanAttribute(summary, 'sentry.op')).toBe('ui.framerate');
+    expect(spanAttribute(summary, 'jank.count')).toBe(3); // 总数
+    expect(spanAttribute(summary, 'jank.minor')).toBe(1);
+    expect(spanAttribute(summary, 'jank.major')).toBe(1);
+    expect(spanAttribute(summary, 'jank.severe')).toBe(1);
+    expect(spanAttribute(summary, 'fps.avg')).toEqual(expect.any(Number));
+    expect(spanAttribute(summary, 'frames.total')).toEqual(expect.any(Number));
   });
 
   it('client.close() 执行集成通过 setup(client) 注册的 cleanup', async () => {

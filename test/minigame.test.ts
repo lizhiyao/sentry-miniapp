@@ -154,7 +154,7 @@ describe('MinigameIntegration', () => {
     );
   });
 
-  it('首帧发独立冷启动 transaction（epoch 锚点 + cold_start measurement）', () => {
+  it('首帧发独立冷启动 segment span（epoch 锚点 + cold_start 属性）', () => {
     // Date.now 被 test/setup 固定为 1640995200000（2022-01-01）；now() 被 spy 为 clock。
     const EPOCH = 1640995200000;
     const integration = new MinigameIntegration(); // 构造 now()=1000、Date.now()=EPOCH
@@ -166,7 +166,7 @@ describe('MinigameIntegration', () => {
       expect.objectContaining({
         name: 'minigame.coldstart',
         op: 'app.start',
-        forceTransaction: true,
+        parentSpan: null,
         startTime: EPOCH / 1000, // 用 epoch 锚点，而非单调时钟
       }),
     );

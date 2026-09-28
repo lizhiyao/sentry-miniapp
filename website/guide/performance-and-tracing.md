@@ -45,7 +45,7 @@ Sentry.init({
 | 渲染与 `setData` | 发现渲染过慢、更新过重 |
 | 资源加载 | 定位大资源或慢资源 |
 | API 请求 | 包裹平台 `request`，作为 `http.client` span 查看请求耗时 |
-| 小游戏冷启动、FPS、jank | 作为小游戏专属 transaction 与 measurement |
+| 小游戏冷启动、FPS、jank | 作为小游戏专属 segment span，指标挂在 span 属性上 |
 
 宿主没有 `createObserver` 时，默认性能集成会静默跳过导航、渲染和资源条目，不设置已启用标记，也不会启动定时汇总。API 请求由网络集成直接包裹平台 `request` 采集，**不依赖 PerformanceObserver**。微信 / 抖音小游戏的冷启动、FPS 和 jank 则由小游戏专属集成采集；详见[小游戏接入与性能](/guide/minigame)。
 
@@ -106,6 +106,29 @@ Sentry.init({
 
 请求 span 名会保留 URL 路径，例如 `GET https://api.example.com/users/123`。如果路径中的订单号、用户 id 导致维度过高，可在 `beforeSendSpan` 中把动态段统一改为 `:id`。SDK 不会自行猜测路由模板，避免误改合法路径。
 
+```js
+Sentry.init({
+  beforeSendSpan(span) {
+    // span 是 core 11 的 StreamedSpanJSON：名字在 span.name，属性带 { type, value } 注解。
+    if (!span.is_segment) return span;
+    span.name = span.name.replace(/\/\d+(?=\/|$)/g, '/:id');
+    return span;
+  },
+});
+```
+
+## core 11 的 span streaming（升级须知）
+
+`sentry-miniapp` 依赖的 `@sentry/core` 11 把 trace 生命周期默认值改成了 `'stream'`：span 不再等根 span 结束后打包成一条 transaction 事件，而是按 trace 分批作为 `span` envelope item 发出。对使用方的影响：
+
+- **不再产生 transaction 事件**，Performance 页改由 segment span 聚合展示；Sentry 侧的查询、告警若按 `transaction` 类型写过，需要改看 span。
+- **`beforeSendTransaction` 与 `ignoreTransactions` 失效**（core 会给出告警）。替代：`beforeSendSpan`（配合 `span.is_segment` 判断）与 `ignoreSpans`。
+- **span 上的自定义指标改走属性**。小游戏的 `fps.avg`、`jank.count` 等一直是同时写成属性的，因此数据不丢；但 transaction 事件上的 `measurements` 块只在 `traceLifecycle: 'static'` 下产出。
+- **`measurements` / `tags` / `extra` 不再挂到 span 上**（streamed span 只携带 attributes），需要在 Sentry 端按属性查询。
+- 小游戏 `onHide` 的同步发出仍然成立：SDK 会随默认集成装 core 的 `spanStreamingIntegration`，退后台时的 `flush()` 会同步排空 span 缓冲区，不依赖 core 的定时器。
+
+若你需要保持 core 10 的事务模型，可显式设置 `traceLifecycle: 'static'`；注意这是 core 为过渡保留的路径，计划在后续大版本移除，长期应迁移到 `span` + 属性。
+
 ## 验证链路
 
 1. 测试环境临时设置 `tracesSampleRate: 1.0`。
@@ -114,6 +137,6 @@ Sentry.init({
 4. 确认第三方域名没有收到不必要的追踪头。
 5. 打印 `Sentry.getDiagnostics()`，检查采样率、传播开关和 warnings。
 
-没有 span 时，先确认性能采样已开启、默认 `NetworkBreadcrumbs` 集成没有被替换，并检查 `enableStandaloneHttpSpans` 是否被关闭；本地 span 正常但服务端没有串联时，再检查 `tracePropagationTargets`、网关透传和后端 Sentry / OpenTelemetry 配置。
+没有 span 时，先确认性能采样已开启、默认 `NetworkBreadcrumbs` 集成没有被替换；自定义 `defaultIntegrations` 时务必保留 `spanStreamingIntegration()`（core 11 的 span 发送依赖它，漏装会让非独立 span 一条都发不出去），并检查 `enableStandaloneHttpSpans` 是否被关闭；本地 span 正常但服务端没有串联时，再检查 `tracePropagationTargets`、网关透传和后端 Sentry / OpenTelemetry 配置。
 
 所有相关选项见[配置项参考 · 采样](/guide/configuration#采样)与[配置项参考 · 分布式追踪](/guide/configuration#分布式追踪)。

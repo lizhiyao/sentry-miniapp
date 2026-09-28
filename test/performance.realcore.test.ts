@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { flush, getClient, type Envelope, type Event } from '@sentry/core';
+import { flush, getClient, type Envelope, type StreamedSpanJSON } from '@sentry/core';
 import { init } from '../src/index';
 import {
-  assertDefined,
   collectEnvelopePayloads,
+  collectSpans,
   createCapturingTransport,
+  spanAttribute,
 } from './support/envelopes';
 
 /**
@@ -74,13 +75,13 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     consoleSpy.mockRestore();
   });
 
-  it('默认集成接收微信性能条目后会发送 transaction', async () => {
-    const beforeSendTransaction = vi.fn((event: any) => event);
+  it('默认集成接收微信性能条目后发出 navigation segment span', async () => {
+    const beforeSendSpan = vi.fn((span: StreamedSpanJSON) => span);
 
     const client = init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       tracesSampleRate: 1,
-      beforeSendTransaction,
+      beforeSendSpan,
       transport: createCapturingTransport(captured),
     } as any);
 
@@ -99,24 +100,23 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     await flush(2000);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const transactions = collectEnvelopePayloads<Event>(captured, ['transaction']);
+    const spans = collectSpans(captured);
+    const segments = spans.filter((span) => span.is_segment);
+    expect(segments).toHaveLength(1);
+    const root = segments[0]!;
+    expect(root.name).toBe('Navigation: appLaunch');
+    expect(spanAttribute(root, 'sentry.op')).toBe('navigation');
+    expect(spanAttribute(root, 'performance.entry_count')).toBe(1);
+    expect(root.start_timestamp).toBeGreaterThan(1_000_000_000);
+    expect(root.end_timestamp).toBeGreaterThanOrEqual(root.start_timestamp);
 
-    expect(beforeSendTransaction).toHaveBeenCalled();
-    const transaction = transactions.find(
-      (event) => event.transaction === 'Navigation: appLaunch',
-    );
-    assertDefined(transaction);
-    assertDefined(transaction.start_timestamp);
-    assertDefined(transaction.timestamp);
-    expect(transaction.start_timestamp).toBeGreaterThan(1_000_000_000);
-    expect(transaction.timestamp).toBeGreaterThanOrEqual(transaction.start_timestamp);
-    expect(transaction.spans).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          op: 'navigation',
-          start_timestamp: expect.any(Number),
-        }),
-      ]),
-    );
+    // 换成 stream 后链路结构不丢：每个性能条目仍是挂在同一条 trace 上的子 span。
+    const children = spans.filter((span) => !span.is_segment);
+    expect(children.length).toBeGreaterThan(0);
+    expect(children.every((span) => span.parent_span_id === root.span_id)).toBe(true);
+    expect(children.some((span) => spanAttribute(span, 'sentry.op') === 'navigation')).toBe(true);
+    expect(beforeSendSpan).toHaveBeenCalled();
+    // stream 生命周期不再产出 transaction 事件（beforeSendTransaction / ignoreTransactions 失效）。
+    expect(collectEnvelopePayloads(captured, ['transaction'])).toEqual([]);
   });
 });

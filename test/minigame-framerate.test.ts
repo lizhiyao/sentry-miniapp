@@ -169,7 +169,7 @@ describe('MinigameFrameRateIntegration', () => {
     );
   });
 
-  it('onHide 发会话汇总 transaction（measurements），且不每窗口发事件', () => {
+  it('onHide 发会话汇总 segment span（分档属性），且不每窗口发事件', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
     integration.setupOnce();
 
@@ -189,7 +189,7 @@ describe('MinigameFrameRateIntegration', () => {
       expect.objectContaining({
         name: 'minigame.framerate.summary',
         op: 'ui.framerate',
-        forceTransaction: true,
+        parentSpan: null,
         startTime: 1640995200000 / 1000, // epoch 锚点（Date.now mock），而非单调时钟的 0
       }),
     );

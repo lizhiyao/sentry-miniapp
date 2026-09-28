@@ -101,7 +101,7 @@ Cocos、私有引擎、Debug ID 或特殊堆栈解析属于进阶场景，请看
 1. 在真机主动发送测试错误，确认 Issues 中顶层 `platform=javascript`、`contexts.miniapp.platform` 与 release 正确。
 2. 将 `tracesSampleRate` 临时设为 `1.0`，完整启动并运行一段时间。
 3. 退到后台，确认出现 `minigame.coldstart` 和 `minigame.framerate.summary`。
-4. 检查 summary 是否包含 FPS 与 jank measurements。
+4. 打开 summary span，检查是否包含 `fps.*` 与 `jank.*` 属性。
 5. 上传 Source Map 后再触发一次真机错误，确认堆栈能还原到源码。
 
 如果没有性能 transaction，先检查 tracing 采样是否开启，再确认运行时存在全局 `requestAnimationFrame`。完整选项见[配置项参考 · 小游戏](/guide/configuration#小游戏)。

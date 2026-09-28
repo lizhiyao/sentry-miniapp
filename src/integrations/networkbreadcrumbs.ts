@@ -414,8 +414,9 @@ function startRequestSpan(
       name: spanName,
       op: 'http.client',
       parentSpan: parentSpan ?? null,
-      // 静态 trace 生命周期下，无父普通 span 会被转换成 transaction。standalone segment
-      // 直接发送 span envelope，既保留长生命周期小游戏的请求，又不制造高基数根 transaction。
+      // 无父请求 span 必须保持为独立 segment envelope：文档承诺「不会为每个请求制造一条根
+      // transaction」，且 `traceLifecycle: 'static'` 下无父普通 span 会被 core 转成 transaction。
+      // 该 experimental 项由 core 标注在 static 生命周期移除后一并删除，届时可去掉本分支。
       ...(!parentSpan && { experimental: { standalone: true } }),
       attributes: {
         [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: 'auto.http.miniapp',

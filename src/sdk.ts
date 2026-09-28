@@ -8,6 +8,7 @@ import {
   stackParserFromStackParserOptions,
   withScope,
   eventFiltersIntegration,
+  spanStreamingIntegration,
 } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
@@ -51,6 +52,9 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
     new TryCatch(),
     linkedErrorsIntegration(),
     dedupeIntegration(),
+    // core 11 的 span streaming。自定义 Client 不会自动装配它（只有 ServerRuntimeClient 和
+    // browser 入口会），漏装则非 standalone 的 span 永远滞留在内存里、一条都发不出去。
+    spanStreamingIntegration(),
     // Performance monitoring
     performanceIntegration({
       enableNavigation: true,
@@ -146,20 +150,6 @@ export const defaultIntegrations: Integration[] = getDefaultIntegrations({
   enableMinigameFrameRate: false,
 });
 
-function removeGeneratedEventFiltersWhenInboundFiltersIsConfigured(
-  integrations: Integration[],
-  generatedEventFilters: Integration | undefined,
-): Integration[] {
-  if (
-    !generatedEventFilters ||
-    !integrations.some((integration) => integration.name === 'InboundFilters')
-  ) {
-    return integrations;
-  }
-
-  return integrations.filter((integration) => integration !== generatedEventFilters);
-}
-
 /**
  * Initialize the Sentry Miniapp SDK
  * @param options Configuration options for the SDK
@@ -171,12 +161,8 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   }
 
   let configuredDefaultIntegrations: false | Integration[];
-  let generatedEventFilters: Integration | undefined;
   if (options.defaultIntegrations == null) {
     configuredDefaultIntegrations = getDefaultIntegrations(options);
-    generatedEventFilters = configuredDefaultIntegrations.find(
-      (integration) => integration.name === 'EventFilters',
-    );
   } else {
     configuredDefaultIntegrations = options.defaultIntegrations;
   }
@@ -187,10 +173,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   if (options.integrations !== undefined) {
     integrationOptions.integrations = options.integrations;
   }
-  const integrations = removeGeneratedEventFiltersWhenInboundFiltersIsConfigured(
-    getIntegrationsToSetup(integrationOptions),
-    generatedEventFilters,
-  );
+  const integrations = getIntegrationsToSetup(integrationOptions);
 
   const miniappPlatform = resolveMiniappPlatform(options);
   const opts = {

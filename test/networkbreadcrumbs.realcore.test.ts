@@ -5,12 +5,19 @@ import {
   startSpan,
   type Envelope,
   type EventHint,
-  type SpanJSON,
+  type StreamedSpanJSON,
   type TransactionEvent,
 } from '@sentry/core';
 import { init } from '../src/index';
 import { resetPlatformCache } from '../src/crossPlatform';
-import { collectEnvelopePayloads, collectSpans, createCapturingTransport } from './support/envelopes';
+import {
+  assertDefined,
+  collectEnvelopePayloads,
+  collectSpanItems,
+  collectSpans,
+  createCapturingTransport,
+  spanAttribute,
+} from './support/envelopes';
 
 describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
   const g = global as any;
@@ -52,7 +59,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
   });
 
   it('无 PerformanceObserver 和 active span 时上报独立 http.client segment span', async () => {
-    const beforeSendSpan = vi.fn((span: SpanJSON) => span);
+    const beforeSendSpan = vi.fn((span: StreamedSpanJSON) => span);
     const beforeSendTransaction = vi.fn((event: TransactionEvent, _hint: EventHint) => event);
 
     init({
@@ -79,28 +86,23 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     await flush(2000);
 
     const spans = collectSpans(captured);
-    expect(spans).toEqual([
-      expect.objectContaining({
-        description: 'POST https://api.example.com/v1/login',
-        op: 'http.client',
-        origin: 'auto.http.miniapp',
-        // beforeSendSpan 经 withStaticSpan 包装后，core 用 spanJsonToSerializedStreamedSpan
-        // 重新序列化：is_segment 归位到 sentry.segment.id/name 属性，顶层不再标 segment。
-        is_segment: false,
-        segment_id: expect.any(String),
-        exclusive_time: expect.any(Number),
-        status: 'ok',
-        data: expect.objectContaining({
-          'http.request.method': 'POST',
-          'http.response.status_code': 201,
-          'sentry.environment': 'staging',
-          'sentry.release': 'minigame@1.2.3',
-          'sentry.segment.name': 'POST https://api.example.com/v1/login',
-          'url.full': 'https://api.example.com/v1/login?token=secret',
-          'server.address': 'api.example.com',
-        }),
-      }),
-    ]);
+    expect(spans).toHaveLength(1);
+    const span = spans[0]!;
+    expect(span.name).toBe('POST https://api.example.com/v1/login');
+    expect(span.is_segment).toBe(true);
+    expect(span.status).toBe('ok');
+    expect(spanAttribute(span, 'sentry.op')).toBe('http.client');
+    expect(spanAttribute(span, 'sentry.origin')).toBe('auto.http.miniapp');
+    expect(spanAttribute(span, 'sentry.exclusive_time')).toEqual(expect.any(Number));
+    expect(spanAttribute(span, 'sentry.segment.name')).toBe('POST https://api.example.com/v1/login');
+    expect(spanAttribute(span, 'http.request.method')).toBe('POST');
+    expect(spanAttribute(span, 'http.response.status_code')).toBe(201);
+    expect(spanAttribute(span, 'url.full')).toBe('https://api.example.com/v1/login?token=secret');
+    expect(spanAttribute(span, 'server.address')).toBe('api.example.com');
+    expect(spanAttribute(span, 'sentry.release')).toBe('minigame@1.2.3');
+    expect(spanAttribute(span, 'sentry.environment')).toBe('staging');
+
+    // stream 生命周期不产出 transaction 事件，beforeSendTransaction 由 core 忽略。
     expect(collectEnvelopePayloads(captured, ['transaction'])).toEqual([]);
     expect(beforeSendSpan).toHaveBeenCalledOnce();
     expect(beforeSendTransaction).not.toHaveBeenCalled();
@@ -110,6 +112,35 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
         baggage: expect.stringContaining('sentry-'),
       }),
     );
+  });
+
+  it('独立 span 按 span/v2 传输契约发送', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/health' });
+    await flush(2000);
+
+    const items = collectSpanItems(captured);
+    expect(items).toHaveLength(1);
+    assertDefined(items[0]);
+    expect(items[0].header).toEqual(
+      expect.objectContaining({
+        type: 'span',
+        item_count: 1,
+        content_type: 'application/vnd.sentry.items.span.v2+json',
+      }),
+    );
+    expect(items[0].body.version).toBe(2);
+    expect(items[0].body.items).toHaveLength(1);
   });
 
   it.each([
@@ -190,23 +221,23 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     });
     await flush(2000);
 
-    expect(collectEnvelopePayloads(captured, ['span'])).toEqual([]);
-    expect(collectEnvelopePayloads<Event>(captured, ['transaction'])).toEqual([
-      expect.objectContaining({
-        transaction: 'game.login',
-        spans: expect.arrayContaining([
-          expect.objectContaining({
-            description: 'POST https://api.example.com/v1/login',
-            op: 'http.client',
-            origin: 'auto.http.miniapp',
-          }),
-        ]),
-      }),
-    ]);
+    const spans = collectSpans(captured);
+    const root = spans.find((span) => span.name === 'game.login');
+    const child = spans.find((span) => span.name === 'POST https://api.example.com/v1/login');
+    assertDefined(root);
+    assertDefined(child);
+    expect(root.is_segment).toBe(true);
+    expect(child.is_segment).toBe(false);
+    expect(child.parent_span_id).toBe(root.span_id);
+    expect(spanAttribute(child, 'sentry.op')).toBe('http.client');
+    expect(spanAttribute(child, 'sentry.origin')).toBe('auto.http.miniapp');
+    // 请求 span 归到业务 trace 里，不再另发独立 segment；stream 下也没有 transaction 事件。
+    expect(spans.filter((span) => span.is_segment)).toHaveLength(1);
+    expect(collectEnvelopePayloads(captured, ['transaction'])).toEqual([]);
   });
 
   it('采样率为 0 时请求正常执行但不发送 span', async () => {
-    const beforeSendSpan = vi.fn((span: SpanJSON) => span);
+    const beforeSendSpan = vi.fn((span: StreamedSpanJSON) => span);
 
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
@@ -272,20 +303,12 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
 
     const spans = collectSpans(captured);
     expect(spans).toHaveLength(1);
-    expect(spans[0]).toEqual(
-      expect.objectContaining({
-        op: 'http.client',
-        is_segment: true,
-        data: expect.objectContaining({
-          'error.message': 'request:fail timeout',
-        }),
-      }),
-    );
-    // core 11 的 span 状态只保留 ok/error，细分状态改由 error.message 属性承载。
-    expect(spans[0]?.status).toBe('error');
-    expect(spans[0]?.data).toEqual(
-      expect.objectContaining({ 'error.message': 'request:fail timeout' }),
-    );
+    const span = spans[0]!;
+    expect(span.is_segment).toBe(true);
+    expect(spanAttribute(span, 'sentry.op')).toBe('http.client');
+    // core 11 的 span 状态只剩 ok/error，失败原因由 error.message 属性承载。
+    expect(span.status).toBe('error');
+    expect(spanAttribute(span, 'error.message')).toBe('request:fail timeout');
   });
 
   it('HTTP 5xx 响应保留状态码，并把独立 span 标记为失败', async () => {
@@ -312,11 +335,9 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
 
     const spans = collectSpans(captured);
     expect(spans).toHaveLength(1);
-    expect(spans[0]?.data).toEqual(
-      expect.objectContaining({
-        'http.response.status_code': 503,
-      }),
-    );
-    expect(spans[0]?.status).toBe('error');
+    const span = spans[0]!;
+    // 状态码走属性，span.status 只表达成功/失败（core 11 的 span/v2 语义）。
+    expect(spanAttribute(span, 'http.response.status_code')).toBe(503);
+    expect(span.status).toBe('error');
   });
 });

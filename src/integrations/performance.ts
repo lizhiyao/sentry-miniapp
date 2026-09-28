@@ -294,7 +294,9 @@ export class PerformanceIntegration implements Integration {
     const rootSpan = startInactiveSpan({
       name: navigation ? `Navigation: ${navigation.name}` : 'Miniapp Performance',
       op: navigation ? 'navigation' : 'miniapp.performance',
-      forceTransaction: true,
+      // core 11 废弃 forceTransaction；无父 span 的 root span 自成 segment，子 span 按 traceId 归到
+      // 同一条 envelope 发出（SpanStreaming 的 buffer 负责攒批）。
+      parentSpan: null,
       startTime: rootStart,
     });
     rootSpan.setAttributes({
