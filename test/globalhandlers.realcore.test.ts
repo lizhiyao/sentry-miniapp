@@ -182,4 +182,45 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     expect(unrelated?.tags?.pagenotfound).toBeUndefined();
     expect(unrelated?.contexts?.page_not_found).toBeUndefined();
   });
+
+  it('TryCatch 捕获带 cause 的错误后，宿主 onError 再报同一外层错误被去重', async () => {
+    // core 11 把 hint 的 instrument mechanism 施加到被捕获的外层异常上，GlobalHandlers 因此
+    // 入队的是外层错误的 type/value，与宿主 onError 报上来的那条一致。10.x 下入队的是根因，
+    // 这条去重会失效、同一崩溃会被重报两次——本用例锁住该行为。
+    const originalSetTimeout = g.setTimeout;
+    g.setTimeout = (cb: (...args: any[]) => any) => {
+      cb();
+      return 0 as any;
+    };
+
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      enableOfflineCache: false,
+      transport: createCapturingTransport(captured),
+    } as any);
+
+    const outer = new Error('outer boom') as Error & { cause?: Error };
+    outer.cause = new Error('root cause');
+
+    expect(() => {
+      g.setTimeout(() => {
+        throw outer;
+      });
+    }).toThrow('outer boom');
+    await flush(2000);
+
+    const boomEvents = () =>
+      collectEnvelopePayloads<Event>(captured, ['event']).filter((e) =>
+        e.exception?.values?.some((value: any) => value.value?.includes('outer boom')),
+      );
+    expect(boomEvents()).toHaveLength(1);
+
+    // 宿主随后把同一个未处理错误交给 wx.onError：应被去重，不再重报。
+    onErrorHandler!(outer);
+    await flush(2000);
+
+    expect(boomEvents()).toHaveLength(1);
+    g.setTimeout = originalSetTimeout;
+  });
 });

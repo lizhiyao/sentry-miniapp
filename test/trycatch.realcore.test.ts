@@ -189,8 +189,9 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
 
   it('Error.cause 链按官方 LinkedErrors 语义保留未处理标记', async () => {
     // 官方 LinkedErrors 在 preprocessEvent 阶段把 cause prepend 到 exception.values；
-    // core 随后把 capture hint 的 instrument mechanism 施加到 values[0]（root cause）。
-    // 父异常保留 generic / linked-errors 元数据，但整个事件仍有 handled=false，会被计为 crash。
+    // core 11 起 capture hint 的 instrument mechanism 施加到被捕获的那条异常（exception_id 0，
+    // 即外层错误），cause 则由 LinkedErrors 标成 chained/parent_id。事件整体仍是 handled=false，
+    // 会被计为 crash。
     g.setTimeout = (cb: (...a: any[]) => any) => {
       cb();
       return 0 as any;
