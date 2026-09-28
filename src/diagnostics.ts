@@ -70,6 +70,8 @@ function buildOptionsDiagnostics(
     sampleRate: options.sampleRate ?? 1,
     tracesSampleRate: options.tracesSampleRate ?? null,
     tracesSamplerConfigured: typeof options.tracesSampler === 'function',
+    // core 11 的默认值；SDK 只做透传，这里报出实际生效的生命周期。
+    traceLifecycle: options.traceLifecycle ?? 'stream',
     enableLogs: options.enableLogs === true,
     enableSourceMap: options.enableSourceMap !== false,
     enableOfflineCache:
@@ -185,6 +187,20 @@ function buildWarnings(diagnostics: MiniappDiagnostics): MiniappDiagnosticsWarni
     warnings.push({
       code: 'tracing_disabled',
       message: '未配置 tracesSampleRate 或 tracesSampler，性能 tracing 不会采样上报。',
+    });
+  }
+
+  // 替换掉 defaultIntegrations 会连带删掉 SpanStreaming，而它是在 stream 生命周期下发送
+  // 业务 trace、导航与帧率汇总的唯一出口——不装则这些 span 全静默留在内存里。
+  if (
+    (options.tracesSampleRate !== null || options.tracesSamplerConfigured) &&
+    options.traceLifecycle === 'stream' &&
+    !diagnostics.integrations.includes('SpanStreaming')
+  ) {
+    warnings.push({
+      code: 'span_streaming_missing',
+      message:
+        '已开启 tracing，但集成列表里没有 SpanStreaming：业务 trace、导航与帧率汇总等非独立 span 不会被发送（仅独立 HTTP span 仍会直接发出）。通常是替换 defaultIntegrations 导致的，保留默认集成或手动加入 spanStreamingIntegration() 即可。',
     });
   }
 

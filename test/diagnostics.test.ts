@@ -248,4 +248,47 @@ describe('getDiagnostics', () => {
     expect(diagnostics.options).toBeNull();
     expect(diagnostics.warnings.map(warning => warning.code)).toContain('non_miniapp_client');
   });
+
+  it('替换 defaultIntegrations 漏掉 SpanStreaming 时给出可自检警告', () => {
+    // stream 生命周期下 SpanStreaming 是非独立 span 的唯一发送出口；用户换掉默认集成就会静默丢数据。
+    init({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      release: 'miniapp@1.0.0',
+      tracesSampleRate: 1,
+      defaultIntegrations: false,
+    });
+
+    const diagnostics = getDiagnostics();
+
+    expect(diagnostics.integrations).not.toContain('SpanStreaming');
+    expect(diagnostics.options?.traceLifecycle).toBe('stream');
+    expect(diagnostics.warnings.map((warning) => warning.code)).toContain('span_streaming_missing');
+  });
+
+  it('保留默认集成或显式选择 static 时不误报 SpanStreaming 缺失', () => {
+    init({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      release: 'miniapp@1.0.0',
+      tracesSampleRate: 1,
+    });
+    const withDefaults = getDiagnostics();
+    expect(withDefaults.integrations).toContain('SpanStreaming');
+    expect(withDefaults.warnings.map((warning) => warning.code)).not.toContain(
+      'span_streaming_missing',
+    );
+
+    // static 由 core 在 span 结束时同步产出 transaction，不经 span buffer，不该报这个警告。
+    init({
+      dsn: 'https://public@example.ingest.sentry.io/123',
+      release: 'miniapp@1.0.0',
+      tracesSampleRate: 1,
+      traceLifecycle: 'static',
+      defaultIntegrations: false,
+    });
+    const staticLifecycle = getDiagnostics();
+    expect(staticLifecycle.options?.traceLifecycle).toBe('static');
+    expect(staticLifecycle.warnings.map((warning) => warning.code)).not.toContain(
+      'span_streaming_missing',
+    );
+  });
 });
