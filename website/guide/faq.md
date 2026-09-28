@@ -13,8 +13,8 @@ Sentry.captureException(new Error('sentry test'));
 - **DSN / Project 是否可用**：确认 DSN 属于当前要看的 Sentry Project，且没有把测试事件发到其它环境或其它项目里。
 - **request 合法域名是否配置**：把 DSN 里的实际 host 加入小程序后台「request 合法域名」，例如 `o0.ingest.sentry.io`；自托管则填写你的 Sentry 服务域名。
 - **初始化位置是否太晚**：`Sentry.init` 必须在 `App()` 调用之前执行。放进 `App.onLaunch` 后，手动 `captureException` 仍可能可用，但启动阶段生命周期、Session、部分面包屑和冷启动耗时会降级。
-- **是否只调用了 `addBreadcrumb`**：面包屑不会单独上报，只会随下一次 error / message / transaction 一起发送。验证接入时请用 `captureException` 或 `captureMessage`。
-- **采样是否过滤了事件**：确认 `sampleRate` 没有被设得太低；如果只验证性能 transaction，还要确认 `tracesSampleRate` 或 `tracesSampler`。
+- **是否只调用了 `addBreadcrumb`**：面包屑不会单独上报，只会随下一次 error / message 事件一起发送（core 11 的 span 只携带属性，不再附面包屑）。验证接入时请用 `captureException` 或 `captureMessage`。
+- **采样是否过滤了事件**：确认 `sampleRate` 没有被设得太低；如果只验证性能 span，还要确认 `tracesSampleRate` 或 `tracesSampler`。
 - **开发者工具与真机差异**：微信开发者工具某些环境的报错不触发底层 `wx.onError`，建议用真机预览验证自动异常捕获。
 - **框架组件错误是否被吞掉**：uni-app / Taro 的组件错误可能被 Vue / React 先接住，不一定冒泡到平台全局 `onError`。这类错误需要接框架错误处理，见 [组件内错误](#component-errors)。
 
@@ -44,7 +44,7 @@ console.log(Sentry.getDiagnostics());
 
 `Sentry.logger.*` 会发送独立的 log envelope，适合业务日志查询、聚合、告警和跨事件分析；需要在初始化时开启 `enableLogs: true`。
 
-`enableConsoleBreadcrumbs` 只会把 `console.log/warn/error` 记录成面包屑，随**下一次 error / message / transaction 事件**一起发送；如果后续没有事件，它不会单独出现在 Sentry。
+`enableConsoleBreadcrumbs` 只会把 `console.log/warn/error` 记录成面包屑，随**下一次 error / message 事件**一起发送；如果后续没有事件，它不会单独出现在 Sentry。
 
 ## 组件内错误 {#component-errors}
 
