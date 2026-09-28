@@ -4,11 +4,13 @@ import {
   getClient,
   getIsolationScope,
   installedIntegrations,
+  type SerializedStreamedSpanContainer,
   type SpanJSON,
 } from '@sentry/core';
 
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { resetPlatformCache, sdk } from '../src/crossPlatform';
+import { streamedSpanToSpanJSON } from './support/envelopes';
 import { init } from '../src/index';
 
 type PlatformGlobal = 'wx' | 'my' | 'tt' | 'dd' | 'qq' | 'swan' | 'ks';
@@ -58,6 +60,14 @@ function collectEnvelopePayloads<T>(
     }
   }
   return payloads;
+}
+
+/** core 11 起 span item 是 span/v2 容器，还原成扁平 SpanJSON 再断言。 */
+function collectSpans(capturedRequests: Array<Record<string, any>>): SpanJSON[] {
+  return collectEnvelopePayloads<SerializedStreamedSpanContainer>(capturedRequests, 'span')
+    .map((container) => container.items)
+    .flat()
+    .map(streamedSpanToSpanJSON);
 }
 
 function collectEvents(capturedRequests: Array<Record<string, any>>): any[] {
@@ -475,7 +485,7 @@ describe.each(PLATFORM_CONTRACTS)(
       expect(requestTask).toEqual(expect.objectContaining({ abort: expect.any(Function) }));
       await client!.flush(2000);
 
-      const spans = collectEnvelopePayloads<SpanJSON>(capturedRequests, 'span');
+      const spans = collectSpans(capturedRequests);
       expect(spans).toEqual([
         expect.objectContaining({
           description: `POST https://api.example.com/${platform}/users`,

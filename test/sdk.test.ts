@@ -11,12 +11,20 @@ import {
 } from '../src/sdk';
 // flush / close / lastEventId 是 SDK 从 @sentry/core 透传的公开 API（sdk.ts 不再自定义重复实现）
 import { lastEventId, flush, close, getCurrentScope } from '@sentry/core';
-import { eventFiltersIntegration, inboundFiltersIntegration } from '@sentry/core';
-import type { StackParser } from '@sentry/core';
+import { eventFiltersIntegration } from '@sentry/core';
+import type { Integration, StackParser } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
 import { resetPlatformCache } from '../src/crossPlatform';
+
+/**
+ * core 11 已删除 inboundFiltersIntegration，但 SDK 仍会为用户自带的同名集成让位
+ * （可能来自仍依赖 core 10 的工程），这里用同名对象覆盖该兼容分支。
+ */
+function legacyInboundFilters(): Integration {
+  return { name: 'InboundFilters', setupOnce: () => {} };
+}
 
 describe('SDK', () => {
   beforeEach(() => {
@@ -366,7 +374,7 @@ describe('SDK', () => {
           ),
       ).toEqual([eventFilters]);
 
-      const inboundFilters = inboundFiltersIntegration({ ignoreErrors: ['legacy'] });
+      const inboundFilters = legacyInboundFilters();
       const clientWithInboundFilters = init({
         dsn: 'https://test@sentry.io/123',
         integrations: [inboundFilters],
@@ -382,7 +390,7 @@ describe('SDK', () => {
 
     it('保留 defaultIntegrations 中用户明确配置的两个过滤集成', () => {
       const eventFilters = eventFiltersIntegration({ ignoreErrors: ['event'] });
-      const inboundFilters = inboundFiltersIntegration({ ignoreErrors: ['inbound'] });
+      const inboundFilters = legacyInboundFilters();
       const client = init({
         dsn: 'https://test@sentry.io/123',
         defaultIntegrations: [eventFilters, inboundFilters],

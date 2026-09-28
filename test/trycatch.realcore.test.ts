@@ -226,10 +226,13 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     const outer = values.find((v: any) => v.value?.includes('outer timer boom'));
     assertDefined(root);
     assertDefined(outer);
-    expect(outer.mechanism?.type).toBe('generic');
-    expect(outer.mechanism?.handled).toBe(true);
-    expect(root.mechanism?.type).toBe('instrument');
-    expect(root.mechanism?.handled).toBe(false);
+    // core 11 起 hint 里的 mechanism 落到被捕获的那条异常（exception_id 0）上，
+    // cause 链改由 LinkedErrors 标成 chained/parent_id，未处理标记本身仍然保留。
+    expect(outer.mechanism?.type).toBe('instrument');
+    expect(outer.mechanism?.handled).toBe(false);
+    expect(root.mechanism?.type).toBe('chained');
+    expect(root.mechanism?.parent_id).toBe(0);
+    expect(root.mechanism?.source).toBe('cause');
   });
 
   it('包装处理器不泄漏：后续 unrelated 错误不被误标 instrument', async () => {

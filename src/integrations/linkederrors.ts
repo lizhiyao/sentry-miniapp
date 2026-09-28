@@ -1,4 +1,4 @@
-import type { Event, EventHint, Exception, ExtendedError, Integration } from '@sentry/core';
+import type { Event, EventHint, Exception, Integration } from '@sentry/core';
 import {
   exceptionFromError,
   getCurrentScope,
@@ -72,7 +72,7 @@ export class LinkedErrors implements Integration {
       return event;
     }
 
-    const linkedErrors = this._walkErrorTree(hint.originalException as ExtendedError, this._key);
+    const linkedErrors = this._walkErrorTree(hint.originalException, this._key);
     event.exception.values = [...linkedErrors, ...event.exception.values];
 
     return event;
@@ -81,13 +81,16 @@ export class LinkedErrors implements Integration {
   /**
    * @inheritDoc
    */
-  private _walkErrorTree(error: ExtendedError, key: string, stack: Exception[] = []): Exception[] {
-    if (!isInstanceOf(error[key], Error) || stack.length + 1 >= this._limit) {
+  private _walkErrorTree(error: Error, key: string, stack: Exception[] = []): Exception[] {
+    // core 11 收紧了链式错误的类型（索引为 unknown），而 Error 本身没有索引签名，
+    // cause 这类动态键只能按普通对象读取。
+    const chainedError = (error as unknown as Record<string, unknown>)[key];
+    if (!isInstanceOf(chainedError, Error) || stack.length + 1 >= this._limit) {
       return stack;
     }
 
-    const exception = exceptionFromError(() => [], error[key]);
-    return this._walkErrorTree(error[key], key, [exception, ...stack]);
+    const exception = exceptionFromError(() => [], chainedError);
+    return this._walkErrorTree(chainedError, key, [exception, ...stack]);
   }
 }
 
@@ -97,7 +100,7 @@ export class LinkedErrors implements Integration {
  * @param wat A value to be checked.
  * @returns A boolean representing the result.
  */
-function isInstanceOf(wat: any, base: any): boolean {
+function isInstanceOf<T>(wat: unknown, base: new (...args: never[]) => T): wat is T {
   try {
     return wat instanceof base;
   } catch (_e) {

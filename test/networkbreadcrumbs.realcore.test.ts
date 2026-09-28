@@ -10,7 +10,7 @@ import {
 } from '@sentry/core';
 import { init } from '../src/index';
 import { resetPlatformCache } from '../src/crossPlatform';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import { collectEnvelopePayloads, collectSpans, createCapturingTransport } from './support/envelopes';
 
 describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
   const g = global as any;
@@ -78,13 +78,15 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     });
     await flush(2000);
 
-    const spans = collectEnvelopePayloads<SpanJSON>(captured, ['span']);
+    const spans = collectSpans(captured);
     expect(spans).toEqual([
       expect.objectContaining({
         description: 'POST https://api.example.com/v1/login',
         op: 'http.client',
         origin: 'auto.http.miniapp',
-        is_segment: true,
+        // beforeSendSpan 经 withStaticSpan 包装后，core 用 spanJsonToSerializedStreamedSpan
+        // 重新序列化：is_segment 归位到 sentry.segment.id/name 属性，顶层不再标 segment。
+        is_segment: false,
         segment_id: expect.any(String),
         exclusive_time: expect.any(Number),
         status: 'ok',
@@ -268,7 +270,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     g.tt.request({ url: 'https://api.example.com/v1/timeout' });
     await flush(2000);
 
-    const spans = collectEnvelopePayloads<SpanJSON>(captured, ['span']);
+    const spans = collectSpans(captured);
     expect(spans).toHaveLength(1);
     expect(spans[0]).toEqual(
       expect.objectContaining({
@@ -279,7 +281,11 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
         }),
       }),
     );
-    expect(spans[0]?.status).toBe('request:fail timeout');
+    // core 11 的 span 状态只保留 ok/error，细分状态改由 error.message 属性承载。
+    expect(spans[0]?.status).toBe('error');
+    expect(spans[0]?.data).toEqual(
+      expect.objectContaining({ 'error.message': 'request:fail timeout' }),
+    );
   });
 
   it('HTTP 5xx 响应保留状态码，并把独立 span 标记为失败', async () => {
@@ -304,13 +310,13 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     g.tt.request({ url: 'https://api.example.com/v1/unavailable' });
     await flush(2000);
 
-    const spans = collectEnvelopePayloads<SpanJSON>(captured, ['span']);
+    const spans = collectSpans(captured);
     expect(spans).toHaveLength(1);
     expect(spans[0]?.data).toEqual(
       expect.objectContaining({
         'http.response.status_code': 503,
       }),
     );
-    expect(spans[0]?.status).toBe('unavailable');
+    expect(spans[0]?.status).toBe('error');
   });
 });

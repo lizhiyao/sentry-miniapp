@@ -112,9 +112,9 @@ describe('NetworkBreadcrumbs Integration', () => {
       expect.objectContaining({
         name: 'POST https://api.example.com/users',
         op: 'http.client',
-        kind: 2,
         parentSpan: expect.any(Object),
         attributes: expect.objectContaining({
+          'sentry.kind': 'client',
           'sentry.origin': 'auto.http.miniapp',
           'http.request.method': 'POST',
           'url.full': 'https://api.example.com/users',
