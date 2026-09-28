@@ -41,9 +41,9 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 
 开启 `tracesSampleRate` 或 `tracesSampler` 后：
 
-- 冷启动作为 `minigame.coldstart` transaction 上报，包含 `cold_start` measurement；
+- 冷启动作为独立的 `minigame.coldstart` segment span 上报，耗时写在 `minigame.cold_start_ms` 属性；
 - FPS 与卡顿在退后台或会话结束时汇总为 `minigame.framerate.summary`；
-- 汇总包含 `fps_avg`、`fps_p95`、`fps_min` 和 `jank_count`，不会每个采样窗口都发送事件。
+- 汇总包含 `fps.avg`、`fps.p95`、`fps.min`、`frames.total` 与 `jank.count` 属性（分级时另有 `jank.minor` / `jank.major` / `jank.severe`），不会每个采样窗口都发送事件。
 
 未开启 tracing 时，小游戏性能数据仍可作为上下文和面包屑附在后续错误事件上，但不会形成可聚合的独立 Performance 数据。
 
@@ -66,7 +66,7 @@ Sentry.init({
 });
 ```
 
-`reportInterval` 控制本地统计窗口，不代表每个窗口都会发送 transaction。会话汇总仍在退后台或会话结束时发送。
+`reportInterval` 控制本地统计窗口，不代表每个窗口都会发送汇总 span。会话汇总仍在退后台或会话结束时发送，并随 `flush` 同步发出。
 
 ## 按严重程度区分卡顿
 
@@ -104,4 +104,4 @@ Cocos、私有引擎、Debug ID 或特殊堆栈解析属于进阶场景，请看
 4. 打开 summary span，检查是否包含 `fps.*` 与 `jank.*` 属性。
 5. 上传 Source Map 后再触发一次真机错误，确认堆栈能还原到源码。
 
-如果没有性能 transaction，先检查 tracing 采样是否开启，再确认运行时存在全局 `requestAnimationFrame`。完整选项见[配置项参考 · 小游戏](/guide/configuration#小游戏)。
+如果看不到性能 span，先检查 tracing 采样是否开启，再确认运行时存在全局 `requestAnimationFrame`。完整选项见[配置项参考 · 小游戏](/guide/configuration#小游戏)。

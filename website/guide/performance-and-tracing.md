@@ -4,7 +4,7 @@
 
 ## 先开启性能采样
 
-设置 `tracesSampleRate` 后，SDK 才会发送性能 transaction 和 span：
+设置 `tracesSampleRate` 后，SDK 才会采样并发送性能 span（core 11 起不再产出 transaction 事件）：
 
 ```js
 Sentry.init({
@@ -97,7 +97,7 @@ Sentry.init({
 `enableTracePropagation: false` 只停止追踪头注入，不会关闭本地 `http.client` span。开启性能采样后：
 
 - 请求发生在活跃 span 内时，记录为该流程的子 span；
-- 没有活跃 span 时，默认发送为独立 segment span，因此长时间运行且没有页面 transaction 的小游戏也不会丢失请求性能；
+- 没有活跃 span 时，默认发送为独立 segment span，因此长时间运行、没有业务 trace 的小游戏也不会丢失请求性能；
 - 独立 segment 是原生 span envelope，不会为每个请求制造一条根 transaction。若只想保留业务流程内的请求子 span，可设置 `enableStandaloneHttpSpans: false`。
 
 需要把一组请求和业务操作组织成同一条完整流程时，仍应使用 `Sentry.startSpan()` 包住该流程。
