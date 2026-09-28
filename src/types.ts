@@ -177,6 +177,8 @@ export interface MiniappDiagnosticsOptions {
   sampleRate: number | null;
   tracesSampleRate: number | null;
   tracesSamplerConfigured: boolean;
+  /** 实际生效的 core 11 span 生命周期；SDK 只做透传，默认 `'stream'`。 */
+  traceLifecycle: 'static' | 'stream';
   enableLogs: boolean;
   enableSourceMap: boolean;
   enableOfflineCache: boolean;
@@ -220,7 +222,8 @@ export interface MiniappDiagnosticsWarning {
     | 'missing_release'
     | 'tracing_disabled'
     | 'source_map_disabled'
-    | 'consent_blocking';
+    | 'consent_blocking'
+    | 'span_streaming_missing';
   message: string;
 }
 
