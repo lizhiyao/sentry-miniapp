@@ -4,13 +4,13 @@ import {
   getClient,
   getIsolationScope,
   installedIntegrations,
+  type SerializedStreamedSpan,
   type SerializedStreamedSpanContainer,
-  type SpanJSON,
 } from '@sentry/core';
 
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { resetPlatformCache, sdk } from '../src/crossPlatform';
-import { streamedSpanToSpanJSON } from './support/envelopes';
+import { spanAttribute } from './support/envelopes';
 import { init } from '../src/index';
 
 type PlatformGlobal = 'wx' | 'my' | 'tt' | 'dd' | 'qq' | 'swan' | 'ks';
@@ -62,12 +62,11 @@ function collectEnvelopePayloads<T>(
   return payloads;
 }
 
-/** core 11 起 span item 是 span/v2 容器，还原成扁平 SpanJSON 再断言。 */
-function collectSpans(capturedRequests: Array<Record<string, any>>): SpanJSON[] {
+/** core 11 的 span item 是 span/v2 容器，直接取容器里的 span 断言。 */
+function collectSpans(capturedRequests: Array<Record<string, any>>): SerializedStreamedSpan[] {
   return collectEnvelopePayloads<SerializedStreamedSpanContainer>(capturedRequests, 'span')
     .map((container) => container.items)
-    .flat()
-    .map(streamedSpanToSpanJSON);
+    .flat();
 }
 
 function collectEvents(capturedRequests: Array<Record<string, any>>): any[] {
@@ -486,22 +485,22 @@ describe.each(PLATFORM_CONTRACTS)(
       await client!.flush(2000);
 
       const spans = collectSpans(capturedRequests);
-      expect(spans).toEqual([
-        expect.objectContaining({
-          description: `POST https://api.example.com/${platform}/users`,
-          op: 'http.client',
-          origin: 'auto.http.miniapp',
-          is_segment: true,
-          segment_id: expect.any(String),
-          status: 'ok',
-          data: expect.objectContaining({
-            'http.request.method': 'POST',
-            'http.response.status_code': 200,
-            'url.full': `https://api.example.com/${platform}/users?token=secret`,
-            'server.address': 'api.example.com',
-          }),
-        }),
-      ]);
+      expect(spans).toHaveLength(1);
+      const [span] = spans;
+      expect(span).toBeDefined();
+      const span0 = span!;
+      expect(span0.name).toBe(`POST https://api.example.com/${platform}/users`);
+      expect(span0.is_segment).toBe(true);
+      expect(span0.status).toBe('ok');
+      expect(spanAttribute(span0, 'sentry.op')).toBe('http.client');
+      expect(spanAttribute(span0, 'sentry.origin')).toBe('auto.http.miniapp');
+      expect(spanAttribute(span0, 'sentry.segment.id')).toEqual(expect.any(String));
+      expect(spanAttribute(span0, 'http.request.method')).toBe('POST');
+      expect(spanAttribute(span0, 'http.response.status_code')).toBe(200);
+      expect(spanAttribute(span0, 'url.full')).toBe(
+        `https://api.example.com/${platform}/users?token=secret`,
+      );
+      expect(spanAttribute(span0, 'server.address')).toBe('api.example.com');
 
       const forwardedRequest = originalRequest.mock.calls.find(
         ([options]) => options.url === `https://api.example.com/${platform}/users?token=secret`,

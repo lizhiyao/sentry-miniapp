@@ -12,19 +12,11 @@ import {
 // flush / close / lastEventId 是 SDK 从 @sentry/core 透传的公开 API（sdk.ts 不再自定义重复实现）
 import { lastEventId, flush, close, getCurrentScope } from '@sentry/core';
 import { eventFiltersIntegration } from '@sentry/core';
-import type { Integration, StackParser } from '@sentry/core';
+import type { StackParser } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
 import { resetPlatformCache } from '../src/crossPlatform';
-
-/**
- * core 11 已删除 inboundFiltersIntegration，但 SDK 仍会为用户自带的同名集成让位
- * （可能来自仍依赖 core 10 的工程），这里用同名对象覆盖该兼容分支。
- */
-function legacyInboundFilters(): Integration {
-  return { name: 'InboundFilters', setupOnce: () => {} };
-}
 
 describe('SDK', () => {
   beforeEach(() => {
@@ -355,54 +347,38 @@ describe('SDK', () => {
         client
           ?.getOptions()
           .integrations.some((integration: any) =>
-            ['EventFilters', 'InboundFilters'].includes(integration.name),
+            integration.name === 'EventFilters',
           ),
       ).toBe(true);
     });
 
-    it('用户已传入 EventFilters / InboundFilters 时不重复追加过滤集成', () => {
+    it('用户已传入 EventFilters 时由 core 去重、不重复追加', () => {
       const eventFilters = eventFiltersIntegration({ ignoreErrors: ['custom'] });
       const clientWithEventFilters = init({
         dsn: 'https://test@sentry.io/123',
         integrations: [eventFilters],
       });
       expect(
-        clientWithEventFilters
-          ?.getOptions()
-          .integrations.filter((integration: any) =>
-            ['EventFilters', 'InboundFilters'].includes(integration.name),
-          ),
+        clientWithEventFilters?.getOptions().integrations.filter((integration: any) =>
+          integration.name === 'EventFilters',
+        ),
       ).toEqual([eventFilters]);
-
-      const inboundFilters = legacyInboundFilters();
-      const clientWithInboundFilters = init({
-        dsn: 'https://test@sentry.io/123',
-        integrations: [inboundFilters],
-      });
-      expect(
-        clientWithInboundFilters
-          ?.getOptions()
-          .integrations.filter((integration: any) =>
-            ['EventFilters', 'InboundFilters'].includes(integration.name),
-          ),
-      ).toEqual([inboundFilters]);
     });
 
-    it('保留 defaultIntegrations 中用户明确配置的两个过滤集成', () => {
+    it('保留 defaultIntegrations 中用户明确配置的过滤集成', () => {
       const eventFilters = eventFiltersIntegration({ ignoreErrors: ['event'] });
-      const inboundFilters = legacyInboundFilters();
       const client = init({
         dsn: 'https://test@sentry.io/123',
-        defaultIntegrations: [eventFilters, inboundFilters],
+        defaultIntegrations: [eventFilters],
       });
 
       expect(
         client
           ?.getOptions()
           .integrations.filter((integration: any) =>
-            ['EventFilters', 'InboundFilters'].includes(integration.name),
+            integration.name === 'EventFilters',
           ),
-      ).toEqual([eventFilters, inboundFilters]);
+      ).toEqual([eventFilters]);
     });
   });
 

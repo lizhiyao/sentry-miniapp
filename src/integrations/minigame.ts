@@ -131,14 +131,15 @@ export class MinigameIntegration implements Integration {
         data: { coldStartMs },
       });
 
-      // 独立性能事件：把「SDK 初始化 → 首帧」包成 transaction，进 Performance 页。
+      // 独立性能事件：「SDK 初始化 → 首帧」自成一条 segment span 发出，进 Performance 页。
       // 仅在 tracing 启用（tracesSampleRate/tracesSampler）时真正上报；否则为非记录 span、不发送。
       // span 时间戳使用 epoch 锚点；duration 用 now() 测得的 coldStartMs 叠加上去，
       // 保证绝对时间与时长语义各自清晰。
       const span = startInactiveSpan({
         name: 'minigame.coldstart',
         op: 'app.start',
-        forceTransaction: true,
+        // core 11 废弃 forceTransaction；断掉父 span 后这条 root span 自成一个 segment。
+        parentSpan: null,
         startTime: this._initEpoch / 1000,
       });
       span.setAttributes({
@@ -146,6 +147,7 @@ export class MinigameIntegration implements Integration {
         'minigame.path': this._minigameContext.path as any,
         'minigame.cold_start_ms': coldStartMs,
       });
+      // 同上：属性供 stream 生命周期取数，measurement 只在 static 生命周期产出。
       setMeasurement('cold_start', coldStartMs, 'millisecond', span);
       span.end((this._initEpoch + coldStartMs) / 1000);
     });

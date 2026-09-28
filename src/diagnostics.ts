@@ -17,7 +17,7 @@ import { SDK_NAME, SDK_VERSION } from './version';
 export function getDiagnostics(): MiniappDiagnostics {
   const client = getClient();
   const isMiniappClient = client instanceof MiniappClient;
-  const options = isMiniappClient ? (client.getOptions() as unknown as MiniappOptions) : null;
+  const options = isMiniappClient ? (client.getOptions() as MiniappOptions) : null;
   const customTransport = isMiniappClient ? usesCustomTransport(client) : false;
   const transport = options ? buildTransportDiagnostics(options, customTransport) : null;
   const diagnosticsOptions =

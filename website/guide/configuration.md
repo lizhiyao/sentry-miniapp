@@ -178,14 +178,15 @@ Sentry.setConsent(false);
 | `denyUrls` | `Array<string｜RegExp>` | 空 | 不上报栈帧匹配这些 URL 的错误 |
 | `ignoreErrors` | `Array<string｜RegExp>` | 空 | 消息/类型匹配的错误直接丢弃 |
 | `beforeSend` | `function` | — | 事件发送前的钩子，可修改或返回 `null` 丢弃 |
-| `beforeSendTransaction` | `function` | — | Transaction 事件发送前的钩子，可修改或返回 `null` 丢弃 |
-| `beforeSendSpan` | `function` | — | Span 发送前的钩子，可修改请求等 span；独立 segment span 也会经过该钩子。默认收到扁平 `SpanJSON`（`description` / `op` / `data`），写法与 core 10 一致 |
-| `traceLifecycle` | `'static'｜'stream'` | `'static'` | `@sentry/core` 11 的 span 生命周期。默认保持 `'static'`：transaction 事件仍在 span 结束时同步产出（小游戏 `onHide` 后 JS 会被冻结，分批异步发送会丢数据）。改成 `'stream'` 后不再发送 transaction，`beforeSendTransaction` / `ignoreTransactions` 失效 |
+| `beforeSendTransaction` | `function` | — | **core 11 下失效**：默认 span 生命周期不再产出 transaction 事件，请改用 `beforeSendSpan` / `ignoreSpans`。仅在显式设置 `traceLifecycle: 'static'` 时生效 |
+| `beforeSendSpan` | `function` | — | Span 发送前的钩子，收到 `StreamedSpanJSON`（`name` / `is_segment` / `attributes`，属性带 `{type, value}` 注解）；独立 segment span 也经过该钩子 |
+| `ignoreSpans` | `Array<string｜RegExp>` | 空 | 按 span 名丢弃 span，替代 core 10 的 `ignoreTransactions` |
+| `traceLifecycle` | `'static'｜'stream'` | `'stream'` | `@sentry/core` 11 的 span 生命周期，SDK 原样透传。`'stream'` 按 trace 分批发 span、无 transaction 事件；`'static'` 为 core 保留的旧事务模型（`beforeSendTransaction` / `ignoreTransactions` 仅在此模式下有效），core 计划在后续大版本移除 |
 | `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |
 | `transportOptions` | `object` | 见下 | 内置上报通道选项：请求头、超时和 Sentry 网络并发上限 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |
 
-> `allowUrls` / `denyUrls` / `ignoreErrors` 由内置的 `EventFilters` 集成实现，`init` 时自动装配（若你在 `integrations` 里已自带 `EventFilters`，或工程仍依赖 `@sentry/core` 10 并传入 `InboundFilters`，则不重复追加）。
+> `allowUrls` / `denyUrls` / `ignoreErrors` 由内置的 `EventFilters` 集成实现，`init` 时自动装配（若你在 `integrations` 里已自带 `EventFilters`，则由 core 去重、不重复追加。`InboundFilters` 已被 `@sentry/core` 11 移除）。
 
 ```js
 Sentry.init({

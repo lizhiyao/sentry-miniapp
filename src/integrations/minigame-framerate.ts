@@ -82,9 +82,9 @@ function percentile95(samples: number[], fallback: number): number {
  * （面包屑按窗口限频，避免持续掉帧刷屏）；每 reportInterval 周期性上报窗口内
  * FPS / 最低瞬时 FPS / 最差帧耗时 / jank 次数到 `minigame.framerate` 上下文。
  *
- * 此外，会话维度累积帧率/卡顿，在退后台（onHide）或集成关闭时发一个汇总
- * transaction（`minigame.framerate.summary`，含 fps_avg / fps_p95 / fps_min /
- * jank_count measurements），独立于 error 事件、进 Sentry Performance 页，由
+ * 此外，会话维度累积帧率/卡顿，在退后台（onHide）或集成关闭时发一条汇总
+ * segment span（`minigame.framerate.summary`，指标写在 fps.avg / fps.p95 / fps.min /
+ * jank.count 等属性上），独立于 error 事件、进 Sentry Performance 页，由
  * tracesSampleRate 控制——不每窗口发事件，配额友好。
  *
  * 可选 `jankLevels` 把卡顿按 minor/major/severe 三档分级：每帧按命中的最高档归类，
@@ -112,7 +112,7 @@ export class MinigameFrameRateIntegration implements Integration {
   private _jankByTier: Record<JankTierName, number> = { minor: 0, major: 0, severe: 0 };
   private _maxFrameDelta: number = 0;
 
-  // 会话级累积（用于退后台 onHide 时发一个汇总 transaction）
+  // 会话级累积（用于退后台 onHide 时发一条汇总 segment span）
   // _sessionEpochStart 用 epochNow()（墙钟）作 span 绝对时间锚点；时长用有效帧 delta 累积。
   private static readonly _MAX_FPS_SAMPLES = 2000;
   private static readonly _MAX_REASONABLE_FRAME_DELTA_MS = 5000;
@@ -185,7 +185,7 @@ export class MinigameFrameRateIntegration implements Integration {
     };
     raf(loop);
 
-    // 退后台 / 回前台：onHide 发会话汇总 transaction，onShow 开启新会话。
+    // 退后台 / 回前台：onHide 发会话汇总 span，onShow 开启新会话。
     const miniappSdk = sdk();
     if (miniappSdk && typeof miniappSdk.onHide === 'function') {
       this._hideHandler = () => {
@@ -290,7 +290,7 @@ export class MinigameFrameRateIntegration implements Integration {
       frames: this._frameCount,
     };
 
-    // 并入会话累积（用于 onHide 汇总 transaction）。
+    // 并入会话累积（用于 onHide 的汇总 span）。
     this._fpsSamples.push(fps);
     if (this._fpsSamples.length > MinigameFrameRateIntegration._MAX_FPS_SAMPLES) {
       this._fpsSamples.shift();
@@ -343,7 +343,7 @@ export class MinigameFrameRateIntegration implements Integration {
   }
 
   /**
-   * 发一个会话汇总 transaction（独立于 error 上报，进 Performance 页）。
+   * 发一条会话汇总 segment span（独立于 error 上报，进 Performance 页）。
    * 仅在 tracing 启用时真正上报；会话无帧则跳过。发完重置会话累积。
    */
   private _flushSummary(): boolean {
@@ -363,7 +363,8 @@ export class MinigameFrameRateIntegration implements Integration {
     const span = startInactiveSpan({
       name: 'minigame.framerate.summary',
       op: 'ui.framerate',
-      forceTransaction: true,
+      // core 11 废弃 forceTransaction；显式断掉父 span 即可让汇总自成一条 segment span。
+      parentSpan: null,
       startTime: this._sessionEpochStart / 1000,
     });
     span.setAttributes({
@@ -374,6 +375,8 @@ export class MinigameFrameRateIntegration implements Integration {
       'jank.count': jankCount,
       'frame.worst_ms': worstFrameMs,
     });
+    // 属性是 stream 生命周期下唯一的指标载体；measurement 只在 `traceLifecycle: 'static'` 才产出。
+    // 两份都写，用户选任一生命周期都能取到同一组数。
     setMeasurement('fps_avg', avgFps, 'none', span);
     setMeasurement('fps_p95', p95Fps, 'none', span);
     setMeasurement('fps_min', minFps, 'none', span);
@@ -403,7 +406,7 @@ export class MinigameFrameRateIntegration implements Integration {
   public cleanup(): void {
     this._running = false;
     // 会话结束兜底：再发一次汇总；发出了就把传输 flush 掉（与 onHide 路径一致，
-    // 避免集成关闭/客户端拆除时这条汇总 transaction 还滞留在传输队列里没发出）。
+    // 避免集成关闭/客户端拆除时这条汇总 span 还滞留在传输队列里没发出）。
     if (this._isActiveClient()) {
       if (this._flushSummary()) this._flushPendingEvents();
     } else {

@@ -9,14 +9,12 @@ import {
   makeOfflineTransport,
   resolvedSyncPromise,
   stackParserFromStackParserOptions,
-  withStaticSpan,
 } from '@sentry/core';
 import type {
   BaseTransportOptions,
   ClientOptions,
   Event,
   EventHint,
-  SpanJSON,
   ParameterizedString,
   SeverityLevel,
 } from '@sentry/core';
@@ -34,13 +32,7 @@ import { miniappStackParser } from './stacktrace';
 
 export type MiniappClientOptions = Omit<
   MiniappOptions,
-  // core 的 Client<ClientOptions> 泛型约束要求 stream 版签名，static 版只在 MiniappOptions 对外暴露。
-  | 'beforeSendSpan'
-  | 'integrations'
-  | 'miniappPlatform'
-  | 'platform'
-  | 'stackParser'
-  | 'transport'
+  'integrations' | 'miniappPlatform' | 'platform' | 'stackParser' | 'transport'
 > &
   ClientOptions<MiniappTransportOptions> & {
     platform: string;
@@ -125,30 +117,16 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       onDrop: options.onConsentCacheDrop,
     });
 
-    // @sentry/core 11 把 trace 生命周期默认值改成了 'stream'：根 span 结束不再产出 transaction
-    // 事件，beforeSendTransaction / ignoreTransactions 被 core 忽略并告警，span 改由 SpanStreaming
-    // 集成分批异步发送。小程序宿主要求 onHide 返回前同步发出（抖音随后冻结 JS），且并发 request
-    // 有上限，分批 envelope 会撞这个上限，因此沿用 'static'；用户显式配置时尊重其选择。
-    const traceLifecycle = options.traceLifecycle ?? 'static';
-
-    // options 上的 beforeSendSpan 是 SDK 对外的 static 签名，与 core 需要的 stream 签名不同，
-    // 先剥出原值，再把登记过 `_static` 标记的同一回调写回 client 选项。
-    const { beforeSendSpan, ...restOptions } = options;
-
+    // traceLifecycle 完全交给 core：默认 'stream'，用户显式传 'static' 时由 core 处理，
+    // SDK 不再为旧生命周期补适配。
     const clientOptions: MiniappClientOptions = {
-      ...restOptions,
+      ...options,
       // Sentry 后端按顶层 platform 选择 JavaScript 栈解析与聚合逻辑。
       // 小程序宿主类型单独放在 contexts.miniapp.platform。
       platform: 'javascript',
       miniappPlatform,
-      traceLifecycle,
-      // 'static' 下 core 会跳过未按 withStaticSpan 标记的 beforeSendSpan，用户回调会被静默丢弃。
-      // 包装一次让既有写法继续收到扁平的 SpanJSON，无需用户改造。
-      ...(beforeSendSpan
-        ? { beforeSendSpan: withStaticSpan(beforeSendSpan as (span: SpanJSON) => SpanJSON) }
-        : {}),
       // @sentry/core 10.71 起默认开启 Logs；保留 sentry-miniapp 的显式 opt-in 契约。
-      // 11 直接删掉了 enableLogs 选项，因此改由 beforeSendLog 丢弃未开启时的日志。
+      // 11 删掉了 enableLogs 选项，因此改由 beforeSendLog 丢弃未开启时的日志。
       enableLogs: options.enableLogs ?? false,
       ...(options.enableLogs === true ? {} : { beforeSendLog: dropLog }),
       integrations: Array.isArray(options.integrations) ? options.integrations : [],
