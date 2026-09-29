@@ -16,6 +16,7 @@ import { setConsentGranted, isConsentGranted } from './consent';
 export { getDiagnostics } from './diagnostics';
 
 import { MiniappClient, setConfiguredDefaultIntegrationsMode } from './client';
+import { applyAutoSpanDimensions } from './spanDimensions';
 import { isMiniappEnvironment, isMinigame, resolveMiniappPlatform } from './crossPlatform';
 import {
   GlobalHandlers,
@@ -190,6 +191,8 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     platform: miniappPlatform,
     environment: 'miniapp',
   });
+  // span 只带 attributes，运行环境维度需要另写一份，详见 applyAutoSpanDimensions。
+  applyAutoSpanDimensions(options);
 
   // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
   // 更宽的公开 MiniappOptions，并在构造期间补齐 transport / stackParser，因此这里仅作边界适配。
