@@ -11,6 +11,7 @@ import {
 vi.mock('@sentry/core', () => ({
   getClient: vi.fn(),
   getCurrentScope: vi.fn(),
+  setAttributes: vi.fn(),
   startInactiveSpan: vi.fn(),
   startSpan: vi.fn(),
   withActiveSpan: vi.fn((_span, callback) => callback()),

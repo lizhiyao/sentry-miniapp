@@ -48,9 +48,14 @@ const {
   };
 });
 // Mock the core module to avoid redefine property errors
-vi.mock('@sentry/core', () => {
+vi.mock('@sentry/core', async () => {
+  // 匹配语义属于 core，这里透传真实现，避免单测变成对 mock 自定义逻辑的断言。
+  const actual = await vi.importActual<Record<string, unknown>>('@sentry/core');
   return {
+    matchesTracePropagationTargets: actual['matchesTracePropagationTargets'],
     addBreadcrumb: vi.fn(),
+    // 过滤语义由 networkbreadcrumbs.realcore 用真 core 覆盖，这里保持恒等以专注装配路径。
+    filterCollectedUrl: (url: string) => url,
     getActiveSpan: mockGetActiveSpan,
     getClient: mockGetClient,
     hasSpansEnabled: mockHasSpansEnabled,

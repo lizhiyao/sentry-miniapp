@@ -1,6 +1,7 @@
 import {
   getClient,
   getCurrentScope,
+  setAttributes,
   startInactiveSpan,
   startSpan,
   withActiveSpan,
@@ -755,6 +756,7 @@ export class PerformanceIntegration implements Integration {
       const hasPerformanceAPI = !!currentSdk.getPerformance;
 
       scope.setTag('performance.api.available', true);
+      setAttributes({ 'performance.api.available': true });
       scope.setContext('performance', {
         api_version: 'miniapp-1.0',
         sample_rate: this._options.sampleRate,
@@ -768,6 +770,7 @@ export class PerformanceIntegration implements Integration {
       });
 
       scope.setTag('performance.integration', 'enabled');
+      setAttributes({ 'performance.integration': 'enabled' });
     } catch (error) {
       console.warn('[sentry-miniapp] Failed to add performance context:', error);
     }

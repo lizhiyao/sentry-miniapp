@@ -1,4 +1,4 @@
-import { addBreadcrumb, setContext, getClient } from '@sentry/core';
+import { addBreadcrumb, setAttribute, setContext, getClient } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 
@@ -44,6 +44,8 @@ export class NetworkStatusIntegration implements Integration {
               type: networkType,
               isConnected: this._lastConnected,
             });
+            // span 只带 attributes，网络类型需要另写一份才能进 Performance。
+            setAttribute('network.type', networkType);
           },
         });
       } catch (_e) {
@@ -63,6 +65,7 @@ export class NetworkStatusIntegration implements Integration {
           type: networkType,
           isConnected,
         });
+        setAttribute('network.type', networkType);
 
         addBreadcrumb({
           category: 'network.change',

@@ -1,11 +1,13 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-const { mockAddBreadcrumb, mockSetContext, mockFlush, mockGetClient } = vi.hoisted(() => {
+const { mockAddBreadcrumb, mockSetContext, mockSetAttribute, mockFlush, mockGetClient } =
+  vi.hoisted(() => {
   const mockFlush = vi.fn(() => Promise.resolve(true));
 
   return {
     mockAddBreadcrumb: vi.fn(),
     mockSetContext: vi.fn(),
+    mockSetAttribute: vi.fn(),
     mockFlush,
     mockGetClient: vi.fn(() => ({ flush: mockFlush })),
   };
@@ -14,6 +16,7 @@ const { mockAddBreadcrumb, mockSetContext, mockFlush, mockGetClient } = vi.hoist
 vi.mock('@sentry/core', () => ({
   addBreadcrumb: mockAddBreadcrumb,
   setContext: mockSetContext,
+  setAttribute: mockSetAttribute,
   getClient: mockGetClient,
 }));
 

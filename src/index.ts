@@ -25,6 +25,10 @@ export type {
   Scope,
   Transport,
   BaseTransportOptions,
+  DataCollection,
+  SerializedStreamedSpan,
+  SpanJSON,
+  StreamedSpanJSON,
 } from '@sentry/core';
 
 // Export core functions from @sentry/core
@@ -51,6 +55,14 @@ export {
   close,
   lastEventId,
   isEnabled,
+  // core 11 的 span / 作用域公开能力：文档要求用户可自行装配 SpanStreaming 或登记 static 回调，
+  // 因此必须从本 SDK 出口可得，而不是让用户去依赖未声明的传递依赖 @sentry/core。
+  setAttribute,
+  setAttributes,
+  getGlobalScope,
+  spanStreamingIntegration,
+  withStaticSpan,
+  withStreamedSpan,
   logger,
   // Session management APIs
   startSession,

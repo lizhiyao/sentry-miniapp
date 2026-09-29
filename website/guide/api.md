@@ -58,7 +58,8 @@ Sentry.captureFeedback({
 | API | 用途 |
 |-----|------|
 | `setUser(user)` | 关联或清除当前用户 |
-| `setTag(key, value)` / `setTags(tags)` | 添加可筛选标签 |
+| `setTag(key, value)` / `setTags(tags)` | 添加可筛选标签，**只附在事件上**（core 11 的 span 不携带 tags） |
+| `setAttribute(key, value)` / `setAttributes(attrs)` | 写在隔离作用域上的属性，会同时附到 streamed span、logs 与 metrics；需要让字段在 Performance / Traces 里可见时用它 |
 | `setContext(name, context)` | 添加一组结构化上下文 |
 | `setExtra(key, value)` / `setExtras(extras)` | 添加辅助调试数据 |
 | `addBreadcrumb(breadcrumb)` | 记录用户操作或业务步骤 |
@@ -84,7 +85,7 @@ Sentry.withScope(scope => {
 });
 ```
 
-高级场景还可使用 `getCurrentScope()`、`getIsolationScope()` 和 `addEventProcessor()`。
+高级场景还可使用 `getCurrentScope()`、`getIsolationScope()`、`getGlobalScope()`（对所有事件生效）和 `addEventProcessor()`。
 
 ## Logs
 
@@ -107,6 +108,9 @@ Sentry.logger.fatal('bootstrap unavailable');
 |-----|------|
 | `startSpan(options, callback)` | 测量一个有明确回调生命周期的操作 |
 | `startInactiveSpan(options)` | 创建需要手动结束的 span |
+| `spanStreamingIntegration()` | core 11 的 span 批量发送集成；已在默认集成中，仅当你自定义 `defaultIntegrations` 时需要手动加入 |
+| `withStaticSpan(callback)` | 自定义 `traceLifecycle: 'static'` 时，用它包装 `beforeSendSpan`，否则 core 会跳过该回调 |
+| `withStreamedSpan(callback)` | 显式声明回调接收 stream 形状（默认即是，用于迁移期兼容写法） |
 | `getPerformanceManager()` | 读取宿主小程序 Performance API 适配对象，可能为 `null` |
 
 ```js

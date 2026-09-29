@@ -1,4 +1,4 @@
-import { addBreadcrumb, getClient, setContext } from '@sentry/core';
+import { addBreadcrumb, getClient, setAttribute, setContext } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 
 import { subscribeAppLifecycle } from '../appLifecycle';
@@ -54,6 +54,8 @@ function recordPageLifecycle(
 
   const route = page?.route || page?.__route__ || 'unknown';
   const breadcrumbData: Record<string, any> = { action: method, page: route };
+  // 小程序同一时刻只有一个前台页面，route 作为隔离作用域属性附到后续 span 上。
+  setAttribute('route', route);
   if (method === 'onLoad' && args[0] && typeof args[0] === 'object') {
     breadcrumbData['query'] = args[0];
   }

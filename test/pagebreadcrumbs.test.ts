@@ -10,6 +10,7 @@ vi.mock('@sentry/core', () => ({
   addBreadcrumb: vi.fn(),
   getClient: vi.fn(() => undefined),
   setContext: vi.fn(),
+  setAttribute: vi.fn(),
 }));
 
 import { addBreadcrumb, getClient, setContext } from '@sentry/core';

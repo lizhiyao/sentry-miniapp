@@ -38,7 +38,7 @@
   "type": "commonjs",
   "packageManager": "yarn@4.16.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
   },
   "main": "dist/sentry-miniapp.cjs.js",
   "module": "dist/sentry-miniapp.mjs",

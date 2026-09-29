@@ -140,6 +140,34 @@ Sentry.setConsent(false);
 
 `requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；如果传入自定义 `transport`，SDK 也会先用 consent 门禁包住它。当前版本使用单 key 存储，同意缓冲与弱网重试复用 `sentry_offline_store`，因此 `consentCacheMaxBytes` 实际建议不超过默认约 900KB；如需突破单 key 上限，需要未来改为分片存储。
 
+## 性能数据里的运行环境维度
+
+core 11 的 span 只携带 attributes：事件上的 `tags` 不会进 span，`contexts` 也只有 `response` /
+`profile` / `culture` 等白名单会被映射。SDK 因此把自动采集的运行环境维度同时写成隔离作用域属性，
+Performance / Traces 可以直接按这些键筛选（键名沿用 `@sentry/conventions` 的 OTel 语义）：
+
+| 属性 | 含义 |
+|------|------|
+| `miniapp.platform` | 小程序宿主标识（`wechat` / `alipay` / `bytedance` 等） |
+| `miniapp.host_version` | 宿主 App 版本（微信 / 抖音自身版本） |
+| `app.app_version` | 小程序自身版本 |
+| `device.manufacturer` / `device.model` | 设备厂商与机型 |
+| `os.name` / `os.version` / `os.type` | 系统名、系统版本、系统类型（如 `iOS` / `17.4` / `ios`） |
+| `network.type` | 当前网络类型 |
+| `route` | 当前页面路径 |
+| `performance.api.available` / `performance.integration` | 宿主性能 API 与集成可用性 |
+
+宿主版本与小程序版本是两个独立的键。事件侧 `contexts.os` 沿用宿主信息、`os.version` 取的是宿主
+版本，而 span 侧的 `os.version` 按 OTel 语义是系统版本——按 `os.*` 筛选 span 时以本表为准。
+
+`enableSystemInfo: false` 时只保留 `miniapp.platform`，其余维度不采集。
+
+## 运行环境与自建 Sentry
+
+- 构建与测试环境要求 Node.js ≥ 20.19（与 core 11 的最低要求一致）。
+- 自建 Sentry 需 **26.4.2 及以上**才能完整支持 core 11 的 span streaming；低于该版本请显式设置
+  `traceLifecycle: 'static'`，并用 `withStaticSpan()` 包装 `beforeSendSpan`。
+
 ## 分布式追踪
 
 追踪头的用途、域名限制与验证方式见[性能与链路追踪](/guide/performance-and-tracing#串联小程序与服务端)。

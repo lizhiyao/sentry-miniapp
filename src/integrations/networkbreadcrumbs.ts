@@ -1,10 +1,12 @@
 import {
   addBreadcrumb,
+  filterCollectedUrl,
   DEFAULT_ENVIRONMENT,
   getActiveSpan,
   getClient,
   hasSpansEnabled,
   isSentryRequestUrl,
+  matchesTracePropagationTargets,
   SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME,
   SEMANTIC_ATTRIBUTE_SENTRY_ENVIRONMENT,
   SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN,
@@ -196,7 +198,10 @@ export class NetworkBreadcrumbs implements Integration {
       const method = normalizeMethod(options.method);
       const requestData = options.data;
       const startTime = Date.now();
-      const requestSpan = startRequestSpan(method, url, enableStandaloneHttpSpans, client);
+      // dataCollection.urlQueryParams 只管 SDK 自己采集的数据：span 与面包屑用过滤后的 URL，
+      // 而 Sentry 自身请求识别、追踪头注入和 body 黑名单仍按原始 URL 匹配。
+      const collectedUrl = filterCollectedUrl(url, client);
+      const requestSpan = startRequestSpan(method, collectedUrl, enableStandaloneHttpSpans, client);
       let requestSpanFinished = false;
       const finishSpanOnce = (finish: RequestSpanFinishOptions): void => {
         if (requestSpanFinished) return;
@@ -209,7 +214,7 @@ export class NetworkBreadcrumbs implements Integration {
       }
 
       const breadcrumbData: Record<string, any> = {
-        url,
+        url: collectedUrl,
         method,
       };
 
@@ -329,15 +334,8 @@ export class NetworkBreadcrumbs implements Integration {
       // 小程序没有可靠的“same-origin”概念。未配置白名单时不向任意域名泄露追踪头。
       return false;
     }
-    return this._tracePropagationTargets.some((target) => {
-      if (typeof target === 'string') {
-        return url.includes(target);
-      }
-      target.lastIndex = 0;
-      const matches = target.test(url);
-      target.lastIndex = 0;
-      return matches;
-    });
+    // 复用 core 11 的匹配语义：大小写不敏感，并忽略 RegExp 的 g / y 状态（避免 lastIndex 串味）。
+    return matchesTracePropagationTargets(url, this._tracePropagationTargets);
   }
 
   /**
