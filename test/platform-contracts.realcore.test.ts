@@ -497,8 +497,10 @@ describe.each(PLATFORM_CONTRACTS)(
       expect(spanAttribute(span0, 'sentry.segment.id')).toEqual(expect.any(String));
       expect(spanAttribute(span0, 'http.request.method')).toBe('POST');
       expect(spanAttribute(span0, 'http.response.status_code')).toBe(200);
+      // dataCollection 默认抹掉 token 这类敏感键值；下面还会断言转发给业务的请求仍是原始 URL，
+      // 过滤只作用于上报数据，不改变宿主实际发出的请求。
       expect(spanAttribute(span0, 'url.full')).toBe(
-        `https://api.example.com/${platform}/users?token=secret`,
+        `https://api.example.com/${platform}/users?token=[Filtered]`,
       );
       expect(spanAttribute(span0, 'server.address')).toBe('api.example.com');
 

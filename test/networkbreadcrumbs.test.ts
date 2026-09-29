@@ -51,6 +51,8 @@ const {
 vi.mock('@sentry/core', () => {
   return {
     addBreadcrumb: vi.fn(),
+    // 过滤语义由 networkbreadcrumbs.realcore 用真 core 覆盖，这里保持恒等以专注装配路径。
+    filterCollectedUrl: (url: string) => url,
     getActiveSpan: mockGetActiveSpan,
     getClient: mockGetClient,
     hasSpansEnabled: mockHasSpansEnabled,

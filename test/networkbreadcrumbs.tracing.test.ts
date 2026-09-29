@@ -53,6 +53,8 @@ const mockTraceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 vi.mock('@sentry/core', () => {
   return {
     addBreadcrumb: vi.fn(),
+    // 过滤语义由 networkbreadcrumbs.realcore 用真 core 覆盖，这里保持恒等以专注装配路径。
+    filterCollectedUrl: (url: string) => url,
     getActiveSpan: mockGetActiveSpan,
     getClient: mockGetClient,
     hasSpansEnabled: mockHasSpansEnabled,

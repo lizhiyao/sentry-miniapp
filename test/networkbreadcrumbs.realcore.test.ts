@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  captureException,
   flush,
   getClient,
+  getCurrentScope,
+  getIsolationScope,
   startSpan,
   type Envelope,
+  type Event,
   type EventHint,
   type StreamedSpanJSON,
   type TransactionEvent,
@@ -28,6 +32,9 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
 
   beforeEach(() => {
     captured = [];
+    // 面包屑挂在作用域上；同一文件里连续用例不清就会互相污染。
+    getIsolationScope().clearBreadcrumbs();
+    getCurrentScope().clearBreadcrumbs();
     savedWx = g.wx;
     savedURL = g.URL;
     delete g.wx;
@@ -97,7 +104,10 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(spanAttribute(span, 'sentry.segment.name')).toBe('POST https://api.example.com/v1/login');
     expect(spanAttribute(span, 'http.request.method')).toBe('POST');
     expect(spanAttribute(span, 'http.response.status_code')).toBe(201);
-    expect(spanAttribute(span, 'url.full')).toBe('https://api.example.com/v1/login?token=secret');
+    // core 11 的 dataCollection 默认就会抹掉 token 这类敏感键值（此前我们原样上报）。
+    expect(spanAttribute(span, 'url.full')).toBe(
+      'https://api.example.com/v1/login?token=[Filtered]',
+    );
     expect(spanAttribute(span, 'server.address')).toBe('api.example.com');
     expect(spanAttribute(span, 'sentry.release')).toBe('minigame@1.2.3');
     expect(spanAttribute(span, 'sentry.environment')).toBe('staging');
@@ -202,6 +212,61 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       'https://api.example.com/v1/login',
       expect.stringMatching(/^https:\/\/o0\.ingest\.sentry\.io\/api\/0\/envelope\//),
     ]);
+  });
+
+  it.each([
+    {
+      label: '默认只抹掉敏感键值',
+      dataCollection: undefined,
+      expectedFullUrl: 'https://api.example.com/v1/login?token=[Filtered]&page=2',
+    },
+    {
+      label: 'urlQueryParams=false 丢弃整个 query',
+      dataCollection: { urlQueryParams: false },
+      expectedFullUrl: 'https://api.example.com/v1/login',
+    },
+    {
+      label: 'deny 命中的键值也被抹掉',
+      dataCollection: { urlQueryParams: { deny: ['page'] } },
+      expectedFullUrl: 'https://api.example.com/v1/login?token=[Filtered]&page=[Filtered]',
+    },
+  ])('dataCollection 同时作用于 span 与面包屑：$label', async ({ dataCollection, expectedFullUrl }) => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      dataCollection,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    } as any);
+
+    g.tt.request({ url: 'https://api.example.com/v1/login?token=secret&page=2', method: 'POST' });
+    await flush(2000);
+
+    const span = collectSpans(captured).find(
+      (item) => item.name === 'POST https://api.example.com/v1/login',
+    );
+    assertDefined(span, '未产出请求 span');
+    expect(spanAttribute(span, 'url.full')).toBe(expectedFullUrl);
+
+    // 面包屑要随事件带出，才能断言 SDK 记录的那份 URL
+    captureException(new Error('breadcrumb probe'));
+    await flush(2000);
+
+    const breadcrumbEvent = collectEnvelopePayloads<Event>(captured, ['event']).find((event) =>
+      event.breadcrumbs?.some((breadcrumb) => breadcrumb.category === 'xhr'),
+    );
+    assertDefined(breadcrumbEvent, '事件里没有 xhr 面包屑');
+    const httpCrumb = breadcrumbEvent.breadcrumbs?.find(
+      (breadcrumb) => breadcrumb.category === 'xhr',
+    );
+    assertDefined(httpCrumb);
+    expect(httpCrumb.data?.url).toBe(expectedFullUrl);
+
+    await getClient()?.close(0);
   });
 
   it('有 active span 时仍把请求记录为现有 transaction 的子 span', async () => {
