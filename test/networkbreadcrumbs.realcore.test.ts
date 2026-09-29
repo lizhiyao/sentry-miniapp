@@ -269,6 +269,36 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     await getClient()?.close(0);
   });
 
+  it('tracePropagationTargets 按 core 11 语义匹配：大小写不敏感且 RegExp 无 lastIndex 串味', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      // 故意写成大写；请求 URL 是小写 host。
+      tracePropagationTargets: ['API.EXAMPLE.COM', /\/v1\/users\b/g],
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/users' });
+    // 连续第二次命中同一个 RegExp 目标，g 标志若残留 lastIndex 会漏注入。
+    g.tt.request({ url: 'https://api.example.com/v1/users' });
+    await flush(2000);
+
+    const businessRequests = requestMock.mock.calls
+      .map(([options]) => options)
+      .filter((options) => options.url === 'https://api.example.com/v1/users');
+    expect(businessRequests).toHaveLength(2);
+    for (const options of businessRequests) {
+      expect(options.header).toEqual(
+        expect.objectContaining({ 'sentry-trace': expect.any(String) }),
+      );
+    }
+  });
+
   it('有 active span 时仍把请求记录为现有 transaction 的子 span', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',

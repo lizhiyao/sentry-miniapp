@@ -6,6 +6,7 @@ import {
   getClient,
   hasSpansEnabled,
   isSentryRequestUrl,
+  matchesTracePropagationTargets,
   SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME,
   SEMANTIC_ATTRIBUTE_SENTRY_ENVIRONMENT,
   SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN,
@@ -333,15 +334,8 @@ export class NetworkBreadcrumbs implements Integration {
       // 小程序没有可靠的“same-origin”概念。未配置白名单时不向任意域名泄露追踪头。
       return false;
     }
-    return this._tracePropagationTargets.some((target) => {
-      if (typeof target === 'string') {
-        return url.includes(target);
-      }
-      target.lastIndex = 0;
-      const matches = target.test(url);
-      target.lastIndex = 0;
-      return matches;
-    });
+    // 复用 core 11 的匹配语义：大小写不敏感，并忽略 RegExp 的 g / y 状态（避免 lastIndex 串味）。
+    return matchesTracePropagationTargets(url, this._tracePropagationTargets);
   }
 
   /**
