@@ -299,6 +299,58 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     }
   });
 
+  it.each([
+    { label: '默认两个方向都记录', httpBodies: undefined, wantsRequest: true, wantsResponse: true },
+    { label: 'httpBodies 为空时都不记录', httpBodies: [], wantsRequest: false, wantsResponse: false },
+    {
+      label: '只放开响应方向',
+      httpBodies: ['outgoingResponse'],
+      wantsRequest: false,
+      wantsResponse: true,
+    },
+    {
+      label: '只放开请求方向',
+      httpBodies: ['outgoingRequest'],
+      wantsRequest: true,
+      wantsResponse: false,
+    },
+  ])(
+    'dataCollection.httpBodies 约束面包屑里的请求 / 响应体：$label',
+    async ({ httpBodies, wantsRequest, wantsResponse }) => {
+      init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        platform: 'bytedance',
+        traceNetworkBody: true,
+        dataCollection: httpBodies === undefined ? undefined : { httpBodies },
+        enableOfflineCache: false,
+        enableAutoSessionTracking: false,
+        enableMinigameLifecycle: false,
+        enableMinigameFrameRate: false,
+        transport: createCapturingTransport(captured),
+      } as any);
+
+      g.tt.request({
+        url: 'https://api.example.com/v1/profile',
+        method: 'POST',
+        data: { nickname: 'xiao' },
+      });
+      await flush(2000);
+      captureException(new Error('body probe'));
+      await flush(2000);
+
+      const event = collectEnvelopePayloads<Event>(captured, ['event']).find((item) =>
+        item.breadcrumbs?.some((breadcrumb) => breadcrumb.category === 'xhr'),
+      );
+      assertDefined(event);
+      const crumbData = event.breadcrumbs?.find((breadcrumb) => breadcrumb.category === 'xhr')
+        ?.data as Record<string, unknown>;
+
+      expect('request_body' in crumbData).toBe(wantsRequest);
+      expect('response_body' in crumbData).toBe(wantsResponse);
+      expect(crumbData.status_code).toBe(201);
+    },
+  );
+
   it('有 active span 时仍把请求记录为现有 transaction 的子 span', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
