@@ -1,7 +1,6 @@
 import {
   getClient,
   getCurrentScope,
-  setAttributes,
   startInactiveSpan,
   startSpan,
   withActiveSpan,
@@ -21,6 +20,7 @@ import {
   type PerformanceManager,
   type PerformanceObserver,
 } from '../crossPlatform';
+import { setClientSpanDimension } from '../spanDimensions';
 
 const EPOCH_TIMESTAMP_THRESHOLD = 100_000_000_000;
 const MAX_PLAUSIBLE_RELATIVE_RUNTIME = 30 * 24 * 60 * 60 * 1000;
@@ -756,7 +756,7 @@ export class PerformanceIntegration implements Integration {
       const hasPerformanceAPI = !!currentSdk.getPerformance;
 
       scope.setTag('performance.api.available', true);
-      setAttributes({ 'performance.api.available': true });
+      setClientSpanDimension(this._client, 'performance.api.available', true);
       scope.setContext('performance', {
         api_version: 'miniapp-1.0',
         sample_rate: this._options.sampleRate,
@@ -770,7 +770,7 @@ export class PerformanceIntegration implements Integration {
       });
 
       scope.setTag('performance.integration', 'enabled');
-      setAttributes({ 'performance.integration': 'enabled' });
+      setClientSpanDimension(this._client, 'performance.integration', 'enabled');
     } catch (error) {
       console.warn('[sentry-miniapp] Failed to add performance context:', error);
     }

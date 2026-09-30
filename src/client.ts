@@ -29,6 +29,7 @@ import { createConsentAwareOfflineTransport } from './transports/consent';
 import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
 import { miniappStackParser } from './stacktrace';
+import { registerClientSpanDimensions } from './spanDimensions';
 
 export type MiniappClientOptions = Omit<
   MiniappOptions,
@@ -189,6 +190,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       clientsWithCustomTransport.add(this);
     }
     clientDefaultIntegrationsModes.set(this, defaultIntegrationsMode);
+    // 自动维度属于本 client，走 core 的 processSpan 钩子按 client 填充；不写共享 isolation scope。
+    this.registerCleanup(registerClientSpanDimensions(this));
   }
 
   /**

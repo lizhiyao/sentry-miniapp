@@ -1,6 +1,7 @@
-import { addBreadcrumb, setAttribute, setContext, getClient } from '@sentry/core';
+import { addBreadcrumb, setContext, getClient } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
+import { setClientSpanDimension } from '../spanDimensions';
 
 /**
  * Network Status Integration
@@ -44,8 +45,8 @@ export class NetworkStatusIntegration implements Integration {
               type: networkType,
               isConnected: this._lastConnected,
             });
-            // span 只带 attributes，网络类型需要另写一份才能进 Performance。
-            setAttribute('network.type', networkType);
+            // span 只带 attributes，网络类型按本 client 登记才能在 Performance 里切分。
+            setClientSpanDimension(this._client, 'network.type', networkType);
           },
         });
       } catch (_e) {
@@ -65,7 +66,7 @@ export class NetworkStatusIntegration implements Integration {
           type: networkType,
           isConnected,
         });
-        setAttribute('network.type', networkType);
+        setClientSpanDimension(this._client, 'network.type', networkType);
 
         addBreadcrumb({
           category: 'network.change',

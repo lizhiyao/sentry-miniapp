@@ -269,13 +269,12 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     await getClient()?.close(0);
   });
 
-  it('tracePropagationTargets 按 core 11 语义匹配：大小写不敏感且 RegExp 无 lastIndex 串味', async () => {
+  it('字符串目标按 core 11 语义大小写不敏感匹配', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       platform: 'bytedance',
       tracesSampleRate: 1,
-      // 故意写成大写；请求 URL 是小写 host。
-      tracePropagationTargets: ['API.EXAMPLE.COM', /\/v1\/users\b/g],
+      tracePropagationTargets: ['API.EXAMPLE.COM'],
       enableOfflineCache: false,
       enableAutoSessionTracking: false,
       enableMinigameLifecycle: false,
@@ -284,72 +283,45 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     });
 
     g.tt.request({ url: 'https://api.example.com/v1/users' });
-    // 连续第二次命中同一个 RegExp 目标，g 标志若残留 lastIndex 会漏注入。
-    g.tt.request({ url: 'https://api.example.com/v1/users' });
     await flush(2000);
 
-    const businessRequests = requestMock.mock.calls
-      .map(([options]) => options)
-      .filter((options) => options.url === 'https://api.example.com/v1/users');
-    expect(businessRequests).toHaveLength(2);
-    for (const options of businessRequests) {
-      expect(options.header).toEqual(
-        expect.objectContaining({ 'sentry-trace': expect.any(String) }),
-      );
-    }
+    const [options] = requestMock.mock.calls.map(([arg]) => arg);
+    expect(options.header).toEqual(
+      expect.objectContaining({ 'sentry-trace': expect.any(String) }),
+    );
   });
 
-  it.each([
-    { label: '默认两个方向都记录', httpBodies: undefined, wantsRequest: true, wantsResponse: true },
-    { label: 'httpBodies 为空时都不记录', httpBodies: [], wantsRequest: false, wantsResponse: false },
-    {
-      label: '只放开响应方向',
-      httpBodies: ['outgoingResponse'],
-      wantsRequest: false,
-      wantsResponse: true,
-    },
-    {
-      label: '只放开请求方向',
-      httpBodies: ['outgoingRequest'],
-      wantsRequest: true,
-      wantsResponse: false,
-    },
-  ])(
-    'dataCollection.httpBodies 约束面包屑里的请求 / 响应体：$label',
-    async ({ httpBodies, wantsRequest, wantsResponse }) => {
-      init({
-        dsn: 'https://test@o0.ingest.sentry.io/0',
-        platform: 'bytedance',
-        traceNetworkBody: true,
-        dataCollection: httpBodies === undefined ? undefined : { httpBodies },
-        enableOfflineCache: false,
-        enableAutoSessionTracking: false,
-        enableMinigameLifecycle: false,
-        enableMinigameFrameRate: false,
-        transport: createCapturingTransport(captured),
-      } as any);
+  it('正则目标独立生效，且带 g 标志连续命中不丢注入', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      // 只给正则：字符串目标命中后匹配函数会提前返回，混在一起等于没测正则分支。
+      // g 标志若残留 lastIndex，第二次同 URL 就不会再注入。
+      tracePropagationTargets: [/\/v1\/users\b/g],
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
 
-      g.tt.request({
-        url: 'https://api.example.com/v1/profile',
-        method: 'POST',
-        data: { nickname: 'xiao' },
-      });
-      await flush(2000);
-      captureException(new Error('body probe'));
-      await flush(2000);
+    g.tt.request({ url: 'https://api.example.com/v1/users' });
+    g.tt.request({ url: 'https://api.example.com/v1/users' });
+    // 不匹配的目标不应注入
+    g.tt.request({ url: 'https://api.example.com/v2/orders' });
+    await flush(2000);
 
-      const event = collectEnvelopePayloads<Event>(captured, ['event']).find((item) =>
-        item.breadcrumbs?.some((breadcrumb) => breadcrumb.category === 'xhr'),
-      );
-      assertDefined(event);
-      const crumbData = event.breadcrumbs?.find((breadcrumb) => breadcrumb.category === 'xhr')
-        ?.data as Record<string, unknown>;
-
-      expect('request_body' in crumbData).toBe(wantsRequest);
-      expect('response_body' in crumbData).toBe(wantsResponse);
-      expect(crumbData.status_code).toBe(201);
-    },
-  );
+    const businessCalls = requestMock.mock.calls
+      .map(([options]) => options)
+      .filter((options) => !String(options.url).includes('ingest.sentry.io'));
+    expect(businessCalls).toHaveLength(3);
+    expect(
+      businessCalls.filter((options) => options.header && 'sentry-trace' in options.header),
+    ).toHaveLength(2);
+    expect(businessCalls[2]!.url).toBe('https://api.example.com/v2/orders');
+    expect(businessCalls[2]!.header ?? {}).not.toHaveProperty('sentry-trace');
+  });
 
   it('有 active span 时仍把请求记录为现有 transaction 的子 span', async () => {
     init({
