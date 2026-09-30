@@ -312,9 +312,12 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     g.tt.request({ url: 'https://api.example.com/v2/orders' });
     await flush(2000);
 
+    // 用锚定的 envelope 前缀排除 SDK 自身请求：子串匹配会被 https://ingest.sentry.io.evil.com/
+    // 这类仿冒 host 绕过（CodeQL js/incomplete-url-substring-sanitization）。
+    const envelopePrefix = 'https://o0.ingest.sentry.io/api/0/envelope/';
     const businessCalls = requestMock.mock.calls
       .map(([options]) => options)
-      .filter((options) => !String(options.url).includes('ingest.sentry.io'));
+      .filter((options) => !String(options.url).startsWith(envelopePrefix));
     expect(businessCalls).toHaveLength(3);
     expect(
       businessCalls.filter((options) => options.header && 'sentry-trace' in options.header),
