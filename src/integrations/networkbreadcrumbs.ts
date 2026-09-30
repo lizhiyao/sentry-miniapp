@@ -218,7 +218,15 @@ export class NetworkBreadcrumbs implements Integration {
         method,
       };
 
-      if (traceNetworkBody && requestData && !shouldDenyBodyUrl(url)) {
+      // dataCollection.httpBodies 约束 SDK 自采的数据体，判定方式与 core 自身集成一致；
+      // traceNetworkBody 仍是本 SDK 的显式 opt-in，两者都放行才记录。
+      const httpBodies = client?.getDataCollectionOptions?.().httpBodies;
+      const traceRequestBody =
+        traceNetworkBody && (httpBodies === undefined || httpBodies.includes('outgoingRequest'));
+      const traceResponseBody =
+        traceNetworkBody && (httpBodies === undefined || httpBodies.includes('outgoingResponse'));
+
+      if (traceRequestBody && requestData && !shouldDenyBodyUrl(url)) {
         try {
           const body = typeof requestData === 'string' ? requestData : JSON.stringify(requestData);
           breadcrumbData['request_body'] = sanitizeBody(body);
@@ -245,7 +253,7 @@ export class NetworkBreadcrumbs implements Integration {
           durationMs: duration,
         });
 
-        if (traceNetworkBody && res.data && !shouldDenyBodyUrl(url)) {
+        if (traceResponseBody && res.data && !shouldDenyBodyUrl(url)) {
           try {
             const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
             breadcrumbData['response_body'] = sanitizeBody(body);
