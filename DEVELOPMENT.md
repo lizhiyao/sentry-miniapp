@@ -2,6 +2,12 @@
 
 本文档介绍如何在开发过程中构建、测试和调试 `sentry-miniapp` SDK。
 
+## 架构文档
+
+- `docs/architecture/core-11-alignment.md`：sentry-miniapp 与 `@sentry/core` 11 的架构对齐审查——
+  按子系统记录 core 的设计意图（文件行号）、我们的现状、缺口与分阶段落地顺序。
+  升级 core 大版本或改动采集/上报链路前先读它。
+
 ## 🚀 快速开始
 
 ### 0. 环境要求
