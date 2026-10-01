@@ -158,11 +158,25 @@ describe('span 维度按 client 填充', () => {
     expect('route' in span.attributes).toBe(false);
   });
 
-  it('页面栈抛错或取不到信息时不冒泡，debug 打开才提示', () => {
+  it('getCurrentPages 抛错时只丢 route，其余维度照常填充', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     g.getCurrentPages = vi.fn(() => {
       throw new Error('page stack unavailable');
     });
+
+    const client = createFakeClient({});
+    registerClientSpanDimensions(client as any);
+    const span: ProbeSpan = { name: 'a', attributes: {} };
+    expect(() => client.emitSpan(span)).not.toThrow();
+
+    expect('route' in span.attributes).toBe(false);
+    expect(span.attributes['device.model']).toBe('iPhone 15');
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('取不到系统信息时不冒泡，debug 打开才提示', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockGetSystemInfo.mockImplementation(() => {
       throw new Error('system info unavailable');
     });

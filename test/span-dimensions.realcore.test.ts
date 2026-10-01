@@ -4,6 +4,7 @@ import {
   flush,
   getClient,
   getCurrentScope,
+  installedIntegrations,
   startInactiveSpan,
   type Client,
   type Envelope,
@@ -31,6 +32,9 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
   beforeEach(() => {
     captured = [];
     resetPlatformCache();
+    // core 的 setupOnce 按集成名去重且是进程级全局：不复位就只有文件里第一条用例
+    // 走「进程首次安装」路径，首次 init 丢维度的缺陷其余用例根本碰不到。
+    installedIntegrations.length = 0;
 
     g.wx = {
       request: vi.fn((options) => {
@@ -95,6 +99,9 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
     // 宿主版本与小程序自身版本各用独立键，避免与事件 context 同名不同义。
     expect(spanAttribute(span, 'miniapp.host_version')).toBe('8.0.40');
     expect(spanAttribute(span, 'app.app_version')).toBe(undefined);
+    // 进程首次安装也必须带上：这条维度是 setup(client) 里登记到本 client 的，
+    // 早期版本靠 setupOnce 抢跑，首次 init 时 client 还没绑上就丢了。
+    expect(spanAttribute(span, 'network.type')).toBe('wifi');
   });
 
   it('关闭采集后重新初始化，不应把上一轮 client 的设备维度带进新 span', async () => {
@@ -190,6 +197,18 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
     const [span] = collectSpans(captured);
     assertDefined(span);
     expect(spanAttribute(span, 'network.type')).toBe('wifi');
+  });
+
+  it('关掉网络状态监听后，span 不再带 network.type', async () => {
+    // 反向对照：该属性只可能来自集成的登记，缺席才能说明上一条断言不是恒真。
+    initWith({ enableNetworkStatusMonitoring: false });
+
+    g.wx.request({ url: 'https://api.example.com/v1/profile' });
+    await flush(2000);
+
+    const [span] = collectSpans(captured);
+    assertDefined(span);
+    expect(spanAttribute(span, 'network.type')).toBeUndefined();
   });
 
   it('事件侧 context 与 tag 不因双写而丢失', async () => {

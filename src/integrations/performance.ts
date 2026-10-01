@@ -105,10 +105,6 @@ export class PerformanceIntegration implements Integration {
   /**
    * @inheritDoc
    */
-  public setupOnce(): void {
-    this._setup();
-  }
-
   public setup(client: Client): void {
     this._client = client;
     this._setup();
@@ -810,7 +806,11 @@ export class PerformanceIntegration implements Integration {
   }
 
   private _isActiveClient(): boolean {
-    return !this._client || getClient() === this._client;
+    // 两个条件都要：`this._client` 为空说明本实例已 cleanup（迟到的回调必须丢弃，
+    // cleanup 里那次汇总走的是显式分支，不经过这里）；全局 client 不是本实例的那个
+    // 说明已被新一轮 init 取代——re-init 不会 dispose 旧 client，旧实例的 observer
+    // 回调全靠这一判定失活。要本实例的 client 时一律用 this._client，不从全局取。
+    return !!this._client && getClient() === this._client;
   }
 }
 
