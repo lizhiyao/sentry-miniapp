@@ -127,6 +127,23 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     clients.splice(clients.indexOf(client), 1);
   });
 
+  it('同步 finalizer 消耗预算时，deadline 阻止后续 finalizer 和新 request，不等待 timer 回调', async () => {
+    const client = makeClient();
+    const owner = runtime(client);
+    const flush = vi.spyOn(client, 'flush');
+    const remaining = vi.fn();
+    owner.onFinalize(() => {
+      vi.setSystemTime(Date.now() + 60);
+      expect(owner.canStartRequest()).toBe(false);
+      expect(owner.run(() => logger.info('past deadline'))).toBe(false);
+    });
+    owner.onFinalize(remaining);
+    expect(await owner.close(50)).toBe(false);
+    expect(remaining).not.toHaveBeenCalled();
+    expect(flush).not.toHaveBeenCalled();
+    expect(client.getOptions().enabled).toBe(false);
+  });
+
   it('dispose 清理 buffers，之后直接绑定旧 client 的 logger/metrics 也不能重填', async () => {
     const client = makeClient();
     const owner = runtime(client);
@@ -146,10 +163,10 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     owner.onCleanup(() => { throw new Error('cleanup'); });
   });
 
-  it.each(['log', 'metric'] as const)('beforeSend%s 重入 dispose 后不得重填 core buffer', async (kind) => {
+  it.each([['log', 'dispose'], ['metric', 'dispose'], ['log', 'close'], ['metric', 'close']] as const)('beforeSend%s 重入 %s 后不得重填 core buffer', async (kind, action) => {
     const client = makeClient({
-      beforeSendLog: (log) => { owner.dispose(); return log; },
-      beforeSendMetric: (metric) => { owner.dispose(); return metric; },
+      beforeSendLog: (log) => { if (action === 'dispose') owner.dispose(); else void owner.close(100); return log; },
+      beforeSendMetric: (metric) => { if (action === 'dispose') owner.dispose(); else void owner.close(100); return metric; },
     });
     const owner = runtime(client);
     if (kind === 'log') logger.info('reentrant'); else metrics.count('reentrant', 1);

@@ -13,6 +13,7 @@ export class CoreV11Runtime {
   private readonly cleanups: Array<() => void> = [];
   private closing: Promise<boolean> | undefined;
   private resolveClose: ((result: boolean) => void) | undefined;
+  private deadline: number | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   public constructor(private readonly client: Client) {
@@ -33,7 +34,7 @@ export class CoreV11Runtime {
   }
 
   private accepting(): boolean {
-    return this.phase === 'open' || (this.phase === 'closing' && this.finalizing);
+    return this.phase === 'open' || (this.phase === 'closing' && this.finalizing && this.canStartRequest());
   }
 
   /** SDK 持有的同步回调使用；不返回 callback 的 Promise。 */
@@ -56,7 +57,7 @@ export class CoreV11Runtime {
   }
 
   public canStartRequest(): boolean {
-    return this.phase !== 'closed';
+    return this.phase !== 'closed' && (this.deadline === undefined || Date.now() < this.deadline);
   }
 
   /** 一个总预算；共享 Promise 在调用任何用户 finalizer 之前建立。 */
@@ -66,6 +67,7 @@ export class CoreV11Runtime {
     this.phase = 'closing';
     this.closing = new Promise<boolean>((resolve) => { this.resolveClose = resolve; });
     const budget = Number.isFinite(timeout) && timeout > 0 ? timeout : 2000;
+    this.deadline = Date.now() + budget;
     this.timer = setTimeout(() => this.finish(false), budget);
     let finalized = true;
     this.finalizing = true;
@@ -76,13 +78,15 @@ export class CoreV11Runtime {
     this.finalizing = false;
     if (this.canStartRequest()) {
       try {
-        void this.client.flush(budget).then(
-          (result) => this.finish(result && finalized),
+        void this.client.flush(Math.max(1, this.deadline - Date.now())).then(
+          (result) => this.finish(result && finalized && this.canStartRequest()),
           () => this.finish(false),
         );
       } catch {
         this.finish(false);
       }
+    } else {
+      this.finish(false);
     }
     return this.closing;
   }

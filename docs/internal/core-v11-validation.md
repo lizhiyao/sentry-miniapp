@@ -23,7 +23,7 @@ yarn run build:miniapp
 
 ## 已实现的验证原型
 
-`CoreV11Runtime` 在调用 finalizer 前建立共享 Promise，finalizer 同步运行于捕获的 owner scope。对外 run 在 closing 后拒收；预算到期先关闭、禁用 client，再通过公开 flush/close hooks 清空 buffers、调用 SDK dispose 和自有 cleanup。beforeSendLog/Metric 在业务 callback 前后检查状态，防止 callback 中重入 dispose 后再次写入 core buffer。回调返回 Promise 时 run 不把它交给 withScope，因此在返回的同一同步栈恢复调用方 scope；不保证跨 await 的隔离。
+`CoreV11Runtime` 在调用 finalizer 前建立共享 Promise，finalizer 同步运行于捕获的 owner scope。对外 run 在 closing 后拒收；使用绝对 deadline 与总预算 timer；同步 finalizer 消耗预算后也拒收新 request/后续 finalizer。预算到期先关闭、禁用 client，再通过公开 flush/close hooks 清空 buffers、调用 SDK dispose 和自有 cleanup。beforeSendLog/Metric 在业务 callback 前后检查状态，防止 callback 中重入 dispose 后再次写入 core buffer。回调返回 Promise 时 run 不把它交给 withScope，因此在返回的同一同步栈恢复调用方 scope；不保证跨 await 的隔离。
 
 `registerSpanStartSnapshots` 最多保存 256 个 recording span 快照，不提前写 span attributes；preprocess 只补缺失字段。未采样不保存，结束消费，超限淘汰最旧，unsubscribe 清空；scope RawAttribute 的单位和业务显式属性由 core 保留。此处尚未实现自动 operation 创建前的 RawAttribute 转换、sampler/ignoreSpans 输入或全量 EnvironmentState。
 
