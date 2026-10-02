@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { flush, getClient, type Envelope, type StreamedSpanJSON } from '@sentry/core';
+import {
+  flush,
+  getClient,
+  installedIntegrations,
+  startInactiveSpan,
+  type Envelope,
+  type StreamedSpanJSON,
+} from '@sentry/core';
 import { init } from '../src/index';
 import {
+  assertDefined,
   collectEnvelopePayloads,
   collectSpans,
   createCapturingTransport,
@@ -20,6 +28,8 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
   beforeEach(() => {
     observerCallback = undefined;
     captured = [];
+    // 复位进程级 setupOnce 去重表，让每条用例都按「首次安装」跑一遍集成装配。
+    installedIntegrations.length = 0;
 
     g.wx = {
       request: vi.fn(),
@@ -53,12 +63,13 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     delete g.wx;
   });
 
-  it('小游戏宿主仅提供 performance.now 时默认集成静默 no-op', () => {
+  it('小游戏宿主仅提供 performance.now 时默认集成静默 no-op', async () => {
     g.wx.getPerformance = vi.fn(() => ({ now: vi.fn(() => 1) }));
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const client = init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
+      tracesSampleRate: 1,
       transport: createCapturingTransport(captured),
     } as any);
 
@@ -71,6 +82,14 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
         String(call[0]).includes('Failed to setup performance observers'),
       ),
     ).toBe(false);
+
+    // 反向对照：维度只在装配成功时登记到本 client，所以这里拿到的 span 不该带 performance.*，
+    // 也就证明下一条用例里的断言不是「属性反正都在」。
+    startInactiveSpan({ name: 'degraded.host', parentSpan: null }).end();
+    await flush(2000);
+    const degraded = collectSpans(captured).find((span) => span.name === 'degraded.host');
+    assertDefined(degraded, '未产出对照 span');
+    expect(spanAttribute(degraded, 'performance.api.available')).toBeUndefined();
 
     consoleSpy.mockRestore();
   });
@@ -107,6 +126,9 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     expect(root.name).toBe('Navigation: appLaunch');
     expect(spanAttribute(root, 'sentry.op')).toBe('navigation');
     expect(spanAttribute(root, 'performance.entry_count')).toBe(1);
+    // 首次安装就要带上本集成登记的维度：它们走 setup(client) 绑定，不能等下一次 init 才生效。
+    expect(spanAttribute(root, 'performance.api.available')).toBe(true);
+    expect(spanAttribute(root, 'performance.integration')).toBe('enabled');
     expect(root.start_timestamp).toBeGreaterThan(1_000_000_000);
     expect(root.end_timestamp).toBeGreaterThanOrEqual(root.start_timestamp);
 

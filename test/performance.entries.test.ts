@@ -34,13 +34,14 @@ vi.mock('../src/crossPlatform', () => ({
 
 describe('PerformanceIntegration entries and reporting', () => {
   let integration: PerformanceIntegration;
+  let activeClient: PerformanceTestHarness['activeClient'];
   let mockPerformanceManager: PerformanceTestHarness['mockPerformanceManager'];
   let mockScope: PerformanceTestHarness['mockScope'];
   let mockObserver: PerformanceTestHarness['mockObserver'];
   let mockSpan: PerformanceTestHarness['mockSpan'];
 
   beforeEach(() => {
-    ({ integration, mockPerformanceManager, mockObserver, mockScope, mockSpan } =
+    ({ integration, activeClient, mockPerformanceManager, mockObserver, mockScope, mockSpan } =
       createPerformanceTestHarness({
         PerformanceIntegration,
         getPerformanceManager: getPerformanceManager as Mock,
@@ -59,7 +60,7 @@ describe('PerformanceIntegration entries and reporting', () => {
 
   describe('resource entry processing', () => {
     it('should process resource entries with network timing', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -90,7 +91,7 @@ describe('PerformanceIntegration entries and reporting', () => {
     });
 
     it('should use resource defaults when optional timing data is absent', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
 
       observerCallback?.([
@@ -110,7 +111,7 @@ describe('PerformanceIntegration entries and reporting', () => {
 
   describe('user timing entry processing', () => {
     it('should process measure entries', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -134,7 +135,7 @@ describe('PerformanceIntegration entries and reporting', () => {
     });
 
     it('should omit absent measure details', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
 
       observerCallback?.([
@@ -147,7 +148,7 @@ describe('PerformanceIntegration entries and reporting', () => {
     });
 
     it('should process mark entries as breadcrumbs', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -230,7 +231,7 @@ describe('PerformanceIntegration entries and reporting', () => {
     });
 
     it('drops implausible relative entries before creating spans', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
 
       observerCallback?.([
@@ -284,7 +285,7 @@ describe('PerformanceIntegration entries and reporting', () => {
     });
 
     it('should handle PerformanceObserverEntryList format', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -299,7 +300,7 @@ describe('PerformanceIntegration entries and reporting', () => {
     });
 
     it('should handle single object format', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -315,7 +316,7 @@ describe('PerformanceIntegration entries and reporting', () => {
 
     it('should handle unknown entry types', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -353,7 +354,7 @@ describe('PerformanceIntegration entries and reporting', () => {
       });
 
       const userTimingIntegration = new PerformanceIntegration({ enableUserTiming: true });
-      userTimingIntegration.setupOnce();
+      userTimingIntegration.setup(activeClient as any);
 
       // 应该降级重试：第一次包含 measure/mark 失败，第二次不包含
       expect(mockObserver.observe).toHaveBeenCalledTimes(2);
@@ -367,7 +368,7 @@ describe('PerformanceIntegration entries and reporting', () => {
   describe('buffer overflow', () => {
     it('should trim buffer when exceeding bufferSize', () => {
       const smallBufferIntegration = new PerformanceIntegration({ bufferSize: 3 });
-      smallBufferIntegration.setupOnce();
+      smallBufferIntegration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -393,7 +394,7 @@ describe('PerformanceIntegration entries and reporting', () => {
       const customIntegration = new PerformanceIntegration({
         thresholds: { render: 500 },
       });
-      customIntegration.setupOnce();
+      customIntegration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -422,7 +423,7 @@ describe('PerformanceIntegration entries and reporting', () => {
       const customIntegration = new PerformanceIntegration({
         thresholds: { resource: 1000 },
       });
-      customIntegration.setupOnce();
+      customIntegration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -454,7 +455,7 @@ describe('PerformanceIntegration entries and reporting', () => {
         reportPerformance: mockReportPerformance,
       });
 
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -472,7 +473,7 @@ describe('PerformanceIntegration entries and reporting', () => {
   describe('auto reporting disabled', () => {
     it('should not start timer when reportInterval is 0', () => {
       const noReportIntegration = new PerformanceIntegration({ reportInterval: 0 });
-      noReportIntegration.setupOnce();
+      noReportIntegration.setup(activeClient as any);
 
       expect((noReportIntegration as any)._reportTimer).toBeNull();
 
@@ -487,7 +488,7 @@ describe('PerformanceIntegration entries and reporting', () => {
         if (name === 'performance_summary') throw error;
       });
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      integration.setupOnce();
+      integration.setup(activeClient as any);
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       observerCallback?.([
         { name: 'pending', entryType: 'navigation', startTime: 0, duration: 1 },
@@ -519,7 +520,7 @@ describe('PerformanceIntegration entries and reporting', () => {
       });
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      expect(() => integration.setupOnce()).not.toThrow();
+      expect(() => integration.setup(activeClient as any)).not.toThrow();
       expect(consoleSpy).toHaveBeenCalledWith(
         '[sentry-miniapp] Failed to add performance context:',
         error,

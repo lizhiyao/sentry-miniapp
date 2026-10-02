@@ -8,7 +8,7 @@ disable-model-invocation: false
 
 # Sentry Mini Program SDK Setup
 
-Set up Sentry error monitoring, performance tracing, and offline caching in mini program projects using [`sentry-miniapp`](https://github.com/lizhiyao/sentry-miniapp) — a community SDK built on `@sentry/core` v10.
+Set up Sentry error monitoring, performance tracing, and offline caching in mini program projects using [`sentry-miniapp`](https://github.com/lizhiyao/sentry-miniapp) — a community SDK built on `@sentry/core` v11.
 
 ## Invoke This Skill When
 
@@ -263,9 +263,16 @@ Walk through features one at a time. Load the corresponding reference file:
 | `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | Minigame cold-start + scene + show/hide breadcrumbs |
 | `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
 | `beforeSend` | `function` | — | Event processor for filtering/modifying events |
-| `beforeSendTransaction` | `function` | — | Hook to filter/modify transaction events before sending |
+| `beforeSendSpan` | `function` | — | Hook to modify spans before sending. Receives `StreamedSpanJSON` (`name`, `is_segment`, `attributes` with **raw** values); returning `null` is not allowed — drop spans with `ignoreSpans` |
+| `ignoreSpans` | `Array<string\|RegExp>` | — | Drop spans by name; replaces core 10's `ignoreTransactions` |
+| `traceLifecycle` | `'stream'\|'static'` | `'stream'` | Passed through untouched. `'stream'` sends span/v2 batches and emits no transaction events; `'static'` restores the legacy transaction model (and requires wrapping `beforeSendSpan` with `withStaticSpan()`) |
+| `beforeSendTransaction` | `function` | — | **Inert under the default `stream` lifecycle** (core emits no transaction events); only works with `traceLifecycle: 'static'`. Prefer `beforeSendSpan` / `ignoreSpans` |
 | `beforeSendLog` | `function` | — | Hook to filter/modify logs before sending |
 | `beforeBreadcrumb` | `function` | — | Hook to filter/modify breadcrumbs before they are attached |
+
+Self-hosted Sentry must be **26.4.2 or newer** for core 11 span streaming; switching to
+`traceLifecycle: 'static'` does **not** restore the old envelope format (standalone HTTP spans are
+still `application/vnd.sentry.items.span.v2+json`), so it is not a downgrade path for older servers.
 
 The built-in transport defaults to `requestTimeout: 3000` and `maxConcurrentRequests: 2` so Sentry cannot occupy all mini program network slots when the service is unavailable. Additional envelopes wait in the bounded `@sentry/core` buffer. A timed-out request is aborted when the host returns an abortable request task, then handed to offline caching. Keep these defaults unless real-device testing shows a need to adjust them; `transportOptions.headers` remains available for custom envelope headers.
 

@@ -1,7 +1,6 @@
 import {
   getClient,
   getCurrentScope,
-  setAttributes,
   startInactiveSpan,
   startSpan,
   withActiveSpan,
@@ -21,6 +20,7 @@ import {
   type PerformanceManager,
   type PerformanceObserver,
 } from '../crossPlatform';
+import { setClientSpanDimension } from '../spanDimensions';
 
 const EPOCH_TIMESTAMP_THRESHOLD = 100_000_000_000;
 const MAX_PLAUSIBLE_RELATIVE_RUNTIME = 30 * 24 * 60 * 60 * 1000;
@@ -105,10 +105,6 @@ export class PerformanceIntegration implements Integration {
   /**
    * @inheritDoc
    */
-  public setupOnce(): void {
-    this._setup();
-  }
-
   public setup(client: Client): void {
     this._client = client;
     this._setup();
@@ -756,7 +752,7 @@ export class PerformanceIntegration implements Integration {
       const hasPerformanceAPI = !!currentSdk.getPerformance;
 
       scope.setTag('performance.api.available', true);
-      setAttributes({ 'performance.api.available': true });
+      setClientSpanDimension(this._client, 'performance.api.available', true);
       scope.setContext('performance', {
         api_version: 'miniapp-1.0',
         sample_rate: this._options.sampleRate,
@@ -770,7 +766,7 @@ export class PerformanceIntegration implements Integration {
       });
 
       scope.setTag('performance.integration', 'enabled');
-      setAttributes({ 'performance.integration': 'enabled' });
+      setClientSpanDimension(this._client, 'performance.integration', 'enabled');
     } catch (error) {
       console.warn('[sentry-miniapp] Failed to add performance context:', error);
     }
@@ -810,7 +806,11 @@ export class PerformanceIntegration implements Integration {
   }
 
   private _isActiveClient(): boolean {
-    return !this._client || getClient() === this._client;
+    // 两个条件都要：`this._client` 为空说明本实例已 cleanup（迟到的回调必须丢弃，
+    // cleanup 里那次汇总走的是显式分支，不经过这里）；全局 client 不是本实例的那个
+    // 说明已被新一轮 init 取代——re-init 不会 dispose 旧 client，旧实例的 observer
+    // 回调全靠这一判定失活。要本实例的 client 时一律用 this._client，不从全局取。
+    return !!this._client && getClient() === this._client;
   }
 }
 

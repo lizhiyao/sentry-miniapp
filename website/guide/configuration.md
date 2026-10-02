@@ -146,7 +146,7 @@ Sentry.setConsent(false);
 ## 性能数据里的运行环境维度
 
 core 11 的 span 只携带 attributes：事件上的 `tags` 不会进 span，`contexts` 也只有 `response` /
-`profile` / `culture` 等白名单会被映射。SDK 因此把自动采集的运行环境维度同时写成隔离作用域属性，
+`profile` / `culture` 等白名单会被映射。SDK 因此在**每个 span 结束进入处理阶段时**，按所属 client 补齐自动采集的运行环境维度，
 Performance / Traces 可以直接按这些键筛选（键名沿用 `@sentry/conventions` 的 OTel 语义）：
 
 | 属性 | 含义 |
@@ -163,13 +163,23 @@ Performance / Traces 可以直接按这些键筛选（键名沿用 `@sentry/conv
 宿主版本与小程序版本是两个独立的键。事件侧 `contexts.os` 沿用宿主信息、`os.version` 取的是宿主
 版本，而 span 侧的 `os.version` 按 OTel 语义是系统版本——按 `os.*` 筛选 span 时以本表为准。
 
-`enableSystemInfo: false` 时只保留 `miniapp.platform`，其余维度不采集。
+其余说明：
+
+- 维度属于「哪个 client 在采集」：多个 client 重叠时各自携带自己的平台标记与采集开关，`enableSystemInfo: false` 的那一路不会拿到别的 client 的设备信息。
+- `route` 取 `getCurrentPages()` 页面栈栈顶，随每次 span 实时计算；业务没有定义 `onShow` 时，`navigateBack` 之后也不会停留在旧页面。小游戏没有 `getCurrentPages()`，因此不写 `route`。
+- `network.type`、`performance.api.available`、`performance.integration` 由各集成登记到所属 client。
+- 用户或集成已经写过的同名属性一律保留，SDK 只填空缺。
+- `enableSystemInfo: false` 时只保留 `miniapp.platform` 与 `route`，设备与系统维度不采集。
 
 ## 运行环境与自建 Sentry
 
 - 构建与测试环境要求 Node.js ≥ 20.19（与 core 11 的最低要求一致）。
-- 自建 Sentry 需 **26.4.2 及以上**才能完整支持 core 11 的 span streaming；低于该版本请显式设置
-  `traceLifecycle: 'static'`，并用 `withStaticSpan()` 包装 `beforeSendSpan`。
+- core 11 要求自建 Sentry **26.4.2 及以上**。**不要**把 `traceLifecycle: 'static'` 当作旧版本的兼容
+  方案：实测在 static 下独立 HTTP span 仍按 `span/v2`（`content_type:
+  application/vnd.sentry.items.span.v2+json`）发送，切换只改变事务与发送时机，不会退回旧 envelope
+  格式。低于该版本请留在使用 core 10 的 sentry-miniapp 1.20.x，或先升级自建服务。
+- `traceLifecycle: 'static'` 只用于保留旧事务语义（`beforeSendTransaction` / `ignoreTransactions`
+  生效）；此模式下 `beforeSendSpan` 必须用 `withStaticSpan()` 包装，否则 core 会跳过该回调。
 
 ## 分布式追踪
 
@@ -208,9 +218,10 @@ Performance / Traces 可以直接按这些键筛选（键名沿用 `@sentry/conv
 | `allowUrls` | `Array<string｜RegExp>` | 空 | 仅上报栈帧匹配这些 URL 的错误 |
 | `denyUrls` | `Array<string｜RegExp>` | 空 | 不上报栈帧匹配这些 URL 的错误 |
 | `ignoreErrors` | `Array<string｜RegExp>` | 空 | 消息/类型匹配的错误直接丢弃 |
+| `attachStacktrace` | `boolean` | `true` | 为没有堆栈的事件（`captureMessage`、非 Error 值的 `captureException`）自动附加堆栈。core 11 起默认由 `false` 改为 `true`；有无堆栈会影响 Sentry 分组，切换该开关会产生新 issue 分组 |
 | `beforeSend` | `function` | — | 事件发送前的钩子，可修改或返回 `null` 丢弃 |
 | `beforeSendTransaction` | `function` | — | **core 11 下失效**：默认 span 生命周期不再产出 transaction 事件，请改用 `beforeSendSpan` / `ignoreSpans`。仅在显式设置 `traceLifecycle: 'static'` 时生效 |
-| `beforeSendSpan` | `function` | — | Span 发送前的钩子，收到 `StreamedSpanJSON`（`name` / `is_segment` / `attributes`，属性带 `{type, value}` 注解）；独立 segment span 也经过该钩子 |
+| `beforeSendSpan` | `function` | — | Span 发送前的钩子，收到 `StreamedSpanJSON`（`name` / `is_segment` / `attributes`）。此处 `attributes` 的值是**原始值**（如 `'POST'`、`201`）；`{type, value}` 注解只在序列化后的 envelope 里才加上，按注解写法改值会静默失效。独立 segment span 也经过该钩子 |
 | `ignoreSpans` | `Array<string｜RegExp>` | 空 | 按 span 名丢弃 span，替代 core 10 的 `ignoreTransactions` |
 | `traceLifecycle` | `'static'｜'stream'` | `'stream'` | `@sentry/core` 11 的 span 生命周期，SDK 原样透传。`'stream'` 按 trace 分批发 span、无 transaction 事件；`'static'` 为 core 保留的旧事务模型（`beforeSendTransaction` / `ignoreTransactions` 仅在此模式下有效），core 计划在后续大版本移除 |
 | `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |

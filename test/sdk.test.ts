@@ -122,7 +122,8 @@ describe('SDK', () => {
       );
 
       expect(performance).toBeDefined();
-      expect(performance?.setupOnce).toEqual(expect.any(Function));
+      // core 装配集成走 setup(client)，依赖 client 的初始化都在这条路径上。
+      expect(performance?.setup).toEqual(expect.any(Function));
     });
 
     it('defaultIntegrations=false 时关闭全部默认集成', () => {

@@ -1,6 +1,7 @@
-import { addBreadcrumb, setAttribute, setContext, getClient } from '@sentry/core';
+import { addBreadcrumb, setContext, getClient } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
+import { setClientSpanDimension } from '../spanDimensions';
 
 /**
  * Network Status Integration
@@ -14,10 +15,6 @@ export class NetworkStatusIntegration implements Integration {
   private _lastConnected: boolean | null = null;
   private _isSetup: boolean = false;
   private _client: Client | undefined;
-
-  public setupOnce(): void {
-    this._setup();
-  }
 
   public setup(client: Client): void {
     this._client = client;
@@ -37,15 +34,16 @@ export class NetworkStatusIntegration implements Integration {
       try {
         miniappSdk.getNetworkType({
           success: (res: any) => {
-            if (this._client && getClient() !== this._client) return;
+            const client = this._client;
+            if (!client || getClient() !== client) return;
             const networkType = res.networkType || 'unknown';
             this._lastConnected = networkType !== 'none';
             setContext('network', {
               type: networkType,
               isConnected: this._lastConnected,
             });
-            // span 只带 attributes，网络类型需要另写一份才能进 Performance。
-            setAttribute('network.type', networkType);
+            // span 只带 attributes，网络类型按本 client 登记才能在 Performance 里切分。
+            setClientSpanDimension(client, 'network.type', networkType);
           },
         });
       } catch (_e) {
@@ -56,7 +54,8 @@ export class NetworkStatusIntegration implements Integration {
     // 监听网络状态变化
     if (typeof miniappSdk.onNetworkStatusChange === 'function') {
       this._statusChangeHandler = (res: any) => {
-        if (this._client && getClient() !== this._client) return;
+        const client = this._client;
+        if (!client || getClient() !== client) return;
         const networkType = res.networkType || 'unknown';
         const isConnected =
           res.isConnected !== undefined ? res.isConnected : networkType !== 'none';
@@ -65,7 +64,7 @@ export class NetworkStatusIntegration implements Integration {
           type: networkType,
           isConnected,
         });
-        setAttribute('network.type', networkType);
+        setClientSpanDimension(client, 'network.type', networkType);
 
         addBreadcrumb({
           category: 'network.change',
@@ -81,7 +80,7 @@ export class NetworkStatusIntegration implements Integration {
         // 不保证排空离线 store（其重放仍由 transport 的退避 / 启动重试负责）。
         if (isConnected && this._lastConnected === false) {
           try {
-            void getClient()?.flush();
+            void client.flush();
           } catch (_e) {
             // ignore
           }
