@@ -97,11 +97,10 @@ describe('#428 当前 SDK 缺陷复现（断言实际错误行为）', () => {
 
   it('缺陷：旧离线 store 丢失 Uint8Array 类型并改变线上 bytes', async () => {
     const envelope: Envelope = [
-      { event_id: 'binary' },
-      [[{ type: 'attachment', filename: 'probe.bin' }, new Uint8Array([0, 255, 10])]],
+      { event_id: 'binary', sent_at: '2022-01-01T00:00:00Z' },
+      [[{ type: 'attachment', filename: 'probe.bin', length: 3 }, new Uint8Array([0, 255, 10])]],
     ];
     const store = createMiniappOfflineStore({
-      url: 'https://o0.ingest.sentry.io/api/0/envelope/',
       recordDroppedEvent: () => {},
     });
     await store.push(envelope);

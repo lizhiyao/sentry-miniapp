@@ -52,7 +52,7 @@ describe('#428 typed envelope codec 原型', () => {
       { event_id: 'mixed', sent_at: '2022-01-01T00:00:00Z' },
       [
         [{ type: 'event' }, { event_id: 'mixed', message: '中文 😀 \ud800' }],
-        [{ type: 'attachment', filename: 'text.txt' }, '中文 😀'],
+        [{ type: 'attachment', filename: 'text.txt', length: 11 }, '中文 😀'],
         [{ type: 'attachment', filename: 'view.bin', length: 3 }, backing.subarray(1, 4)],
         [{ type: 'attachment', filename: 'empty.bin', length: 0 }, new Uint8Array()],
       ],
@@ -66,7 +66,7 @@ describe('#428 typed envelope codec 原型', () => {
 
   it.each([0, 1, 2, 3, 4, 5, 256])('%i bytes 覆盖 base64 余数、全部 byte 值', (length) => {
     const bytes = Uint8Array.from({ length }, (_, i) => i);
-    const envelope: Envelope = [{}, [[{ type: 'attachment', filename: 'probe.bin' }, bytes]]];
+    const envelope: Envelope = [{ event_id: 'bytes', sent_at: '2022-01-01T00:00:00Z' }, [[{ type: 'attachment', filename: 'probe.bin', length }, bytes]]];
     const restored = roundTrip(envelope);
     expect(restored[1][0][1]).toEqual(bytes);
   });
@@ -115,9 +115,9 @@ describe('#428 typed envelope codec 原型', () => {
     const input = 'ASCII \u00e9 中文 😀 \\ud800 \\udc00';
     const expected = new TextEncoder().encode(input);
     expect(encodeUtf8(input)).toEqual(expected);
-    const envelope: Envelope = [{}, [
-      [{ type: 'attachment', filename: 'text' }, input],
-      [{ type: 'attachment', filename: 'bytes' }, new Uint8Array([0, 255])],
+    const envelope: Envelope = [{ event_id: 'utf8', sent_at: '2022-01-01T00:00:00Z' }, [
+      [{ type: 'attachment', filename: 'text', length: expected.length }, input],
+      [{ type: 'attachment', filename: 'bytes', length: 2 }, new Uint8Array([0, 255])],
     ]];
     const native = serializeEnvelope(envelope);
     registerEnvelopeEncoder(); // 有原生 encoder 时不注册
@@ -137,6 +137,6 @@ describe('#428 typed envelope codec 原型', () => {
     expect(roundTrip([{ tunnel: 'custom' }, []])).toEqual([{ tunnel: 'custom' }, []]);
     const circular: any = {};
     circular.self = circular;
-    expect(() => encodeEnvelope([{}, [[{ type: 'event' }, circular]]])).toThrow();
+    expect(() => encodeEnvelope([{ event_id: 'circular', sent_at: '2022-01-01T00:00:00Z' }, [[{ type: 'event' }, circular]]])).toThrow();
   });
 });
