@@ -38,4 +38,4 @@ yarn run build:miniapp
 - 尚未改造 App/Page/HTTP 的全部 owner 回调、session 归属、默认环境处理器或删除 legacy API。
 - 尚未执行微信/抖音小游戏真机冻结、后台 span/log/metric 展示和多宿主 ArrayBuffer 请求验收。Node CI 不能代替这些验收。
 
-CI 结果与链接将在运行完成后回填。只有普通测试已覆盖的原型契约可以标记为运行验证；#428 的实施复选框保持未完成。
+运行记录与完整结果见 [PR #429 的检查页](https://github.com/lizhiyao/sentry-miniapp/pull/429/checks) 和 [#428 的运行验证说明](https://github.com/lizhiyao/sentry-miniapp/issues/428)。原型测试和基线缺陷证据分列；只有原型普通测试实际覆盖的契约可以标记为运行验证，#428 的实施复选框保持未完成。
