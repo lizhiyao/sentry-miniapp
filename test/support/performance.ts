@@ -30,6 +30,11 @@ interface PerformanceTestDependencies {
 
 export interface PerformanceTestHarness {
   integration: PerformanceIntegration;
+  /**
+   * 夹具绑定的「当前 client」：`getClient()` 与 `integration.setup(client)` 必须给出同一个对象，
+   * 否则集成内部「回调是否仍属于活跃 client」的判定会把所有 observer 回调判为 stale。
+   */
+  activeClient: { registerCleanup: Mock };
   mockPerformanceManager: MockPerformanceManager;
   mockObserver: Mocked<PerformanceObserver>;
   mockScope: {
@@ -77,7 +82,8 @@ export function createPerformanceTestHarness(
   dependencies.getPerformanceManager.mockReset().mockReturnValue(mockPerformanceManager);
   dependencies.getSystemInfo.mockReset().mockReturnValue({ platform: 'devtools' });
   dependencies.sdk.mockReset().mockReturnValue({ getPerformance: vi.fn() });
-  dependencies.getClient.mockReset().mockReturnValue(undefined);
+  const activeClient = { registerCleanup: vi.fn() };
+  dependencies.getClient.mockReset().mockReturnValue(activeClient);
   dependencies.getCurrentScope.mockReset().mockReturnValue(mockScope);
   dependencies.startInactiveSpan.mockReset().mockReturnValue(mockSpan);
   dependencies.startSpan
@@ -88,6 +94,7 @@ export function createPerformanceTestHarness(
 
   return {
     integration: new dependencies.PerformanceIntegration(),
+    activeClient,
     mockPerformanceManager,
     mockObserver,
     mockScope,

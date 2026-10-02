@@ -35,13 +35,14 @@ vi.mock('../src/crossPlatform', () => ({
 
 describe('PerformanceIntegration', () => {
   let integration: PerformanceIntegration;
+  let activeClient: { registerCleanup: Mock };
   let mockPerformanceManager: PerformanceTestHarness['mockPerformanceManager'];
   let mockScope: PerformanceTestHarness['mockScope'];
   let mockObserver: PerformanceTestHarness['mockObserver'];
   let mockSpan: PerformanceTestHarness['mockSpan'];
 
   beforeEach(() => {
-    ({ integration, mockPerformanceManager, mockObserver, mockScope, mockSpan } =
+    ({ integration, activeClient, mockPerformanceManager, mockObserver, mockScope, mockSpan } =
       createPerformanceTestHarness({
         PerformanceIntegration,
         getPerformanceManager: getPerformanceManager as Mock,
@@ -64,7 +65,9 @@ describe('PerformanceIntegration', () => {
 
       expect(factoryIntegration).toBeInstanceOf(PerformanceIntegration);
       expect(factoryIntegration.name).toBe('PerformanceAPI');
-      expect(factoryIntegration.setupOnce).toEqual(expect.any(Function));
+      // 依赖 client 的初始化只在 setup(client) 里发生，不再有 setupOnce 路径。
+      expect(factoryIntegration.setup).toEqual(expect.any(Function));
+      expect((factoryIntegration as unknown as Record<string, unknown>)['setupOnce']).toBeUndefined();
     });
 
     it('should initialize with default options', () => {
@@ -82,9 +85,9 @@ describe('PerformanceIntegration', () => {
     });
   });
 
-  describe('setupOnce', () => {
+  describe('setup(client)', () => {
     it('should setup performance monitoring when API is available', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       expect(getPerformanceManager).toHaveBeenCalled();
       expect(mockScope.setTag).toHaveBeenCalledWith('performance.api.available', true);
@@ -107,7 +110,7 @@ describe('PerformanceIntegration', () => {
       (global as any).PerformanceObserver = undefined;
 
       const integrationWithUserTiming = new PerformanceIntegration({ enableUserTiming: true });
-      integrationWithUserTiming.setupOnce();
+      integrationWithUserTiming.setup(activeClient as any);
 
       expect(mockObserver.observe).toHaveBeenCalledWith({
         entryTypes: ['navigation', 'render', 'resource'],
@@ -121,7 +124,7 @@ describe('PerformanceIntegration', () => {
       (getPerformanceManager as Mock).mockReturnValue(null);
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       expect(consoleSpy).not.toHaveBeenCalled();
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
@@ -136,7 +139,7 @@ describe('PerformanceIntegration', () => {
       (getPerformanceManager as Mock).mockReturnValue({ now: vi.fn(() => 1) });
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       expect(consoleSpy).not.toHaveBeenCalled();
       expect((integration as any)._reportTimer).toBeNull();
@@ -153,7 +156,7 @@ describe('PerformanceIntegration', () => {
       });
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      expect(() => integration.setupOnce()).not.toThrow();
+      expect(() => integration.setup(activeClient as any)).not.toThrow();
       expect(consoleSpy).toHaveBeenCalledWith(
         '[sentry-miniapp] Failed to initialize performance manager:',
         error,
@@ -169,7 +172,7 @@ describe('PerformanceIntegration', () => {
         enableResource: false,
       });
 
-      disabledIntegration.setupOnce();
+      disabledIntegration.setup(activeClient as any);
 
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
       expect((disabledIntegration as any)._reportTimer).toBeNull();
@@ -182,7 +185,7 @@ describe('PerformanceIntegration', () => {
       });
       const userTimingIntegration = new PerformanceIntegration({ enableUserTiming: true });
 
-      userTimingIntegration.setupOnce();
+      userTimingIntegration.setup(activeClient as any);
 
       expect(mockObserver.observe).toHaveBeenCalledWith({
         entryTypes: ['navigation', 'render', 'resource'],
@@ -197,7 +200,7 @@ describe('PerformanceIntegration', () => {
       });
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      expect(() => integration.setupOnce()).not.toThrow();
+      expect(() => integration.setup(activeClient as any)).not.toThrow();
       expect(consoleSpy).toHaveBeenCalledWith(
         '[sentry-miniapp] Failed to setup performance observers:',
         error,
@@ -212,7 +215,7 @@ describe('PerformanceIntegration', () => {
 
   describe('performance entry processing', () => {
     beforeEach(() => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
     });
 
     it('should process navigation entries', () => {
@@ -334,7 +337,7 @@ describe('PerformanceIntegration', () => {
 
     it('should respect sample rate', () => {
       const lowSampleRateIntegration = new PerformanceIntegration({ sampleRate: 0 });
-      lowSampleRateIntegration.setupOnce();
+      lowSampleRateIntegration.setup(activeClient as any);
 
       const entry: PerformanceEntry = {
         name: 'test-entry',
@@ -359,7 +362,7 @@ describe('PerformanceIntegration', () => {
 
   describe('configurable thresholds', () => {
     it('should use default thresholds when not configured', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       // Feed slow navigation entries to trigger threshold check
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
@@ -385,7 +388,7 @@ describe('PerformanceIntegration', () => {
       const customIntegration = new PerformanceIntegration({
         thresholds: { navigation: 1000 },
       });
-      customIntegration.setupOnce();
+      customIntegration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -408,7 +411,7 @@ describe('PerformanceIntegration', () => {
     });
 
     it('should not trigger warning when below threshold', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -427,7 +430,7 @@ describe('PerformanceIntegration', () => {
 
   describe('setData slow render detection', () => {
     it('should detect slow renders above threshold', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -449,7 +452,7 @@ describe('PerformanceIntegration', () => {
     });
 
     it('should not trigger for fast renders', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -467,7 +470,7 @@ describe('PerformanceIntegration', () => {
       const customIntegration = new PerformanceIntegration({
         thresholds: { setData: 100 },
       });
-      customIntegration.setupOnce();
+      customIntegration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -485,7 +488,7 @@ describe('PerformanceIntegration', () => {
     });
 
     it('should include slow_render_count in stats', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -509,7 +512,7 @@ describe('PerformanceIntegration', () => {
 
   describe('memory info collection', () => {
     it('should not collect memory when enableMemory is false', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -536,7 +539,7 @@ describe('PerformanceIntegration', () => {
       });
 
       const memIntegration = new PerformanceIntegration({ enableMemory: true });
-      memIntegration.setupOnce();
+      memIntegration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -563,7 +566,7 @@ describe('PerformanceIntegration', () => {
       });
 
       const memIntegration = new PerformanceIntegration({ enableMemory: true });
-      memIntegration.setupOnce();
+      memIntegration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
@@ -605,8 +608,26 @@ describe('PerformanceIntegration', () => {
       );
     });
 
+    it('cleanup 之后迟到的 observer 回调不再写入当前 client 的 scope', () => {
+      integration.setup(activeClient as any);
+      const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
+      integration.cleanup();
+      vi.mocked(startInactiveSpan).mockClear();
+      mockScope.setContext.mockClear();
+      expect((integration as any)._isActiveClient()).toBe(false);
+
+      // 宿主仍可能派发 disconnect 之前在途的回调：本实例已经没有 client，就不能再动 scope。
+      observerCallback?.([
+        { name: 'late', entryType: 'navigation', startTime: 0, duration: 100 },
+      ]);
+
+      expect(startInactiveSpan).not.toHaveBeenCalled();
+      expect(mockScope.setContext).not.toHaveBeenCalled();
+      expect((integration as any)._entryBuffer).toEqual([]);
+    });
+
     it('should disconnect observers and clear timers', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
       integration.cleanup();
 
       expect(mockObserver.disconnect).toHaveBeenCalled();
@@ -618,14 +639,14 @@ describe('PerformanceIntegration', () => {
       });
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       expect(() => integration.cleanup()).not.toThrow();
       consoleSpy.mockRestore();
     });
 
     it('should report remaining buffered entries before cleanup', () => {
-      integration.setupOnce();
+      integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {

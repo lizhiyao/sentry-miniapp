@@ -3,6 +3,10 @@ import {
   captureException,
   flush,
   getClient,
+  getCurrentScope,
+  installedIntegrations,
+  startInactiveSpan,
+  type Client,
   type Envelope,
   type Event,
 } from '@sentry/core';
@@ -28,6 +32,9 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
   beforeEach(() => {
     captured = [];
     resetPlatformCache();
+    // core 的 setupOnce 按集成名去重且是进程级全局：不复位就只有文件里第一条用例
+    // 走「进程首次安装」路径，首次 init 丢维度的缺陷其余用例根本碰不到。
+    installedIntegrations.length = 0;
 
     g.wx = {
       request: vi.fn((options) => {
@@ -92,6 +99,116 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
     // 宿主版本与小程序自身版本各用独立键，避免与事件 context 同名不同义。
     expect(spanAttribute(span, 'miniapp.host_version')).toBe('8.0.40');
     expect(spanAttribute(span, 'app.app_version')).toBe(undefined);
+    // 进程首次安装也必须带上：这条维度是 setup(client) 里登记到本 client 的，
+    // 早期版本靠 setupOnce 抢跑，首次 init 时 client 还没绑上就丢了。
+    expect(spanAttribute(span, 'network.type')).toBe('wifi');
+  });
+
+  it('关闭采集后重新初始化，不应把上一轮 client 的设备维度带进新 span', async () => {
+    initWith();
+    g.wx.request({ url: 'https://api.example.com/v1/profile' });
+    await flush(2000);
+    const [first] = collectSpans(captured);
+    assertDefined(first);
+    expect(spanAttribute(first, 'device.model')).toBe('iPhone 15');
+
+    const previous = getClient();
+    await previous?.close(0);
+    getCurrentScope().setClient(undefined);
+    captured = [];
+
+    initWith({ enableSystemInfo: false });
+    g.wx.request({ url: 'https://api.example.com/v1/profile' });
+    await flush(2000);
+
+    const [second] = collectSpans(captured);
+    assertDefined(second);
+    expect(spanAttribute(second, 'miniapp.platform')).toBe('wechat');
+    // 自动维度属于「本轮 client 是否采集」，不能因为写进共享 isolation scope 而活过一轮初始化。
+    expect(spanAttribute(second, 'device.model')).toBeUndefined();
+    expect(spanAttribute(second, 'os.name')).toBeUndefined();
+  });
+
+  it('重叠 client 各自携带自己的平台与采集开关', async () => {
+    initWith({ miniappPlatform: 'wechat' });
+    const clientA = getClient() as Client;
+    assertDefined(clientA);
+
+    initWith({ miniappPlatform: 'bytedance', enableSystemInfo: false });
+    const clientB = getClient() as Client;
+    assertDefined(clientB);
+
+    // 切回 A 建 span：A 采集设备信息，B 不采集，两边都不能看到对方的平台标记。
+    getCurrentScope().setClient(clientA);
+    startInactiveSpan({ name: 'span.on.a', parentSpan: null }).end();
+    await clientA.flush(2000);
+    const spanA = collectSpans(captured).find((span) => span.name === 'span.on.a');
+    assertDefined(spanA);
+    expect(spanAttribute(spanA, 'miniapp.platform')).toBe('wechat');
+    expect(spanAttribute(spanA, 'device.model')).toBe('iPhone 15');
+
+    getCurrentScope().setClient(clientB);
+    startInactiveSpan({ name: 'span.on.b', parentSpan: null }).end();
+    await clientB.flush(2000);
+    const spanB = collectSpans(captured).find((span) => span.name === 'span.on.b');
+    assertDefined(spanB);
+    expect(spanAttribute(spanB, 'miniapp.platform')).toBe('bytedance');
+    expect(spanAttribute(spanB, 'device.model')).toBeUndefined();
+  });
+
+  it('route 随页面栈实时变化，返回上一页后不停留在旧页面', async () => {
+    const pages: Array<{ route: string }> = [{ route: 'pages/a' }];
+    g.getCurrentPages = vi.fn(() => pages);
+
+    initWith();
+
+    const spanOnA = startInactiveSpan({ name: 'span.on.a', parentSpan: null });
+    spanOnA.end();
+    await getClient()?.flush(2000);
+
+    pages.push({ route: 'pages/b' });
+    startInactiveSpan({ name: 'span.on.b', parentSpan: null }).end();
+    await getClient()?.flush(2000);
+
+    pages.pop(); // navigateBack
+    const spanBack = startInactiveSpan({ name: 'span.back', parentSpan: null });
+    spanBack.end();
+    await getClient()?.flush(2000);
+
+    const spans = collectSpans(captured);
+    const routeOf = (name: string): unknown => {
+      const span = spans.find((item) => item.name === name);
+      assertDefined(span, `未产出 ${name}`);
+      return spanAttribute(span, 'route');
+    };
+    expect(routeOf('span.on.a')).toBe('pages/a');
+    expect(routeOf('span.on.b')).toBe('pages/b');
+    expect(routeOf('span.back')).toBe('pages/a');
+
+    delete g.getCurrentPages;
+  });
+
+  it('network.type 由 NetworkStatus 集成登记到所属 client 的 span 上', async () => {
+    initWith();
+
+    g.wx.request({ url: 'https://api.example.com/v1/profile' });
+    await flush(2000);
+
+    const [span] = collectSpans(captured);
+    assertDefined(span);
+    expect(spanAttribute(span, 'network.type')).toBe('wifi');
+  });
+
+  it('关掉网络状态监听后，span 不再带 network.type', async () => {
+    // 反向对照：该属性只可能来自集成的登记，缺席才能说明上一条断言不是恒真。
+    initWith({ enableNetworkStatusMonitoring: false });
+
+    g.wx.request({ url: 'https://api.example.com/v1/profile' });
+    await flush(2000);
+
+    const [span] = collectSpans(captured);
+    assertDefined(span);
+    expect(spanAttribute(span, 'network.type')).toBeUndefined();
   });
 
   it('事件侧 context 与 tag 不因双写而丢失', async () => {
