@@ -99,7 +99,7 @@ describe('#428 typed envelope codec 原型', () => {
     [{ type: 'event' }, { kind: 'json' }],
     [{ type: 'attachment' }, { kind: 'text', data: 3 }],
     [{ type: 'attachment' }, { kind: 'bytes', data: [] }],
-  ])('拒收 item 格式错误：%j', (item) => {
+  ].map((item) => ({ item })))('拒收 item 格式错误：$item', ({ item }) => {
     expect(() => decodeEnvelope(JSON.stringify({ schemaVersion: 1, headers: {}, items: [item] }))).toThrow();
   });
 
