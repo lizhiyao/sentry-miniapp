@@ -76,7 +76,9 @@ Sentry.addBreadcrumb({
 
 `addBreadcrumb` **不会单独发送网络请求**。它只会随下一次异常或消息事件一起发送，因此不能用它验证接入是否成功。
 
-网络面包屑默认包含 URL、方法、状态码和耗时，不记录请求体与响应体。确实需要 body 时再开启 `traceNetworkBody`，并通过 `beforeBreadcrumb` 删除敏感字段。
+网络面包屑默认包含 URL、方法、状态码和耗时，不记录请求体与响应体。字段与 core 11 的口径一致：`url` 只到路径，query 单列在 `url.query`，两者都按 `dataCollection.urlQueryParams` 过滤。确实需要 body 时再开启 `traceNetworkBody`，体先按敏感键脱敏、再按 `maxRequestBodySize` 截断，`request_body_size` / `response_body_size` 记录截断前的完整字节数。
+
+SDK 自动采集的键值数据（URL query、页面 `onLoad` 入参、交互 `dataset`、请求 / 响应体）共用一套脱敏：大小写不敏感的**片段**匹配 core 内置敏感名单（`token` / `auth` / `secret` / `key` / `sid` …）加上本 SDK 补齐的支付与证件片段（`card_number` / `cvv` / `ssn` / `id_card` …），命中的值就地替换为 `[Filtered]`。业务自有字段用顶层 `sensitiveKeys` **追加**，不会顶掉这份名单；要整块不采时用 `dataCollection: { urlQueryParams: false }`。
 
 ## 独立业务日志
 

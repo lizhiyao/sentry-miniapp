@@ -83,6 +83,12 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   if (options.enableStandaloneHttpSpans !== undefined) {
     networkOptions['enableStandaloneHttpSpans'] = options.enableStandaloneHttpSpans;
   }
+  if (options.maxRequestBodySize !== undefined) {
+    networkOptions['maxRequestBodySize'] = options.maxRequestBodySize;
+  }
+  if (options.sensitiveKeys !== undefined) {
+    networkOptions['sensitiveKeys'] = options.sensitiveKeys;
+  }
   integrations.push(new NetworkBreadcrumbs(networkOptions));
 
   if (options.enableAutoSessionTracking !== false) {
@@ -96,6 +102,7 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
       new PageBreadcrumbs({
         enableLifecycle: enablePageLifecycleBreadcrumbs,
         enableUserInteraction: enableUserInteractionBreadcrumbs,
+        ...(options.sensitiveKeys !== undefined && { sensitiveKeys: options.sensitiveKeys }),
       }),
     );
   }

@@ -47,6 +47,8 @@ export function createNetworkBreadcrumbsTestHarness(
         getOptions: () => ({ dsn: 'https://key@sentry.io/123', ...clientOptions }),
         getDsn: () => ({ host: 'sentry.io' }),
         registerCleanup: vi.fn(),
+        // core 读采集开关的入口；返回空对象即按 core 默认（全部 true）。
+        getDataCollectionOptions: () => ({}),
       } as any;
       dependencies.mockGetClient.mockReturnValue(client);
       integration.setup(client);

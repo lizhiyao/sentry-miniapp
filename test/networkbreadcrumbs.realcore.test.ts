@@ -23,6 +23,22 @@ import {
   spanAttribute,
 } from './support/envelopes';
 
+/** 取事件里 SDK 记录的那条 xhr 面包屑 data。 */
+function xhrBreadcrumbData(captured: Envelope[]): Record<string, unknown> {
+  const event = collectEnvelopePayloads<Event>(captured, ['event']).find((item) =>
+    item.breadcrumbs?.some((breadcrumb) => breadcrumb.category === 'xhr'),
+  );
+  assertDefined(event, '事件里没有 xhr 面包屑');
+  const crumb = event.breadcrumbs?.find((breadcrumb) => breadcrumb.category === 'xhr');
+  assertDefined(crumb);
+  return crumb.data as Record<string, unknown>;
+}
+
+// 测试自己按 TextEncoder 量字节，不复用被测实现，免得体积断言变成自证。
+function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
 describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
   const g = global as any;
   let captured: Envelope[];
@@ -219,55 +235,56 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       label: '默认只抹掉敏感键值',
       dataCollection: undefined,
       expectedFullUrl: 'https://api.example.com/v1/login?token=[Filtered]&page=2',
+      expectedQuery: 'token=[Filtered]&page=2',
     },
     {
       label: 'urlQueryParams=false 丢弃整个 query',
       dataCollection: { urlQueryParams: false },
       expectedFullUrl: 'https://api.example.com/v1/login',
+      expectedQuery: undefined,
     },
     {
       label: 'deny 命中的键值也被抹掉',
       dataCollection: { urlQueryParams: { deny: ['page'] } },
       expectedFullUrl: 'https://api.example.com/v1/login?token=[Filtered]&page=[Filtered]',
+      expectedQuery: 'token=[Filtered]&page=[Filtered]',
     },
-  ])('dataCollection 同时作用于 span 与面包屑：$label', async ({ dataCollection, expectedFullUrl }) => {
-    init({
-      dsn: 'https://test@o0.ingest.sentry.io/0',
-      platform: 'bytedance',
-      tracesSampleRate: 1,
-      dataCollection,
-      enableOfflineCache: false,
-      enableAutoSessionTracking: false,
-      enableMinigameLifecycle: false,
-      enableMinigameFrameRate: false,
-      transport: createCapturingTransport(captured),
-    } as any);
+  ])(
+    'dataCollection 同时作用于 span 与面包屑：$label',
+    async ({ dataCollection, expectedFullUrl, expectedQuery }) => {
+      init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        platform: 'bytedance',
+        tracesSampleRate: 1,
+        dataCollection,
+        enableOfflineCache: false,
+        enableAutoSessionTracking: false,
+        enableMinigameLifecycle: false,
+        enableMinigameFrameRate: false,
+        transport: createCapturingTransport(captured),
+      } as any);
 
-    g.tt.request({ url: 'https://api.example.com/v1/login?token=secret&page=2', method: 'POST' });
-    await flush(2000);
+      g.tt.request({ url: 'https://api.example.com/v1/login?token=secret&page=2', method: 'POST' });
+      await flush(2000);
 
-    const span = collectSpans(captured).find(
-      (item) => item.name === 'POST https://api.example.com/v1/login',
-    );
-    assertDefined(span, '未产出请求 span');
-    expect(spanAttribute(span, 'url.full')).toBe(expectedFullUrl);
+      const span = collectSpans(captured).find(
+        (item) => item.name === 'POST https://api.example.com/v1/login',
+      );
+      assertDefined(span, '未产出请求 span');
+      expect(spanAttribute(span, 'url.full')).toBe(expectedFullUrl);
 
-    // 面包屑要随事件带出，才能断言 SDK 记录的那份 URL
-    captureException(new Error('breadcrumb probe'));
-    await flush(2000);
+      // 面包屑要随事件带出，才能断言 SDK 记录的那份 URL
+      captureException(new Error('breadcrumb probe'));
+      await flush(2000);
 
-    const breadcrumbEvent = collectEnvelopePayloads<Event>(captured, ['event']).find((event) =>
-      event.breadcrumbs?.some((breadcrumb) => breadcrumb.category === 'xhr'),
-    );
-    assertDefined(breadcrumbEvent, '事件里没有 xhr 面包屑');
-    const httpCrumb = breadcrumbEvent.breadcrumbs?.find(
-      (breadcrumb) => breadcrumb.category === 'xhr',
-    );
-    assertDefined(httpCrumb);
-    expect(httpCrumb.data?.url).toBe(expectedFullUrl);
+      const crumbData = xhrBreadcrumbData(captured);
+      // 面包屑 url 只到 path，query 单列并按同一开关过滤。
+      expect(crumbData.url).toBe('https://api.example.com/v1/login');
+      expect(crumbData['url.query']).toBe(expectedQuery);
 
-    await getClient()?.close(0);
-  });
+      await getClient()?.close(0);
+    },
+  );
 
   it.each([
     {
@@ -330,6 +347,159 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       expect(crumbData.status_code).toBe(201);
     },
   );
+
+  it('请求体敏感键按片段脱敏，与 core 内置名单一致', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      traceNetworkBody: true,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({
+      url: 'https://api.example.com/v1/pay',
+      method: 'POST',
+      data: {
+        orderId: 'o-9',
+        accessToken: 'at-1',
+        xApiKey: 'k-1',
+        sid: 's-1',
+        nested: { refreshToken: 'rt-1', amount: 12 },
+        contacts: [{ email: 'a@b.c' }, { authToken: 't-2' }],
+      },
+    });
+    await flush(2000);
+    captureException(new Error('body key probe'));
+    await flush(2000);
+
+    const crumbData = xhrBreadcrumbData(captured);
+    expect(JSON.parse(String(crumbData.request_body))).toEqual({
+      orderId: 'o-9',
+      accessToken: '[Filtered]',
+      xApiKey: '[Filtered]',
+      sid: '[Filtered]',
+      nested: { refreshToken: '[Filtered]', amount: 12 },
+      contacts: [{ email: 'a@b.c' }, { authToken: '[Filtered]' }],
+    });
+  });
+
+  it('sensitiveKeys 追加到 core 内置片段之上，不顶掉内置名单', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      traceNetworkBody: true,
+      sensitiveKeys: ['memberNo'],
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({
+      url: 'https://api.example.com/v1/member',
+      method: 'POST',
+      data: { memberNo: 'm-1', token: 't-1', name: 'xiao' },
+    });
+    await flush(2000);
+    captureException(new Error('sensitiveKeys probe'));
+    await flush(2000);
+
+    const crumbData = xhrBreadcrumbData(captured);
+    expect(JSON.parse(String(crumbData.request_body))).toEqual({
+      memberNo: '[Filtered]',
+      token: '[Filtered]',
+      name: 'xiao',
+    });
+  });
+
+  it('面包屑按 core 口径拆成 url 与 url.query', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/login?token=secret&page=2' });
+    await flush(2000);
+    captureException(new Error('breadcrumb url probe'));
+    await flush(2000);
+
+    const crumbData = xhrBreadcrumbData(captured);
+    // url 只到 path（core 的 getSanitizedUrlString），query 单列且按 urlQueryParams 过滤。
+    expect(crumbData.url).toBe('https://api.example.com/v1/login');
+    expect(crumbData['url.query']).toBe('token=[Filtered]&page=2');
+
+    // span 侧口径不变：url.full 仍带过滤后的完整 URL。
+    const span = collectSpans(captured).find(
+      (item) => item.name === 'GET https://api.example.com/v1/login',
+    );
+    assertDefined(span);
+    expect(spanAttribute(span, 'url.full')).toBe(
+      'https://api.example.com/v1/login?token=[Filtered]&page=2',
+    );
+  });
+
+  it('请求体超过 maxRequestBodySize 时截断，体积按完整字节数记', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      traceNetworkBody: true,
+      maxRequestBodySize: 'small',
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({
+      url: 'https://api.example.com/v1/import',
+      method: 'POST',
+      // 1000 个 ASCII + 2 个中文字符（各 3 字节）= 1006 字节，边界要按字节而不是字符数裁。
+      data: `${'a'.repeat(1000)}中文`,
+    });
+    await flush(2000);
+    captureException(new Error('body size probe'));
+    await flush(2000);
+
+    const crumbData = xhrBreadcrumbData(captured);
+    expect(crumbData.request_body_size).toBe(1006);
+    const body = String(crumbData.request_body);
+    expect(body.endsWith('...')).toBe(true);
+    expect(utf8ByteLength(body)).toBe(1000);
+  });
+
+  it('未超过上限的请求体保持原样', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      traceNetworkBody: true,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/small', method: 'POST', data: { a: 1 } });
+    await flush(2000);
+    captureException(new Error('body untouched probe'));
+    await flush(2000);
+
+    const crumbData = xhrBreadcrumbData(captured);
+    expect(crumbData.request_body).toBe('{"a":1}');
+    expect(crumbData.request_body_size).toBe(7);
+  });
 
   it('字符串目标按 core 11 语义大小写不敏感匹配', async () => {
     init({

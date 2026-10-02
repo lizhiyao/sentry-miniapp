@@ -6,19 +6,27 @@ import {
 } from '../src/integrations/pagebreadcrumbs';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 
-vi.mock('@sentry/core', () => ({
-  addBreadcrumb: vi.fn(),
-  getClient: vi.fn(() => undefined),
-  setContext: vi.fn(),
-  setAttribute: vi.fn(),
-}));
+vi.mock('@sentry/core', async () => {
+  // 脱敏语义属于 core，透传真实现，单测只盯页面生命周期的装配与记录。
+  const actual = await vi.importActual<Record<string, unknown>>('@sentry/core');
+  return {
+    ...actual,
+    addBreadcrumb: vi.fn(),
+    getClient: vi.fn(() => undefined),
+    setContext: vi.fn(),
+    setAttribute: vi.fn(),
+  };
+});
 
 import { addBreadcrumb, getClient, setContext } from '@sentry/core';
 
 const activeIntegrations = new Set<PageBreadcrumbs>();
 
 function setupIntegration(integration: PageBreadcrumbs): void {
-  const client = { registerCleanup: vi.fn() } as any;
+  const client = {
+    registerCleanup: vi.fn(),
+    getDataCollectionOptions: () => ({}),
+  } as any;
   vi.mocked(getClient).mockReturnValue(client);
   integration.setup(client);
   activeIntegrations.add(integration);
