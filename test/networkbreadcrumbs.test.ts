@@ -49,10 +49,11 @@ const {
 });
 // Mock the core module to avoid redefine property errors
 vi.mock('@sentry/core', async () => {
-  // 匹配语义属于 core，这里透传真实现，避免单测变成对 mock 自定义逻辑的断言。
+  // core 的纯函数（URL 解析、脱敏语义）透传真实现：单测不该断言 mock 自己写的逻辑，
+  // 也不会因为集成多用了一个 core 符号就回来补 mock。
   const actual = await vi.importActual<Record<string, unknown>>('@sentry/core');
   return {
-    matchesTracePropagationTargets: actual['matchesTracePropagationTargets'],
+    ...actual,
     addBreadcrumb: vi.fn(),
     // 过滤语义由 networkbreadcrumbs.realcore 用真 core 覆盖，这里保持恒等以专注装配路径。
     filterCollectedUrl: (url: string) => url,
@@ -62,9 +63,6 @@ vi.mock('@sentry/core', async () => {
     isSentryRequestUrl: mockIsSentryRequestUrl,
     getTraceData: mockGetTraceData,
     setHttpStatus: mockSetHttpStatus,
-    SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN: 'sentry.origin',
-    SPAN_STATUS_OK: 1,
-    SPAN_STATUS_ERROR: 2,
     startInactiveSpan: mockStartInactiveSpan,
   };
 });
@@ -230,9 +228,9 @@ describe('NetworkBreadcrumbs Integration', () => {
         status_code: 200,
         duration: 0,
         request_body: '{"userId":1}',
-        request_size: 12,
+        request_body_size: 12,
         response_body: '{"status":"ok"}',
-        response_size: 15,
+        response_body_size: 15,
       },
     });
   });

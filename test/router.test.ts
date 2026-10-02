@@ -3,14 +3,19 @@ import { Router } from '../src/integrations/router';
 import { addBreadcrumb, getClient, getCurrentScope } from '@sentry/core';
 
 // Mock Sentry core functions
-vi.mock('@sentry/core', () => ({
-  addBreadcrumb: vi.fn(),
-  getClient: vi.fn(() => undefined),
-  getCurrentScope: vi.fn(() => ({
-    setTag: vi.fn(),
-    setContext: vi.fn(),
-  })),
-}));
+vi.mock('@sentry/core', async () => {
+  // URL 过滤与 route 归一属于 core 的纯函数，透传真实现；单测只盯导航装配。
+  const actual = await vi.importActual<Record<string, unknown>>('@sentry/core');
+  return {
+    ...actual,
+    addBreadcrumb: vi.fn(),
+    getClient: vi.fn(() => undefined),
+    getCurrentScope: vi.fn(() => ({
+      setTag: vi.fn(),
+      setContext: vi.fn(),
+    })),
+  };
+});
 
 // Mock crossPlatform sdk
 const mockSdk: any = {};
@@ -23,7 +28,10 @@ import { sdk as sdkFn } from '../src/crossPlatform';
 const activeRouters = new Set<Router>();
 
 function setupRouter(router: Router): void {
-  const client = { registerCleanup: vi.fn() } as any;
+  const client = {
+    registerCleanup: vi.fn(),
+    getDataCollectionOptions: () => ({}),
+  } as any;
   vi.mocked(getClient).mockReturnValue(client);
   router.setup(client);
   activeRouters.add(router);
@@ -138,7 +146,7 @@ describe('Router Integration', () => {
 
     it('client handlers and route timer only run for the active client', () => {
       const registerCleanup = vi.fn();
-      const client = { registerCleanup } as any;
+      const client = { registerCleanup, getDataCollectionOptions: () => ({}) } as any;
       router.setup(client);
       const timerCallback = ((global as any).setInterval as Mock).mock.calls[0][0];
 
@@ -311,7 +319,10 @@ describe('Router Integration', () => {
       (sdkFn as Mock).mockImplementation(() => {
         throw new Error('sentry-miniapp 暂不支持此平台');
       });
-      const client = { registerCleanup: vi.fn() } as any;
+      const client = {
+    registerCleanup: vi.fn(),
+    getDataCollectionOptions: () => ({}),
+  } as any;
       vi.mocked(getClient).mockReturnValue(client);
 
       expect(() => router.setup(client)).not.toThrow();

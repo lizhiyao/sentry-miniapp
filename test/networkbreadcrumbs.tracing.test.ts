@@ -51,10 +51,10 @@ const mockTraceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 
 // Mock the core module to avoid redefine property errors
 vi.mock('@sentry/core', async () => {
-  // 匹配语义属于 core，这里透传真实现，避免单测变成对 mock 自定义逻辑的断言。
+  // core 的纯函数（URL 解析、脱敏语义）透传真实现，避免单测变成对 mock 自定义逻辑的断言。
   const actual = await vi.importActual<Record<string, unknown>>('@sentry/core');
   return {
-    matchesTracePropagationTargets: actual['matchesTracePropagationTargets'],
+    ...actual,
     addBreadcrumb: vi.fn(),
     // 过滤语义由 networkbreadcrumbs.realcore 用真 core 覆盖，这里保持恒等以专注装配路径。
     filterCollectedUrl: (url: string) => url,
@@ -64,14 +64,6 @@ vi.mock('@sentry/core', async () => {
     isSentryRequestUrl: mockIsSentryRequestUrl,
     getTraceData: mockGetTraceData,
     setHttpStatus: mockSetHttpStatus,
-    DEFAULT_ENVIRONMENT: 'production',
-    SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME: 'sentry.exclusive_time',
-    SEMANTIC_ATTRIBUTE_SENTRY_ENVIRONMENT: 'sentry.environment',
-    SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN: 'sentry.origin',
-    SEMANTIC_ATTRIBUTE_SENTRY_RELEASE: 'sentry.release',
-    SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME: 'sentry.segment.name',
-    SPAN_STATUS_OK: 1,
-    SPAN_STATUS_ERROR: 2,
     startInactiveSpan: mockStartInactiveSpan,
   };
 });

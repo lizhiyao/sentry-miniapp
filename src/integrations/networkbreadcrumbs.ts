@@ -1,6 +1,10 @@
 import {
   addBreadcrumb,
   filterCollectedUrl,
+  filterCollectedUrlQuery,
+  getSanitizedUrlString,
+  getUrlQuery,
+  parseUrl,
   DEFAULT_ENVIRONMENT,
   getActiveSpan,
   getClient,
@@ -19,6 +23,8 @@ import {
   startInactiveSpan,
 } from '@sentry/core';
 import type { Client, Integration, Span } from '@sentry/core';
+import { collectBody, resolveMaxBodyBytes } from '../dataCollection';
+import type { MaxBodySizeOption } from '../dataCollection';
 import { sdk } from '../crossPlatform';
 import {
   addFunctionInstrumentationHandler,
@@ -45,6 +51,7 @@ export class NetworkBreadcrumbs implements Integration {
 
   private readonly _traceNetworkBody: boolean;
   private readonly _sensitiveKeys: string[];
+  private readonly _maxBodyBytes: number;
   private readonly _denyUrls: RegExp[];
   private readonly _enableTracePropagation: boolean;
   private readonly _tracePropagationTargets: Array<string | RegExp>;
@@ -56,8 +63,10 @@ export class NetworkBreadcrumbs implements Integration {
   public constructor(
     options: {
       traceNetworkBody?: boolean | undefined;
-      /** 需要脱敏的字段名列表（不区分大小写匹配） */
+      /** 在 core 内置敏感片段与本 SDK 补齐的支付／证件片段**之上追加**的键名片段（大小写不敏感、按片段匹配） */
       sensitiveKeys?: string[];
+      /** 请求 / 响应体上报的字节上限，与 core 的 `maxRequestBodySize` 同语义（small=1 KB、medium=10 KB、默认 1 MB） */
+      maxRequestBodySize?: MaxBodySizeOption;
       /** 不记录请求体的 URL 模式 */
       denyBodyUrls?: Array<string | RegExp>;
       /** 是否启用分布式追踪头注入（默认 true） */
@@ -71,25 +80,8 @@ export class NetworkBreadcrumbs implements Integration {
     } = {},
   ) {
     this._traceNetworkBody = !!options.traceNetworkBody;
-    this._sensitiveKeys = (
-      options.sensitiveKeys || [
-        'password',
-        'passwd',
-        'secret',
-        'token',
-        'access_token',
-        'refresh_token',
-        'authorization',
-        'cookie',
-        'session',
-        'creditcard',
-        'credit_card',
-        'card_number',
-        'cvv',
-        'ssn',
-        'id_card',
-      ]
-    ).map((k) => k.toLowerCase());
+    this._sensitiveKeys = (options.sensitiveKeys || []).map((key) => key.toLowerCase());
+    this._maxBodyBytes = resolveMaxBodyBytes(options.maxRequestBodySize);
     this._denyUrls = (options.denyBodyUrls || []).map((pattern) =>
       typeof pattern === 'string' ? new RegExp(pattern) : pattern,
     );
@@ -166,7 +158,8 @@ export class NetworkBreadcrumbs implements Integration {
    */
   private _createRequestWrapper(originalRequest: Function): Function {
     const traceNetworkBody = this._traceNetworkBody;
-    const sanitizeBody = this._sanitizeBody.bind(this);
+    const sensitiveKeys = this._sensitiveKeys;
+    const maxBodyBytes = this._maxBodyBytes;
     const shouldDenyBodyUrl = this._shouldDenyBodyUrl.bind(this);
     const enableTracePropagation = this._enableTracePropagation;
     const shouldPropagateTrace = this._shouldPropagateTrace.bind(this);
@@ -213,10 +206,17 @@ export class NetworkBreadcrumbs implements Integration {
         injectTraceHeaders(requestOptions, requestSpan, propagateTraceparent);
       }
 
+      // 面包屑的 url 只到 path（core 的 getSanitizedUrlString），query 单列成 url.query，
+      // 与 core 的 fetch 集成同构；span 侧仍用带过滤后 query 的 url.full。
+      const parsedUrl = parseUrl(url);
       const breadcrumbData: Record<string, any> = {
-        url: collectedUrl,
+        url: getSanitizedUrlString(parsedUrl),
         method,
       };
+      const collectedQuery = filterCollectedUrlQuery(getUrlQuery(parsedUrl.search), client);
+      if (collectedQuery) {
+        breadcrumbData['url.query'] = collectedQuery;
+      }
 
       // dataCollection.httpBodies 约束 SDK 自采的数据体，判定方式与 core 自身集成一致；
       // traceNetworkBody 仍是本 SDK 的显式 opt-in，两者都放行才记录。
@@ -229,8 +229,9 @@ export class NetworkBreadcrumbs implements Integration {
       if (traceRequestBody && requestData && !shouldDenyBodyUrl(url)) {
         try {
           const body = typeof requestData === 'string' ? requestData : JSON.stringify(requestData);
-          breadcrumbData['request_body'] = sanitizeBody(body);
-          breadcrumbData['request_size'] = body.length;
+          const collected = collectBody(body, client, maxBodyBytes, sensitiveKeys);
+          breadcrumbData['request_body'] = collected.body;
+          breadcrumbData['request_body_size'] = collected.byteLength;
         } catch (_e) {
           breadcrumbData['request_body'] = '[Cannot serialize request body]';
         }
@@ -256,8 +257,9 @@ export class NetworkBreadcrumbs implements Integration {
         if (traceResponseBody && res.data && !shouldDenyBodyUrl(url)) {
           try {
             const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
-            breadcrumbData['response_body'] = sanitizeBody(body);
-            breadcrumbData['response_size'] = body.length;
+            const collected = collectBody(body, client, maxBodyBytes, sensitiveKeys);
+            breadcrumbData['response_body'] = collected.body;
+            breadcrumbData['response_body_size'] = collected.byteLength;
           } catch (_e) {
             breadcrumbData['response_body'] = '[Cannot serialize response body]';
           }
@@ -351,41 +353,6 @@ export class NetworkBreadcrumbs implements Integration {
    */
   private _shouldDenyBodyUrl(url: string): boolean {
     return this._denyUrls.some((pattern) => pattern.test(url));
-  }
-
-  /**
-   * 对请求/响应体进行敏感字段脱敏
-   */
-  private _sanitizeBody(body: string): string {
-    if (this._sensitiveKeys.length === 0) return body;
-
-    try {
-      const parsed = JSON.parse(body);
-      if (typeof parsed === 'object' && parsed !== null) {
-        this._sanitizeObject(parsed);
-        return JSON.stringify(parsed);
-      }
-    } catch (_e) {
-      // 非 JSON 格式，尝试正则替换常见的 key=value 模式
-      for (const key of this._sensitiveKeys) {
-        const regex = new RegExp(`(${key})=[^&]*`, 'gi');
-        body = body.replace(regex, '$1=[Filtered]');
-      }
-    }
-    return body;
-  }
-
-  /**
-   * 递归脱敏对象中的敏感字段
-   */
-  private _sanitizeObject(obj: Record<string, any>): void {
-    for (const key of Object.keys(obj)) {
-      if (this._sensitiveKeys.includes(key.toLowerCase())) {
-        obj[key] = '[Filtered]';
-      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-        this._sanitizeObject(obj[key]);
-      }
-    }
   }
 }
 

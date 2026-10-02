@@ -1,4 +1,10 @@
-import { addBreadcrumb, getClient, getCurrentScope } from '@sentry/core';
+import {
+  addBreadcrumb,
+  filterCollectedUrl,
+  getClient,
+  getCurrentScope,
+  stripUrlQueryAndFragment,
+} from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
 import {
@@ -78,7 +84,7 @@ export class Router implements Integration {
       if (typeof currentSdk[method] !== 'function') continue;
       const handler = (original: Function, thisArg: unknown, args: unknown[]): unknown => {
         const options = (args[0] || {}) as any;
-        this._recordNavigation(method, options.url, this._getCurrentRoute());
+        this._recordNavigation(client, method, options.url, this._getCurrentRoute());
         return original.apply(thisArg, args);
       };
       cleanups.push(addFunctionInstrumentationHandler(currentSdk, method, client, handler));
@@ -87,7 +93,7 @@ export class Router implements Integration {
     if (typeof currentSdk.navigateBack === 'function') {
       const handler = (original: Function, thisArg: unknown, args: unknown[]): unknown => {
         const options = (args[0] || {}) as any;
-        this._recordNavigation('navigateBack', 'back', this._getCurrentRoute(), options.delta);
+        this._recordNavigation(client, 'navigateBack', 'back', this._getCurrentRoute(), options.delta);
         return original.apply(thisArg, args.length > 0 ? args : [{}]);
       };
       cleanups.push(addFunctionInstrumentationHandler(currentSdk, 'navigateBack', client, handler));
@@ -153,8 +159,17 @@ export class Router implements Integration {
   /**
    * Record navigation action
    */
-  private _recordNavigation(action: string, to: string, from: string, delta?: number): void {
+  private _recordNavigation(
+    client: Client,
+    action: string,
+    rawTo: string,
+    rawFrom: string,
+    delta?: number,
+  ): void {
     const scope = getCurrentScope();
+    // 跳转 URL 的 query 是业务参数，常带 id / token，按 dataCollection.urlQueryParams 过滤后再记。
+    const to = filterCollectedUrl(rawTo, client) ?? '';
+    const from = filterCollectedUrl(rawFrom, client) ?? '';
 
     // Add breadcrumb
     addBreadcrumb({
@@ -169,8 +184,8 @@ export class Router implements Integration {
       type: 'navigation',
     });
 
-    // Set current route tag
-    scope.setTag('route', to === 'back' ? from : to);
+    // Set current route tag —— route 是低基数标签，只到路径，不带 query。
+    scope.setTag('route', stripUrlQueryAndFragment(to === 'back' ? from : to));
 
     // Set navigation context
     scope.setContext('navigation', {
@@ -200,7 +215,7 @@ export class Router implements Integration {
     });
 
     // Update route tag
-    scope.setTag('route', to);
+    scope.setTag('route', stripUrlQueryAndFragment(to));
 
     // Update route context
     scope.setContext('route', {

@@ -1,0 +1,122 @@
+import { describe, expect, it } from 'vitest';
+import { _INTERNAL_filterKeyValueData } from '@sentry/core';
+import {
+  EXTRA_SENSITIVE_KEY_SNIPPETS,
+  collectBody,
+  collectKeyValueData,
+  resolveMaxBodyBytes,
+  sanitizeCollectedData,
+  truncateToBytes,
+  utf8ByteLength,
+} from '../src/dataCollection';
+
+function fakeClient(dataCollection: Record<string, unknown> = {}): any {
+  return { getDataCollectionOptions: () => dataCollection };
+}
+
+describe('dataCollection 适配层', () => {
+  it('core 的内部脱敏工具仍在导出面上（升级 core 时这里先响，别让隐私静默降级）', () => {
+    expect(typeof _INTERNAL_filterKeyValueData).toBe('function');
+  });
+
+  it('maxRequestBodySize 与 core 各家 SDK 的档位一致', () => {
+    expect(resolveMaxBodyBytes('small')).toBe(1000);
+    expect(resolveMaxBodyBytes('medium')).toBe(10_000);
+    expect(resolveMaxBodyBytes(512)).toBe(512);
+    expect(resolveMaxBodyBytes(undefined)).toBe(1024 * 1024);
+    // 0 与负数不是合法上限，回落到默认值而不是把体截成空。
+    expect(resolveMaxBodyBytes(0)).toBe(1024 * 1024);
+    expect(resolveMaxBodyBytes(-5)).toBe(1024 * 1024);
+  });
+
+  it('按码点算 UTF-8 字节，不依赖宿主的 TextEncoder', () => {
+    expect(utf8ByteLength('abc')).toBe(3);
+    expect(utf8ByteLength('中文')).toBe(6);
+    expect(utf8ByteLength('🙂')).toBe(4);
+  });
+
+  it('截断按字节且不劈开多字节字符', () => {
+    const truncated = truncateToBytes('中文中文', 8);
+    expect(truncated.endsWith('...')).toBe(true);
+    expect(utf8ByteLength(truncated)).toBeLessThanOrEqual(8);
+    // 预算里塞不下第二个汉字，只留第一个汉字 + 省略号。
+    expect(truncated).toBe('中...');
+    expect(truncateToBytes('abc', 10)).toBe('abc');
+  });
+
+  it('请求体先脱敏再截断，体积按截断前的完整字节数记', () => {
+    const body = JSON.stringify({ accessToken: 'at-1', note: 'x'.repeat(400) });
+    const collected = collectBody(body, fakeClient(), 50);
+
+    expect(collected.byteLength).toBe(utf8ByteLength(body));
+    expect(collected.body).toContain('[Filtered]');
+    // 截断发生在脱敏之后，半截 JSON 也不能把敏感值带出去。
+    expect(collected.body).not.toContain('at-1');
+    expect(utf8ByteLength(collected.body)).toBeLessThanOrEqual(50);
+  });
+
+  it('form-urlencoded 与非结构化体按 core 的 query 语义脱敏', () => {
+    const form = collectBody('id=7&token=t-2&name=xiao', fakeClient(), 1000);
+    expect(form.body).toBe('id=7&token=[Filtered]&name=xiao');
+
+    // 没有 key=value 结构的正文原样保留，urlQueryParams=false 也不该把体清空。
+    const plain = collectBody('just a plain text', fakeClient({ urlQueryParams: false }), 1000);
+    expect(plain.body).toBe('just a plain text');
+  });
+
+  it('数组结构保持数组，不塌成对象', () => {
+    const sanitized = sanitizeCollectedData([{ token: 't' }, { id: 1 }], true) as unknown[];
+    expect(Array.isArray(sanitized)).toBe(true);
+    expect(sanitized).toEqual([{ token: '[Filtered]' }, { id: 1 }]);
+  });
+
+  it('本 SDK 补齐的支付与证件片段只在键值数据里生效', () => {
+    const kv = collectKeyValueData({ cardNumber: '6222', id: '9' }, fakeClient());
+    expect(kv).toEqual({ cardNumber: '[Filtered]', id: '9' });
+
+    // core 的 query 过滤不吃我们的追加名单，这里保持与 core 一致。
+    const url = collectBody('{"cardNumber":"6222"}', fakeClient(), 1000);
+    expect(url.body).toBe('{"cardNumber":"[Filtered]"}');
+    expect(EXTRA_SENSITIVE_KEY_SNIPPETS).toContain('card_number');
+  });
+
+  it('sensitiveKeys 之类的追加片段按片段匹配，大小写不敏感', () => {
+    const collected = collectBody(
+      '{"memberNo":"m-1","name":"xiao"}',
+      fakeClient(),
+      1000,
+      ['memberNo'],
+    );
+    expect(JSON.parse(collected.body)).toEqual({ memberNo: '[Filtered]', name: 'xiao' });
+  });
+
+  it('urlQueryParams=false 时整块键值数据不采', () => {
+    expect(collectKeyValueData({ id: '9' }, fakeClient({ urlQueryParams: false }))).toBeUndefined();
+    expect(
+      collectKeyValueData({ id: '9' }, { getOptions: () => ({}) } as any),
+    ).toMatchObject({ id: '9' });
+  });
+
+  it('deny 与 allow 走 core 的 CollectBehavior 语义', () => {
+    expect(
+      collectKeyValueData({ phone: '138', id: '9' }, fakeClient({ urlQueryParams: { deny: ['phone'] } })),
+    ).toEqual({ phone: '[Filtered]', id: '9' });
+    expect(
+      collectKeyValueData({ phone: '138', id: '9' }, fakeClient({ urlQueryParams: { allow: ['id'] } })),
+    ).toEqual({ phone: '[Filtered]', id: '9' });
+  });
+
+  it('自引用与超深结构不递归爆栈，深过上限的值按 Filtered 处理', () => {
+    const cyclic: Record<string, any> = { id: '9' };
+    cyclic.self = cyclic;
+
+    expect(() => collectKeyValueData(cyclic, fakeClient())).not.toThrow();
+
+    const deep = collectKeyValueData(
+      { deep: { a: { b: { c: { d: { token: 't' } } } } } },
+      fakeClient(),
+    );
+    // 第 5 层起折成 [Filtered]：core 的 normalize 也不会把这些层完整发出，宁可少留不漏敏感键。
+    expect(deep).toEqual({ deep: { a: { b: { c: { d: '[Filtered]' } } } } });
+  });
+});

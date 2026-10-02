@@ -1,6 +1,7 @@
 import type { Options as CoreOptions } from '@sentry/core';
 import type { MiniappTransportOptions } from './transports';
 import type { AppName, MiniappPlatform } from './crossPlatform';
+import type { MaxBodySizeOption } from './dataCollection';
 
 export type { MiniappPlatform } from './crossPlatform';
 
@@ -84,6 +85,19 @@ export interface MiniappOptions extends CoreOptions<MiniappTransportOptions> {
 
   /** Whether to capture and record request and response body in network breadcrumbs */
   traceNetworkBody?: boolean;
+
+  /**
+   * 请求 / 响应体上报的字节上限，语义与其它 Sentry SDK 的 `maxRequestBodySize` 一致：
+   * `'small'` = 1 KB、`'medium'` = 10 KB、数字 = 自定义，默认 1 MB。超出部分截断并补 `...`，
+   * 面包屑里的体积仍按截断前的完整字节数记录。
+   */
+  maxRequestBodySize?: MaxBodySizeOption;
+
+  /**
+   * 在 core 内置敏感片段与本 SDK 补齐的支付／证件片段**之上追加**的键名片段
+   * （大小写不敏感、按片段匹配，作用于请求／响应体与页面入参）。
+   */
+  sensitiveKeys?: string[];
 
   /** Whether to enable offline cache to retry sending events later */
   enableOfflineCache?: boolean;
