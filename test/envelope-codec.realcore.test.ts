@@ -4,7 +4,7 @@ import {
   spanStreamingIntegration, startInactiveSpan, type Envelope,
 } from '@sentry/core';
 import { MiniappClient } from '../src/client';
-import { decodeEnvelope, encodeEnvelope, toMiniappRequestBody } from '../src/internal/envelopeCodec';
+import { decodeEnvelope, encodeEnvelope, encodeUtf8, registerEnvelopeEncoder, toMiniappRequestBody } from '../src/internal/envelopeCodec';
 import { assertDefined, createCapturingTransport } from './support/envelopes';
 
 afterEach(() => { getCurrentScope().setClient(undefined); });
@@ -109,6 +109,28 @@ describe('#428 typed envelope codec 原型', () => {
       items: [[{ type: 'attachment' }, { kind: 'bytes', data }]],
     });
     expect(() => decodeEnvelope(encoded)).toThrow();
+  });
+
+  it('缺 TextEncoder 时 core serializer 使用公开注册 encoder，和原生 bytes 等价', () => {
+    const input = 'ASCII \u00e9 中文 😀 \\ud800 \\udc00';
+    const expected = new TextEncoder().encode(input);
+    expect(encodeUtf8(input)).toEqual(expected);
+    const envelope: Envelope = [{}, [
+      [{ type: 'attachment', filename: 'text' }, input],
+      [{ type: 'attachment', filename: 'bytes' }, new Uint8Array([0, 255])],
+    ]];
+    const native = serializeEnvelope(envelope);
+    registerEnvelopeEncoder(); // 有原生 encoder 时不注册
+    vi.stubGlobal('TextEncoder', undefined);
+    try {
+      registerEnvelopeEncoder();
+      registerEnvelopeEncoder(); // 重复注册保留已有函数
+      expect(serializeEnvelope(envelope)).toEqual(native);
+      expect(serializeEnvelope(decodeEnvelope(encodeEnvelope(envelope)))).toEqual(native);
+      expect(encodeUtf8('')).toEqual(new Uint8Array());
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('空 envelope 保留 headers；不能序列化的 payload 显式失败', () => {

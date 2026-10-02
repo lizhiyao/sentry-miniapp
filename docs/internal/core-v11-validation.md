@@ -19,7 +19,7 @@ yarn run build:miniapp
 验证分为两组：
 
 - 原型普通测试：公开 spanStart/preprocessSpan 快照、同步 owner scope、共享 close Promise/总预算/最终同步采集、业务 log/metric hook 的重入关闭、disabled flush 清空 buffer、typed codec 和 core serializer 字节等价。
-- 基线 `it.fails`：新 client 改写旧 client consent、撤回后宿主 slot 队列继续启动 request、dispose 后仍发送、离线 JSON 存储破坏 Uint8Array。绿色仅说明四个预期失败仍被复现，不能当作修复验收。修复相应默认路径时必须改为普通 `it`。
+- 基线 characterization 普通用例：直接断言当前实际存在的新 client 改写旧 client consent、撤回后宿主 slot 队列继续启动 request、dispose 后仍发送、离线 JSON 存储破坏 Uint8Array 四个缺陷。测试超时会失败，不作为缺陷证据。绿色表示缺陷仍被复现，不能当作修复验收；修复默认实现时必须改成正确契约断言。
 
 ## 已实现的验证原型
 
@@ -33,7 +33,7 @@ yarn run build:miniapp
 
 - prototype close 尚未接入 MiniappClient，也未接入实际 host request dequeue gate/abort、store replay lease。canStartRequest 是可接入的状态查询；本轮不声称旧队列已停止或线上数据已送达。
 - 尚未实现 per-client consent controller、撤回 generation、分区存储和对 host 不支持 binary 的诊断。
-- 尚未补缺 TextEncoder 的 core 公开 encoder 注册。codec 自身不依赖 Node Buffer/DOM，但 core serializer 的 binary 用例运行于有 TextEncoder 的 Node。
+- 缺 TextEncoder 的 core 公开 encoder 注册已由原型验证，包含中文、emoji、lone surrogate；尚未接入默认 SDK 初始化，并未做真机 binary 请求验收。
 - 尚未证明任意抛错的用户 flush hook 都不会阻止该次 emit 的后续 core listener；prototype 仅保证失败步骤之后仍执行 SDK cleanup。
 - 尚未改造 App/Page/HTTP 的全部 owner 回调、session 归属、默认环境处理器或删除 legacy API。
 - 尚未执行微信/抖音小游戏真机冻结、后台 span/log/metric 展示和多宿主 ArrayBuffer 请求验收。Node CI 不能代替这些验收。

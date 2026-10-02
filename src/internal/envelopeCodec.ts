@@ -1,3 +1,4 @@
+import { getGlobalSingleton } from '@sentry/core';
 import type { Envelope } from '@sentry/core';
 
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -80,4 +81,22 @@ export function toMiniappRequestBody(body: string | Uint8Array): string | ArrayB
   const bytes = new Uint8Array(body.byteLength);
   bytes.set(body);
   return bytes.buffer;
+}
+
+/** 只在宿主缺 TextEncoder 时注册 core 公开的兼容入口，保留已注册的实现。 */
+export function registerEnvelopeEncoder(): void {
+  if (typeof TextEncoder === 'undefined') getGlobalSingleton('encodePolyfill', () => encodeUtf8);
+}
+
+export function encodeUtf8(input: string): Uint8Array {
+  const output: number[] = [];
+  for (const character of input) {
+    let point = character.codePointAt(0)!;
+    if (point >= 0xd800 && point <= 0xdfff) point = 0xfffd;
+    if (point <= 0x7f) output.push(point);
+    else if (point <= 0x7ff) output.push(0xc0 | (point >>> 6), 0x80 | (point & 63));
+    else if (point <= 0xffff) output.push(0xe0 | (point >>> 12), 0x80 | ((point >>> 6) & 63), 0x80 | (point & 63));
+    else output.push(0xf0 | (point >>> 18), 0x80 | ((point >>> 12) & 63), 0x80 | ((point >>> 6) & 63), 0x80 | (point & 63));
+  }
+  return new Uint8Array(output);
 }

@@ -18,15 +18,17 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     clients = [];
     runtimes = [];
     envelopes = [];
-    getCurrentScope().clear();
-    getIsolationScope().clear();
+    getCurrentScope().clearBreadcrumbs();
+    getCurrentScope().removeAttribute('duration.custom');
+    getIsolationScope().clearBreadcrumbs();
   });
   afterEach(async () => {
     for (const runtime of runtimes) runtime.dispose();
-    for (const client of clients) await client.close(0);
+    for (const client of clients) await settle(client.close(0));
     getCurrentScope().setClient(undefined);
-    getCurrentScope().clear();
-    getIsolationScope().clear();
+    getCurrentScope().clearBreadcrumbs();
+    getCurrentScope().removeAttribute('duration.custom');
+    getIsolationScope().clearBreadcrumbs();
     vi.clearAllTimers();
   });
 
@@ -46,6 +48,10 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     client.init();
     return client;
   }
+  async function settle<T>(promise: PromiseLike<T>): Promise<T> {
+    await vi.advanceTimersByTimeAsync(1);
+    return promise;
+  }
   function runtime(client: MiniappClient): CoreV11Runtime {
     const value = new CoreV11Runtime(client);
     runtimes.push(value);
@@ -58,15 +64,16 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     let span: Span | undefined;
     owner.run(() => { span = startInactiveSpan({ name: 'A request', parentSpan: null }); });
     assertDefined(span);
+    const ownedSpan = span;
     const b = makeClient();
     owner.run(() => {
       expect(getClient()).toBe(a);
-      span.end();
+      ownedSpan.end();
       logger.info('A callback');
       return Promise.resolve();
     });
     expect(getClient()).toBe(b);
-    await a.flush(100);
+    await settle(a.flush(100));
     expect(collectSpans(envelopes).map((item) => item.name)).toEqual(['A request']);
     expect(collectEnvelopePayloads<any>(envelopes, ['log']).flatMap((item) => item.items).map((item) => item.body)).toEqual(['A callback']);
   });
@@ -88,7 +95,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     expect(owner.close(10)).toBe(closing);
     expect(owner.run(() => logger.info('late callback'))).toBe(false);
     owner.onFinalize(() => { throw new Error('must not register after closing'); });
-    expect(await closing).toBe(true);
+    expect(await settle(closing)).toBe(true);
     expect(collectSpans(envelopes).map((item) => item.name)).toEqual(['final span']);
     expect(collectEnvelopePayloads<any>(envelopes, ['log']).flatMap((item) => item.items).map((item) => item.body)).toEqual(['final log']);
     expect(collectEnvelopePayloads<any>(envelopes, ['trace_metric']).flatMap((item) => item.items).map((item) => item.name)).toEqual(['final metric']);
@@ -132,7 +139,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     await vi.advanceTimersByTimeAsync(60000);
     expect(envelopes).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
-    expect(await owner.close()).toBe(false);
+    expect(await settle(owner.close())).toBe(false);
     const lateCleanup = vi.fn();
     owner.onCleanup(lateCleanup);
     expect(lateCleanup).toHaveBeenCalledOnce();
@@ -140,12 +147,11 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
   });
 
   it.each(['log', 'metric'] as const)('beforeSend%s 重入 dispose 后不得重填 core buffer', async (kind) => {
-    let owner: CoreV11Runtime;
     const client = makeClient({
       beforeSendLog: (log) => { owner.dispose(); return log; },
       beforeSendMetric: (metric) => { owner.dispose(); return metric; },
     });
-    owner = runtime(client);
+    const owner = runtime(client);
     if (kind === 'log') logger.info('reentrant'); else metrics.count('reentrant', 1);
     await vi.advanceTimersByTimeAsync(60000);
     expect(envelopes).toEqual([]);
@@ -162,7 +168,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     logger.info('keep');
     metrics.count('drop', 1);
     metrics.count('keep', 1);
-    await client.flush(100);
+    await settle(client.flush(100));
     expect(collectEnvelopePayloads<any>(envelopes, ['log']).flatMap((item) => item.items).map((item) => item.body)).toEqual(['changed']);
     expect(collectEnvelopePayloads<any>(envelopes, ['trace_metric']).flatMap((item) => item.items).map((item) => item.name)).toEqual(['changed']);
   });
@@ -173,7 +179,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     owner.onFinalize(() => { throw new Error('finalizer'); });
     owner.onCleanup(() => { throw new Error('cleanup'); });
     owner.onCleanup(cleanup);
-    expect(await owner.close()).toBe(false);
+    expect(await settle(owner.close())).toBe(false);
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
@@ -184,7 +190,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     const remaining = vi.fn();
     owner.onFinalize(() => owner.dispose());
     owner.onFinalize(remaining);
-    expect(await owner.close()).toBe(false);
+    expect(await settle(owner.close())).toBe(false);
     expect(remaining).not.toHaveBeenCalled();
     expect(flush).not.toHaveBeenCalled();
   });
@@ -198,7 +204,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     const owner = runtime(client);
     const cleanup = vi.fn();
     owner.onCleanup(cleanup);
-    expect(await owner.close(0)).toBe(false);
+    expect(await settle(owner.close(0))).toBe(false);
     expect(cleanup).toHaveBeenCalledOnce();
     clients.splice(clients.indexOf(client), 1);
   });
@@ -228,7 +234,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     network = '4g';
     first.end();
     explicit.end();
-    await client.flush(100);
+    await settle(client.flush(100));
     const span = collectSpans(envelopes).find((item) => item.name === 'start snapshot');
     assertDefined(span);
     expect(spanAttribute(span, 'route')).toBe('pages/a');
@@ -241,7 +247,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     off();
     off();
     startInactiveSpan({ name: 'after unsubscribe', parentSpan: null }).end();
-    await client.flush(100);
+    await settle(client.flush(100));
     const after = collectSpans(envelopes).find((item) => item.name === 'after unsubscribe');
     assertDefined(after);
     expect(spanAttribute(after, 'route')).toBeUndefined();
@@ -254,7 +260,7 @@ describe('#428 runtime 原型（真实 core 11，不接入默认 SDK）', () => 
     const spans = Array.from({ length: 257 }, (_, i) => startInactiveSpan({ name: 'bounded-' + i, parentSpan: null }));
     spans[0].end();
     spans[256].end();
-    await client.flush(100);
+    await settle(client.flush(100));
     const first = collectSpans(envelopes).find((item) => item.name === 'bounded-0');
     const last = collectSpans(envelopes).find((item) => item.name === 'bounded-256');
     assertDefined(first); assertDefined(last);
