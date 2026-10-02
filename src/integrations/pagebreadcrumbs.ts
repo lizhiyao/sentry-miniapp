@@ -2,6 +2,7 @@ import { addBreadcrumb, getClient, setContext } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 
 import { subscribeAppLifecycle } from '../appLifecycle';
+import { collectKeyValueData, sanitizeCollectedData, sensitiveDenyTerms } from '../dataCollection';
 import {
   addFunctionInstrumentationHandler,
   ensureFunctionInstrumentation,
@@ -29,6 +30,8 @@ export interface PageBreadcrumbsOptions {
   enableLifecycle?: boolean;
   /** 是否追踪用户交互事件（默认 true） */
   enableUserInteraction?: boolean;
+  /** 在 core 内置敏感片段之上追加的键名片段，作用于页面入参与交互 dataset */
+  sensitiveKeys?: string[];
 }
 
 interface PageSubscriber {
@@ -39,12 +42,14 @@ interface PageSubscriber {
 
 const pageSubscribers = new Map<Client, PageSubscriber>();
 
-function getActivePageSubscriber(): PageSubscriber | undefined {
+function getActivePageEntry(): { client: Client; subscriber: PageSubscriber } | undefined {
   const activeClient = getClient();
-  return activeClient ? pageSubscribers.get(activeClient) : undefined;
+  const subscriber = activeClient ? pageSubscribers.get(activeClient) : undefined;
+  return subscriber && activeClient ? { client: activeClient, subscriber } : undefined;
 }
 
 function recordPageLifecycle(
+  client: Client,
   subscriber: PageSubscriber,
   method: (typeof PAGE_LIFECYCLE_METHODS)[number],
   page: any,
@@ -55,7 +60,13 @@ function recordPageLifecycle(
   const route = page?.route || page?.__route__ || 'unknown';
   const breadcrumbData: Record<string, any> = { action: method, page: route };
   if (method === 'onLoad' && args[0] && typeof args[0] === 'object') {
-    breadcrumbData['query'] = args[0];
+    // 页面入参就是 URL query，按 dataCollection.urlQueryParams 脱敏后再记；false 时整块不采。
+    const query = collectKeyValueData(
+      args[0] as Record<string, unknown>,
+      client,
+      subscriber.options.sensitiveKeys,
+    );
+    if (query) breadcrumbData['query'] = query;
   }
   if (method === 'onReady' && !subscriber.firstPageReady && subscriber.launchTime > 0) {
     subscriber.firstPageReady = true;
@@ -85,7 +96,14 @@ function recordUserInteraction(
   if (event && typeof event === 'object') {
     if (event.target) {
       if (event.target.id) breadcrumbData['targetId'] = event.target.id;
-      if (event.target.dataset) breadcrumbData['dataset'] = event.target.dataset;
+      // dataset 由业务写在模板里，可能带 token／单号；按 core 的敏感片段口径脱敏。
+      if (event.target.dataset) {
+        breadcrumbData['dataset'] = sanitizeCollectedData(
+          event.target.dataset,
+          true,
+          sensitiveDenyTerms(subscriber.options.sensitiveKeys),
+        );
+      }
     }
     if (event.type) breadcrumbData['eventType'] = event.type;
     if (event.detail) {
@@ -118,8 +136,8 @@ function instrumentPageOptions(pageOptions: unknown): void {
     const original = options[method];
     if (typeof original !== 'function' || original.__sentryPageCallbackWrapper) continue;
     const wrapped = function (this: any, ...args: any[]): any {
-      const subscriber = getActivePageSubscriber();
-      if (subscriber) recordPageLifecycle(subscriber, method, this, args);
+      const active = getActivePageEntry();
+      if (active) recordPageLifecycle(active.client, active.subscriber, method, this, args);
       return original.apply(this, args);
     };
     Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
@@ -136,8 +154,8 @@ function instrumentPageOptions(pageOptions: unknown): void {
       continue;
     }
     const wrapped = function (this: any, event: any, ...rest: any[]): any {
-      const subscriber = getActivePageSubscriber();
-      if (subscriber) recordUserInteraction(subscriber, key, this, event);
+      const active = getActivePageEntry();
+      if (active) recordUserInteraction(active.subscriber, key, this, event);
       return original.apply(this, [event, ...rest]);
     };
     Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
@@ -165,6 +183,7 @@ export class PageBreadcrumbs implements Integration {
     this._options = {
       enableLifecycle: true,
       enableUserInteraction: true,
+      sensitiveKeys: [],
       ...options,
     };
   }
@@ -203,17 +222,18 @@ export class PageBreadcrumbs implements Integration {
 
   private _subscribeApp(subscriber: PageSubscriber): () => void {
     if (!subscriber.options.enableLifecycle) return () => {};
+    const activeSubscriber = (): PageSubscriber | undefined => getActivePageEntry()?.subscriber;
     return subscribeAppLifecycle({
       onLaunch: () => {
-        if (getActivePageSubscriber() !== subscriber) return;
+        if (activeSubscriber() !== subscriber) return;
         subscriber.launchTime = Date.now();
         this._appBreadcrumb('onLaunch');
       },
       onShow: () => {
-        if (getActivePageSubscriber() === subscriber) this._appBreadcrumb('onShow');
+        if (activeSubscriber() === subscriber) this._appBreadcrumb('onShow');
       },
       onHide: () => {
-        if (getActivePageSubscriber() === subscriber) this._appBreadcrumb('onHide');
+        if (activeSubscriber() === subscriber) this._appBreadcrumb('onHide');
       },
     });
   }

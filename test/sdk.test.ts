@@ -269,7 +269,26 @@ describe('SDK', () => {
       expect(pageBreadcrumbs._options).toEqual({
         enableLifecycle: true,
         enableUserInteraction: false,
+        sensitiveKeys: [],
       });
+    });
+
+    it('顶层 sensitiveKeys / maxRequestBodySize 下发到采集类集成', () => {
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        sensitiveKeys: ['memberNo'],
+        maxRequestBodySize: 'small',
+        traceNetworkBody: true,
+      });
+      const find = (name: string): any =>
+        client?.getOptions().integrations?.find((integration: any) => integration.name === name);
+
+      expect(find('PageBreadcrumbs')._options.sensitiveKeys).toEqual(['memberNo']);
+
+      const network = find('NetworkBreadcrumbs');
+      // small = 1 KB，与其它 Sentry SDK 的 maxRequestBodySize 档位一致。
+      expect(network._maxBodyBytes).toBe(1000);
+      expect(network._sensitiveKeys).toEqual(['memberno']);
     });
 
     it('should skip PageBreadcrumbs when lifecycle and user interaction breadcrumbs are disabled', () => {
