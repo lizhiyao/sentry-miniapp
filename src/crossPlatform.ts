@@ -633,6 +633,8 @@ export interface PerformanceObserverCallback {
  * Performance API 管理器接口
  */
 export interface PerformanceManager {
+  /** 宿主明确提供、与 entry.startTime 同一时钟的 epoch 毫秒原点。缺失时不推算。 */
+  readonly timeOrigin?: number;
   // 当前时间。微信小游戏文档返回微秒，SDK 内部统一归一为毫秒后使用。
   now?: () => number;
 

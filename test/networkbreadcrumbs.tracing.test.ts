@@ -400,12 +400,8 @@ describe('NetworkBreadcrumbs tracing', () => {
         name: 'GET https://api.example.com/users',
         op: 'http.client',
         parentSpan: null,
-        experimental: { standalone: true },
         attributes: expect.objectContaining({
           'sentry.origin': 'auto.http.miniapp',
-          'sentry.segment.name': 'GET https://api.example.com/users',
-          'sentry.release': 'miniapp@1.2.3',
-          'sentry.environment': 'staging',
         }),
       }),
     );
@@ -413,23 +409,6 @@ describe('NetworkBreadcrumbs tracing', () => {
     expect(mockGetTraceData).toHaveBeenCalledWith({ span: mockSpan });
     expect(requestMock.mock.calls[0]![0].header).toEqual(
       expect.objectContaining({ 'sentry-trace': 'trace-id-span-id-1' }),
-    );
-  });
-
-  it('uses the default production environment for standalone spans', () => {
-    mockGetActiveSpan.mockReturnValueOnce(undefined);
-    const integration = new NetworkBreadcrumbs();
-    setupIntegration(integration, { release: 'miniapp@1.2.3' });
-
-    crossPlatform.sdk().request({ url: 'https://api.example.com/users' });
-
-    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attributes: expect.objectContaining({
-          'sentry.release': 'miniapp@1.2.3',
-          'sentry.environment': 'production',
-        }),
-      }),
     );
   });
 

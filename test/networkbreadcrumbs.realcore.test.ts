@@ -9,9 +9,7 @@ import {
   spanStreamingIntegration,
   type Envelope,
   type Event,
-  type EventHint,
   type StreamedSpanJSON,
-  type TransactionEvent,
 } from '@sentry/core';
 import { init } from '../src/index';
 import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
@@ -237,7 +235,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(complete.mock.calls[0]![0]).toBe(response);
   });
 
-  it('响应 getter 与备用 span hook 同时失败仍执行原业务 success/complete', () => {
+  it('响应 getter 与备用 span hook 同时失败仍执行原业务 success/complete', async () => {
     let pending: any;
     requestMock.mockImplementation((options) => {
       pending = options;
@@ -266,6 +264,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(() => pending.success(response)).toThrow(businessError);
     expect(success).toHaveBeenCalledOnce();
     expect(pending.complete(response)).toBe('complete');
+    await flush(2000);
     expect(collectSpans(captured)).toHaveLength(1);
     expect(spanAttribute(collectSpans(captured)[0]!, 'error.message')).toBe('telemetry_error');
   });
@@ -342,7 +341,6 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
 
   it('无 PerformanceObserver 和 active span 时上报独立 http.client segment span', async () => {
     const beforeSendSpan = vi.fn((span: StreamedSpanJSON) => span);
-    const beforeSendTransaction = vi.fn((event: TransactionEvent, _hint: EventHint) => event);
 
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
@@ -356,7 +354,6 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       enableMinigameLifecycle: false,
       enableMinigameFrameRate: false,
       beforeSendSpan,
-      beforeSendTransaction,
       transport: createCapturingTransport(captured),
     });
 
@@ -392,7 +389,6 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     // stream 生命周期不产出 transaction 事件，beforeSendTransaction 由 core 忽略。
     expect(collectEnvelopePayloads(captured, ['transaction'])).toEqual([]);
     expect(beforeSendSpan).toHaveBeenCalledOnce();
-    expect(beforeSendTransaction).not.toHaveBeenCalled();
     expect(requestMock.mock.calls[0]?.[0].header).toEqual(
       expect.objectContaining({
         'sentry-trace': expect.any(String),
@@ -1035,5 +1031,27 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     // 状态码走属性，span.status 只表达成功/失败（core 11 的 span/v2 语义）。
     expect(spanAttribute(span, 'http.response.status_code')).toBe(503);
     expect(span.status).toBe('error');
+  });
+  it.each([
+    ['https://api.example.com:8443/path?token=secret#fragment', 'https:', '8443', '/path'],
+    ['http://api.example.com:80/path', 'http:', undefined, '/path'],
+    ['/relative/path?token=secret', undefined, undefined, '/relative/path'],
+  ])('URL 属性遵守 core v11 的实际类型：%s', async (url, scheme, port, path) => {
+    init({
+      dsn: 'https://test@example.com/1',
+      tracesSampleRate: 1,
+      defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(captured),
+    });
+    g.tt.request({ url });
+    await flush(2000);
+    const span = collectSpans(captured)[0]!;
+    expect(spanAttribute(span, 'url.scheme')).toBe(scheme);
+    expect(spanAttribute(span, 'url.port')).toBe(port);
+    expect(spanAttribute(span, 'url.path')).toBe(path);
+    expect(spanAttribute(span, 'server.address')).toBe(
+      url.startsWith('/') ? undefined : 'api.example.com',
+    );
+    expect(JSON.stringify(captured)).not.toContain('secret');
   });
 });

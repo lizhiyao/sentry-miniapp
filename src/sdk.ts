@@ -19,6 +19,7 @@ import {
   MiniappClient,
   setConfiguredDefaultIntegrationsMode,
   markRuntimeConstruction,
+  assertStreamTracingOptions,
 } from './client';
 import { isTelemetryCritical, withTelemetryCritical, getClientLifetime } from './lifecycle';
 import { isMiniappEnvironment, isMinigame, resolveMiniappPlatform } from './crossPlatform';
@@ -27,7 +28,6 @@ import {
   TryCatch,
   linkedErrorsIntegration,
   dedupeIntegration,
-  performanceIntegration,
   rewriteFramesIntegration,
   NetworkBreadcrumbs,
   PageBreadcrumbs,
@@ -58,15 +58,6 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
     // core 11 的 span streaming。自定义 Client 不会自动装配它（只有 ServerRuntimeClient 和
     // browser 入口会），漏装则非 standalone 的 span 永远滞留在内存里、一条都发不出去。
     spanStreamingIntegration(),
-    // Performance monitoring
-    performanceIntegration({
-      enableNavigation: true,
-      enableRender: true,
-      enableResource: true,
-      enableUserTiming: true,
-      sampleRate: 1.0,
-      reportInterval: 30000,
-    }),
   ];
 
   if (options.enableSourceMap !== false) {
@@ -128,22 +119,15 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   if (options.ignoreErrors) filterOptions.ignoreErrors = options.ignoreErrors;
   integrations.push(eventFiltersIntegration(filterOptions));
 
-  // 两个小游戏开关都显式配置后，无需读取运行时环境。这也让下面的兼容快照可以在模块导入时
-  // 保持纯构造，不会提前填充平台检测缓存。
-  const minigame =
-    options.enableMinigameLifecycle === undefined || options.enableMinigameFrameRate === undefined
-      ? isMinigame()
-      : false;
+  // FPS 只按显式开关安装；生命周期的默认值才依赖小游戏检测。
+  const minigame = options.enableMinigameLifecycle === undefined ? isMinigame() : false;
   if (
     options.enableMinigameLifecycle === true ||
     (minigame && options.enableMinigameLifecycle !== false)
   ) {
     integrations.push(new MinigameIntegration());
   }
-  if (
-    options.enableMinigameFrameRate === true ||
-    (minigame && options.enableMinigameFrameRate !== false)
-  ) {
+  if (options.enableMinigameFrameRate === true) {
     integrations.push(new MinigameFrameRateIntegration(options.minigameFrameRateOptions));
   }
 
@@ -175,6 +159,7 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
 }
 
 function initialize(options: MiniappOptions): MiniappClient | undefined {
+  assertStreamTracingOptions(options);
   if (!isMiniappEnvironment()) {
     console.warn('[sentry-miniapp] Not running in a supported miniapp environment');
     return undefined;

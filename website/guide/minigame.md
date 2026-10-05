@@ -19,7 +19,7 @@ Sentry.init({
 Sentry.captureException(new Error('minigame sentry test'));
 ```
 
-小游戏运行时会自动启用生命周期和帧率集成；普通小程序中默认关闭。通常不需要手动传 `integrations`。
+小游戏默认启用生命周期的一次首帧观察；FPS／jank 循环默认关闭，须显式配置 `enableMinigameFrameRate: true`。普通小程序不安装这些小游戏能力。
 
 ## 平台识别与游戏引擎
 
@@ -32,16 +32,16 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 | 全局异常与 Promise rejection | 支持 | 支持 | 以宿主实际提供的监听 API 为准 |
 | 网络请求面包屑与 `http.client` span | 支持 | 支持 | 走 `wx.request` / `tt.request`，不依赖 PerformanceObserver |
 | 设备信息与离线缓存 | 支持 | 支持 | 依赖宿主系统信息与 Storage API |
-| 冷启动首帧 | 支持 | 支持 | 上报 `minigame.coldstart` |
+| 冷启动首帧 | 支持 | 支持 | 上报 `minigame.init_to_first_frame` |
 | FPS 与卡顿 | 支持 | 支持 | 依赖全局 `requestAnimationFrame` |
-| 小程序导航 / 渲染 / 资源 PerformanceObserver | 不适用 | 不适用 | 小游戏通常只有 `performance.now()`，默认性能集成自动跳过 |
+| 小程序导航 / 渲染 / 资源 PerformanceObserver | 不适用 | 不适用 | 小游戏通常只有 `performance.now()`，通用 Performance 默认不安装，显式安装时按实际能力跳过 |
 | 页面路由、点击面包屑 | 不适用 | 不适用 | 没有 Page 模型，自动跳过 |
 
 ## 冷启动与帧率数据在哪里看
 
-开启 `tracesSampleRate` 或 `tracesSampler` 后：
+开启 `tracesSampleRate` 或 `tracesSampler`，并显式启用需要的 FPS 能力后：
 
-- 冷启动作为独立的 `minigame.coldstart` segment span 上报，耗时写在 `minigame.cold_start_ms` 属性；
+- SDK 初始化到首帧的近似 interval（不等于完整冷启动）作为独立的 `minigame.init_to_first_frame` segment span 上报，耗时写在 `minigame.init_to_first_frame_ms` 属性；
 - FPS 与卡顿在退后台或会话结束时汇总为 `minigame.framerate.summary`；
 - 汇总包含 `fps.avg`、`fps.p95`、`fps.min`、`frames.total` 与 `jank.count` 属性（分级时另有 `jank.minor` / `jank.major` / `jank.severe`），不会每个采样窗口都发送事件。
 
@@ -100,7 +100,7 @@ Cocos、私有引擎、Debug ID 或特殊堆栈解析属于进阶场景，请看
 
 1. 在真机主动发送测试错误，确认 Issues 中顶层 `platform=javascript`、`contexts.miniapp.platform` 与 release 正确。
 2. 将 `tracesSampleRate` 临时设为 `1.0`，完整启动并运行一段时间。
-3. 退到后台，确认出现 `minigame.coldstart` 和 `minigame.framerate.summary`。
+3. 退到后台，确认出现 `minigame.init_to_first_frame` 和 `minigame.framerate.summary`。
 4. 打开 summary span，检查是否包含 `fps.*` 与 `jank.*` 属性。
 5. 上传 Source Map 后再触发一次真机错误，确认堆栈能还原到源码。
 

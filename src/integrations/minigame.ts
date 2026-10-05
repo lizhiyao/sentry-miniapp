@@ -1,6 +1,6 @@
 import { automaticSpanAttributes } from '../spanDimensions';
 import { setClientContext } from '../clientState';
-import { addBreadcrumb, startInactiveSpan, setMeasurement } from '@sentry/core';
+import { addBreadcrumb, startInactiveSpan } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 import { getClientLifetime } from '../lifecycle';
@@ -43,7 +43,7 @@ export class MinigameIntegration implements Integration {
     scene?: unknown;
     path?: unknown;
     query?: unknown;
-    coldStartMs?: number;
+    initToFirstFrameMs?: number;
   } = { runtime: 'minigame' };
 
   public setupOnce(): void {
@@ -99,7 +99,7 @@ export class MinigameIntegration implements Integration {
         setClientContext(this._client, 'minigame', { ...this._minigameContext });
         addBreadcrumb({
           category: 'minigame.launch',
-          message: '小游戏冷启动',
+          message: '小游戏启动参数',
           level: 'info',
           data: { scene: launch.scene, path: this._minigameContext.path },
         });
@@ -182,26 +182,30 @@ export class MinigameIntegration implements Integration {
         if (this._coldStartReported) return;
         this._coldStartReported = true;
         const firstFrameTs = now();
-        // 夹下限 0：时长时钟用 Date.now()（见 crossPlatform.now），万一启动头几百 ms 内系统时钟
-        // 向后跳（NTP 校正 / 用户改表），不至于报出负数冷启动。
-        const coldStartMs = Math.max(0, Math.round(firstFrameTs - this._initTs));
-        this._minigameContext.coldStartMs = coldStartMs;
+        const elapsed = firstFrameTs - this._initTs;
+        if (!Number.isFinite(elapsed) || elapsed < 0) {
+          if (this._owner?.isActive())
+            getClientLifetime(this._client!)?.warnings.add('performance_clock_invalid');
+          return;
+        }
+        const initToFirstFrameMs = Math.round(elapsed);
+        this._minigameContext.initToFirstFrameMs = initToFirstFrameMs;
         setClientContext(this._client, 'minigame', { ...this._minigameContext });
         addBreadcrumb({
           category: 'minigame.performance',
-          message: `SDK 初始化到首帧耗时: ${coldStartMs}ms`,
+          message: `SDK 初始化到首帧耗时: ${initToFirstFrameMs}ms`,
           level: 'info',
-          data: { coldStartMs },
+          data: { initToFirstFrameMs },
         });
 
         // 独立性能事件：「SDK 初始化 → 首帧」自成一条 segment span 发出，进 Performance 页。
         // 仅在 tracing 启用（tracesSampleRate/tracesSampler）时真正上报；否则为非记录 span、不发送。
-        // span 时间戳使用 epoch 锚点；duration 用 now() 测得的 coldStartMs 叠加上去，
+        // span 时间戳使用 epoch 锚点；duration 用 now() 测得的 initToFirstFrameMs 叠加上去，
         // 保证绝对时间与时长语义各自清晰。
         if (!owner.isActive()) return;
         const span = startInactiveSpan({
-          name: 'minigame.coldstart',
-          op: 'app.start',
+          name: 'minigame.init_to_first_frame',
+          op: 'ui.first_frame',
           // core 11 废弃 forceTransaction；断掉父 span 后这条 root span 自成一个 segment。
           parentSpan: null,
           startTime: this._initEpoch / 1000,
@@ -210,16 +214,14 @@ export class MinigameIntegration implements Integration {
             {
               'minigame.scene': this._minigameContext.scene as any,
               'minigame.path': this._minigameContext.path as any,
-              'minigame.cold_start_ms': coldStartMs,
+              'minigame.init_to_first_frame_ms': initToFirstFrameMs,
             },
             false,
           ),
         });
 
-        // 同上：属性供 stream 生命周期取数，measurement 只在 static 生命周期产出。
         if (!owner.isActive()) return;
-        setMeasurement('cold_start', coldStartMs, 'millisecond', span);
-        span.end((this._initEpoch + coldStartMs) / 1000);
+        span.end((this._initEpoch + initToFirstFrameMs) / 1000);
       }),
     );
     if (!owner.isActive()) {

@@ -29,6 +29,8 @@ export type LifecycleWarningCode =
   | 'lifecycle_unavailable'
   | 'reentrant_init_unsupported'
   | 'invalid_close_timeout'
+  | 'performance_clock_invalid'
+  | 'performance_time_origin_missing'
   | 'binary_request_unsupported'
   | 'low_level_consent_blocking';
 

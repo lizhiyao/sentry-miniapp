@@ -14,6 +14,10 @@ import { SDK_NAME, SDK_VERSION } from './version';
 import { getClientLifetime, type LifecycleWarningCode } from './lifecycle';
 
 const lifecycleMessages: Record<LifecycleWarningCode, string> = {
+  performance_clock_invalid:
+    '首帧观测发生时钟回拨或非法时间差，已省略对应 interval，未补造 0 时长。',
+  performance_time_origin_missing:
+    'Performance 条目为相对时间，但宿主未提供可信 timeOrigin；已省略对应 span，不使用 SDK 初始化墙钟推算。',
   low_level_consent_blocking:
     '低层 client 未授权，发送入口已拒绝；它没有 SDK 持久缓存，需使用 init 或自行管理合法缓存。',
   binary_request_unsupported:
@@ -104,7 +108,7 @@ function buildOptionsDiagnostics(
     sampleRate: options.sampleRate ?? 1,
     tracesSampleRate: options.tracesSampleRate ?? null,
     tracesSamplerConfigured: typeof options.tracesSampler === 'function',
-    // core 11 的默认值；SDK 只做透传，这里报出实际生效的生命周期。
+    // 2.0 构造前已校验，只装配 core 原生 stream 路径。
     traceLifecycle: options.traceLifecycle ?? 'stream',
     enableLogs: options.enableLogs === true,
     enableSourceMap: options.enableSourceMap !== false,
@@ -123,9 +127,7 @@ function buildOptionsDiagnostics(
     enableMinigameLifecycle: isMinigame()
       ? options.enableMinigameLifecycle !== false
       : options.enableMinigameLifecycle === true,
-    enableMinigameFrameRate: isMinigame()
-      ? options.enableMinigameFrameRate !== false
-      : options.enableMinigameFrameRate === true,
+    enableMinigameFrameRate: options.enableMinigameFrameRate === true,
     customTransport,
     customStackParser:
       typeof options.stackParser === 'function' && options.stackParser !== miniappStackParser,

@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as Sentry from '../src/index';
-import type { SpanJSON } from '@sentry/core';
+import type { MiniappOptions } from '../src/types';
+import type { PerformanceIntegrationOptions } from '../src/integrations/performance';
 
 /**
  * 文档承诺的公开 API 必须真的能从 sentry-miniapp 入口拿到。
@@ -18,8 +19,6 @@ describe('公开 API 出口', () => {
     'getCurrentScope',
     'getIsolationScope',
     'spanStreamingIntegration',
-    'withStaticSpan',
-    'withStreamedSpan',
     'startSpan',
     'startInactiveSpan',
     'getDiagnostics',
@@ -36,9 +35,20 @@ describe('公开 API 出口', () => {
     expect(typeof integration.setup).toBe('function');
   });
 
-  it('withStaticSpan 就地标记回调并返回同一引用，供 static 生命周期识别', () => {
-    const callback = (span: SpanJSON) => span;
-
-    expect(Sentry.withStaticSpan(callback)).toBe(callback);
+  it('不导出 static 生命周期回调适配器', () => {
+    expect('withStaticSpan' in Sentry).toBe(false);
+    expect('withStreamedSpan' in Sentry).toBe(false);
+  });
+  it('2.0 的类型排除 static、旧 transaction 配置与 Performance 二次采样/聚合选项', () => {
+    expectTypeOf<MiniappOptions>()
+      .toHaveProperty('traceLifecycle')
+      .toEqualTypeOf<'stream' | undefined>();
+    expectTypeOf<MiniappOptions>().not.toHaveProperty('beforeSendTransaction');
+    expectTypeOf<MiniappOptions>().not.toHaveProperty('ignoreTransactions');
+    expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('sampleRate');
+    expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('bufferSize');
+    expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('reportInterval');
+    expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('thresholds');
+    expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('enableMemory');
   });
 });

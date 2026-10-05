@@ -6,7 +6,6 @@ const {
   mockSetContext,
   mockSpanEnd,
   mockStartInactiveSpan,
-  mockSetMeasurement,
   mockFlush,
   mockGetClient,
 } = vi.hoisted(() => {
@@ -22,7 +21,6 @@ const {
       setAttributes: mockSpanSetAttributes,
       end: mockSpanEnd,
     })),
-    mockSetMeasurement: vi.fn((..._args: any[]) => {}),
     mockFlush: vi.fn((_timeout?: number) => Promise.resolve(true)),
     mockGetClient: vi.fn(),
   };
@@ -35,7 +33,6 @@ vi.mock('@sentry/core', async (importOriginal) => ({
   getClient: mockGetClient,
   setContext: mockSetContext,
   startInactiveSpan: mockStartInactiveSpan,
-  setMeasurement: mockSetMeasurement,
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
@@ -181,10 +178,10 @@ describe('MinigameFrameRateIntegration', () => {
     frame(40);
     frame(1010); // 跨窗口 → _report 累积进会话
 
-    // 窗口上报阶段不应产生任何 transaction
+    // 窗口上报阶段不应产生任何 span
     expect(mockStartInactiveSpan).not.toHaveBeenCalled();
 
-    // 退后台 → 发一个汇总 transaction
+    // 退后台 → 发一个汇总 span
     expect(hideCb).not.toBeNull();
     hideCb!();
 
@@ -200,15 +197,15 @@ describe('MinigameFrameRateIntegration', () => {
     // 防回归：绝对时间是真实 epoch，不会落到 1970
     const startTimeArg = (mockStartInactiveSpan.mock.calls[0]![0] as any).startTime;
     expect(startTimeArg).toBeGreaterThan(1e9);
-    const measured = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
+    const measured = Object.keys(summaryAttributes());
     expect(measured).toEqual(
-      expect.arrayContaining(['fps_avg', 'fps_p95', 'fps_min', 'jank_count']),
+      expect.arrayContaining(['fps.avg', 'fps.p95', 'fps.min', 'jank.count']),
     );
     expect(mockSpanEnd).toHaveBeenCalled();
     expect(mockFlush).toHaveBeenCalledWith(2000);
   });
 
-  it('onHide 会先并入未满窗口，再发会话汇总 transaction', () => {
+  it('onHide 会先并入未满窗口，再发会话汇总 span', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
     integration.setup(mockGetClient() as any);
 
@@ -228,11 +225,11 @@ describe('MinigameFrameRateIntegration', () => {
         }),
       }),
     );
-    expect(mockSetMeasurement).toHaveBeenCalledWith('fps_avg', 63, 'none', expect.anything());
+    expect(summaryAttributes()['fps.avg']).toBe(63);
     expect(mockFlush).toHaveBeenCalledWith(2000);
   });
 
-  it('会话无帧时 onHide 不发汇总 transaction', () => {
+  it('会话无帧时 onHide 不发汇总 span', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
     integration.setup(mockGetClient() as any);
     // 未跨窗口、无帧累积进会话
@@ -326,9 +323,9 @@ describe('MinigameFrameRateIntegration', () => {
 
   // ---- 分级卡顿（jankLevels）----
 
-  /** 把 setMeasurement 调用收敛成 { 名称: 值 } 便于断言。 */
-  function measurements(): Record<string, number> {
-    return Object.fromEntries((mockSetMeasurement.mock.calls as any[]).map((c) => [c[0], c[1]]));
+  /** 检查 stream 汇总 span 的创建属性。 */
+  function summaryAttributes(): Record<string, number> {
+    return mockStartInactiveSpan.mock.calls.at(-1)![0].attributes;
   }
   /** 取所有 minigame.jank 面包屑的 jankLevel（保持触发顺序）。 */
   function jankLevels(): Array<string | undefined> {
@@ -352,11 +349,11 @@ describe('MinigameFrameRateIntegration', () => {
     expect(jankLevels()).toEqual(['minor', 'major', 'severe']);
 
     hideCb!(); // 退后台 → 发会话汇总
-    const m = measurements();
-    expect(m['jank_count']).toBe(3); // 总数不变
-    expect(m['jank_minor_count']).toBe(1);
-    expect(m['jank_major_count']).toBe(1);
-    expect(m['jank_severe_count']).toBe(1);
+    const m = summaryAttributes();
+    expect(m['jank.count']).toBe(3); // 总数不变
+    expect(m['jank.minor']).toBe(1);
+    expect(m['jank.major']).toBe(1);
+    expect(m['jank.severe']).toBe(1);
     // span attribute 也带分档
     expect(mockStartInactiveSpan).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -365,7 +362,7 @@ describe('MinigameFrameRateIntegration', () => {
     );
   });
 
-  it('jankLevels 可只启用部分档：入档阈值取最低启用档，未启用档不发 measurement', () => {
+  it('jankLevels 可只启用部分档：入档阈值取最低启用档，未启用档不发 attribute', () => {
     const integration = new MinigameFrameRateIntegration({
       reportInterval: 10000,
       jankLevels: { major: 33, severe: 100 }, // 不启用 minor，入档阈值=33
@@ -380,12 +377,12 @@ describe('MinigameFrameRateIntegration', () => {
     expect(jankLevels()).toEqual(['major', 'severe']);
 
     hideCb!();
-    const m = measurements();
-    expect(m['jank_count']).toBe(2);
-    expect(m['jank_major_count']).toBe(1);
-    expect(m['jank_severe_count']).toBe(1);
+    const m = summaryAttributes();
+    expect(m['jank.count']).toBe(2);
+    expect(m['jank.major']).toBe(1);
+    expect(m['jank.severe']).toBe(1);
     // 未启用的 minor 不应出现
-    expect(mockSetMeasurement.mock.calls.map((c: any) => c[0])).not.toContain('jank_minor_count');
+    expect(Object.keys(summaryAttributes())).not.toContain('jank.minor');
   });
 
   it('jankLevels 优先于 longFrameThresholdMs（老参数被忽略）', () => {
@@ -401,9 +398,9 @@ describe('MinigameFrameRateIntegration', () => {
 
     expect(jankLevels()).toEqual(['minor']);
     hideCb!();
-    const m = measurements();
-    expect(m['jank_count']).toBe(1);
-    expect(m['jank_minor_count']).toBe(1);
+    const m = summaryAttributes();
+    expect(m['jank.count']).toBe(1);
+    expect(m['jank.minor']).toBe(1);
   });
 
   it('jankLevels 为空对象时安全回退到单档 longFrameThresholdMs（无分级输出）', () => {
@@ -424,11 +421,11 @@ describe('MinigameFrameRateIntegration', () => {
     expect((crumb?.[0] as any)?.data).not.toHaveProperty('jankLevel');
 
     hideCb!();
-    const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
-    expect(names).toContain('jank_count');
-    expect(names).not.toContain('jank_minor_count');
-    expect(names).not.toContain('jank_major_count');
-    expect(names).not.toContain('jank_severe_count');
+    const names = Object.keys(summaryAttributes());
+    expect(names).toContain('jank.count');
+    expect(names).not.toContain('jank.minor');
+    expect(names).not.toContain('jank.major');
+    expect(names).not.toContain('jank.severe');
   });
 
   it('jankLevels 非单调（名实不符）时 warn 并回退单档', () => {
@@ -451,9 +448,9 @@ describe('MinigameFrameRateIntegration', () => {
     expect((crumb?.[0] as any)?.data).not.toHaveProperty('jankLevel');
 
     hideCb!();
-    const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
-    expect(names).toContain('jank_count');
-    expect(names.some((n: string) => /^jank_(minor|major|severe)_count$/.test(n))).toBe(false);
+    const names = Object.keys(summaryAttributes());
+    expect(names).toContain('jank.count');
+    expect(names.some((n: string) => /^jank\.(minor|major|severe)$/.test(n))).toBe(false);
   });
 
   it('jankLevels 阈值相等（非严格递增）时 warn 并回退单档', () => {
@@ -469,9 +466,9 @@ describe('MinigameFrameRateIntegration', () => {
     frame(120); // delta 100 → >50 → jank（无 level）
 
     hideCb!();
-    const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
-    expect(names).not.toContain('jank_minor_count');
-    expect(names).not.toContain('jank_major_count');
+    const names = Object.keys(summaryAttributes());
+    expect(names).not.toContain('jank.minor');
+    expect(names).not.toContain('jank.major');
   });
 
   it('jankLevels 跨多窗口分档累积进会话汇总', () => {
@@ -487,14 +484,14 @@ describe('MinigameFrameRateIntegration', () => {
     frame(280); // delta 120 → severe（窗口2）；→ _report 再次滚入会话
 
     hideCb!(); // 末窗口为空，仅汇总已滚入会话的两窗口
-    const m = measurements();
-    expect(m['jank_count']).toBe(4); // 两窗口合计：2 minor + 2 severe
-    expect(m['jank_minor_count']).toBe(2);
-    expect(m['jank_severe_count']).toBe(2);
-    expect(m['jank_major_count']).toBe(0); // 启用但本会话无命中 → 发 0
+    const m = summaryAttributes();
+    expect(m['jank.count']).toBe(4); // 两窗口合计：2 minor + 2 severe
+    expect(m['jank.minor']).toBe(2);
+    expect(m['jank.severe']).toBe(2);
+    expect(m['jank.major']).toBe(0); // 启用但本会话无命中 → 发 0
   });
 
-  it('不传 jankLevels 时 summary 只有 jank_count，无任何分档 measurement（不回归）', () => {
+  it('不传 jankLevels 时 summary 只有 jank.count，无任何分档 attribute（不回归）', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 10000 });
     integration.setup(mockGetClient() as any);
 
@@ -504,8 +501,8 @@ describe('MinigameFrameRateIntegration', () => {
     expect(jankLevels()).toEqual([undefined]); // 面包屑不带 jankLevel
 
     hideCb!();
-    const names = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
-    expect(names).toContain('jank_count');
-    expect(names.some((n: string) => /^jank_(minor|major|severe)_count$/.test(n))).toBe(false);
+    const names = Object.keys(summaryAttributes());
+    expect(names).toContain('jank.count');
+    expect(names.some((n: string) => /^jank\.(minor|major|severe)$/.test(n))).toBe(false);
   });
 });

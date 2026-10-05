@@ -5,17 +5,15 @@ import {
   addBreadcrumb,
   getUrlQuery,
   parseUrl,
-  DEFAULT_ENVIRONMENT,
+  parseStringToURLObject,
+  getHttpSpanDetailsFromUrlObject,
   getActiveSpan,
   getClient,
   hasSpansEnabled,
   isSentryRequestUrl,
   matchesTracePropagationTargets,
   SEMANTIC_ATTRIBUTE_EXCLUSIVE_TIME,
-  SEMANTIC_ATTRIBUTE_SENTRY_ENVIRONMENT,
   SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN,
-  SEMANTIC_ATTRIBUTE_SENTRY_RELEASE,
-  SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME,
   SPAN_STATUS_OK,
   SPAN_STATUS_ERROR,
   getTraceData,
@@ -421,25 +419,23 @@ function startRequestSpan(
     const serverAddress = extractHost(url);
     const spanName = `${method} ${collectUrlName(url)}`;
     const standalone = !parentSpan;
-    const standaloneClientOptions = standalone ? client?.getOptions() : undefined;
+    const [, urlAttributes] = getHttpSpanDetailsFromUrlObject(
+      parseStringToURLObject(url),
+      'client',
+      'auto.http.miniapp',
+      { method },
+      undefined,
+      client,
+    );
     const span = startInactiveSpan({
       name: spanName,
       op: 'http.client',
       parentSpan: parentSpan ?? null,
-      // 无父请求 span 必须保持为独立 segment envelope：文档承诺「不会为每个请求制造一条根
-      // transaction」，且 `traceLifecycle: 'static'` 下无父普通 span 会被 core 转成 transaction。
-      // 该 experimental 项由 core 标注在 static 生命周期移除后一并删除，届时可去掉本分支。
-      ...(!parentSpan && { experimental: { standalone: true } }),
       attributes: automaticSpanAttributes(client, {
+        ...urlAttributes,
         [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: 'auto.http.miniapp',
         // core 11 移除了数字 `kind`，OTEL SpanKind.CLIENT 改由 'sentry.kind' 属性表达。
         'sentry.kind': 'client',
-        ...(standalone && {
-          [SEMANTIC_ATTRIBUTE_SENTRY_SEGMENT_NAME]: spanName,
-          [SEMANTIC_ATTRIBUTE_SENTRY_RELEASE]: standaloneClientOptions?.release,
-          [SEMANTIC_ATTRIBUTE_SENTRY_ENVIRONMENT]:
-            standaloneClientOptions?.environment || DEFAULT_ENVIRONMENT,
-        }),
         'http.request.method': method,
         'url.full': url,
         'server.address': serverAddress || undefined,

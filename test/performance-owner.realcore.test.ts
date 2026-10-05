@@ -23,6 +23,7 @@ describe('Performance observer owner（真实 core）', () => {
     getCurrentScope().setClient(undefined);
     resetPlatformCache();
     manager = {
+      timeOrigin: 1699999990000,
       getEntries: () => [],
       getEntriesByType: () => [],
       getEntriesByName: () => [],
@@ -78,7 +79,7 @@ describe('Performance observer owner（真实 core）', () => {
     callbacks[0]!(navigation());
     const second = start(b, 'second', integration);
     expect(disconnects[0]).toHaveBeenCalledOnce();
-    expect(getClientEnvironment(first).contexts.performance_summary?.total_entries).toBe(1);
+    expect(getClientEnvironment(first).contexts.performance_summary).toBeUndefined();
     expect(a[0]![0].trace).toMatchObject({ public_key: 'first', release: 'first' });
     const read = vi.fn(() => {
       throw new Error('retired entry getter');
@@ -89,14 +90,14 @@ describe('Performance observer owner（真实 core）', () => {
     const flushing = second.flush();
     await vi.advanceTimersByTimeAsync(1);
     await flushing;
-    expect(collectSpans(b)).toHaveLength(2);
+    expect(collectSpans(b)).toHaveLength(1);
     expect(b[0]![0].trace).toMatchObject({ public_key: 'second', release: 'second' });
     first.dispose();
     expect(disconnects[1]).not.toHaveBeenCalled();
     expect(getClientEnvironment(second).contexts.performance_summary).toBeUndefined();
   });
 
-  it('close 提交最后 summary 一次；dispose 不提交，disconnect 失败后的迟到数据也失效', async () => {
+  it('close 排空 core 一次；dispose 不发送，disconnect 失败后的迟到数据也失效', async () => {
     const a: Envelope[] = [];
     const first = start(a, 'first');
     callbacks[0]!(navigation());
@@ -110,8 +111,8 @@ describe('Performance observer owner（真实 core）', () => {
     expect(await closing).toBe(true);
     callbacks[0]!(navigation());
     first.dispose();
-    expect(context.mock.calls.filter(([name]) => name === 'performance_summary')).toHaveLength(1);
-    expect(collectSpans(a)).toHaveLength(2);
+    expect(context.mock.calls.filter(([name]) => name === 'performance_summary')).toHaveLength(0);
+    expect(collectSpans(a)).toHaveLength(1);
     const b: Envelope[] = [];
     const second = start(b, 'second');
     callbacks[1]!(navigation());
@@ -217,59 +218,6 @@ describe('Performance observer owner（真实 core）', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('多次 observer delivery 使用同一时间锚点，旧 batch timer 不重启已关闭 owner', async () => {
-    const envelopes: Envelope[] = [];
-    const owner = start(envelopes, 'first');
-    callbacks[0]!(navigation());
-    vi.setSystemTime(1700000001000);
-    callbacks[0]!([
-      { name: 'second', entryType: 'resource', startTime: 100, duration: 50, transferSize: 123 },
-    ]);
-    await vi.advanceTimersByTimeAsync(30000);
-    expect(getClientEnvironment(owner).contexts.performance_summary?.resource_stats).toMatchObject({
-      total_transfer_size: 123,
-      avg_transfer_size: 123,
-    });
-    owner.dispose();
-    expect(disconnects[0]).toHaveBeenCalledOnce();
-  });
-  it('summary 内存 getter 重入 dispose 后不提交旧窗口', async () => {
-    const envelopes: Envelope[] = [];
-    const owner = start(envelopes, 'first', new PerformanceIntegration({ enableMemory: true }));
-    callbacks[0]!(navigation());
-    Object.defineProperty(manager, 'memory', {
-      configurable: true,
-      get() {
-        owner.dispose();
-        return { jsHeapSizeUsed: 1, jsHeapSizeLimit: 2 };
-      },
-    });
-    await vi.advanceTimersByTimeAsync(30000);
-    expect(getClientEnvironment(owner).contexts.performance_summary).toBeUndefined();
-    expect(disconnects[0]).toHaveBeenCalledOnce();
-    expect(vi.getTimerCount()).toBe(0);
-  });
-
-  it('observer 安装后的 capability getter 重入 dispose，不写环境或留下报告 timer', () => {
-    let armed = false;
-    const disconnect = vi.fn();
-    manager.createObserver.mockImplementation(() => ({
-      observe: () => {
-        armed = true;
-      },
-      disconnect,
-    }));
-    vi.stubGlobal('wx', {
-      get getPerformance() {
-        if (armed) getClient()!.dispose();
-        return () => manager;
-      },
-    });
-    const owner = start([], 'first');
-    expect(getClientEnvironment(owner).contexts.performance).toBeUndefined();
-    expect(disconnect).toHaveBeenCalledOnce();
-    expect(vi.getTimerCount()).toBe(0);
-  });
   it('observe 同步回调内 dispose 后不启动报告或写入环境', () => {
     const disconnect = vi.fn();
     manager.createObserver.mockImplementation(() => ({
