@@ -156,7 +156,6 @@ describe('typed codec 与真实 core 线上序列化', () => {
       dsn: 'https://codec@example.com/1',
       release: 'codec@2.0',
       tracesSampleRate: 1,
-      enableLogs: true,
       defaultIntegrations: [spanStreamingIntegration()],
       transport: createCapturingTransport(captured),
     })!;

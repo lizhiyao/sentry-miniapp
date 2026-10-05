@@ -53,11 +53,6 @@ export interface MiniappOptions extends Omit<
 > {
   /** 2.0 只支持 core 原生 span streaming。JS 传入 static 时显式报错。 */
   traceLifecycle?: 'stream';
-  /**
-   * 上报 `Sentry.logger.trace/debug/info/warn/error/fatal` 到 Sentry Logs。
-   * 默认 `false`；`@sentry/core` 11 移除了同名选项，SDK 用 `beforeSendLog` 维持该 opt-in 契约。
-   */
-  enableLogs?: boolean;
 
   /**
    * 小程序宿主标记，写入 `contexts.miniapp.platform`。事件顶层 `platform`
@@ -201,7 +196,7 @@ export interface MiniappDiagnosticsOptions {
   tracesSamplerConfigured: boolean;
   /** 2.0 唯一支持的 core 11 span 生命周期。 */
   traceLifecycle: 'stream';
-  enableLogs: boolean;
+  sendClientReports: boolean;
   enableSourceMap: boolean;
   enableOfflineCache: boolean;
   requireConsent: boolean;
@@ -280,33 +275,6 @@ export interface MiniappDiagnostics {
   integrations: string[];
   warnings: MiniappDiagnosticsWarning[];
   timestamp: number;
-}
-
-/**
- * All properties the report dialog supports
- */
-export interface ReportDialogOptions {
-  [key: string]: any;
-  eventId?: string;
-  dsn?: string;
-  user?: {
-    email?: string;
-    name?: string;
-  };
-  lang?: string;
-  title?: string;
-  subtitle?: string;
-  subtitle2?: string;
-  labelName?: string;
-  labelEmail?: string;
-  labelComments?: string;
-  labelClose?: string;
-  labelSubmit?: string;
-  errorGeneric?: string;
-  errorFormEntry?: string;
-  successMessage?: string;
-  /** Callback after reportDialog showed up */
-  onLoad?(): void;
 }
 
 /**

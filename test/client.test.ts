@@ -522,23 +522,6 @@ describe('MiniappClient', () => {
     });
   });
 
-  describe('showReportDialog', () => {
-    it('should show console warning instead of modal', () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const mockShowModal = vi.fn();
-      (global as any).wx.showModal = mockShowModal;
-
-      client.showReportDialog();
-
-      expect(mockShowModal).not.toHaveBeenCalled();
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('showReportDialog is deprecated'),
-      );
-
-      consoleWarnSpy.mockRestore();
-    });
-  });
-
   describe('captureFeedback', () => {
     it('通过当前 scope 使用 core feedback 管线', () => {
       const scope = getCurrentScope();
@@ -567,9 +550,9 @@ describe('MiniappClient', () => {
   });
 
   describe('client configuration and cleanup', () => {
-    it('默认关闭 Logs，并保留用户显式开启配置', () => {
-      expect(createClient().getOptions().enableLogs).toBe(false);
-      expect(createClient({ enableLogs: true }).getOptions().enableLogs).toBe(true);
+    it('默认开启 client reports，显式 false 生效', () => {
+      expect(createClient().getOptions().sendClientReports).toBe(true);
+      expect(createClient({ sendClientReports: false }).getOptions().sendClientReports).toBe(false);
     });
 
     it('derives the default integration mode for clients outside the constructor cache', () => {

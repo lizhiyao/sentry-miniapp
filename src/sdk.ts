@@ -24,21 +24,21 @@ import {
 import { isTelemetryCritical, withTelemetryCritical, getClientLifetime } from './lifecycle';
 import { isMiniappEnvironment, isMinigame, resolveMiniappPlatform } from './crossPlatform';
 import {
-  GlobalHandlers,
-  TryCatch,
+  globalHandlersIntegration,
+  tryCatchIntegration,
   linkedErrorsIntegration,
   dedupeIntegration,
   rewriteFramesIntegration,
-  NetworkBreadcrumbs,
-  PageBreadcrumbs,
-  ConsoleBreadcrumbs,
-  SessionIntegration,
-  NetworkStatusIntegration,
-  MinigameIntegration,
-  MinigameFrameRateIntegration,
+  networkBreadcrumbsIntegration,
+  pageBreadcrumbsIntegration,
+  consoleBreadcrumbsIntegration,
+  sessionIntegration,
+  networkStatusIntegration,
+  minigameIntegration,
+  minigameFrameRateIntegration,
 } from './integrations/index';
 import { functionToStringIntegration } from '@sentry/core';
-import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
+import type { MiniappOptions, SendFeedbackParams } from './types';
 
 /**
  * 构造一组**全新**的默认集成实例。
@@ -51,8 +51,8 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   const integrations: Integration[] = [
     // Core integrations
     functionToStringIntegration(),
-    new GlobalHandlers(),
-    new TryCatch(),
+    globalHandlersIntegration(),
+    tryCatchIntegration(),
     linkedErrorsIntegration(),
     dedupeIntegration(),
     // core 11 的 span streaming。自定义 Client 不会自动装配它（只有 ServerRuntimeClient 和
@@ -83,17 +83,17 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   if (options.sensitiveKeys !== undefined) {
     networkOptions['sensitiveKeys'] = options.sensitiveKeys;
   }
-  integrations.push(new NetworkBreadcrumbs(networkOptions));
+  integrations.push(networkBreadcrumbsIntegration(networkOptions));
 
   if (options.enableAutoSessionTracking !== false) {
-    integrations.push(new SessionIntegration());
+    integrations.push(sessionIntegration());
   }
 
   const enablePageLifecycleBreadcrumbs = options.enableNavigationBreadcrumbs !== false;
   const enableUserInteractionBreadcrumbs = options.enableUserInteractionBreadcrumbs !== false;
   if (enablePageLifecycleBreadcrumbs || enableUserInteractionBreadcrumbs) {
     integrations.push(
-      new PageBreadcrumbs({
+      pageBreadcrumbsIntegration({
         enableLifecycle: enablePageLifecycleBreadcrumbs,
         enableUserInteraction: enableUserInteractionBreadcrumbs,
         ...(options.sensitiveKeys !== undefined && { sensitiveKeys: options.sensitiveKeys }),
@@ -102,11 +102,11 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   }
 
   if (options.enableNetworkStatusMonitoring !== false) {
-    integrations.push(new NetworkStatusIntegration());
+    integrations.push(networkStatusIntegration());
   }
 
   if (options.enableConsoleBreadcrumbs) {
-    integrations.push(new ConsoleBreadcrumbs());
+    integrations.push(consoleBreadcrumbsIntegration());
   }
 
   const filterOptions: {
@@ -125,25 +125,15 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
     options.enableMinigameLifecycle === true ||
     (minigame && options.enableMinigameLifecycle !== false)
   ) {
-    integrations.push(new MinigameIntegration());
+    integrations.push(minigameIntegration());
   }
   if (options.enableMinigameFrameRate === true) {
-    integrations.push(new MinigameFrameRateIntegration(options.minigameFrameRateOptions));
+    integrations.push(minigameFrameRateIntegration(options.minigameFrameRateOptions));
   }
 
   integrations.push(miniappLifecycleIntegration());
   return integrations;
 }
-
-/**
- * @deprecated 直接复用本数组的实例，会在多次 init / 多 client 间共享 setupOnce 状态、互相踩补丁。
- * 请改用 {@link getDefaultIntegrations}（每次返回全新实例）。导出仅为向后兼容保留。
- * 静态快照不包含依赖运行时检测的小游戏默认集成，以免模块导入阶段提前缓存平台状态。
- */
-export const defaultIntegrations: Integration[] = getDefaultIntegrations({
-  enableMinigameLifecycle: false,
-  enableMinigameFrameRate: false,
-});
 
 /**
  * Initialize the Sentry Miniapp SDK
@@ -217,21 +207,6 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
     setConfiguredDefaultIntegrationsMode(client, options.defaultIntegrations);
   }
   return client;
-}
-
-/**
- * @deprecated Miniapp environment does not support Sentry's default HTML report dialog.
- * Please implement your own UI form to collect user feedback (name, email, comments)
- * and use `Sentry.captureFeedback()` to submit it to Sentry.
- *
- * 小程序环境不支持 Sentry 官方的 HTML 反馈弹窗。
- * 请自行实现 UI 表单收集用户反馈，并调用 `Sentry.captureFeedback()` 进行上报。
- */
-export function showReportDialog(_options: ReportDialogOptions = {}): void {
-  console.warn(
-    '[sentry-miniapp] showReportDialog is deprecated and does nothing. ' +
-      'Please build your own UI and use `Sentry.captureFeedback()` instead.',
-  );
 }
 
 /**

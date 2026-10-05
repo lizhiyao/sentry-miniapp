@@ -96,7 +96,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     expect(Array.isArray(errEvent.extra?.arguments)).toBe(true);
   });
 
-  it('requestAnimationFrame 抛错 359ms 后按最终事件类型和消息去重', async () => {
+  it('requestAnimationFrame 抛错后宿主只剩不同包装帧，不按消息吞掉报告', async () => {
     g.requestAnimationFrame = (callback: () => void) => callback();
 
     init({
@@ -148,7 +148,8 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     const events = collectEnvelopePayloads<Event>(captured, ['event']).filter((event) =>
       event.exception?.values?.some((value: any) => value.value === message),
     );
-    expect(events).toHaveLength(1);
+    expect(events).toHaveLength(2);
+    expect(events[1]?.exception?.values?.at(-1)?.mechanism?.type).toBe('onerror');
     const event = events[0];
     const value = event?.exception?.values?.[0];
     assertDefined(value);
@@ -159,7 +160,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     });
   });
 
-  it('公开 wrap 重新抛出的错误也按事件层去重', async () => {
+  it('公开 wrap 后宿主仅报消息且无来源时保留报告', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       enableAutoSessionTracking: false,
@@ -177,7 +178,8 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     const events = collectEnvelopePayloads<Event>(captured, ['event']).filter((event) =>
       event.exception?.values?.some((value: any) => value.value === 'public wrap boom'),
     );
-    expect(events).toHaveLength(1);
+    expect(events).toHaveLength(2);
+    expect(events[1]?.exception?.values?.at(-1)?.mechanism?.type).toBe('onerror');
     const value = events[0]?.exception?.values?.[0];
     assertDefined(value);
     expect(value.mechanism).toMatchObject({

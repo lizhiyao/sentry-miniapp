@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   init,
-  showReportDialog,
   wrap,
   captureFeedback,
   getDefaultIntegrations,
-  defaultIntegrations,
   setConsent,
   getConsent,
 } from '../src/sdk';
@@ -108,12 +106,10 @@ describe('SDK', () => {
     });
 
     it('should use default integrations when not specified', () => {
-      const defaultIntegrationCount = defaultIntegrations.length;
       const client = init({ dsn: 'https://test@sentry.io/123' });
       expect(client).toBeInstanceOf(MiniappClient);
       expect(client?.getIntegrationByName?.('PerformanceAPI')).toBeUndefined();
       expect(client?.getIntegrationByName?.('FunctionToString')).toBeDefined();
-      expect(defaultIntegrations).toHaveLength(defaultIntegrationCount);
     });
 
     it('默认集合不安装 Performance observer', () => {
@@ -397,18 +393,6 @@ describe('SDK', () => {
   });
 
   describe('getDefaultIntegrations', () => {
-    it('旧 defaultIntegrations 导出是快照，函数调用返回新集合', () => {
-      const integrations = getDefaultIntegrations();
-      expect(Array.isArray(integrations)).toBe(true);
-      expect(integrations).not.toBe(defaultIntegrations);
-      expect(integrations.map((integration) => integration.name)).toEqual(
-        expect.arrayContaining(defaultIntegrations.map((integration) => integration.name)),
-      );
-      const snapshotNames = defaultIntegrations.map((integration) => integration.name);
-      expect(snapshotNames).not.toContain('Minigame');
-      expect(snapshotNames).not.toContain('MinigameFrameRate');
-    });
-
     it('根据初始化选项构造完整的条件默认集成集合', () => {
       const integrations = getDefaultIntegrations({
         enableSourceMap: false,
@@ -514,24 +498,6 @@ describe('SDK', () => {
 
       expect(send).toHaveBeenCalledTimes(1);
       expect(send.mock.calls[0]?.[0]?.[0]?.event_id).toBe('after');
-    });
-  });
-
-  describe('showReportDialog', () => {
-    it('should log a deprecation warning', () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      showReportDialog();
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('showReportDialog is deprecated'),
-      );
-      consoleSpy.mockRestore();
-    });
-
-    it('should accept optional options', () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      expect(() => showReportDialog({ eventId: '123' })).not.toThrow();
-      consoleSpy.mockRestore();
     });
   });
 

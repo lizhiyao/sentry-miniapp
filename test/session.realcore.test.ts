@@ -10,8 +10,8 @@ import { collectEnvelopePayloads, createCapturingTransport } from './support/env
  *
  * 同时锁两件事，防止悄悄回归：
  * - F2：Session 经全局 `App.onLaunch` 真正启动（历史上曾因找 `wx.App` 而恒不生效）。
- * - F1：未处理错误（mechanism.handled=false）由 core 自动把 Session 标记为 crashed，
- *   故 SessionIntegration 删掉那段恒为 no-op 的 onError 手动标记后，crashed 仍照常上报。
+ * - F1：未处理错误（mechanism.handled=false）由 core 自动把 Session 标记为 unhandled，
+ *   故 SessionIntegration 删掉那段恒为 no-op 的 onError 手动标记后，unhandled 仍照常上报。
  */
 describe('Session（真 @sentry/core 集成）', () => {
   const g = global as any;
@@ -45,7 +45,7 @@ describe('Session（真 @sentry/core 集成）', () => {
     delete g.wx;
   });
 
-  it('App.onLaunch 启动 Session，未处理错误经 core 自动标记 crashed', async () => {
+  it('App.onLaunch 启动 Session，未处理错误经 core 自动标记 unhandled', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       release: 'test@1.0.0',
@@ -60,7 +60,7 @@ describe('Session（真 @sentry/core 集成）', () => {
     const afterLaunch = collectEnvelopePayloads<SerializedSession>(captured, ['session']);
     // F2：Session 确实通过全局 App 启动并上报（若回退到旧 wx.App 死路，这里会是 0）。
     expect(afterLaunch.length).toBeGreaterThanOrEqual(1);
-    expect(afterLaunch.some((s) => s.status !== 'crashed')).toBe(true);
+    expect(afterLaunch.every((s) => s.status === 'ok')).toBe(true);
 
     // 模拟未处理错误（GlobalHandlers 上报的形态：mechanism.handled=false）。
     getClient()?.captureEvent({
@@ -71,11 +71,16 @@ describe('Session（真 @sentry/core 集成）', () => {
     await flush(2000);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    // F1：core 自动把当前 Session 标记为 crashed 并补发，无需本集成手动钩子。
+    // F1：core 自动把当前 Session 标记为 unhandled 并补发，无需本集成手动钩子。
+    expect(
+      collectEnvelopePayloads<SerializedSession>(captured, ['session']).some(
+        (session) => session.status === 'unhandled',
+      ),
+    ).toBe(true);
     expect(
       collectEnvelopePayloads<SerializedSession>(captured, ['session']).some(
         (session) => session.status === 'crashed',
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

@@ -27,7 +27,7 @@ import { resolveNonNegativeInteger } from './numericOptions';
 import { ClientLifetime, withTelemetryCritical, registerClientLifetime } from './lifecycle';
 import type { AppName } from './crossPlatform';
 import { ConsentController } from './consent';
-import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
+import type { MiniappOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
 import type { MiniappTransportOptions } from './transports';
 import { shutdownMiniappTransport, revokeMiniappTransport } from './transports/xhr';
@@ -75,11 +75,6 @@ const runtimeConstructionOptions = new WeakSet<object>();
 /** init 的明确构造标记；不会让任意直接构造 client 抢占持久消费权限。 */
 export function markRuntimeConstruction(options: object): void {
   runtimeConstructionOptions.add(options);
-}
-
-/** @sentry/core 11 无日志开关，未显式开启时用它丢弃全部日志。 */
-function dropLog(): null {
-  return null;
 }
 
 function resolveDefaultIntegrationsMode(
@@ -235,17 +230,11 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       // 小程序宿主类型单独放在 contexts.miniapp.platform。
       platform: 'javascript',
       miniappPlatform,
-      // @sentry/core 10.71 起默认开启 Logs；保留 sentry-miniapp 的显式 opt-in 契约。
-      // 11 删掉了 enableLogs 选项，因此改由 beforeSendLog 丢弃未开启时的日志。
-      enableLogs: options.enableLogs ?? false,
+      // 2.0 按 core 调用即采集；关闭前后都守住用户回调边界。
+      sendClientReports: options.sendClientReports ?? true,
       beforeSendLog: (log) => {
         if (!lifetime.acceptsTelemetry()) return null;
-        const result =
-          options.enableLogs === true
-            ? options.beforeSendLog
-              ? options.beforeSendLog(log)
-              : log
-            : dropLog();
+        const result = options.beforeSendLog ? options.beforeSendLog(log) : log;
         return lifetime.acceptsTelemetry() ? result : null;
       },
       beforeSendMetric: (metric) => {
@@ -357,6 +346,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     };
 
     super(clientOptions);
+    // JS 未处理异常不是宿主进程崩溃证据。
+    this._unhandledSessionStatus = 'unhandled';
     this._lifetime = lifetime;
     this._consent = consent;
     this._shutdownTransport = shutdownTransport;
@@ -483,7 +474,16 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     try {
       withScope((scope) => {
         scope.setClient(this);
+        // core 的 flush 同步排 buffer；outcomes 随后入同一 transport，再等待原 flush。
         flushed = super.flush(timeout);
+        if (
+          this.getDsn() &&
+          this.getOptions().sendClientReports &&
+          this._consent.isGranted() &&
+          this._lifetime.canSend()
+        ) {
+          this._flushOutcomes();
+        }
       });
     } finally {
       // 授权/show/reconnect 都经过此入口；不等 processing drain 才唤醒磁盘重放。
@@ -579,18 +579,6 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       },
     );
     return this._closePromise;
-  }
-
-  /**
-   * @deprecated Miniapp environment does not support Sentry's default HTML report dialog.
-   * Please implement your own UI form to collect user feedback (name, email, comments)
-   * and use `Sentry.captureFeedback()` to submit it to Sentry.
-   */
-  public showReportDialog(_options: ReportDialogOptions = {}): void {
-    console.warn(
-      '[sentry-miniapp] showReportDialog is deprecated and does nothing. ' +
-        'Please build your own UI and use `Sentry.captureFeedback()` instead.',
-    );
   }
 
   /**

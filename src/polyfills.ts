@@ -156,6 +156,48 @@ function toScalarString(value: unknown): string {
   return result;
 }
 
+/** String 方法遵循 RequireObjectCoercible，不把 null/undefined 当文本。 */
+function stringReceiver(value: unknown): string {
+  if (value === null || value === undefined || typeof value === 'symbol') {
+    throw new TypeError('String well-formed methods require a string-coercible receiver');
+  }
+  return String(value);
+}
+
+function isWellFormed(this: unknown): boolean {
+  for (const character of stringReceiver(this)) {
+    const code = character.charCodeAt(0);
+    if (character.length === 1 && code >= 0xd800 && code <= 0xdfff) return false;
+  }
+  return true;
+}
+
+function toWellFormed(this: unknown): string {
+  return toScalarString(stringReceiver(this));
+}
+
+/** 仅补缺失能力；core 在最终日志序列化时调用，不另建 payload 清洗管道。 */
+function installStringPolyfills(): void {
+  const prototype = String.prototype as unknown as Record<string, unknown>;
+  for (const [name, method] of [
+    ['isWellFormed', isWellFormed],
+    ['toWellFormed', toWellFormed],
+  ] as const) {
+    try {
+      if (prototype[name] === undefined) {
+        Object.defineProperty(prototype, name, {
+          value: method,
+          enumerable: false,
+          writable: true,
+          configurable: true,
+        });
+      }
+    } catch (error) {
+      console.warn(`[sentry-miniapp] Failed to install String.${name} polyfill:`, error);
+    }
+  }
+}
+
 function encodeFormComponent(value: string): string {
   return encodeURIComponent(value)
     .replace(/%20/g, '+')
@@ -245,6 +287,7 @@ function getGlobalObject(): any {
  * 为小程序环境安装 polyfill
  */
 export function installPolyfills(): void {
+  installStringPolyfills();
   try {
     const globalObj = getGlobalObject();
 

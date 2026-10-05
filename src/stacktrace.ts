@@ -1,5 +1,5 @@
 import { createStackParser, UNKNOWN_FUNCTION } from '@sentry/core';
-import type { StackFrame } from '@sentry/core';
+import type { StackFrame, StackParser } from '@sentry/core';
 
 /**
  * 匹配 V8 风格的堆栈帧（微信/支付宝/字节等大部分小程序平台）
@@ -121,7 +121,11 @@ function safariStackLineParser(line: string): StackFrame | undefined {
  */
 function simpleStackLineParser(line: string): StackFrame | undefined {
   const trimmedLine = line.trim();
-  if (trimmedLine.startsWith('at ') || trimmedLine.includes('@')) {
+  if (
+    trimmedLine.startsWith('at ') ||
+    trimmedLine.includes('@') ||
+    /^[A-Za-z]*Error(?::|\s|$)/.test(trimmedLine)
+  ) {
     return undefined;
   }
 
@@ -175,8 +179,17 @@ function isInApp(filename: string | undefined): boolean {
  * - Safari/JavaScriptCore 风格（iOS WebView）
  * - 简化格式（部分平台的精简输出）
  */
-export const miniappStackParser = createStackParser(
+const parseMiniappStack = createStackParser(
   [90, v8StackLineParser],
   [80, safariStackLineParser],
   [70, simpleStackLineParser],
 );
+
+/** core 跳过 Error message 首行；部分宿主直接从 frame 开始，此时保留它。 */
+export const miniappStackParser: StackParser = (stack, skipFirstLines = 0, framesToPop = 0) => {
+  const skip =
+    skipFirstLines === 1 && parseMiniappStack(stack.split('\n', 1)[0] ?? '', 0).length
+      ? 0
+      : skipFirstLines;
+  return parseMiniappStack(stack, skip, framesToPop);
+};

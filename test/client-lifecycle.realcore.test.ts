@@ -26,7 +26,6 @@ describe('真实 core client 关闭与发送边界', () => {
     const configured = {
       dsn: 'https://test@o0.ingest.sentry.io/0',
       defaultIntegrations: false as const,
-      enableLogs: true,
       ...options,
     };
     const client = customTransport

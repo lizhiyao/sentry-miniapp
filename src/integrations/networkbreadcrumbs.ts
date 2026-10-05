@@ -639,3 +639,11 @@ function extractHost(url: string): string {
     return '';
   }
 }
+
+/** 每次装配创建独立实例，资源仍由 client lifetime 管理。 */
+export type NetworkBreadcrumbsOptions = ConstructorParameters<typeof NetworkBreadcrumbs>[0];
+export function networkBreadcrumbsIntegration(
+  options: NetworkBreadcrumbsOptions = {},
+): Integration {
+  return new NetworkBreadcrumbs(options);
+}

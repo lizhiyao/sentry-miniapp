@@ -212,7 +212,6 @@ describe('client consent 归属（真实 core）', () => {
     const first = init({
       dsn: 'https://first@example.com/1',
       requireConsent: true,
-      enableLogs: true,
       defaultIntegrations: false,
     })!;
     clients.push(first);

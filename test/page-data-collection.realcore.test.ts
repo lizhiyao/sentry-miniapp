@@ -81,7 +81,8 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
 
     const event = collectEnvelopePayloads<Event>(captured, ['event']).find((item) =>
       item.breadcrumbs?.some(
-        (breadcrumb) => breadcrumb.category === 'page.lifecycle' && breadcrumb.data?.action === 'onLoad',
+        (breadcrumb) =>
+          breadcrumb.category === 'page.lifecycle' && breadcrumb.data?.action === 'onLoad',
       ),
     );
     assertDefined(event, '事件里没有 page.lifecycle onLoad 面包屑');
@@ -186,10 +187,11 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
     expect(data.query).toEqual({ memberNo: '[Filtered]', token: '[Filtered]', id: '9' });
   });
 
-  it('交互事件 dataset 里的敏感键同样脱敏', async () => {
+  it.each([true, false])('2.0 不读取交互 dataset，query=%s 不改变此边界', async (query) => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       platform: 'bytedance',
+      dataCollection: { urlQueryParams: query },
       enableOfflineCache: false,
       enableAutoSessionTracking: false,
       enableMinigameLifecycle: false,
@@ -197,11 +199,21 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
       transport: createCapturingTransport(captured),
     } as any);
 
-    const pageOptions: any = g.Page({ onLoad: vi.fn(), onTap: vi.fn() });
-    pageOptions.onTap.call(
-      { route: 'pages/detail/detail' },
-      { target: { id: 'pay-btn', dataset: { orderToken: 'ot-1', amount: 12 } }, type: 'tap' },
-    );
+    const business = vi.fn();
+    const dataset = vi.fn(() => {
+      throw new Error('dataset must not be read');
+    });
+    const target = { id: 'pay-btn'.repeat(100) };
+    Object.defineProperty(target, 'dataset', { get: dataset });
+    const handler = `on${'Tap'.repeat(100)}`;
+    const input = {
+      target,
+      type: 'tap',
+      detail: { x: NaN, y: Infinity },
+      touches: [{ pageX: { token: 'ot-1' }, pageY: 'ot-1' }],
+    };
+    const pageOptions: any = g.Page({ onLoad: vi.fn(), [handler]: business });
+    pageOptions[handler].call({ route: 'pages/detail/detail' }, input);
 
     captureException(new Error('dataset probe'));
     await flush(2000);
@@ -214,6 +226,70 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
       (breadcrumb) => breadcrumb.category === 'user.interaction',
     );
     assertDefined(crumb);
-    expect(crumb.data?.dataset).toEqual({ orderToken: '[Filtered]', amount: 12 });
+    expect(crumb.data).not.toHaveProperty('dataset');
+    for (const coordinate of ['x', 'y', 'touchX', 'touchY'])
+      expect(crumb.data).not.toHaveProperty(coordinate);
+    expect(crumb.data?.handler).toBe(handler.slice(0, 128));
+    expect(crumb.message).toBe(`${handler.slice(0, 128)} on pages/detail/detail`);
+    expect(crumb.data?.targetId).toBe(target.id.slice(0, 128));
+    expect(target.id).toHaveLength(700);
+    expect(dataset).not.toHaveBeenCalled();
+    expect(business).toHaveBeenCalledOnce();
+    expect(business.mock.calls[0]?.[0]).toBe(input);
+    expect(input.touches[0]?.pageX).toEqual({ token: 'ot-1' });
+    expect(JSON.stringify(event)).not.toContain('ot-1');
   });
+  it('交互标识 getter 退休 owner 后不追加 breadcrumb，业务调用仍保留', () => {
+    const owner = init({
+      dsn: 'https://key@example.com/1',
+      enableAutoSessionTracking: false,
+      transport: createCapturingTransport(captured),
+    })!;
+    const business = vi.fn();
+    const page = g.Page({ onTap: business });
+    const target = {
+      get id() {
+        owner.dispose();
+        return 'retired target';
+      },
+    };
+    const before = getCurrentScope().getScopeData().breadcrumbs.length;
+    page.onTap({ target });
+    expect(business).toHaveBeenCalledWith({ target });
+    expect(getCurrentScope().getScopeData().breadcrumbs).toHaveLength(before);
+  });
+  it.each(['route', 'query'])(
+    'Page %s getter 退休 owner 后不写 breadcrumb，业务生命周期仍执行',
+    (mode) => {
+      const owner = init({
+        dsn: 'https://key@example.com/1',
+        enableAutoSessionTracking: false,
+        transport: createCapturingTransport(captured),
+      })!;
+      const business = vi.fn();
+      const page = g.Page({ onLoad: business });
+      const route =
+        mode === 'route'
+          ? {
+              get route() {
+                owner.dispose();
+                return 'retired';
+              },
+            }
+          : { route: 'home' };
+      const query =
+        mode === 'query'
+          ? {
+              get id() {
+                owner.dispose();
+                return 'retired';
+              },
+            }
+          : {};
+      const before = getCurrentScope().getScopeData().breadcrumbs.length;
+      page.onLoad.call(route, query);
+      expect(business).toHaveBeenCalledWith(query);
+      expect(getCurrentScope().getScopeData().breadcrumbs).toHaveLength(before);
+    },
+  );
 });

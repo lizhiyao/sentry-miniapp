@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { Event } from '@sentry/core';
-import {
-  RewriteFrames,
-  rewriteFramesIntegration,
-} from '../src/integrations/rewriteframes';
+import type { Event, Client, Integration } from '@sentry/core';
+import { rewriteFramesIntegration } from '../src/integrations/rewriteframes';
 
 describe('RewriteFrames Integration', () => {
-  let rewriteFrames: RewriteFrames;
+  let rewriteFrames: Integration;
 
   beforeEach(() => {
-    rewriteFrames = new RewriteFrames();
+    rewriteFrames = rewriteFramesIntegration();
   });
 
   it('should normalize wechat appservice path', () => {
@@ -30,7 +27,7 @@ describe('RewriteFrames Integration', () => {
       },
     };
 
-    const processed = rewriteFrames.processEvent(event);
+    const processed = rewriteFrames.processEvent!(event, {}, {} as Client) as Event;
     const frames = (processed.exception!.values as any)[0].stacktrace.frames;
 
     expect(frames[0].filename).toBe('app:///pages/index/index.js');
@@ -55,7 +52,7 @@ describe('RewriteFrames Integration', () => {
       },
     };
 
-    const processed = rewriteFrames.processEvent(event);
+    const processed = rewriteFrames.processEvent!(event, {}, {} as Client) as Event;
     const frames = (processed.exception!.values as any)[0].stacktrace.frames;
 
     expect(frames[0].filename).toBe('app:///app.js');
@@ -81,7 +78,7 @@ describe('RewriteFrames Integration', () => {
       },
     };
 
-    const processed = rewriteFrames.processEvent(event);
+    const processed = rewriteFrames.processEvent!(event, {}, {} as Client) as Event;
     const frames = (processed.exception!.values as any)[0].stacktrace.frames;
 
     expect(frames[0].filename).toBe('app:///chunks/_virtual/runtime.js');
@@ -103,7 +100,7 @@ describe('RewriteFrames Integration', () => {
       },
     };
 
-    const processed = rewriteFrames.processEvent(event);
+    const processed = rewriteFrames.processEvent!(event, {}, {} as Client) as Event;
     const frames = (processed.exception!.values as any)[0].stacktrace.frames;
 
     expect(frames[0].filename).toBe('app:///pages/index/index.js');
@@ -114,7 +111,7 @@ describe('RewriteFrames Integration', () => {
       message: 'test',
     };
 
-    const processed = rewriteFrames.processEvent(event);
+    const processed = rewriteFrames.processEvent!(event, {}, {} as Client) as Event;
     expect(processed.message).toBe('test');
   });
 

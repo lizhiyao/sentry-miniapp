@@ -22,17 +22,23 @@ export type {
   Integration,
   Options,
   Client,
-  Scope,
   Transport,
   BaseTransportOptions,
   DataCollection,
   SerializedStreamedSpan,
   SpanJSON,
   StreamedSpanJSON,
+  Span,
+  StartSpanOptions,
+  Log,
+  LogSeverityLevel,
+  Metric,
+  MetricOptions,
 } from '@sentry/core';
 
 // Export core functions from @sentry/core
 export {
+  Scope,
   addEventProcessor,
   addIntegration,
   captureException,
@@ -44,6 +50,12 @@ export {
   withScope,
   startSpan,
   startInactiveSpan,
+  startSpanManual,
+  withActiveSpan,
+  continueTrace,
+  startNewTrace,
+  getTraceData,
+  metrics,
   setContext,
   setExtra,
   setExtras,
@@ -69,15 +81,7 @@ export {
 
 // Export SDK specific exports
 export { SDK_NAME, SDK_VERSION } from './version';
-export {
-  init,
-  showReportDialog,
-  wrap,
-  captureFeedback,
-  setConsent,
-  getConsent,
-  getDiagnostics,
-} from './sdk';
+export { init, wrap, captureFeedback, setConsent, getConsent, getDiagnostics } from './sdk';
 export type {
   MiniappOptions,
   MiniappDiagnostics,
@@ -94,6 +98,24 @@ export { MiniappClient } from './client';
 export type { MiniappLowLevelClientOptions } from './client';
 export * as Integrations from './integrations/index';
 export * as Transports from './transports/index';
+
+// Named factories 与 Integrations namespace 重导出相同函数。
+export {
+  globalHandlersIntegration,
+  tryCatchIntegration,
+  linkedErrorsIntegration,
+  httpContextIntegration,
+  dedupeIntegration,
+  rewriteFramesIntegration,
+  networkBreadcrumbsIntegration,
+  pageBreadcrumbsIntegration,
+  consoleBreadcrumbsIntegration,
+  sessionIntegration,
+  networkStatusIntegration,
+  minigameIntegration,
+  minigameFrameRateIntegration,
+  type NetworkBreadcrumbsOptions,
+} from './integrations/index';
 
 // Performance API exports
 export {
@@ -115,7 +137,7 @@ export {
 export { makeSession, closeSession, updateSession } from '@sentry/core';
 
 // Export default integrations
-export { defaultIntegrations, getDefaultIntegrations } from './sdk';
+export { getDefaultIntegrations } from './sdk';
 
 // Export stack trace parser for advanced customization
 export { miniappStackParser } from './stacktrace';

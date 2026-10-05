@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { captureException, withScope } from '@sentry/core';
 import type { Event } from '@sentry/core';
-import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/index';
+import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/globalhandlers';
 
 const mockClient = vi.hoisted(() => ({ getOptions: () => ({}), registerCleanup: vi.fn() }));
 
@@ -142,6 +142,7 @@ describe('GlobalHandlers', () => {
         values: [
           {
             mechanism: { type: mechanism, handled: false },
+            stacktrace: { frames: [{ filename: 'page.js', lineno: 1, colno: 1 }] },
             ...(type === undefined ? {} : { type }),
             ...(value === undefined ? {} : { value }),
           },
@@ -201,6 +202,7 @@ describe('GlobalHandlers', () => {
               mechanism: { type: 'instrument', handled: false },
               type: 'TypeError',
               value: 'linked root error',
+              stacktrace: { frames: [{ filename: 'page.js', lineno: 1, colno: 1 }] },
             },
           ],
         },
@@ -227,6 +229,37 @@ describe('GlobalHandlers', () => {
       expect(integration.processEvent(missingValue)).toBe(missingValue);
       expect(disabledIntegration.processEvent(disabledInstrument)).toBe(disabledInstrument);
       expect(disabledIntegration.processEvent(disabledOnError)).toBe(disabledOnError);
+    });
+
+    it('没有可信位置的 stack 不作为去重依据', () => {
+      for (const frames of [
+        [],
+        [{ filename: '<anonymous>', lineno: 1 }],
+        [{ lineno: 1 }],
+        [{ filename: 'page.js', lineno: 0 }],
+        [{ filename: 'page.js', lineno: NaN }],
+        [{ filename: 'page.js', lineno: 1, colno: -1 }],
+        [{ filename: 'page.js', lineno: 1, colno: NaN }],
+        Array.from({ length: 51 }, () => ({ filename: 'page.js', lineno: 1 })),
+      ]) {
+        const integration = new GlobalHandlers();
+        const instrument = event('instrument', 'Error', 'same');
+        const onerror = event('onerror', 'Error', 'same');
+        instrument.exception!.values![0]!.stacktrace = { frames };
+        onerror.exception!.values![0]!.stacktrace = { frames };
+        integration.processEvent(instrument);
+        expect(integration.processEvent(onerror)).toBe(onerror);
+      }
+    });
+
+    it('墙钟回退时丢弃旧匹配候选，不跨未知时间窗口吞掉新的错误', () => {
+      const integration = new GlobalHandlers();
+      let now = 1000;
+      vi.spyOn(Date, 'now').mockImplementation(() => now);
+      integration.processEvent(event('instrument', 'Error', 'same'));
+      now = 500;
+      const onerror = event('onerror', 'Error', 'same');
+      expect(integration.processEvent(onerror)).toBe(onerror);
     });
 
     it('bounds queued instrument events and clears them during cleanup', () => {
