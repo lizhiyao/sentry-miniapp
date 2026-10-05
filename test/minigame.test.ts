@@ -1,29 +1,22 @@
 import { getClientEnvironment } from '../src/clientState';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-const {
-  mockAddBreadcrumb,
-  mockSetContext,
-  mockSpanEnd,
-  mockStartInactiveSpan,
-  mockSetMeasurement,
-  mockGetClient,
-} = vi.hoisted(() => {
-  const mockSpanEnd = vi.fn((..._args: any[]) => {});
-  const mockSpanSetAttributes = vi.fn((..._args: any[]) => {});
+const { mockAddBreadcrumb, mockSetContext, mockSpanEnd, mockStartInactiveSpan, mockGetClient } =
+  vi.hoisted(() => {
+    const mockSpanEnd = vi.fn((..._args: any[]) => {});
+    const mockSpanSetAttributes = vi.fn((..._args: any[]) => {});
 
-  return {
-    mockAddBreadcrumb: vi.fn(),
-    mockSetContext: vi.fn(),
-    mockSpanEnd,
-    mockStartInactiveSpan: vi.fn((..._args: any[]) => ({
-      setAttributes: mockSpanSetAttributes,
-      end: mockSpanEnd,
-    })),
-    mockSetMeasurement: vi.fn((..._args: any[]) => {}),
-    mockGetClient: vi.fn(),
-  };
-});
+    return {
+      mockAddBreadcrumb: vi.fn(),
+      mockSetContext: vi.fn(),
+      mockSpanEnd,
+      mockStartInactiveSpan: vi.fn((..._args: any[]) => ({
+        setAttributes: mockSpanSetAttributes,
+        end: mockSpanEnd,
+      })),
+      mockGetClient: vi.fn(),
+    };
+  });
 
 vi.mock('@sentry/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sentry/core')>()),
@@ -31,7 +24,6 @@ vi.mock('@sentry/core', async (importOriginal) => ({
   getClient: mockGetClient,
   setContext: mockSetContext,
   startInactiveSpan: mockStartInactiveSpan,
-  setMeasurement: mockSetMeasurement,
 }));
 
 import * as crossPlatform from '../src/crossPlatform';
@@ -122,23 +114,27 @@ describe('MinigameIntegration', () => {
     rafCallback!();
 
     expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
-      expect.objectContaining({ coldStartMs: 150 }),
+      expect.objectContaining({ initToFirstFrameMs: 150 }),
     );
     expect(mockAddBreadcrumb).toHaveBeenCalledWith(
-      expect.objectContaining({ category: 'minigame.performance', data: { coldStartMs: 150 } }),
+      expect.objectContaining({
+        category: 'minigame.performance',
+        data: { initToFirstFrameMs: 150 },
+      }),
     );
   });
 
-  it('启动阶段系统时钟回拨时，冷启动耗时夹为 0（不报负数）', () => {
+  it.each([950, NaN])('首帧时间 %s 无可信 interval 时省略，不填虚假的 0', (firstFrameTime) => {
     const integration = new MinigameIntegration(); // 构造时 now()=1000
     integration.setup(mockGetClient() as any);
 
-    clock = 950; // 首帧前系统时钟回拨 → firstFrameTs < initTs
+    clock = firstFrameTime; // 时钟回拨或非法观测
     rafCallback!();
 
-    expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
-      expect.objectContaining({ coldStartMs: 0 }),
-    );
+    expect(
+      getClientEnvironment(mockGetClient() as any).contexts['minigame']?.initToFirstFrameMs,
+    ).toBeUndefined();
+    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
   });
 
   it('冷启动上报不覆盖启动场景上下文（setContext 合并）', () => {
@@ -147,9 +143,9 @@ describe('MinigameIntegration', () => {
     clock = 1150;
     rafCallback!();
 
-    // 首帧后的 minigame 上下文应同时保留 scene 与 coldStartMs
+    // 首帧后的 minigame 上下文应同时保留 scene 与 initToFirstFrameMs
     expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
-      expect.objectContaining({ scene: 1001, path: 'game.js', coldStartMs: 150 }),
+      expect.objectContaining({ scene: 1001, path: 'game.js', initToFirstFrameMs: 150 }),
     );
   });
 
@@ -163,8 +159,8 @@ describe('MinigameIntegration', () => {
 
     expect(mockStartInactiveSpan).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'minigame.coldstart',
-        op: 'app.start',
+        name: 'minigame.init_to_first_frame',
+        op: 'ui.first_frame',
         parentSpan: null,
         startTime: EPOCH / 1000, // 用 epoch 锚点，而非单调时钟
       }),
@@ -173,12 +169,9 @@ describe('MinigameIntegration', () => {
     const startTimeArg = (mockStartInactiveSpan.mock.calls[0]![0] as any).startTime;
     expect(startTimeArg).toBeGreaterThan(1e9);
 
-    expect(mockSetMeasurement).toHaveBeenCalledWith(
-      'cold_start',
-      150,
-      'millisecond',
-      expect.anything(),
-    );
+    expect(
+      mockStartInactiveSpan.mock.calls[0]![0].attributes['minigame.init_to_first_frame_ms'],
+    ).toBe(150);
     expect(mockSpanEnd).toHaveBeenCalledWith((EPOCH + 150) / 1000); // 时长 = 单调测得的 150ms
   });
 

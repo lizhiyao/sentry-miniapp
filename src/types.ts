@@ -47,7 +47,12 @@ export interface MinigameFrameRateOptions {
 /**
  * Configuration options for the Sentry Miniapp SDK.
  */
-export interface MiniappOptions extends CoreOptions<MiniappTransportOptions> {
+export interface MiniappOptions extends Omit<
+  CoreOptions<MiniappTransportOptions>,
+  'traceLifecycle' | 'beforeSendTransaction' | 'ignoreTransactions'
+> {
+  /** 2.0 只支持 core 原生 span streaming。JS 传入 static 时显式报错。 */
+  traceLifecycle?: 'stream';
   /**
    * 上报 `Sentry.logger.trace/debug/info/warn/error/fatal` 到 Sentry Logs。
    * 默认 `false`；`@sentry/core` 11 移除了同名选项，SDK 用 `beforeSendLog` 维持该 opt-in 契约。
@@ -161,7 +166,7 @@ export interface MiniappOptions extends CoreOptions<MiniappTransportOptions> {
   /**
    * 是否启用小游戏帧率/卡顿监控（采样全局 requestAnimationFrame 估算 FPS + jank）。
    * 仅适用于小游戏（有绑定渲染帧的全局 requestAnimationFrame）；小程序为双线程架构、
-   * 逻辑层无全局 requestAnimationFrame，开启也会安全 no-op。小游戏环境下默认启用。
+   * 逻辑层无全局 requestAnimationFrame，开启也会安全 no-op。默认关闭，须显式启用。
    */
   enableMinigameFrameRate?: boolean;
 
@@ -194,8 +199,8 @@ export interface MiniappDiagnosticsOptions {
   sampleRate: number | null;
   tracesSampleRate: number | null;
   tracesSamplerConfigured: boolean;
-  /** 实际生效的 core 11 span 生命周期；SDK 只做透传，默认 `'stream'`。 */
-  traceLifecycle: 'static' | 'stream';
+  /** 2.0 唯一支持的 core 11 span 生命周期。 */
+  traceLifecycle: 'stream';
   enableLogs: boolean;
   enableSourceMap: boolean;
   enableOfflineCache: boolean;
@@ -247,6 +252,8 @@ export interface MiniappDiagnosticsWarning {
     | 'lifecycle_unavailable'
     | 'reentrant_init_unsupported'
     | 'invalid_close_timeout'
+    | 'performance_clock_invalid'
+    | 'performance_time_origin_missing'
     | 'binary_request_unsupported'
     | 'low_level_consent_blocking';
   message: string;

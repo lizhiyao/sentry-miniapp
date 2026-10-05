@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { close, getCurrentScope } from '@sentry/core';
+import { close, getClient, getCurrentScope } from '@sentry/core';
 import { getDiagnostics, init, setConsent } from '../src/index';
 import { MiniappClient } from '../src/client';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -181,14 +181,14 @@ describe('getDiagnostics', () => {
     });
   });
 
-  it('reports minigame integrations as enabled by default in a minigame runtime', () => {
+  it('小游戏生命周期默认启用，FPS 默认关闭', () => {
     (global as any).GameGlobal = {};
     resetPlatformCache();
     init({ dsn: 'https://public@example.ingest.sentry.io/123' });
 
     expect(getDiagnostics().options).toMatchObject({
       enableMinigameLifecycle: true,
-      enableMinigameFrameRate: true,
+      enableMinigameFrameRate: false,
     });
 
     delete (global as any).GameGlobal;
@@ -263,7 +263,7 @@ describe('getDiagnostics', () => {
     expect(diagnostics.warnings.map((warning) => warning.code)).toContain('span_streaming_missing');
   });
 
-  it('保留默认集成或显式选择 static 时不误报 SpanStreaming 缺失', () => {
+  it('默认集成不误报 SpanStreaming；拒绝 static 后保留当前 runtime', () => {
     init({
       dsn: 'https://public@example.ingest.sentry.io/123',
       release: 'miniapp@1.0.0',
@@ -275,18 +275,10 @@ describe('getDiagnostics', () => {
       'span_streaming_missing',
     );
 
-    // static 由 core 在 span 结束时同步产出 transaction，不经 span buffer，不该报这个警告。
-    init({
-      dsn: 'https://public@example.ingest.sentry.io/123',
-      release: 'miniapp@1.0.0',
-      tracesSampleRate: 1,
-      traceLifecycle: 'static',
-      defaultIntegrations: false,
-    });
-    const staticLifecycle = getDiagnostics();
-    expect(staticLifecycle.options?.traceLifecycle).toBe('static');
-    expect(staticLifecycle.warnings.map((warning) => warning.code)).not.toContain(
-      'span_streaming_missing',
-    );
+    // JS 配置在替换当前 runtime 前明确失败。
+    const previous = getClient();
+    expect(() => init({ traceLifecycle: 'static' } as any)).toThrow(/only supports traceLifecycle: stream/);
+    expect(getClient()).toBe(previous);
+    expect(getDiagnostics().options?.traceLifecycle).toBe('stream');
   });
 });

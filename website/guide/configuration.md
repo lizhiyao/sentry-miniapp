@@ -133,7 +133,7 @@ console.log(diagnostics.warnings);
 | `offlineCacheLimit` | `number` | `30` | 离线缓存最大事件数 |
 | `offlineCacheMaxAge` | `number` | `86400000` | 缓存过期时间（ms），默认 24 小时，超时丢弃 |
 
-SDK 的缓存条数、字节数、TTL 与性能 buffer/report interval 使用非负安全整数；负数、NaN、Infinity 和小数回落各自默认值。缓存条数／字节上限为 0 时不保留事件，TTL 为 0 时立即过期。通用 Performance 的 `bufferSize: 0` 不保留统计条目，`reportInterval: 0` 关闭周期汇总；timer 间隔还受 JavaScript timer 上限约束。这些校验不改变 core 的 `sampleRate`、`tracesSampleRate` 或 `tracesSampler` 决策。
+SDK 的缓存条数、字节数、TTL 使用非负安全整数；负数、NaN、Infinity 和小数回落各自默认值。缓存条数／字节上限为 0 时不保留事件，TTL 为 0 时立即过期。2.0 删除通用 Performance 的 `sampleRate`、`bufferSize`、`reportInterval`、`thresholds` 和 `enableMemory`；span 采样和批处理由 core 负责。
 
 ## 隐私合规（同意后上报）
 
@@ -175,6 +175,14 @@ Sentry.setConsent(false);
 `requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；如果传入自定义 `transport`，SDK 也会先用 consent 门禁包住它。2.0 的同意缓冲与弱网重试共用一个 `sentry_miniapp_offline_v2` 容器，记录包含版本、目标身份、原始创建时间和 typed payload；总 UTF-8 字节预算（含元数据）硬封顶 900KB。DSN（含 public key、project、path）或 tunnel 切换，以及不兼容的缓存隐私协议变化，会丢弃旧容器；容量、TTL、淘汰策略调整只裁剪记录。旧 `sentry_offline_store` 无可验证目标身份，直接删除，不恢复或刷新 TTL。SDK 只访问这两个缓存 key。
 
 重试沿用记录原始时间，不延长 TTL。删除提交失败时不向 core 交付记录，本实例停止消费磁盘并降级为有界内存；写入失败会拒绝 store 的 Promise，不能当作持久化成功。缺少同步 Storage API 时也使用有界内存，冷启动会丢失其中的数据。直接调用 `createMiniappOfflineStore` 必须提供 `targetId` 和版本化 `policyId`；返回值的 `getDiagnostics()` 以及 SDK `getDiagnostics().transport.offlineStore` 报告实际 storage 模式和失败代码，不返回原始缓存数据；`unknown` 表示尚未进行存储操作，`persistent` 表示同步存储通道可用，`memory` 表示本实例已回退为有界内存。模式不代表后台接收或 durable ACK。丢弃通知在成功提交后执行；未知格式无法可靠计数时只记诊断。
+
+## 显式 Performance 采集（2.0）
+
+默认不安装 Performance observer，也不启动 FPS 采样循环。通用 Performance 须显式安装 `performanceIntegration({ enableNavigation, enableRender, enableResource, enableUserTiming })`；前三项默认 `true`，User Timing 默认 `false`。FPS 须配置 `enableMinigameFrameRate: true`。小游戏生命周期的一次首帧观察仍保留。
+
+只为真实 navigation/render/resource/measure operation 生成 span，mark 作为面包屑；不生成 observer delivery 父 span、原始条目缓冲、周期统计或阈值告警，不自动读取 User Timing detail。宿主条目须有有效 epoch 毫秒时间，或提供与条目相同时间基准的有效 epoch 毫秒 `timeOrigin`；仅有相对时间则省略对应 span，并诊断 `performance_time_origin_missing`。SDK 不将初始化墙钟或首批结束时间当成 origin。宿主没有 observer 时安全跳过，不能据此承诺所有平台均提供性能时间线。
+
+2.0 只接受 `traceLifecycle: 'stream'`；JS 显式传入 `static` 在替换当前 runtime 前报错。删除 `beforeSendTransaction`、`ignoreTransactions` 和 `withStaticSpan`／`withStreamedSpan` 出口，改用 `beforeSendSpan` 修改名称／属性、`ignoreSpans` 丢弃。小游戏数值只写 span attributes，不再双写 static measurements。首帧近似改名 `minigame.init_to_first_frame`，耗时属性 `minigame.init_to_first_frame_ms`，上下文 `initToFirstFrameMs`；它表达 SDK 安装到首个 rAF 回调，无法代替完整冷启动。时钟回拨／非法差值省略并诊断 `performance_clock_invalid`，不填虚假的 0。
 
 ## 性能数据里的运行环境维度
 
@@ -240,7 +248,7 @@ Sentry.startInactiveSpan({
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `enableMinigameLifecycle` | `boolean` | 小游戏 `true` / 小程序 `false` | 冷启动首帧耗时、启动场景、onShow/onHide 面包屑 |
-| `enableMinigameFrameRate` | `boolean` | 小游戏 `true` / 小程序 `false` | 帧率（FPS）/ 卡顿（jank）监控；小程序无全局 rAF，开启也安全 no-op |
+| `enableMinigameFrameRate` | `boolean` | `false` | 帧率（FPS）/ 卡顿（jank）监控；小程序无全局 rAF，开启也安全 no-op |
 | `minigameFrameRateOptions` | `object` | 见下 | 帧率监控细调，仅 `enableMinigameFrameRate` 生效时使用 |
 
 `minigameFrameRateOptions` 子项：`fpsWarningThreshold`（默认 `30`）、`longFrameThresholdMs`（默认 `50`）、`reportInterval`（默认 `10000`）、`maxJankBreadcrumbsPerWindow`（默认 `3`）、`jankLevels`（可选，分级卡顿阈值）。使用方法与数据去向见[小游戏接入与性能](/guide/minigame)。

@@ -6,7 +6,7 @@ import {
   spanStreamingIntegration,
   type Envelope,
 } from '@sentry/core';
-import { init } from '../src/sdk';
+import { init, getDiagnostics } from '../src/sdk';
 import { MiniappClient } from '../src/client';
 import { MinigameIntegration } from '../src/integrations/minigame';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
@@ -127,7 +127,11 @@ describe('Minigame 资源 owner（真实 core）', () => {
     await flushed;
     expect(collectSpans(secondEnvelopes)).toHaveLength(1);
     expect(secondEnvelopes[0]![0].trace).toMatchObject({ public_key: 'second', release: 'second' });
-    expect(getClientEnvironment(second).contexts.minigame?.coldStartMs).toBe(50);
+    expect(getClientEnvironment(second).contexts.minigame?.initToFirstFrameMs).toBe(50);
+    const firstFrame = collectSpans(secondEnvelopes)[0]!;
+    expect(firstFrame.name).toBe('minigame.init_to_first_frame');
+    expect(spanAttribute(firstFrame, 'sentry.op')).toBe('ui.first_frame');
+    expect(spanAttribute(firstFrame, 'minigame.init_to_first_frame_ms')).toBe(50);
     first.dispose();
     shows[1]!({ scene: 1007 });
     expect(getClient()).toBe(second);
@@ -466,5 +470,15 @@ describe('Minigame 资源 owner（真实 core）', () => {
     frame(0, 20);
     expect(b).toEqual([]);
     expect(cancel).not.toHaveBeenCalled();
+  });
+  it('首帧时钟回拨有实际 diagnostics，省略无可信 interval 而非发送 0', () => {
+    const envelopes: Envelope[] = [];
+    const client = start(envelopes, 'clock');
+    frame(0, -1);
+    expect(getClientEnvironment(client).contexts.minigame?.initToFirstFrameMs).toBeUndefined();
+    expect(envelopes).toEqual([]);
+    expect(getDiagnostics().warnings.map((warning) => warning.code)).toContain(
+      'performance_clock_invalid',
+    );
   });
 });

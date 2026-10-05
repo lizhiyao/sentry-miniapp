@@ -111,19 +111,17 @@ describe('SDK', () => {
       const defaultIntegrationCount = defaultIntegrations.length;
       const client = init({ dsn: 'https://test@sentry.io/123' });
       expect(client).toBeInstanceOf(MiniappClient);
-      expect(client?.getIntegrationByName?.('PerformanceAPI')).toBeDefined();
+      expect(client?.getIntegrationByName?.('PerformanceAPI')).toBeUndefined();
       expect(client?.getIntegrationByName?.('FunctionToString')).toBeDefined();
       expect(defaultIntegrations).toHaveLength(defaultIntegrationCount);
     });
 
-    it('默认性能集成是可执行的实例', () => {
+    it('默认集合不安装 Performance observer', () => {
       const performance = getDefaultIntegrations().find(
         (integration) => integration.name === 'PerformanceAPI',
       );
 
-      expect(performance).toBeDefined();
-      // core 装配集成走 setup(client)，依赖 client 的初始化都在这条路径上。
-      expect(performance?.setup).toEqual(expect.any(Function));
+      expect(performance).toBeUndefined();
     });
 
     it('defaultIntegrations=false 时关闭全部默认集成', () => {
@@ -425,7 +423,7 @@ describe('SDK', () => {
       const names = integrations.map((integration) => integration.name);
 
       expect(names).toContain('GlobalHandlers');
-      expect(names).toContain('PerformanceAPI');
+      expect(names).not.toContain('PerformanceAPI');
       expect(names).toContain('NetworkBreadcrumbs');
       expect(names).toContain('EventFilters');
       expect(names).toContain('ConsoleBreadcrumbs');

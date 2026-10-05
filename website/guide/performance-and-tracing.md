@@ -37,17 +37,27 @@ Sentry.init({
 
 ## 自动采集哪些性能数据
 
-默认性能集成会在宿主支持时读取小程序 Performance API：
+默认网络集成采集 API 请求；通用 Performance observer 和 FPS 循环默认关闭。需要宿主性能条目时显式安装：
+
+```js
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  tracesSampleRate: 0.2,
+  integrations: [Sentry.performanceIntegration({ enableUserTiming: true })],
+});
+```
+
+显式启用后的能力与边界：
 
 | 数据 | 在 Sentry 中的用途 |
 |------|--------------------|
-| 导航与启动 | 判断页面进入和启动阶段耗时 |
-| 渲染与 `setData` | 发现渲染过慢、更新过重 |
+| navigation 条目 | 真实宿主 operation；不能将 SDK 安装到首帧视为完整冷启动 |
+| render 条目 | 实际渲染 operation，不猜测来自 `setData` |
 | 资源加载 | 定位大资源或慢资源 |
 | API 请求 | 包裹平台 `request`，作为 `http.client` span 查看请求耗时 |
 | 小游戏冷启动、FPS、jank | 作为小游戏专属 segment span，指标挂在 span 属性上 |
 
-宿主没有 `createObserver` 时，默认性能集成会静默跳过导航、渲染和资源条目，不设置已启用标记，也不会启动定时汇总。API 请求由网络集成直接包裹平台 `request` 采集，**不依赖 PerformanceObserver**。微信 / 抖音小游戏的冷启动、FPS 和 jank 则由小游戏专属集成采集；详见[小游戏接入与性能](/guide/minigame)。
+宿主没有 `createObserver` 时，显式性能集成会静默跳过导航、渲染和资源条目，不设置已启用标记，不保留原始条目，也不启动定时汇总。相对时间条目缺可信 `timeOrigin` 时不生成 span，诊断中报告缺失时间能力。observer 的交付批次不生成父 span，迟到条目不使用当前页面／网络或活跃 span 伪造关联。API 请求由网络集成直接包裹平台 `request` 采集，**不依赖 PerformanceObserver**。微信／抖音小游戏默认观察 SDK 初始化到首帧的近似 interval；FPS 与 jank 须显式配置 `enableMinigameFrameRate: true`，由小游戏专属集成采集；详见[小游戏接入与性能](/guide/minigame)。
 
 微信的 `wx.reportPerformance()` 属于小程序后台的自定义测速能力，不是 Sentry 性能监控的一部分；如需使用，请先在微信后台配置指标，再由业务代码主动调用。
 
@@ -125,12 +135,12 @@ Sentry.init({
 `sentry-miniapp` 依赖的 `@sentry/core` 11 把 trace 生命周期默认值改成了 `'stream'`：span 不再等根 span 结束后打包成一条 transaction 事件，而是按 trace 分批作为 `span` envelope item 发出。对使用方的影响：
 
 - **不再产生 transaction 事件**，Performance 页改由 segment span 聚合展示；Sentry 侧的查询、告警若按 `transaction` 类型写过，需要改看 span。
-- **`beforeSendTransaction` 与 `ignoreTransactions` 失效**（core 会给出告警）。替代：`beforeSendSpan`（配合 `span.is_segment` 判断）与 `ignoreSpans`。
-- **span 上的自定义指标改走属性**。小游戏的 `fps.avg`、`jank.count` 等一直是同时写成属性的，因此数据不丢；但 transaction 事件上的 `measurements` 块只在 `traceLifecycle: 'static'` 下产出。
+- **2.0 删除 `beforeSendTransaction` 与 `ignoreTransactions` 配置**。替代：`beforeSendSpan`（配合 `span.is_segment` 判断）与 `ignoreSpans`。
+- **span 上的自定义指标改走属性**。小游戏的 `fps.avg`、`jank.count` 等只写 span attributes；删除 static measurements 双写。
 - **`measurements` / `tags` / `extra` 不再挂到 span 上**（streamed span 只携带 attributes），需要在 Sentry 端按属性查询。
 - 小游戏 `onHide` 的同步发出仍然成立：SDK 会随默认集成装 core 的 `spanStreamingIntegration`，退后台时的 `flush()` 会同步排空 span 缓冲区，不依赖 core 的定时器。
 
-若你需要保持 core 10 的事务模型，可显式设置 `traceLifecycle: 'static'`；注意这是 core 为过渡保留的路径，计划在后续大版本移除，长期应迁移到 `span` + 属性。
+2.0 只支持 `traceLifecycle: 'stream'`；JS 显式传入 `static` 会报配置错误，须迁移到 span 与 attributes。`beforeSendSpan` 用于修改名称／属性；需要丢弃 span 时使用 `ignoreSpans`，不要返回 `null`。core 原生按 trace 批处理及 timer 保留，未结束 root 的 children 也可先发送；hide／close／init 替换边界通过 flush 主动排空，flush 成功仍不代表后台 ACK。
 
 ## 验证链路
 

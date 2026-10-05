@@ -43,6 +43,15 @@ import { syncDebugIdsToCoreGlobal } from './debugIds';
 import { miniappStackParser } from './stacktrace';
 import { registerClientSpanDimensions } from './spanDimensions';
 
+/** 在任何宿主安装或替换旧 runtime 前校验；低层构造同样遵守唯一 tracing 契约。 */
+export function assertStreamTracingOptions(options: MiniappOptions): void {
+  if (options.traceLifecycle !== undefined && options.traceLifecycle !== 'stream') {
+    throw new Error(
+      'sentry-miniapp 2.0 only supports traceLifecycle: stream; migrate static transactions to span attributes and beforeSendSpan',
+    );
+  }
+}
+
 export type MiniappClientOptions = Omit<
   MiniappOptions,
   'integrations' | 'miniappPlatform' | 'platform' | 'stackParser' | 'transport'
@@ -162,6 +171,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       );
     }
     options = { ...snapshot, transport: transportFactory };
+    assertStreamTracingOptions(options);
     ensureEnvelopeEncoding();
     const environment = new EnvironmentState(options);
     const lifetime = new ClientLifetime();
@@ -202,10 +212,10 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       onDrop: options.onConsentCacheDrop,
     });
 
-    // traceLifecycle 完全交给 core：默认 'stream'，用户显式传 'static' 时由 core 处理，
-    // SDK 不再为旧生命周期补适配。
+    // 2.0 固定 stream；采样、SpanBuffer 与发送格式由 core 原生实现负责。
     const clientOptions: MiniappClientOptions = {
       ...options,
+      traceLifecycle: 'stream',
       consentCacheLimit,
       _metadata: {
         ...options._metadata,

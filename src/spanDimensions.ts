@@ -49,19 +49,20 @@ export function automaticSpanAttributes(
   client: Client | undefined,
   operation: SpanAttributes,
   includeCurrentRoute = true,
+  includeNetwork = true,
 ): SpanAttributes {
   if (!client) return operation;
   const state = getClientEnvironment(client);
   const attributes: SpanAttributes = { ...state.spanAttributes };
   const route = includeCurrentRoute ? (currentPageRoute() ?? state.route) : undefined;
   if (route) attributes['route'] = route;
-  const network = state.contexts['network']?.['type'];
+  const network = includeNetwork ? state.contexts['network']?.['type'] : undefined;
   if (typeof network === 'string') attributes['network.type'] = network;
   const scopeAttributes = getCombinedScopeData(getIsolationScope(), getCurrentScope()).attributes;
   for (const key of new Set([
     ...Object.keys(attributes),
     ...Object.keys(operation),
-    'network.type',
+    ...(includeNetwork ? ['network.type'] : []),
     ...(includeCurrentRoute ? ['route'] : []),
   ])) {
     if (!(key in scopeAttributes)) continue;
