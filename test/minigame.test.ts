@@ -1,3 +1,4 @@
+import { getClientEnvironment } from '../src/clientState';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const {
@@ -25,7 +26,7 @@ const {
 });
 
 vi.mock('@sentry/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@sentry/core')>(),
+  ...(await importOriginal<typeof import('@sentry/core')>()),
   addBreadcrumb: mockAddBreadcrumb,
   getClient: mockGetClient,
   setContext: mockSetContext,
@@ -88,8 +89,7 @@ describe('MinigameIntegration', () => {
   it('记录启动场景上下文与冷启动面包屑', () => {
     new MinigameIntegration().setup(mockGetClient() as any);
 
-    expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame',
+    expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
       expect.objectContaining({ runtime: 'minigame', scene: 1001, path: 'game.js' }),
     );
     expect(mockAddBreadcrumb).toHaveBeenCalledWith(
@@ -121,8 +121,7 @@ describe('MinigameIntegration', () => {
     clock = 1150; // 首帧
     rafCallback!();
 
-    expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame',
+    expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
       expect.objectContaining({ coldStartMs: 150 }),
     );
     expect(mockAddBreadcrumb).toHaveBeenCalledWith(
@@ -137,8 +136,7 @@ describe('MinigameIntegration', () => {
     clock = 950; // 首帧前系统时钟回拨 → firstFrameTs < initTs
     rafCallback!();
 
-    expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame',
+    expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
       expect.objectContaining({ coldStartMs: 0 }),
     );
   });
@@ -150,8 +148,7 @@ describe('MinigameIntegration', () => {
     rafCallback!();
 
     // 首帧后的 minigame 上下文应同时保留 scene 与 coldStartMs
-    expect(mockSetContext).toHaveBeenLastCalledWith(
-      'minigame',
+    expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
       expect.objectContaining({ scene: 1001, path: 'game.js', coldStartMs: 150 }),
     );
   });
@@ -176,7 +173,12 @@ describe('MinigameIntegration', () => {
     const startTimeArg = (mockStartInactiveSpan.mock.calls[0]![0] as any).startTime;
     expect(startTimeArg).toBeGreaterThan(1e9);
 
-    expect(mockSetMeasurement).toHaveBeenCalledWith('cold_start', 150, 'millisecond', expect.anything());
+    expect(mockSetMeasurement).toHaveBeenCalledWith(
+      'cold_start',
+      150,
+      'millisecond',
+      expect.anything(),
+    );
     expect(mockSpanEnd).toHaveBeenCalledWith((EPOCH + 150) / 1000); // 时长 = 单调测得的 150ms
   });
 
@@ -232,8 +234,7 @@ describe('MinigameIntegration', () => {
     miniappSdk.getLaunchOptionsSync = vi.fn(() => undefined);
 
     expect(() => new MinigameIntegration().setup(mockGetClient() as any)).not.toThrow();
-    expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame',
+    expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
       expect.objectContaining({ runtime: 'minigame', scene: undefined }),
     );
 

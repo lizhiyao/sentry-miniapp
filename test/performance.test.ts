@@ -1,15 +1,13 @@
+import { getClientEnvironment } from '../src/clientState';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { getClient, getCurrentScope, startInactiveSpan, startSpan } from '@sentry/core';
 import { PerformanceIntegration, performanceIntegration } from '../src/integrations/performance';
 import { getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type { PerformanceEntry } from '../src/crossPlatform';
-import {
-  createPerformanceTestHarness,
-  type PerformanceTestHarness,
-} from './support/performance';
+import { createPerformanceTestHarness, type PerformanceTestHarness } from './support/performance';
 
 vi.mock('@sentry/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@sentry/core')>(),
+  ...(await importOriginal<typeof import('@sentry/core')>()),
   getClient: vi.fn(),
   getCurrentScope: vi.fn(),
   setAttributes: vi.fn(),
@@ -25,7 +23,8 @@ vi.mock('@sentry/core', async (importOriginal) => ({
   })),
 }));
 
-vi.mock('../src/crossPlatform', () => ({
+vi.mock('../src/crossPlatform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/crossPlatform')>()),
   getPerformanceManager: vi.fn(),
   getSystemInfo: vi.fn(() => ({ platform: 'devtools' })),
   sdk: vi.fn(() => ({
@@ -68,7 +67,9 @@ describe('PerformanceIntegration', () => {
       expect(factoryIntegration.name).toBe('PerformanceAPI');
       // 依赖 client 的初始化只在 setup(client) 里发生，不再有 setupOnce 路径。
       expect(factoryIntegration.setup).toEqual(expect.any(Function));
-      expect((factoryIntegration as unknown as Record<string, unknown>)['setupOnce']).toBeUndefined();
+      expect(
+        (factoryIntegration as unknown as Record<string, unknown>)['setupOnce'],
+      ).toBeUndefined();
     });
 
     it('should initialize with default options', () => {
@@ -91,9 +92,12 @@ describe('PerformanceIntegration', () => {
       integration.setup(activeClient as any);
 
       expect(getPerformanceManager).toHaveBeenCalled();
-      expect(mockScope.setTag).toHaveBeenCalledWith('performance.api.available', true);
-      expect(mockScope.setContext).toHaveBeenCalledWith(
-        'performance',
+      expect(getClientEnvironment(activeClient as any).tags['performance.api.available']).toBe(
+        true,
+      );
+      expect(mockScope.setTag).not.toHaveBeenCalled();
+      expect(mockScope.setContext).not.toHaveBeenCalled();
+      expect(getClientEnvironment(activeClient as any).contexts['performance']).toEqual(
         expect.objectContaining({
           api_version: 'miniapp-1.0',
           sample_rate: 1.0,
@@ -296,8 +300,11 @@ describe('PerformanceIntegration', () => {
         expect.objectContaining({ name: 'Render: component-render', op: 'render' }),
         expect.any(Function),
       );
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith(
-        expect.objectContaining({ 'render.duration': 100 }),
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attributes: expect.objectContaining({ 'render.duration': 100 }),
+        }),
+        expect.any(Function),
       );
       expect(mockSpan.end).toHaveBeenCalledWith(1_700_000_000);
     });
@@ -308,10 +315,7 @@ describe('PerformanceIntegration', () => {
 
       observerCallback?.('invalid' as any);
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        '[sentry-miniapp] Invalid entries format:',
-        'string',
-      );
+      expect(consoleSpy).toHaveBeenCalledWith('[sentry-miniapp] Invalid entries format:', 'string');
       consoleSpy.mockRestore();
     });
 
@@ -394,9 +398,7 @@ describe('PerformanceIntegration', () => {
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
         // 1500ms exceeds custom 1000ms threshold but not default 3000ms
-        observerCallback([
-          { name: 'nav', entryType: 'navigation', startTime: 0, duration: 1500 },
-        ]);
+        observerCallback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 1500 }]);
       }
 
       (customIntegration as any)._reportBufferedEntries();
@@ -476,9 +478,7 @@ describe('PerformanceIntegration', () => {
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
         // 80ms is below custom 100ms threshold
-        observerCallback([
-          { name: 'render', entryType: 'render', startTime: 0, duration: 80 },
-        ]);
+        observerCallback([{ name: 'render', entryType: 'render', startTime: 0, duration: 80 }]);
       }
 
       expect(mockScope.addBreadcrumb).not.toHaveBeenCalledWith(
@@ -502,8 +502,7 @@ describe('PerformanceIntegration', () => {
 
       (integration as any)._reportBufferedEntries();
 
-      expect(mockScope.setContext).toHaveBeenCalledWith(
-        'performance_summary',
+      expect(getClientEnvironment(activeClient as any).contexts['performance_summary']).toEqual(
         expect.objectContaining({
           render_count: 3,
         }),
@@ -517,9 +516,7 @@ describe('PerformanceIntegration', () => {
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
-        observerCallback([
-          { name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 },
-        ]);
+        observerCallback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 }]);
       }
 
       (integration as any)._reportBufferedEntries();
@@ -544,15 +541,12 @@ describe('PerformanceIntegration', () => {
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
-        observerCallback([
-          { name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 },
-        ]);
+        observerCallback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 }]);
       }
 
       (memIntegration as any)._reportBufferedEntries();
 
-      expect(mockScope.setContext).toHaveBeenCalledWith(
-        'performance_summary',
+      expect(getClientEnvironment(activeClient as any).contexts['performance_summary']).toEqual(
         expect.objectContaining({
           memory: mockMemory,
         }),
@@ -571,9 +565,7 @@ describe('PerformanceIntegration', () => {
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
-        observerCallback([
-          { name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 },
-        ]);
+        observerCallback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 }]);
       }
 
       expect(() => (memIntegration as any)._reportBufferedEntries()).not.toThrow();
@@ -590,9 +582,7 @@ describe('PerformanceIntegration', () => {
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       vi.mocked(startInactiveSpan).mockClear();
 
-      observerCallback?.([
-        { name: 'stale', entryType: 'navigation', startTime: 0, duration: 100 },
-      ]);
+      observerCallback?.([{ name: 'stale', entryType: 'navigation', startTime: 0, duration: 100 }]);
       (integration as any)._entryBuffer.push({
         name: 'stale-buffer',
         entryType: 'navigation',
@@ -618,9 +608,7 @@ describe('PerformanceIntegration', () => {
       expect((integration as any)._isActiveClient()).toBe(false);
 
       // 宿主仍可能派发 disconnect 之前在途的回调：本实例已经没有 client，就不能再动 scope。
-      observerCallback?.([
-        { name: 'late', entryType: 'navigation', startTime: 0, duration: 100 },
-      ]);
+      observerCallback?.([{ name: 'late', entryType: 'navigation', startTime: 0, duration: 100 }]);
 
       expect(startInactiveSpan).not.toHaveBeenCalled();
       expect(mockScope.setContext).not.toHaveBeenCalled();
@@ -659,8 +647,7 @@ describe('PerformanceIntegration', () => {
       integration.cleanup();
 
       // 清理时应完成最后一次汇总
-      expect(mockScope.setContext).toHaveBeenCalledWith(
-        'performance_summary',
+      expect(getClientEnvironment(activeClient as any).contexts['performance_summary']).toEqual(
         expect.objectContaining({ total_entries: 1 }),
       );
     });

@@ -81,6 +81,6 @@ describe('支付宝 my 平台（真 @sentry/core 集成）', () => {
     expect(ev.contexts?.miniapp?.platform).toBe('alipay');
     // 设备信息取自 my.getSystemInfoSync
     expect(ev.contexts?.device?.brand).toBe('Alipay');
-    expect(ev.contexts?.os?.name).toBe('iOS 16');
+    expect(ev.contexts?.os?.name).toBe('iOS');
   });
 });

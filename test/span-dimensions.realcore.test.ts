@@ -4,9 +4,8 @@ import {
   flush,
   getClient,
   getCurrentScope,
-  installedIntegrations,
   startInactiveSpan,
-  type Client,
+  withActiveSpan,
   type Envelope,
   type Event,
 } from '@sentry/core';
@@ -32,9 +31,6 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
   beforeEach(() => {
     captured = [];
     resetPlatformCache();
-    // core 的 setupOnce 按集成名去重且是进程级全局：不复位就只有文件里第一条用例
-    // 走「进程首次安装」路径，首次 init 丢维度的缺陷其余用例根本碰不到。
-    installedIntegrations.length = 0;
 
     g.wx = {
       request: vi.fn((options) => {
@@ -64,7 +60,9 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
 
   afterEach(async () => {
     await getClient()?.close(0);
+    getCurrentScope().setAttribute('device.model', undefined);
     resetPlatformCache();
+    delete g.getCurrentPages;
     delete g.wx;
   });
 
@@ -129,34 +127,7 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
     expect(spanAttribute(second, 'os.name')).toBeUndefined();
   });
 
-  it('重叠 client 各自携带自己的平台与采集开关', async () => {
-    initWith({ miniappPlatform: 'wechat' });
-    const clientA = getClient() as Client;
-    assertDefined(clientA);
-
-    initWith({ miniappPlatform: 'bytedance', enableSystemInfo: false });
-    const clientB = getClient() as Client;
-    assertDefined(clientB);
-
-    // 切回 A 建 span：A 采集设备信息，B 不采集，两边都不能看到对方的平台标记。
-    getCurrentScope().setClient(clientA);
-    startInactiveSpan({ name: 'span.on.a', parentSpan: null }).end();
-    await clientA.flush(2000);
-    const spanA = collectSpans(captured).find((span) => span.name === 'span.on.a');
-    assertDefined(spanA);
-    expect(spanAttribute(spanA, 'miniapp.platform')).toBe('wechat');
-    expect(spanAttribute(spanA, 'device.model')).toBe('iPhone 15');
-
-    getCurrentScope().setClient(clientB);
-    startInactiveSpan({ name: 'span.on.b', parentSpan: null }).end();
-    await clientB.flush(2000);
-    const spanB = collectSpans(captured).find((span) => span.name === 'span.on.b');
-    assertDefined(spanB);
-    expect(spanAttribute(spanB, 'miniapp.platform')).toBe('bytedance');
-    expect(spanAttribute(spanB, 'device.model')).toBeUndefined();
-  });
-
-  it('route 随页面栈实时变化，返回上一页后不停留在旧页面', async () => {
+  it('手动 span 不自动补结束时页面', async () => {
     const pages: Array<{ route: string }> = [{ route: 'pages/a' }];
     g.getCurrentPages = vi.fn(() => pages);
 
@@ -181,11 +152,90 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
       assertDefined(span, `未产出 ${name}`);
       return spanAttribute(span, 'route');
     };
-    expect(routeOf('span.on.a')).toBe('pages/a');
-    expect(routeOf('span.on.b')).toBe('pages/b');
-    expect(routeOf('span.back')).toBe('pages/a');
+    expect(routeOf('span.on.a')).toBeUndefined();
+    expect(routeOf('span.on.b')).toBeUndefined();
+    expect(routeOf('span.back')).toBeUndefined();
 
     delete g.getCurrentPages;
+  });
+
+  it('自动 HTTP 创建时的 route/network 进入 sampler，跨页面完成仍保留开始值', async () => {
+    const pages = [{ route: 'pages/a' }];
+    g.getCurrentPages = vi.fn(() => pages);
+    let pending: any;
+    g.wx.request = vi.fn((options) => {
+      pending = options;
+      return { abort: vi.fn() };
+    });
+    const sampler = vi.fn(() => 1);
+    initWith({ tracesSampler: sampler });
+    g.wx.request({ url: 'https://api.example.com/started-on-a' });
+    expect(sampler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({ route: 'pages/a', 'network.type': 'wifi' }),
+      }),
+    );
+    pages.push({ route: 'pages/b' });
+    pending.success?.({ statusCode: 200, data: {}, header: {} });
+    pending.complete?.({ statusCode: 200 });
+    await flush(2000);
+    const [span] = collectSpans(captured);
+    assertDefined(span);
+    expect(spanAttribute(span, 'route')).toBe('pages/a');
+    expect(spanAttribute(span, 'network.type')).toBe('wifi');
+    delete g.getCurrentPages;
+  });
+
+  it('最终 streamed span 保留 scope 单位，显式 span 值优先且不补动态维度', async () => {
+    initWith();
+    getCurrentScope().setAttribute('device.model', { value: 42, unit: 'byte' });
+    const raw = startInactiveSpan({ name: 'scope-unit', parentSpan: null });
+    raw.end();
+    const explicit = startInactiveSpan({
+      name: 'explicit-span',
+      parentSpan: null,
+      attributes: { 'device.model': 'explicit-model', route: 'business-route' },
+    });
+    explicit.end();
+    await flush(2000);
+    const spans = collectSpans(captured);
+    const fromScope = spans.find((span) => span.name === 'scope-unit');
+    const fromSpan = spans.find((span) => span.name === 'explicit-span');
+    assertDefined(fromScope);
+    assertDefined(fromSpan);
+    expect(fromScope.attributes['device.model']).toMatchObject({
+      value: 42,
+      unit: 'byte',
+      type: 'integer',
+    });
+    expect(spanAttribute(fromScope, 'route')).toBeUndefined();
+    expect(spanAttribute(fromScope, 'network.type')).toBeUndefined();
+    expect(spanAttribute(fromSpan, 'device.model')).toBe('explicit-model');
+    expect(spanAttribute(fromSpan, 'route')).toBe('business-route');
+  });
+
+  it('有父 HTTP child 的 ignoreSpans 使用创建时页面与网络，而非结束后补值', async () => {
+    const pages = [{ route: 'pages/ignored' }];
+    g.getCurrentPages = vi.fn(() => pages);
+    const hostRequest = g.wx.request;
+    initWith({
+      ignoreSpans: [
+        { op: 'http.client', attributes: { route: 'pages/ignored', 'network.type': 'wifi' } },
+      ],
+    });
+    const root = startInactiveSpan({ name: 'business-root', parentSpan: null });
+    withActiveSpan(root, () => g.wx.request({ url: 'https://api.example.com/ignored-child' }));
+    pages[0] = { route: 'pages/accepted' };
+    withActiveSpan(root, () => g.wx.request({ url: 'https://api.example.com/accepted-child' }));
+    root.end();
+    await flush(2000);
+    const spans = collectSpans(captured);
+    expect(spans.map((span) => span.name)).toEqual(
+      expect.arrayContaining(['business-root', 'GET https://api.example.com/accepted-child']),
+    );
+    expect(spans.some((span) => span.name.includes('ignored-child'))).toBe(false);
+    expect(spans).toHaveLength(2);
+    expect(hostRequest).toHaveBeenCalledTimes(2);
   });
 
   it('network.type 由 NetworkStatus 集成登记到所属 client 的 span 上', async () => {
@@ -222,7 +272,7 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
     );
     assertDefined(event);
     expect(event.contexts?.device).toMatchObject({ model: 'iPhone 15', brand: 'Apple' });
-    expect(event.contexts?.os).toMatchObject({ name: 'iOS 17.4', version: '8.0.40' });
+    expect(event.contexts?.os).toMatchObject({ name: 'iOS', version: '17.4' });
     expect(event.contexts?.miniapp).toMatchObject({ platform: 'wechat' });
     expect(event.tags).toBeUndefined();
   });

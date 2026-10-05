@@ -1,11 +1,6 @@
-import {
-  addBreadcrumb,
-  flush,
-  getClient,
-  setContext,
-  startInactiveSpan,
-  setMeasurement,
-} from '@sentry/core';
+import { automaticSpanAttributes } from '../spanDimensions';
+import { setClientContext } from '../clientState';
+import { addBreadcrumb, flush, getClient, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 import type { MinigameFrameRateOptions, MinigameJankLevels } from '../types';
@@ -262,7 +257,7 @@ export class MinigameFrameRateIntegration implements Integration {
     const stats = this._rollupWindow();
     if (!stats) return;
 
-    setContext('minigame.framerate', {
+    setClientContext(this._client, 'minigame.framerate', {
       fps: stats.fps,
       minFps: stats.minFps,
       worstFrameMs: stats.worstFrameMs,
@@ -363,6 +358,12 @@ export class MinigameFrameRateIntegration implements Integration {
     const jankCount = this._sessionJank;
     const frames = this._sessionFrames;
 
+    const tierAttributes: Record<string, number> = {};
+    if (this._tiered) {
+      for (const tier of this._tiers)
+        tierAttributes[`jank.${tier.name}`] = this._sessionJankByTier[tier.name];
+    }
+
     // span 绝对时间用 epoch 锚点 + 单调测得的 elapsed 作时长，避免单调时钟落到 1970。
     const span = startInactiveSpan({
       name: 'minigame.framerate.summary',
@@ -370,15 +371,21 @@ export class MinigameFrameRateIntegration implements Integration {
       // core 11 废弃 forceTransaction；显式断掉父 span 即可让汇总自成一条 segment span。
       parentSpan: null,
       startTime: this._sessionEpochStart / 1000,
+      attributes: automaticSpanAttributes(
+        this._client,
+        {
+          'fps.avg': avgFps,
+          'fps.p95': p95Fps,
+          'fps.min': minFps,
+          'frames.total': frames,
+          'jank.count': jankCount,
+          'frame.worst_ms': worstFrameMs,
+          ...tierAttributes,
+        },
+        false,
+      ),
     });
-    span.setAttributes({
-      'fps.avg': avgFps,
-      'fps.p95': p95Fps,
-      'fps.min': minFps,
-      'frames.total': frames,
-      'jank.count': jankCount,
-      'frame.worst_ms': worstFrameMs,
-    });
+
     // 属性是 stream 生命周期下唯一的指标载体；measurement 只在 `traceLifecycle: 'static'` 才产出。
     // 两份都写，用户选任一生命周期都能取到同一组数。
     setMeasurement('fps_avg', avgFps, 'none', span);
@@ -387,13 +394,10 @@ export class MinigameFrameRateIntegration implements Integration {
     setMeasurement('jank_count', jankCount, 'none', span);
     // 分级模式：对启用的档增发计数（jank_count 仍为总数；未启用的档不发）。
     if (this._tiered) {
-      const tierAttrs: Record<string, number> = {};
       for (const tier of this._tiers) {
         const tierCount = this._sessionJankByTier[tier.name];
-        tierAttrs[`jank.${tier.name}`] = tierCount;
         setMeasurement(`jank_${tier.name}_count`, tierCount, 'none', span);
       }
-      span.setAttributes(tierAttrs);
     }
     span.end((this._sessionEpochStart + Math.max(0, elapsed)) / 1000);
 

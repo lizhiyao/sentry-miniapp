@@ -1,15 +1,13 @@
+import { getClientEnvironment } from '../src/clientState';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { getClient, getCurrentScope, startInactiveSpan, startSpan } from '@sentry/core';
 import { PerformanceIntegration } from '../src/integrations/performance';
 import { epochNow, getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
 import type { PerformanceEntry } from '../src/crossPlatform';
-import {
-  createPerformanceTestHarness,
-  type PerformanceTestHarness,
-} from './support/performance';
+import { createPerformanceTestHarness, type PerformanceTestHarness } from './support/performance';
 
 vi.mock('@sentry/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@sentry/core')>(),
+  ...(await importOriginal<typeof import('@sentry/core')>()),
   getClient: vi.fn(),
   getCurrentScope: vi.fn(),
   startInactiveSpan: vi.fn(),
@@ -24,7 +22,8 @@ vi.mock('@sentry/core', async (importOriginal) => ({
   })),
 }));
 
-vi.mock('../src/crossPlatform', () => ({
+vi.mock('../src/crossPlatform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/crossPlatform')>()),
   getPerformanceManager: vi.fn(),
   getSystemInfo: vi.fn(() => ({ platform: 'devtools' })),
   sdk: vi.fn(() => ({
@@ -83,11 +82,16 @@ describe('PerformanceIntegration entries and reporting', () => {
 
       // 应处理资源条目无报错
       expect(observerCallback).toBeDefined();
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith({
-        'resource.fetch_start': 510,
-        'resource.response_end': 700,
-        'resource.network_time': 190,
-      });
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            'resource.fetch_start': 510,
+            'resource.response_end': 700,
+            'resource.network_time': 190,
+          }),
+        }),
+        expect.any(Function),
+      );
       expect(mockSpan.end).toHaveBeenCalledWith(1_700_000_000);
     });
 
@@ -99,13 +103,16 @@ describe('PerformanceIntegration entries and reporting', () => {
         { name: 'inline-resource', entryType: 'resource', startTime: 0, duration: 5 },
       ]);
 
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith(
+      expect(startSpan).toHaveBeenCalledWith(
         expect.objectContaining({
-          'resource.type': 'unknown',
-          'resource.transfer_size': 0,
-          'resource.encoded_size': 0,
-          'resource.decoded_size': 0,
+          attributes: expect.objectContaining({
+            'resource.type': 'unknown',
+            'resource.transfer_size': 0,
+            'resource.encoded_size': 0,
+            'resource.decoded_size': 0,
+          }),
         }),
+        expect.any(Function),
       );
     });
   });
@@ -128,11 +135,16 @@ describe('PerformanceIntegration entries and reporting', () => {
       }
 
       expect(observerCallback).toBeDefined();
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith({
-        'measure.name': 'api-call',
-        'measure.duration': 300,
-        'measure.detail': '{"url":"/api/data"}',
-      });
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            'measure.name': 'api-call',
+            'measure.duration': 300,
+            'measure.detail': '{"url":"/api/data"}',
+          }),
+        }),
+        expect.any(Function),
+      );
     });
 
     it('should omit absent measure details', () => {
@@ -143,8 +155,11 @@ describe('PerformanceIntegration entries and reporting', () => {
         { name: 'plain-measure', entryType: 'measure', startTime: 0, duration: 1 },
       ]);
 
-      expect(mockSpan.setAttributes).toHaveBeenCalledWith(
-        expect.objectContaining({ 'measure.detail': undefined }),
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attributes: expect.objectContaining({ 'measure.detail': undefined }),
+        }),
+        expect.any(Function),
       );
     });
 
@@ -208,9 +223,7 @@ describe('PerformanceIntegration entries and reporting', () => {
       (integration as any)._initializeRelativeTimeOrigin([relativeEntry]);
       expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
 
-      (integration as any)._initializeRelativeTimeOrigin([
-        { ...relativeEntry, startTime: 500 },
-      ]);
+      (integration as any)._initializeRelativeTimeOrigin([{ ...relativeEntry, startTime: 500 }]);
       expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
     });
 
@@ -460,9 +473,7 @@ describe('PerformanceIntegration entries and reporting', () => {
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       if (observerCallback) {
-        observerCallback([
-          { name: 'entry', entryType: 'navigation', startTime: 0, duration: 100 },
-        ]);
+        observerCallback([{ name: 'entry', entryType: 'navigation', startTime: 0, duration: 100 }]);
       }
 
       (integration as any)._reportBufferedEntries();
@@ -485,15 +496,15 @@ describe('PerformanceIntegration entries and reporting', () => {
   describe('reporting fallbacks', () => {
     it('should keep buffered entries when summary context writing fails', () => {
       const error = new Error('scope unavailable');
-      mockScope.setContext.mockImplementation((name: string) => {
-        if (name === 'performance_summary') throw error;
-      });
+      vi.spyOn(getClientEnvironment(activeClient as any), 'setContext').mockImplementation(
+        (name: string) => {
+          if (name === 'performance_summary') throw error;
+        },
+      );
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       integration.setup(activeClient as any);
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
-      observerCallback?.([
-        { name: 'pending', entryType: 'navigation', startTime: 0, duration: 1 },
-      ]);
+      observerCallback?.([{ name: 'pending', entryType: 'navigation', startTime: 0, duration: 1 }]);
 
       expect(() => (integration as any)._reportBufferedEntries()).not.toThrow();
       expect((integration as any)._entryBuffer).toHaveLength(1);

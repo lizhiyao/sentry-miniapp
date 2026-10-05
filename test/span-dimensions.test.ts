@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const { mockGetSystemInfo, mockGetAccountInfo, mockResolvePlatform } = vi.hoisted(() => ({
   mockGetSystemInfo: vi.fn(),
@@ -43,8 +43,6 @@ function createFakeClient(options: Record<string, unknown> = {}): FakeClient {
 }
 
 describe('span 维度按 client 填充', () => {
-  const g = globalThis as any;
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSystemInfo.mockReturnValue({
@@ -58,20 +56,13 @@ describe('span 维度按 client 填充', () => {
     mockResolvePlatform.mockImplementation((options?: { miniappPlatform?: string }) => {
       return options?.miniappPlatform ?? 'wechat';
     });
-    g.getCurrentPages = vi.fn(() => [{ route: 'pages/home' }]);
   });
 
-  afterEach(() => {
-    delete g.getCurrentPages;
-  });
-
-  it('按 OTel 语义拆分宿主版本与系统版本，并补当前 route', () => {
+  it('按 OTel 语义补稳定环境，不在结束时补页面或网络', () => {
     const client = createFakeClient({});
     registerClientSpanDimensions(client as any);
     const span: ProbeSpan = { name: 'probe', attributes: {} };
-
     client.emitSpan(span);
-
     expect(span.attributes).toMatchObject({
       'miniapp.platform': 'wechat',
       'device.manufacturer': 'Apple',
@@ -81,124 +72,59 @@ describe('span 维度按 client 填充', () => {
       'os.type': 'ios',
       'miniapp.host_version': '8.0.40',
       'app.app_version': '1.4.2',
-      route: 'pages/home',
     });
+    expect(span.attributes).not.toHaveProperty('route');
+    expect(span.attributes).not.toHaveProperty('network.type');
   });
 
-  it('不覆盖 span 上已有的属性', () => {
+  it('不覆盖 core 已合并的显式 RawAttribute，包括单位', () => {
     const client = createFakeClient({});
     registerClientSpanDimensions(client as any);
-    const span: ProbeSpan = { name: 'probe', attributes: { 'device.model': 'Pixel 8' } };
-
+    const raw = { value: 42, unit: 'byte' };
+    const span: ProbeSpan = { name: 'probe', attributes: { 'device.model': raw } };
     client.emitSpan(span);
-
-    expect(span.attributes['device.model']).toBe('Pixel 8');
+    expect(span.attributes['device.model']).toBe(raw);
     expect(span.attributes['os.name']).toBe('iOS');
   });
 
-  it('enableSystemInfo=false 只按该 client 关，不受其他 client 影响', () => {
+  it('enableSystemInfo=false 只按该 client 关闭', () => {
     const collecting = createFakeClient({ miniappPlatform: 'wechat' });
     const quiet = createFakeClient({ miniappPlatform: 'bytedance', enableSystemInfo: false });
     registerClientSpanDimensions(collecting as any);
     registerClientSpanDimensions(quiet as any);
-
     const spanA: ProbeSpan = { name: 'a', attributes: {} };
     const spanB: ProbeSpan = { name: 'b', attributes: {} };
     collecting.emitSpan(spanA);
     quiet.emitSpan(spanB);
-
     expect(spanA.attributes['device.model']).toBe('iPhone 15');
-    expect(spanA.attributes['miniapp.platform']).toBe('wechat');
-    expect(spanB.attributes['device.model']).toBeUndefined();
-    expect(spanB.attributes['miniapp.platform']).toBe('bytedance');
+    expect(spanB.attributes).toEqual({ 'miniapp.platform': 'bytedance' });
+    expect(mockGetSystemInfo).toHaveBeenCalledTimes(1);
+    expect(mockGetAccountInfo).toHaveBeenCalledTimes(1);
   });
 
-  it('集成登记的动态维度只影响所属 client', () => {
+  it('稳定能力只影响所属 client，宿主快照不在 span 结束时重读', () => {
     const first = createFakeClient({});
     const second = createFakeClient({});
     registerClientSpanDimensions(first as any);
     registerClientSpanDimensions(second as any);
-
-    setClientSpanDimension(first as any, 'network.type', 'wifi');
-    setClientSpanDimension(undefined, 'network.type', '4g');
-
-    const spanFirst: ProbeSpan = { name: 'a', attributes: {} };
-    const spanSecond: ProbeSpan = { name: 'b', attributes: {} };
-    first.emitSpan(spanFirst);
-    second.emitSpan(spanSecond);
-
-    expect(spanFirst.attributes['network.type']).toBe('wifi');
-    expect(spanSecond.attributes['network.type']).toBeUndefined();
-  });
-
-  it('route 取页面栈栈顶，返回上一页后随栈变化', () => {
-    const client = createFakeClient({});
-    registerClientSpanDimensions(client as any);
-
-    g.getCurrentPages.mockReturnValue([{ route: 'pages/a' }, { route: 'pages/b' }]);
-    const forward: ProbeSpan = { name: 'on-b', attributes: {} };
-    client.emitSpan(forward);
-    expect(forward.attributes['route']).toBe('pages/b');
-
-    // navigateBack 后栈顶回到 A，route 必须跟着变，不依赖业务是否定义了 onShow。
-    g.getCurrentPages.mockReturnValue([{ route: 'pages/a' }]);
-    const back: ProbeSpan = { name: 'back-on-a', attributes: {} };
-    client.emitSpan(back);
-    expect(back.attributes['route']).toBe('pages/a');
-  });
-
-  it('小游戏没有 getCurrentPages 时不写 route', () => {
-    delete g.getCurrentPages;
-    const client = createFakeClient({});
-    registerClientSpanDimensions(client as any);
-    const span: ProbeSpan = { name: 'a', attributes: {} };
-
-    client.emitSpan(span);
-
-    expect('route' in span.attributes).toBe(false);
-  });
-
-  it('getCurrentPages 抛错时只丢 route，其余维度照常填充', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    g.getCurrentPages = vi.fn(() => {
-      throw new Error('page stack unavailable');
-    });
-
-    const client = createFakeClient({});
-    registerClientSpanDimensions(client as any);
-    const span: ProbeSpan = { name: 'a', attributes: {} };
-    expect(() => client.emitSpan(span)).not.toThrow();
-
-    expect('route' in span.attributes).toBe(false);
-    expect(span.attributes['device.model']).toBe('iPhone 15');
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
-  });
-
-  it('取不到系统信息时不冒泡，debug 打开才提示', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    mockGetSystemInfo.mockImplementation(() => {
-      throw new Error('system info unavailable');
-    });
-
-    const silent = createFakeClient({});
-    registerClientSpanDimensions(silent as any);
-    expect(() => silent.emitSpan({ name: 'a', attributes: {} } as ProbeSpan)).not.toThrow();
-    expect(warn).not.toHaveBeenCalled();
-
-    const verbose = createFakeClient({ debug: true });
-    registerClientSpanDimensions(verbose as any);
-    expect(() => verbose.emitSpan({ name: 'b', attributes: {} } as ProbeSpan)).not.toThrow();
-    expect(warn).toHaveBeenCalledTimes(1);
-
-    warn.mockRestore();
+    setClientSpanDimension(first as any, 'performance.api.available', true);
+    setClientSpanDimension(undefined, 'performance.api.available', true);
+    mockGetSystemInfo.mockReturnValue({ model: 'different-host' });
+    const a: ProbeSpan = { name: 'a', attributes: {} };
+    const b: ProbeSpan = { name: 'b', attributes: {} };
+    first.emitSpan(a);
+    second.emitSpan(b);
+    expect(a.attributes['performance.api.available']).toBe(true);
+    expect(b.attributes['performance.api.available']).toBeUndefined();
+    expect(a.attributes['device.model']).toBe('iPhone 15');
+    expect(mockGetSystemInfo).toHaveBeenCalledTimes(2);
   });
 
   it('摘掉监听后不再填充维度', () => {
     const client = createFakeClient({});
-    const unsubscribe = registerClientSpanDimensions(client as unknown as Parameters<
-      typeof registerClientSpanDimensions
-    >[0]);
+    const unsubscribe = registerClientSpanDimensions(
+      client as unknown as Parameters<typeof registerClientSpanDimensions>[0],
+    );
     unsubscribe();
 
     const span: ProbeSpan = { name: 'a', attributes: {} };

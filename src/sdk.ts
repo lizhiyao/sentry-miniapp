@@ -4,7 +4,6 @@ import {
   getCurrentScope,
   getIntegrationsToSetup,
   initAndBind,
-  setContext,
   stackParserFromStackParserOptions,
   withScope,
   eventFiltersIntegration,
@@ -21,7 +20,6 @@ import {
   GlobalHandlers,
   TryCatch,
   linkedErrorsIntegration,
-  HttpContext,
   dedupeIntegration,
   performanceIntegration,
   rewriteFramesIntegration,
@@ -47,7 +45,6 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
   const integrations: Integration[] = [
     // Core integrations
     functionToStringIntegration(),
-    new HttpContext(),
     new GlobalHandlers(),
     new TryCatch(),
     linkedErrorsIntegration(),
@@ -191,13 +188,6 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
     stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
     transport: options.transport,
   };
-  // 平台标记。device / os / app context 由 MiniappClient._prepareEvent 在每个事件上统一写入
-  // （唯一权威），此处不再重复设置，避免字段不一致与覆盖歧义（见架构 review P2-b）。
-  setContext('miniapp', {
-    platform: miniappPlatform,
-    environment: 'miniapp',
-  });
-
   // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
   // 更宽的公开 MiniappOptions，并在构造期间补齐 transport / stackParser，因此这里仅作边界适配。
   initAndBind(MiniappClient as any, opts as any);

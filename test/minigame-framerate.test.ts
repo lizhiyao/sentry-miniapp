@@ -1,10 +1,10 @@
+import { getClientEnvironment } from '../src/clientState';
 import { describe, expect, it, vi, beforeEach, afterEach, type Mock } from 'vitest';
 
 const {
   mockAddBreadcrumb,
   mockSetContext,
   mockSpanEnd,
-  mockSpanSetAttributes,
   mockStartInactiveSpan,
   mockSetMeasurement,
   mockFlush,
@@ -28,7 +28,8 @@ const {
   };
 });
 
-vi.mock('@sentry/core', () => ({
+vi.mock('@sentry/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sentry/core')>()),
   addBreadcrumb: mockAddBreadcrumb,
   flush: mockFlush,
   getClient: mockGetClient,
@@ -86,6 +87,7 @@ describe('MinigameFrameRateIntegration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetClient.mockReturnValue({ registerCleanup: vi.fn(), getOptions: () => ({}) });
     rafCallback = null;
     clock = 0;
     hideCb = null;
@@ -122,7 +124,7 @@ describe('MinigameFrameRateIntegration', () => {
       reportInterval: 1000,
       fpsWarningThreshold: 30,
     });
-    integration.setupOnce(); // windowStart=0, lastFrame=0
+    integration.setup(mockGetClient() as any); // windowStart=0, lastFrame=0
 
     frame(20); // delta 20，正常
     frame(40); // delta 20，正常
@@ -134,8 +136,7 @@ describe('MinigameFrameRateIntegration', () => {
     );
     expect(jankCrumbs.length).toBe(2);
 
-    expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame.framerate',
+    expect(getClientEnvironment(mockGetClient() as any).contexts['minigame.framerate']).toEqual(
       expect.objectContaining({ jankCount: 2, frames: 4 }),
     );
     // fps 远低于阈值 → 上报面包屑应为 warning
@@ -151,7 +152,7 @@ describe('MinigameFrameRateIntegration', () => {
       reportInterval: 1000,
       maxJankBreadcrumbsPerWindow: 2,
     });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     frame(100); // delta 100 → jank #1（面包屑 1）
     frame(200); // delta 100 → jank #2（面包屑 2）
@@ -163,15 +164,14 @@ describe('MinigameFrameRateIntegration', () => {
     );
     expect(jankCrumbs.length).toBe(2); // 限频到 2 条
 
-    expect(mockSetContext).toHaveBeenCalledWith(
-      'minigame.framerate',
-      expect.objectContaining({ jankCount: 4 }), // 实际 jank 全部计入
-    );
+    expect(getClientEnvironment(mockGetClient() as any).contexts['minigame.framerate']).toEqual(
+      expect.objectContaining({ jankCount: 4 }),
+    ); // 实际 jank 全部计入
   });
 
   it('onHide 发会话汇总 segment span（分档属性），且不每窗口发事件', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     frame(20);
     frame(40);
@@ -197,14 +197,16 @@ describe('MinigameFrameRateIntegration', () => {
     const startTimeArg = (mockStartInactiveSpan.mock.calls[0]![0] as any).startTime;
     expect(startTimeArg).toBeGreaterThan(1e9);
     const measured = mockSetMeasurement.mock.calls.map((c: any) => c[0]);
-    expect(measured).toEqual(expect.arrayContaining(['fps_avg', 'fps_p95', 'fps_min', 'jank_count']));
+    expect(measured).toEqual(
+      expect.arrayContaining(['fps_avg', 'fps_p95', 'fps_min', 'jank_count']),
+    );
     expect(mockSpanEnd).toHaveBeenCalled();
     expect(mockFlush).toHaveBeenCalledWith(2000);
   });
 
   it('onHide 会先并入未满窗口，再发会话汇总 transaction', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     // 约 60fps 的短会话，尚未跨过 reportInterval。
     for (let t = 16; t <= 496; t += 16) {
@@ -214,10 +216,12 @@ describe('MinigameFrameRateIntegration', () => {
     hideCb!();
 
     expect(mockStartInactiveSpan).toHaveBeenCalledTimes(1);
-    expect(mockSpanSetAttributes).toHaveBeenCalledWith(
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
       expect.objectContaining({
-        'frames.total': 31,
-        'fps.avg': 63,
+        attributes: expect.objectContaining({
+          'frames.total': 31,
+          'fps.avg': 63,
+        }),
       }),
     );
     expect(mockSetMeasurement).toHaveBeenCalledWith('fps_avg', 63, 'none', expect.anything());
@@ -226,7 +230,7 @@ describe('MinigameFrameRateIntegration', () => {
 
   it('会话无帧时 onHide 不发汇总 transaction', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     // 未跨窗口、无帧累积进会话
     hideCb!();
     expect(mockStartInactiveSpan).not.toHaveBeenCalled();
@@ -235,7 +239,7 @@ describe('MinigameFrameRateIntegration', () => {
 
   it('onShow 重置会话累积（重置后无帧则 onHide 不发汇总）', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     frame(20);
     frame(1010); // 累积进会话
     showCb!(); // 回前台 → 重置会话
@@ -248,7 +252,7 @@ describe('MinigameFrameRateIntegration', () => {
       longFrameThresholdMs: 50,
       reportInterval: 1000,
     });
-    integration.setupOnce(); // lastFrame=0
+    integration.setup(mockGetClient() as any); // lastFrame=0
     frame(20); // 退后台前最后一帧
     hideCb!(); // 退后台（RAF 在真机会暂停）
 
@@ -269,7 +273,7 @@ describe('MinigameFrameRateIntegration', () => {
       longFrameThresholdMs: 50,
       reportInterval: 1000,
     });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     frame(16);
     frame(32);
@@ -282,11 +286,13 @@ describe('MinigameFrameRateIntegration', () => {
       (c: any) => c[0] && c[0].category === 'minigame.jank',
     );
     expect(jankCrumbs.length).toBe(0);
-    expect(mockSpanSetAttributes).toHaveBeenCalledWith(
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
       expect.objectContaining({
-        'frames.total': 3,
-        'fps.avg': 63,
-        'frame.worst_ms': 16,
+        attributes: expect.objectContaining({
+          'frames.total': 3,
+          'fps.avg': 63,
+          'frame.worst_ms': 16,
+        }),
       }),
     );
     expect(mockSpanEnd).toHaveBeenCalledWith((1640995200000 + 48) / 1000);
@@ -294,7 +300,7 @@ describe('MinigameFrameRateIntegration', () => {
 
   it('cleanup 后停止采样循环', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     integration.cleanup();
 
     const rafCalls = (g.requestAnimationFrame as Mock).mock.calls.length;
@@ -314,9 +320,7 @@ describe('MinigameFrameRateIntegration', () => {
 
   /** 把 setMeasurement 调用收敛成 { 名称: 值 } 便于断言。 */
   function measurements(): Record<string, number> {
-    return Object.fromEntries(
-      (mockSetMeasurement.mock.calls as any[]).map((c) => [c[0], c[1]]),
-    );
+    return Object.fromEntries((mockSetMeasurement.mock.calls as any[]).map((c) => [c[0], c[1]]));
   }
   /** 取所有 minigame.jank 面包屑的 jankLevel（保持触发顺序）。 */
   function jankLevels(): Array<string | undefined> {
@@ -330,7 +334,7 @@ describe('MinigameFrameRateIntegration', () => {
       reportInterval: 10000,
       jankLevels: { minor: 17, major: 33, severe: 100 },
     });
-    integration.setupOnce(); // lastFrame=0
+    integration.setup(mockGetClient() as any); // lastFrame=0
 
     frame(10); // delta 10 → 正常（≤17）
     frame(35); // delta 25 → minor（17<25≤33）
@@ -346,8 +350,10 @@ describe('MinigameFrameRateIntegration', () => {
     expect(m['jank_major_count']).toBe(1);
     expect(m['jank_severe_count']).toBe(1);
     // span attribute 也带分档
-    expect(mockSpanSetAttributes).toHaveBeenCalledWith(
-      expect.objectContaining({ 'jank.minor': 1 }),
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({ 'jank.minor': 1 }),
+      }),
     );
   });
 
@@ -356,7 +362,7 @@ describe('MinigameFrameRateIntegration', () => {
       reportInterval: 10000,
       jankLevels: { major: 33, severe: 100 }, // 不启用 minor，入档阈值=33
     });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     frame(10); // delta 10 → 正常
     frame(40); // delta 30 → ≤33，不计 jank（minor 未启用）
@@ -380,7 +386,7 @@ describe('MinigameFrameRateIntegration', () => {
       longFrameThresholdMs: 999, // 若生效则 30ms 帧不会被记为 jank
       jankLevels: { minor: 20 }, // 入档阈值应取 20
     });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     frame(10); // delta 10 → 正常
     frame(40); // delta 30 → >20 → minor（证明 longFrameThresholdMs=999 被忽略）
@@ -398,7 +404,7 @@ describe('MinigameFrameRateIntegration', () => {
       longFrameThresholdMs: 50,
       jankLevels: {}, // 无有效档 → 回退单档
     });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     frame(10); // delta 10 → 正常
     frame(40); // delta 30 → ≤50 正常
@@ -426,7 +432,7 @@ describe('MinigameFrameRateIntegration', () => {
     });
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('jankLevels'));
 
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     frame(10); // delta 10 → 正常
     frame(40); // delta 30 → ≤50（已回退单档阈值），不计 jank
     frame(140); // delta 100 → >50 → jank（单档行为，无 level）
@@ -450,7 +456,7 @@ describe('MinigameFrameRateIntegration', () => {
     });
     expect(warnSpy).toHaveBeenCalled();
 
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     frame(20); // delta 20 → 默认单档阈值 50 以下，不计 jank
     frame(120); // delta 100 → >50 → jank（无 level）
 
@@ -465,7 +471,7 @@ describe('MinigameFrameRateIntegration', () => {
       reportInterval: 100, // 小窗口，迫使 _report 多次触发，验证跨窗口累积
       jankLevels: { minor: 17, major: 33, severe: 100 },
     });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     frame(20); // delta 20 → minor（窗口1）
     frame(140); // delta 120 → severe（窗口1）；windowElapsed 140≥100 → _report 滚入会话
@@ -482,7 +488,7 @@ describe('MinigameFrameRateIntegration', () => {
 
   it('不传 jankLevels 时 summary 只有 jank_count，无任何分档 measurement（不回归）', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 10000 });
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     frame(20);
     frame(120); // delta 100 → 默认阈值 50 → jank（无 level）

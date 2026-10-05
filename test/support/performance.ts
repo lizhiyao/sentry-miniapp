@@ -1,3 +1,4 @@
+import { Scope } from '@sentry/core';
 import { vi, type Mock, type Mocked } from 'vitest';
 import type { PerformanceIntegration } from '../../src/integrations/performance';
 import type {
@@ -69,11 +70,11 @@ export function createPerformanceTestHarness(
       () => mockObserver,
     ),
   };
-  const mockScope = {
+  const mockScope = Object.assign(new Scope(), {
     setTag: vi.fn(),
     setContext: vi.fn(),
     addBreadcrumb: vi.fn(),
-  };
+  });
   const mockSpan = {
     setAttributes: vi.fn(),
     end: vi.fn(),

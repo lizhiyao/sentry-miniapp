@@ -1,3 +1,4 @@
+import { automaticSpanAttributes } from '../spanDimensions';
 import {
   addBreadcrumb,
   getUrlQuery,
@@ -388,7 +389,7 @@ function startRequestSpan(
       // transaction」，且 `traceLifecycle: 'static'` 下无父普通 span 会被 core 转成 transaction。
       // 该 experimental 项由 core 标注在 static 生命周期移除后一并删除，届时可去掉本分支。
       ...(!parentSpan && { experimental: { standalone: true } }),
-      attributes: {
+      attributes: automaticSpanAttributes(client, {
         [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: 'auto.http.miniapp',
         // core 11 移除了数字 `kind`，OTEL SpanKind.CLIENT 改由 'sentry.kind' 属性表达。
         'sentry.kind': 'client',
@@ -401,7 +402,7 @@ function startRequestSpan(
         'http.request.method': method,
         'url.full': url,
         'server.address': serverAddress || undefined,
-      },
+      }),
     });
     return { span, standalone };
   } catch (_e) {

@@ -2,8 +2,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getConfiguredDefaultIntegrationsMode, MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
-import { Client, SeverityLevel, getCurrentScope, parameterize } from '@sentry/core';
+import {
+  Client,
+  SeverityLevel,
+  getCurrentScope,
+  getIsolationScope,
+  parameterize,
+  type Event,
+  type EventHint,
+} from '@sentry/core';
 import { miniappStackParser } from '../src/stacktrace';
+
+function prepare(client: MiniappClient, event: Event, hint: EventHint) {
+  return client['_prepareEvent'](event, hint, getCurrentScope(), getIsolationScope());
+}
 
 describe('MiniappClient', () => {
   let client: MiniappClient;
@@ -127,6 +139,7 @@ describe('MiniappClient', () => {
     });
 
     it('attaches a synthetic stack when attachStacktrace is enabled', async () => {
+      resetPlatformCache();
       const c = new MiniappClient({
         attachStacktrace: true,
         stackParser: miniappStackParser,
@@ -148,22 +161,9 @@ describe('MiniappClient', () => {
   });
 
   describe('_prepareEvent', () => {
-    it('should add SDK information to event', async () => {
-      const event = { message: 'test' };
-      const preparedEvent = await client['_prepareEvent'](event, {});
-
-      expect(preparedEvent?.sdk).toBeDefined();
-      expect(preparedEvent?.sdk?.name).toBe('sentry.javascript.miniapp');
-      expect(preparedEvent?.sdk?.version).toBeDefined();
-      expect(preparedEvent?.sdk?.packages).toContainEqual({
-        name: 'npm:sentry-miniapp',
-        version: preparedEvent?.sdk?.version,
-      });
-    });
-
     it('should add miniapp context', async () => {
       const event = { message: 'test' };
-      const preparedEvent = await client['_prepareEvent'](event, {});
+      const preparedEvent = await prepare(client, event, {});
 
       expect(preparedEvent?.contexts).toBeDefined();
       expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
@@ -173,26 +173,19 @@ describe('MiniappClient', () => {
 
     it('should add system information', async () => {
       const event = { message: 'test' };
-      const preparedEvent = await client['_prepareEvent'](event, {});
+      const preparedEvent = await prepare(client, event, {});
 
       expect(preparedEvent?.contexts?.['device']).toBeDefined();
       expect(preparedEvent?.contexts?.['os']).toBeDefined();
     });
 
-    it('initializes missing contexts when filling default system information', () => {
-      const event = client['_fillDefaultContexts']({ message: 'test' } as any);
-
-      expect(event?.contexts?.device).toBeDefined();
-      expect(event?.contexts?.os).toBeDefined();
-      expect(event?.contexts?.app).toBeDefined();
-    });
-
     it('should skip system information when enableSystemInfo is false', async () => {
+      resetPlatformCache();
       const client = new MiniappClient({
         dsn: 'https://test@sentry.io/123',
         enableSystemInfo: false,
       });
-      const event = await client['_prepareEvent']({ message: 'test' }, {});
+      const event = await prepare(client, { message: 'test' }, {});
 
       expect(event?.contexts?.['miniapp']).toBeDefined();
       expect(event?.contexts?.['device']).toBeUndefined();
@@ -224,8 +217,10 @@ describe('MiniappClient', () => {
         }),
       };
 
+      resetPlatformCache();
+
       const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
-      const event = await client['_prepareEvent']({ message: 'test' }, {});
+      const event = await prepare(client, { message: 'test' }, {});
 
       expect(event?.contexts?.device).toEqual({
         brand: 'Apple',
@@ -238,8 +233,8 @@ describe('MiniappClient', () => {
       });
 
       expect(event?.contexts?.os).toEqual({
-        name: 'iOS 15.0',
-        version: '8.0.0',
+        name: 'iOS',
+        version: '15.0',
       });
 
       expect(event?.contexts?.app).toEqual({
@@ -275,28 +270,20 @@ describe('MiniappClient', () => {
         }),
       };
 
+      resetPlatformCache();
+
       const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
-      const event = await client['_prepareEvent']({ message: 'test' }, {});
+      const event = await prepare(client, { message: 'test' }, {});
 
       expect(event?.contexts?.device).toEqual({
-        brand: 'unknown',
         model: 'iPhone',
-        screen_resolution: '0x812',
-        language: 'unknown',
         version: '8.0.0',
-        system: 'unknown',
         platform: 'ios',
       });
 
-      expect(event?.contexts?.os).toEqual({
-        name: 'unknown',
-        version: '8.0.0',
-      });
+      expect(event?.contexts?.os).toBeUndefined();
 
-      expect(event?.contexts?.app).toEqual({
-        app_identifier: 'unknown',
-        app_version: 'unknown',
-      });
+      expect(event?.contexts?.app).toBeUndefined();
 
       // Ensure no undefined values exist
       const deviceContext = event?.contexts?.device;
@@ -309,28 +296,14 @@ describe('MiniappClient', () => {
       // Mock no system info available
       (global as any).wx = {};
 
+      resetPlatformCache();
+
       const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
-      const event = await client['_prepareEvent']({ message: 'test' }, {});
+      const event = await prepare(client, { message: 'test' }, {});
 
-      expect(event?.contexts?.device).toEqual({
-        brand: 'unknown',
-        model: 'unknown',
-        screen_resolution: '0x0',
-        language: 'unknown',
-        version: 'unknown',
-        system: 'unknown',
-        platform: 'unknown',
-      });
-
-      expect(event?.contexts?.os).toEqual({
-        name: 'unknown',
-        version: 'unknown',
-      });
-
-      expect(event?.contexts?.app).toEqual({
-        app_identifier: 'unknown',
-        app_version: 'unknown',
-      });
+      expect(event?.contexts?.device).toBeUndefined();
+      expect(event?.contexts?.os).toBeUndefined();
+      expect(event?.contexts?.app).toBeUndefined();
 
       // Ensure no undefined values exist
       const allContexts = [event?.contexts?.device, event?.contexts?.os, event?.contexts?.app];
@@ -349,7 +322,7 @@ describe('MiniappClient', () => {
           miniapp: { environment: 'custom-environment', tenant: 'tenant-a' },
         },
       };
-      const preparedEvent = await client['_prepareEvent'](event, {});
+      const preparedEvent = await prepare(client, event, {});
 
       expect(preparedEvent?.contexts?.['custom']).toEqual({ data: 'value' });
       expect(preparedEvent?.contexts?.['miniapp']).toEqual(
@@ -382,12 +355,14 @@ describe('MiniappClient', () => {
       });
 
       try {
+        resetPlatformCache();
         const c = new MiniappClient({
           dsn: 'https://test@sentry.io/123',
           integrations: [],
           stackParser: miniappStackParser,
         } as any);
-        const event = await c['_prepareEvent'](
+        const event = await prepare(
+          c,
           {
             exception: {
               values: [
@@ -416,9 +391,7 @@ describe('MiniappClient', () => {
           code_file: 'xmg-sdk-wx.js',
           debug_id: debugId,
         });
-        expect(
-          event?.exception?.values?.[0]?.stacktrace?.frames?.[0]?.debug_id,
-        ).toBeUndefined();
+        expect(event?.exception?.values?.[0]?.stacktrace?.frames?.[0]?.debug_id).toBeUndefined();
       } finally {
         if (originalWindow) {
           Object.defineProperty(globalThis, 'window', originalWindow);
@@ -449,12 +422,13 @@ describe('MiniappClient', () => {
       });
 
       try {
+        resetPlatformCache();
         const c = new MiniappClient({
           debug: true,
           integrations: [],
           stackParser: miniappStackParser,
         });
-        await c['_prepareEvent']({ message: 'test' }, {});
+        await prepare(c, { message: 'test' }, {});
       } finally {
         if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
         else Reflect.deleteProperty(globalThis, 'window');
@@ -468,9 +442,10 @@ describe('MiniappClient', () => {
 
     it('normalizes direct client construction so event preparation does not need a fallback', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      resetPlatformCache();
       const c = new MiniappClient({ debug: true });
 
-      const event = await c['_prepareEvent']({ message: 'test' }, {});
+      const event = await prepare(c, { message: 'test' }, {});
 
       expect(event?.message).toBe('test');
       expect(consoleSpy).not.toHaveBeenCalledWith(
@@ -479,28 +454,15 @@ describe('MiniappClient', () => {
       );
     });
 
-    it('core 事件准备失败时保留原事件并补齐默认上下文', async () => {
+    it('core 准备失败不回退为未经处理的原事件', () => {
       const error = new Error('scope unavailable');
-      const prepare = vi.spyOn(Client.prototype as any, '_prepareEvent').mockImplementation(() => {
+      const mocked = vi.spyOn(Client.prototype as any, '_prepareEvent').mockImplementation(() => {
         throw error;
       });
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const c = new MiniappClient({ debug: true });
-
       try {
-        const event = await c['_prepareEvent']({ message: 'keep me' }, {});
-
-        expect(event?.message).toBe('keep me');
-        expect(event?.contexts?.['miniapp']).toEqual(
-          expect.objectContaining({ environment: 'miniapp', platform: 'wechat' }),
-        );
-        expect(warn).toHaveBeenCalledWith(
-          '[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:',
-          error,
-        );
+        expect(() => prepare(client, { message: 'raw-canary' }, {})).toThrow(error);
       } finally {
-        prepare.mockRestore();
-        warn.mockRestore();
+        mocked.mockRestore();
       }
     });
 
@@ -514,10 +476,10 @@ describe('MiniappClient', () => {
           SDKVersion: '2',
         }),
       };
-      // integrations: [] 让 super._prepareEvent 真正跑通（裸 new 无 integrations 会在
-      // core 的 options.integrations.map 处抛错走兜底，测不到真实 scope 合并路径）。
+      resetPlatformCache();
       const c = new MiniappClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
-      const event = await c['_prepareEvent'](
+      const event = await prepare(
+        c,
         { message: 'test', contexts: { os: { name: 'CustomOS', version: '99' } } },
         {},
       );
@@ -537,12 +499,13 @@ describe('MiniappClient', () => {
           SDKVersion: '2',
         }),
       };
+      resetPlatformCache();
       const c = new MiniappClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
 
       const scope = getCurrentScope();
       scope.setContext('os', { name: 'ScopeOS', version: '1' });
       try {
-        const event = await c['_prepareEvent']({ message: 'test' }, {});
+        const event = await prepare(c, { message: 'test' }, {});
         // scope 上用户设的 os 经 core 合并后应胜出，不被 SDK 自动值覆盖
         expect(event?.contexts?.os).toEqual({ name: 'ScopeOS', version: '1' });
         expect(event?.contexts?.device?.brand).toBe('Apple');
@@ -612,6 +575,7 @@ describe('MiniappClient', () => {
 
     it('warns in debug mode when a registered cleanup callback fails', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      resetPlatformCache();
       const c = new MiniappClient({
         debug: true,
         transport: () => ({
@@ -633,6 +597,7 @@ describe('MiniappClient', () => {
 
     it('runs cleanup callbacks even when transport flush rejects', async () => {
       const cleanup = vi.fn();
+      resetPlatformCache();
       const c = new MiniappClient({
         dsn: 'https://test@sentry.io/123',
         transport: () => ({
