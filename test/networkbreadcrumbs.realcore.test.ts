@@ -140,6 +140,51 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     );
   });
 
+  it('URL userinfo/fragment 和追加敏感 query 不出现在任何最终别名', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      sensitiveKeys: ['memberNo'],
+      tracesSampleRate: 1,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+    const url = 'https://canary-user:canary-password@api.example.com/path?memberNo=canary-member&card_number=canary-card#canary-fragment';
+    g.tt.request({ url });
+    captureException(new Error('URL privacy probe'));
+    await flush(2000);
+    expect(collectSpans(captured)).toHaveLength(1);
+    expect(xhrBreadcrumbData(captured)['url.query']).toBe('memberNo=[Filtered]&card_number=[Filtered]');
+    expect(requestMock.mock.calls[0]?.[0].url).toBe(url);
+    expect(JSON.stringify(captured)).not.toContain('canary');
+  });
+
+  it.each([
+    'data:text/plain,canary-payload?foo=canary-query#canary-fragment',
+    'javascript:canary-payload?foo=canary-query#canary-fragment',
+    'https://api.example.com/path?tok%FFen=canary-query',
+  ])('无法安全采集的 URL 内容不经 breadcrumb 回退泄漏：%s', async (url) => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+    g.tt.request({ url });
+    captureException(new Error('unsafe URL probe'));
+    await flush(2000);
+    expect(xhrBreadcrumbData(captured)['url.query']).toBeUndefined();
+    expect(requestMock.mock.calls[0]?.[0].url).toBe(url);
+    expect(JSON.stringify(captured)).not.toContain('canary');
+  });
+
   it('独立 span 按 span/v2 传输契约发送', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
@@ -415,6 +460,37 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       token: '[Filtered]',
       name: 'xiao',
     });
+  });
+
+  it.each([true, false])('query=%s 时 form 正文在最终 envelope 独立脱敏', async (urlQueryParams) => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      traceNetworkBody: true,
+      sensitiveKeys: ['memberNo'],
+      dataCollection: { urlQueryParams },
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    const body = 'id=7&id=8&access%54oken=canary-token&memberNo=canary-member&card_number=canary-card';
+    const success = vi.fn();
+    g.tt.request({ url: 'https://api.example.com/v1/form', method: 'POST', data: body, success });
+    captureException(new Error('form probe'));
+    await flush(2000);
+
+    expect(success).toHaveBeenCalledOnce();
+    expect(requestMock.mock.calls[0]?.[0].data).toBe(body);
+    const crumbData = xhrBreadcrumbData(captured);
+    expect(crumbData.request_body).toBe(
+      'id=7&id=8&access%54oken=[Filtered]&memberNo=[Filtered]&card_number=[Filtered]',
+    );
+    expect(crumbData.request_body_size).toBe(utf8ByteLength(body));
+    expect(JSON.stringify(captured)).not.toContain('canary');
   });
 
   it('面包屑按 core 口径拆成 url 与 url.query', async () => {

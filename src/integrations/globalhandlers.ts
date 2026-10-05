@@ -3,6 +3,8 @@ import type { Client, Event, Integration, IntegrationFn } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
 import { getErrorDetails } from '../helpers';
+import { collectKeyValueData, collectUrlName } from '../dataCollection';
+import type { MiniappOptions } from '../types';
 
 interface RecentInstrumentEvent {
   capturedAt: number;
@@ -70,11 +72,10 @@ export class GlobalHandlers implements Integration {
 
   private _errorHandler: ((err: PlatformErrorValue) => void) | null = null;
   private _rejectionHandler:
-    | ((res: { reason: string | Error; promise: Promise<any> }) => void)
-    | null = null;
+    ((res: { reason: string | Error; promise: Promise<any> }) => void) | null = null;
   private _pageNotFoundHandler:
-    | ((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => void)
-    | null = null;
+    ((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => void) | null =
+    null;
   private _memoryWarningHandler: ((res: { level: number }) => void) | null = null;
   private _client: Client | undefined;
   private readonly _recentInstrumentEvents: RecentInstrumentEvent[] = [];
@@ -249,13 +250,18 @@ export class GlobalHandlers implements Integration {
         isEntryPage: boolean;
       }) => {
         if (this._client && getClient() !== this._client) return;
-        const url = res.path.split('?')[0];
+        const url = collectUrlName(res.path);
+        const query = collectKeyValueData(
+          res.query,
+          this._client,
+          (this._client?.getOptions?.() as MiniappOptions | undefined)?.sensitiveKeys,
+        );
 
         withScope((scope) => {
           scope.setTag('pagenotfound', url);
           scope.setContext('page_not_found', {
-            path: res.path,
-            query: res.query,
+            path: url,
+            ...(query && { query }),
             isEntryPage: res.isEntryPage,
           });
 

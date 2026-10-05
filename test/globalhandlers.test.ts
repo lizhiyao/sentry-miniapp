@@ -4,7 +4,8 @@ import type { Event } from '@sentry/core';
 import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/index';
 
 // Mock @sentry/core
-vi.mock('@sentry/core', () => ({
+vi.mock('@sentry/core', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@sentry/core')>(),
   captureException: vi.fn(),
   withScope: vi.fn(),
 }));
@@ -288,7 +289,7 @@ describe('GlobalHandlers', () => {
       expect(mockScope.setContext).toHaveBeenCalledWith(
         'page_not_found',
         expect.objectContaining({
-          path: 'pages/missing?id=1',
+          path: 'pages/missing',
           query: { id: '1' },
           isEntryPage: false,
         }),

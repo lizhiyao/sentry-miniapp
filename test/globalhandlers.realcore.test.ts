@@ -3,6 +3,8 @@ import {
   captureException,
   getClient,
   flush,
+  getCurrentScope,
+  getIsolationScope,
   installedIntegrations,
   type Envelope,
   type Event,
@@ -36,6 +38,10 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     resetPlatformCache();
     _resetAppLifecycle();
     installedIntegrations.length = 0;
+    for (const scope of [getCurrentScope(), getIsolationScope()]) {
+      scope.clearBreadcrumbs();
+      scope.setContext('minigame', null);
+    }
     onErrorHandler = undefined;
     onPageNotFoundHandler = undefined;
     g.wx = {
@@ -58,6 +64,54 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     _resetAppLifecycle();
     resetPlatformCache();
     delete g.wx;
+  });
+
+  it.each([true, false])('默认 pageNotFound query=%s 时所有别名不泄露敏感值', async (urlQueryParams) => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      dataCollection: { urlQueryParams },
+      sensitiveKeys: ['memberNo'],
+      enableAutoSessionTracking: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+    onPageNotFoundHandler!({
+      path: 'https://canary-user:canary-password@example.com/missing?token=canary-token#canary-fragment',
+      query: { token: 'canary-token', memberNo: 'canary-member', card_number: 'canary-card', id: '7' },
+      isEntryPage: false,
+    });
+    await flush(2000);
+    const event = collectEnvelopePayloads<Event>(captured, ['event'])[0];
+    assertDefined(event);
+    expect(event.contexts?.page_not_found?.query).toEqual(urlQueryParams
+      ? { token: '[Filtered]', memberNo: '[Filtered]', card_number: '[Filtered]', id: '7' }
+      : undefined);
+    expect(JSON.stringify(captured)).not.toContain('canary');
+  });
+
+  it.each([true, false])('默认小游戏启动 query=%s 使用 client 的采集策略', async (urlQueryParams) => {
+    g.wx.getLaunchOptionsSync = () => ({
+      scene: 1001,
+      path: 'game.js?token=canary-path#canary-fragment',
+      query: { token: 'canary-token', memberNo: 'canary-member', card_number: 'canary-card', id: '7' },
+    });
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      dataCollection: { urlQueryParams },
+      sensitiveKeys: ['memberNo'],
+      enableAutoSessionTracking: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+    captureException(new Error('launch probe'));
+    await flush(2000);
+    const event = collectEnvelopePayloads<Event>(captured, ['event'])[0];
+    assertDefined(event);
+    expect(event.contexts?.minigame?.path).toBe('game.js');
+    expect(event.contexts?.minigame?.query).toEqual(urlQueryParams
+      ? { token: '[Filtered]', memberNo: '[Filtered]', card_number: '[Filtered]', id: '7' }
+      : undefined);
+    expect(JSON.stringify(captured)).not.toContain('canary');
   });
 
   it('wx.onError 触发 → core 上报 exception，mechanism.handled=false', async () => {

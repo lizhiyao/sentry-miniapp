@@ -337,8 +337,8 @@ describe.each(PLATFORM_CONTRACTS)(
       }
       for (const handler of pageNotFoundHandlers) {
         handler({
-          path: `pages/missing/index?platform=${platform}`,
-          query: { platform },
+          path: `pages/missing/index?platform=${platform}&token=canary-path#canary-fragment`,
+          query: { platform, token: 'canary-token', card_number: 'canary-card' },
           isEntryPage: false,
         });
       }
@@ -396,10 +396,11 @@ describe.each(PLATFORM_CONTRACTS)(
         handled: true,
       });
       expect(pageNotFoundEvent?.contexts?.page_not_found).toEqual({
-        path: `pages/missing/index?platform=${platform}`,
-        query: { platform },
+        path: 'pages/missing/index',
+        query: { platform, token: '[Filtered]', card_number: '[Filtered]' },
         isEntryPage: false,
       });
+      expect(JSON.stringify(pageNotFoundEvent)).not.toContain('canary');
       const memoryWarningEvent = events.find((candidate) =>
         candidate.exception?.values?.some((value: any) =>
           value.value?.includes('内存不足告警'),

@@ -4,6 +4,8 @@ import {
   EXTRA_SENSITIVE_KEY_SNIPPETS,
   collectBody,
   collectKeyValueData,
+  collectQueryString,
+  collectUrl,
   resolveMaxBodyBytes,
   sanitizeCollectedData,
   truncateToBytes,
@@ -27,6 +29,9 @@ describe('dataCollection 适配层', () => {
     // 0 与负数不是合法上限，回落到默认值而不是把体截成空。
     expect(resolveMaxBodyBytes(0)).toBe(1024 * 1024);
     expect(resolveMaxBodyBytes(-5)).toBe(1024 * 1024);
+    expect(resolveMaxBodyBytes(Infinity)).toBe(1024 * 1024);
+    expect(resolveMaxBodyBytes(NaN)).toBe(1024 * 1024);
+    expect(resolveMaxBodyBytes(1.5)).toBe(1024 * 1024);
   });
 
   it('按码点算 UTF-8 字节，不依赖宿主的 TextEncoder', () => {
@@ -42,6 +47,14 @@ describe('dataCollection 适配层', () => {
     // 预算里塞不下第二个汉字，只留第一个汉字 + 省略号。
     expect(truncated).toBe('中...');
     expect(truncateToBytes('abc', 10)).toBe('abc');
+  });
+
+  it.each([0, 1, 2, 3])('极小截断预算 %i 不被省略号突破', (budget) => {
+    expect(utf8ByteLength(truncateToBytes('中文🙂abcdef', budget))).toBeLessThanOrEqual(budget);
+  });
+
+  it.each([-1, NaN, Infinity, 1.5])('直接传入非法截断预算 %s 不返回原文', (budget) => {
+    expect(truncateToBytes('sensitive original body', budget)).toBe('');
   });
 
   it('请求体先脱敏再截断，体积按截断前的完整字节数记', () => {
@@ -68,6 +81,43 @@ describe('dataCollection 适配层', () => {
     const sanitized = sanitizeCollectedData([{ token: 't' }, { id: 1 }], true) as unknown[];
     expect(Array.isArray(sanitized)).toBe(true);
     expect(sanitized).toEqual([{ token: '[Filtered]' }, { id: 1 }]);
+  });
+
+  it.each([true, false, { allow: ['token', 'memberNo', 'card_number'] }])(
+    'form body 脱敏独立于 query 策略 %j，保留重复键和原编码',
+    (urlQueryParams) => {
+      const form = collectBody(
+        'id=7&id=8&access%54oken=canary-token&memberNo=canary-member&card_number=canary-card&name=xiao+ming',
+        fakeClient({ urlQueryParams }),
+        1000,
+        ['memberNo'],
+      );
+      expect(form.body).toBe(
+        'id=7&id=8&access%54oken=[Filtered]&memberNo=[Filtered]&card_number=[Filtered]&name=xiao+ming',
+      );
+      expect(form.body).not.toContain('canary');
+    },
+  );
+
+  it('form 键无法安全解码时省略正文，仍报告原始字节数', () => {
+    const body = 'tok%FFen=canary-token&id=7';
+    expect(collectBody(body, fakeClient(), 1000)).toEqual({ body: '', byteLength: utf8ByteLength(body) });
+  });
+
+  it('query 保留重复编码，只过滤值；坏键与原型键不能降级泄漏', () => {
+    expect(collectQueryString('id=1&id=2&access%54oken=secret&memberNo=m', fakeClient(), ['memberNo']))
+      .toBe('id=1&id=2&access%54oken=[Filtered]&memberNo=[Filtered]');
+    expect(collectQueryString('tok%FFen=secret', fakeClient())).toBeUndefined();
+    expect(collectQueryString('__proto__=secret', fakeClient(), ['proto'])).toBe('__proto__=[Filtered]');
+    expect(collectUrl('https://user:secret@example.com/path?tok%FFen=secret#fragment', fakeClient()))
+      .toBe('https://[filtered]:[filtered]@example.com/path');
+    expect(collectUrl('javascript:alert(secret)?token=secret#fragment', fakeClient()))
+      .toBe('javascript:[Filtered]');
+    expect(collectUrl(undefined as any, fakeClient())).toBe('');
+  });
+
+  it('无法读取宿主 getter 时省略采集，不影响业务', () => {
+    expect(collectKeyValueData({ get id() { throw new Error('host getter'); } }, fakeClient())).toBeUndefined();
   });
 
   it('本 SDK 补齐的支付与证件片段只在键值数据里生效', () => {

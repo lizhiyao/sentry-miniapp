@@ -78,7 +78,7 @@ Sentry.addBreadcrumb({
 
 网络面包屑默认包含 URL、方法、状态码和耗时，不记录请求体与响应体。字段与 core 11 的口径一致：`url` 只到路径，query 单列在 `url.query`，两者都按 `dataCollection.urlQueryParams` 过滤。确实需要 body 时再开启 `traceNetworkBody`，体先按敏感键脱敏、再按 `maxRequestBodySize` 截断，`request_body_size` / `response_body_size` 记录截断前的完整字节数。
 
-SDK 自动采集的键值数据（URL query、页面 `onLoad` 入参、交互 `dataset`、请求 / 响应体）共用一套脱敏：大小写不敏感的**片段**匹配 core 内置敏感名单（`token` / `auth` / `secret` / `key` / `sid` …）加上本 SDK 补齐的支付与证件片段（`card_number` / `cvv` / `ssn` / `id_card` …），命中的值就地替换为 `[Filtered]`。业务自有字段用顶层 `sensitiveKeys` **追加**，不会顶掉这份名单；要整块不采时用 `dataCollection: { urlQueryParams: false }`。
+SDK 自动采集的键值数据（URL query、页面 `onLoad` 入参、默认 pageNotFound／小游戏启动 query、交互 `dataset`、JSON／form 请求与响应体）共用敏感键口径：大小写不敏感的**片段**匹配 core 内置敏感名单（`token` / `auth` / `secret` / `key` / `sid` …）加上本 SDK 补齐的支付与证件片段（`card_number` / `cvv` / `ssn` / `id_card` …），命中的值就地替换为 `[Filtered]`。业务自有字段用顶层 `sensitiveKeys` **追加**，不会顶掉这份名单。`dataCollection: { urlQueryParams: false }` 关闭 URL／页面／启动 query，正文仍由 `traceNetworkBody` 与 `httpBodies` 独立控制和脱敏，交互 dataset 不由 query 开关控制。1.x 的未知纯文本正文仍沿用原有采集行为，详见[采集数据的脱敏口径](/guide/configuration#采集数据的脱敏口径)。
 
 ## 独立业务日志
 

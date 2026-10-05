@@ -1,5 +1,6 @@
 import type { Envelope, OfflineStore, OfflineTransportOptions } from '@sentry/core';
 import { sdk } from '../crossPlatform';
+import { resolveNonNegativeInteger } from '../numericOptions';
 
 const DEFAULT_OFFLINE_CACHE_SIZE = 30;
 const DEFAULT_MAX_AGE = 86400000; // 24 小时
@@ -40,10 +41,13 @@ export interface MiniappOfflineStoreOptions extends OfflineTransportOptions {
  * 支持事件过期淘汰、按条数 / 体积上限淘汰，以及两种淘汰策略（见 {@link EvictionMode}）。
  */
 export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): OfflineStore {
-  // 用 ?? 而非 ||：尊重显式的 0（|| 会把 0 当成未设置而回退默认值）。
-  const maxCacheSize = options.offlineCacheLimit ?? DEFAULT_OFFLINE_CACHE_SIZE;
-  const maxAge = options.offlineCacheMaxAge ?? DEFAULT_MAX_AGE;
-  const maxBytes = options.maxBytes ?? DEFAULT_MAX_STORE_BYTES;
+  // 有限容量保护淘汰循环；显式 0 仍表示不保留事件。
+  const maxCacheSize = resolveNonNegativeInteger(
+    options.offlineCacheLimit,
+    DEFAULT_OFFLINE_CACHE_SIZE,
+  );
+  const maxAge = resolveNonNegativeInteger(options.offlineCacheMaxAge, DEFAULT_MAX_AGE);
+  const maxBytes = resolveNonNegativeInteger(options.maxBytes, DEFAULT_MAX_STORE_BYTES);
   const evictionMode = options.evictionMode ?? 'error-priority';
   const onDrop = options.onDrop;
 

@@ -42,7 +42,7 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | 把 `console` 输出记为面包屑 |
 | `enableSystemInfo` | `boolean` | `true` | 采集设备 / 系统信息作为 context |
 | `traceNetworkBody` | `boolean` | `false` | 网络面包屑中记录请求 / 响应体；体先按敏感键脱敏再按 `maxRequestBodySize` 截断，且仍受 `dataCollection.httpBodies` 约束 |
-| `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | 单个请求 / 响应体上报的字节上限（`small` = 1 KB、`medium` = 10 KB）。超出部分截断并补 `...`，`request_body_size` / `response_body_size` 仍按截断前的完整字节数记录 |
+| `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | 单个请求 / 响应体上报的字节上限（`small` = 1 KB、`medium` = 10 KB）。数值须为正安全整数，否则回落默认；超出部分截断，省略号也计入上限，1／2 字节预算分别最多补 `.`／`..`。`request_body_size` / `response_body_size` 仍记录原文的完整字节数 |
 | `dataCollection` | `object` | 见下 | core 11 的采集开关。本 SDK 尊重 `urlQueryParams`（URL、`url.full`、面包屑 `url.query`、页面 `onLoad` 入参）与 `httpBodies`（请求 / 响应体方向）；**不采集请求头、响应头与 cookie**，因此 `httpHeaders` / `cookies` 在本 SDK 无作用对象 |
 | `maxBreadcrumbs` | `number` | `100` | 面包屑最大条数 |
 
@@ -56,8 +56,8 @@ SDK 自动采集的键值数据都走 core 11 的 `CollectBehavior` 语义：键
 
 - **匹配方式**：大小写不敏感的**片段**匹配，不是全等。`accessToken`、`xApiKey`、`sid` 这类写法都会被内置名单（`auth` / `token` / `secret` / `key` / `session` / `cookie` …）命中。
 - **本 SDK 补齐**：core 内置名单没有的支付与证件类片段（`credit_card` / `card_number` / `cvv` / `ssn` / `id_card` 等）也一并脱敏。
-- **作用范围**：请求 / 响应体（JSON 会递归到嵌套对象与数组）、页面 `onLoad` 入参、用户交互的 `dataset`、URL query。
-- **追加自己的片段**：`NetworkBreadcrumbs` 的 `sensitiveKeys` 选项是**在以上名单之上追加**，不再顶掉内置默认：
+- **作用范围**：请求 / 响应体（JSON 会递归到嵌套对象与数组，form 保留重复键及非敏感字段编码）、页面 `onLoad` 入参、默认 pageNotFound 与小游戏启动 query、用户交互的 `dataset`、HTTP URL query。
+- **追加自己的片段**：顶层 `sensitiveKeys` 选项是**在以上名单之上追加**，不再顶掉内置默认；手动配置 `NetworkBreadcrumbs` 时也可在其工厂选项里追加：
 
 ```js
 Sentry.init({
@@ -67,6 +67,10 @@ Sentry.init({
 ```
 
 > 页面入参与 URL query 受 `dataCollection.urlQueryParams` 控制：`false` 时整块不采（面包屑里不出现 `query` / `url.query`），`{ deny: [...] }` / `{ allow: [...] }` 按名单收窄。
+
+JSON 与 form 正文脱敏独立于 query 策略，关闭 query 不会放过正文中的敏感值。form 键无法安全解码时正文置空，原始字节数仍记录；getter 等宿主数据读取失败时省略对应键值采集。1.x 仍保留未知纯文本正文的原有采集行为，不能将敏感键过滤视为任意正文的隐私保证。
+
+SDK 自动产生的 HTTP、navigation/resource URL 名称去掉 query、fragment，并过滤明文 userinfo；HTTP `url.full` 可保留经过过滤的 query。User Timing 的业务名称不按 URL 处理。缺原生 `URLSearchParams` 的宿主使用 form 编码 polyfill，坏百分号不会抛错，非法 UTF-8 与孤立 surrogate 使用替换字符；SDK 自采 query 遇到不能安全解码的键时直接省略 query。
 
 ## Logs
 
@@ -128,6 +132,8 @@ console.log(diagnostics.warnings);
 | `enableOfflineCache` | `boolean` | `true` | 断网 / 发送失败时缓存事件到本地 Storage，网络恢复后静默重试 |
 | `offlineCacheLimit` | `number` | `30` | 离线缓存最大事件数 |
 | `offlineCacheMaxAge` | `number` | `86400000` | 缓存过期时间（ms），默认 24 小时，超时丢弃 |
+
+SDK 的缓存条数、字节数、TTL 与性能 buffer/report interval 使用非负安全整数；负数、NaN、Infinity 和小数回落各自默认值。缓存条数／字节上限为 0 时不保留事件，TTL 为 0 时立即过期。通用 Performance 的 `bufferSize: 0` 不保留统计条目，`reportInterval: 0` 关闭周期汇总；timer 间隔还受 JavaScript timer 上限约束。这些校验不改变 core 的 `sampleRate`、`tracesSampleRate` 或 `tracesSampler` 决策。
 
 ## 隐私合规（同意后上报）
 

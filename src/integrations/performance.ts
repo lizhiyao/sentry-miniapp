@@ -21,6 +21,8 @@ import {
   type PerformanceObserver,
 } from '../crossPlatform';
 import { setClientSpanDimension } from '../spanDimensions';
+import { collectUrlName } from '../dataCollection';
+import { resolveNonNegativeInteger } from '../numericOptions';
 
 const EPOCH_TIMESTAMP_THRESHOLD = 100_000_000_000;
 const MAX_PLAUSIBLE_RELATIVE_RUNTIME = 30 * 24 * 60 * 60 * 1000;
@@ -88,10 +90,13 @@ export class PerformanceIntegration implements Integration {
       enableResource: true,
       enableUserTiming: false,
       sampleRate: 1.0,
-      bufferSize: 100,
-      reportInterval: 30000, // 30秒
       enableMemory: false,
       ...options,
+      bufferSize: resolveNonNegativeInteger(options.bufferSize, 100),
+      reportInterval: Math.min(
+        resolveNonNegativeInteger(options.reportInterval, 30000),
+        2_147_483_647,
+      ),
       thresholds: {
         navigation: 3000,
         render: 1000,
@@ -289,7 +294,7 @@ export class PerformanceIntegration implements Integration {
     const rootEnd = Math.max(...entriesArray.map((entry) => this._entryTimes(entry).end));
     const navigation = entriesArray.find((entry) => entry.entryType === 'navigation');
     const rootSpan = startInactiveSpan({
-      name: navigation ? `Navigation: ${navigation.name}` : 'Miniapp Performance',
+      name: navigation ? `Navigation: ${collectUrlName(navigation.name)}` : 'Miniapp Performance',
       op: navigation ? 'navigation' : 'miniapp.performance',
       // core 11 废弃 forceTransaction；无父 span 的 root span 自成 segment，子 span 按 traceId 归到
       // 同一条 envelope 发出（SpanStreaming 的 buffer 负责攒批）。
@@ -400,10 +405,11 @@ export class PerformanceIntegration implements Integration {
    */
   private _processNavigationEntry(entry: NavigationPerformanceEntry): void {
     const times = this._entryTimes(entry);
+    const name = collectUrlName(entry.name);
     // 添加面包屑
     const scope = getCurrentScope();
     scope.addBreadcrumb({
-      message: `页面导航: ${entry.name}`,
+      message: `页面导航: ${name}`,
       category: 'performance.navigation',
       level: 'info',
       data: {
@@ -415,13 +421,13 @@ export class PerformanceIntegration implements Integration {
 
     startSpan(
       {
-        name: `Navigation: ${entry.name}`,
+        name: `Navigation: ${name}`,
         op: 'navigation',
         startTime: times.start,
       },
       (span) => {
         span.setAttributes({
-          'navigation.name': entry.name,
+          'navigation.name': name,
           'navigation.duration': entry.duration,
           'navigation.app_launch_time': entry.appLaunchTime || 0,
           'navigation.page_ready_time': entry.pageReadyTime || 0,
@@ -484,15 +490,16 @@ export class PerformanceIntegration implements Integration {
    */
   private _processResourceEntry(entry: ResourcePerformanceEntry): void {
     const times = this._entryTimes(entry);
+    const name = collectUrlName(entry.name);
     startSpan(
       {
-        name: `Resource: ${entry.name}`,
+        name: `Resource: ${name}`,
         op: 'resource',
         startTime: times.start,
       },
       (span) => {
         span.setAttributes({
-          'resource.name': entry.name,
+          'resource.name': name,
           'resource.duration': entry.duration,
           'resource.type': entry.initiatorType || 'unknown',
           'resource.transfer_size': entry.transferSize || 0,

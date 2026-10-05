@@ -1,8 +1,5 @@
 import {
   addBreadcrumb,
-  filterCollectedUrl,
-  filterCollectedUrlQuery,
-  getSanitizedUrlString,
   getUrlQuery,
   parseUrl,
   DEFAULT_ENVIRONMENT,
@@ -23,7 +20,7 @@ import {
   startInactiveSpan,
 } from '@sentry/core';
 import type { Client, Integration, Span } from '@sentry/core';
-import { collectBody, resolveMaxBodyBytes } from '../dataCollection';
+import { collectBody, collectUrl, collectUrlName, resolveMaxBodyBytes } from '../dataCollection';
 import type { MaxBodySizeOption } from '../dataCollection';
 import { sdk } from '../crossPlatform';
 import {
@@ -193,7 +190,7 @@ export class NetworkBreadcrumbs implements Integration {
       const startTime = Date.now();
       // dataCollection.urlQueryParams 只管 SDK 自己采集的数据：span 与面包屑用过滤后的 URL，
       // 而 Sentry 自身请求识别、追踪头注入和 body 黑名单仍按原始 URL 匹配。
-      const collectedUrl = filterCollectedUrl(url, client);
+      const collectedUrl = collectUrl(url, client, sensitiveKeys);
       const requestSpan = startRequestSpan(method, collectedUrl, enableStandaloneHttpSpans, client);
       let requestSpanFinished = false;
       const finishSpanOnce = (finish: RequestSpanFinishOptions): void => {
@@ -208,12 +205,12 @@ export class NetworkBreadcrumbs implements Integration {
 
       // 面包屑的 url 只到 path（core 的 getSanitizedUrlString），query 单列成 url.query，
       // 与 core 的 fetch 集成同构；span 侧仍用带过滤后 query 的 url.full。
-      const parsedUrl = parseUrl(url);
+      const parsedUrl = parseUrl(collectedUrl);
       const breadcrumbData: Record<string, any> = {
-        url: getSanitizedUrlString(parsedUrl),
+        url: collectUrlName(collectedUrl),
         method,
       };
-      const collectedQuery = filterCollectedUrlQuery(getUrlQuery(parsedUrl.search), client);
+      const collectedQuery = getUrlQuery(parsedUrl.search);
       if (collectedQuery) {
         breadcrumbData['url.query'] = collectedQuery;
       }
@@ -380,7 +377,7 @@ function startRequestSpan(
     if (!parentSpan && !enableStandaloneHttpSpans) return null;
 
     const serverAddress = extractHost(url);
-    const spanName = `${method} ${sanitizeSpanNameUrl(url)}`;
+    const spanName = `${method} ${collectUrlName(url)}`;
     const standalone = !parentSpan;
     const standaloneClientOptions = standalone ? client?.getOptions() : undefined;
     const span = startInactiveSpan({
@@ -410,37 +407,6 @@ function startRequestSpan(
   } catch (_e) {
     return null;
   }
-}
-
-/**
- * 生成 `http.client` span 名用的 URL 清洗：去掉 query/fragment 与 URL 内的 userinfo（账号密码），
- * 既防敏感信息泄漏，也削掉一部分基数。
- *
- * **路径刻意保留原样**——SDK 无法推断 REST 路由模板（如 `/users/123` → `/users/:id`），强行参数化
- * 会误伤合法路径。若 REST 路径 id 造成 tracing 维度过高，请用 Sentry 的 `beforeSendTransaction`
- * 统一改写事务 / span 名（对网络与性能 resource span 均生效），见文档「配置 · 采样」。
- */
-function sanitizeSpanNameUrl(url: string): string {
-  if (url.startsWith('data:')) {
-    return stripDataUrlContent(url);
-  }
-
-  const withoutQueryAndFragment = stripUrlQueryAndFragment(url);
-  return withoutQueryAndFragment.replace(
-    /^([a-z][a-z0-9+.-]*:\/\/)([^/?#@]+@)/i,
-    '$1[filtered]:[filtered]@',
-  );
-}
-
-function stripUrlQueryAndFragment(url: string): string {
-  const stripped = url.split(/[?#]/, 1)[0];
-  return stripped === undefined ? url : stripped;
-}
-
-function stripDataUrlContent(url: string): string {
-  const mimeTypeMatch = url.match(/^data:([^;,]+)/);
-  const mimeType = mimeTypeMatch && mimeTypeMatch[1] ? mimeTypeMatch[1] : 'text/plain';
-  return `data:${mimeType}`;
 }
 
 function injectTraceHeaders(
