@@ -83,3 +83,8 @@ export class SessionIntegration implements Integration {
     for (const cleanup of [...this._cleanups]) cleanup();
   }
 }
+
+/** 每次装配创建独立实例，资源仍由 client lifetime 管理。 */
+export function sessionIntegration(): Integration {
+  return new SessionIntegration();
+}

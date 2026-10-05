@@ -56,7 +56,7 @@ SDK 自动采集的键值数据都走 core 11 的 `CollectBehavior` 语义：键
 
 - **匹配方式**：大小写不敏感的**片段**匹配，不是全等。`accessToken`、`xApiKey`、`sid` 这类写法都会被内置名单（`auth` / `token` / `secret` / `key` / `session` / `cookie` …）命中。
 - **本 SDK 补齐**：core 内置名单没有的支付与证件类片段（`credit_card` / `card_number` / `cvv` / `ssn` / `id_card` 等）也一并脱敏。
-- **作用范围**：请求 / 响应体（JSON 会递归到嵌套对象与数组，form 保留重复键及非敏感字段编码）、页面 `onLoad` 入参、默认 pageNotFound 与小游戏启动 query、用户交互的 `dataset`、HTTP URL query。
+- **作用范围**：请求 / 响应体（JSON 会递归到嵌套对象与数组，form 保留重复键及非敏感字段编码）、页面 `onLoad` 入参、默认 pageNotFound 与小游戏启动 query、HTTP URL query。
 - **追加自己的片段**：顶层 `sensitiveKeys` 选项是**在以上名单之上追加**，不再顶掉内置默认；手动配置 `NetworkBreadcrumbs` 时也可在其工厂选项里追加：
 
 ```js
@@ -74,15 +74,15 @@ SDK 自动产生的 HTTP、navigation/resource URL 名称去掉 query、fragment
 
 ## Logs
 
+2.0 删除 `enableLogs`。`Sentry.logger.trace/debug/info/warn/error/fatal` 按调用即采集，由 core 批量发送。迁移时移除 `enableLogs: true`；原先依赖 `enableLogs: false` 的应用，应停止调用 logger／安装日志集成，或配置 `beforeSendLog: () => null`。SDK 不默认安装 console 到 Logs 的集成。
+
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `enableLogs` | `boolean` | `false` | 启用 `Sentry.logger.trace/debug/info/warn/error/fatal` 上报 Sentry Logs |
 | `beforeSendLog` | `function` | — | Log 发送前的钩子，可修改或返回 `null` 丢弃 |
 
 ```js
 Sentry.init({
   dsn: 'https://<key>@sentry.io/<project>',
-  enableLogs: true,
 });
 
 Sentry.logger.info('checkout completed', {
@@ -91,6 +91,10 @@ Sentry.logger.info('checkout completed', {
 ```
 
 `Sentry.logger.*` 会作为独立 log envelope 发送到 Sentry Logs；`enableConsoleBreadcrumbs` 只会把 `console` 输出记录为随下一次事件发送的面包屑，两者用途不同。
+
+## Client reports
+
+2.0 默认 `sendClientReports: true`，可显式设为 `false`。报告记录采样、处理器等丢弃原因；`flush()` 先排 core buffers，再通过同一 transport 排出报告。无 DSN、未获同意或 client 已关闭时不清计数；报告发送失败不会保存到离线缓存。`flush()` 成功不代表后台已接收，发送期间产生的异步丢弃留到下一轮。
 
 ## 接入诊断
 
@@ -304,13 +308,13 @@ Sentry.init({
 | `integrations` | `Integration[]｜(defaults) => Integration[]` | — | 数组会追加到默认集合，同名时用户实例优先；函数接收默认集合并返回最终集合，可用于过滤或改写 |
 | `defaultIntegrations` | `false｜Integration[]` | 全部内置默认集成 | 设为 `false` 可关闭全部默认集成；自定义数组会替换默认集合基底 |
 
-默认集成包含 `FunctionToString`、`HttpContext`、`GlobalHandlers`、`TryCatch`、`LinkedErrors`、`Dedupe`、**`SpanStreaming`**、`PerformanceAPI`、`RewriteFrames`、`NetworkBreadcrumbs`、`Session`、`PageBreadcrumbs`、`NetworkStatus` 和 `EventFilters`（部分受顶层开关或运行时影响）。`Dedupe` / `LinkedErrors` / `RewriteFrames` / `FunctionToString` / `SpanStreaming` 直接复用 `@sentry/core` 官方实现。自定义 `defaultIntegrations` 时漏掉 `SpanStreaming` 会让业务 trace、导航与帧率汇总等非独立 span 一条都发不出去，`getDiagnostics()` 会给出 `span_streaming_missing` 警告。所有默认能力统一由 `getDefaultIntegrations(options)` 构造，不存在绕过 `defaultIntegrations` 的额外追加。
+默认集成包含 `FunctionToString`、`GlobalHandlers`、`TryCatch`、`LinkedErrors`、`Dedupe`、**`SpanStreaming`**、`RewriteFrames`、`NetworkBreadcrumbs`、`Session`、`PageBreadcrumbs`、`NetworkStatus` 和 `EventFilters`（部分受顶层开关或运行时影响）。`Dedupe` / `LinkedErrors` / `RewriteFrames` / `FunctionToString` / `SpanStreaming` 直接复用 `@sentry/core` 官方实现。自定义 `defaultIntegrations` 时漏掉 `SpanStreaming` 会让业务 trace、导航与帧率汇总等非独立 span 一条都发不出去，`getDiagnostics()` 会给出 `span_streaming_missing` 警告。所有默认能力统一由 `getDefaultIntegrations(options)` 构造，不存在绕过 `defaultIntegrations` 的额外追加。
 
 ```js
 // 在默认集合上追加；同名集成会覆盖默认实例
 Sentry.init({
   dsn: 'YOUR_DSN',
-  integrations: [new Sentry.Integrations.ConsoleBreadcrumbs()],
+  integrations: [Sentry.consoleBreadcrumbsIntegration()],
 });
 
 // 过滤默认集合
@@ -329,8 +333,9 @@ Sentry.init({
 ```
 
 每次 `init()` 都应创建新的有状态 integration 实例。不要跨多次初始化复用
-`defaultIntegrations` 静态数组或缓存后的 `getDefaultIntegrations()` 结果；静态数组仅为 1.x
-兼容保留且已弃用。
+缓存后的 `getDefaultIntegrations()` 结果。2.0 删除旧 `defaultIntegrations` 静态数组、公共 class 和空 `showReportDialog`；使用 named factories，或 `Sentry.Integrations` 中相同的 factories。反馈由业务 UI 收集后调用 `captureFeedback()`。
+
+2.0 不再自动复制交互 `dataset`；自动 targetId／handler 限 128 个 UTF-16 code units，eventType 限 64 个，不改业务传参。业务需要时应构造显式白名单的 breadcrumb，避免复制整份模板数据。导航 API 的面包屑由 Page collector 提供，服从 `enableNavigationBreadcrumbs` 和 query 策略；跳转尝试不写 route tag，也不启动轮询。
 
 ## 2.0 的 client 关闭与切换契约
 
@@ -341,6 +346,8 @@ Sentry.init({
 SDK finalizer 与资源 cleanup 分开，前者只在关闭的同步收尾窗口产生最后数据。关闭后日志／指标不会再执行用户采集 callback 或填入 buffer；callback 内关闭 client 后返回的日志／指标也被拒收。任意第三方 core hook 抛错可能中断 core 其余 listener，内部 buffer 清理只能 best-effort；SDK 仍完成终态和资源清理，不修改 core 私有 hooks/buffers。
 
 `close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。
+
+2.0 将 JS 未处理异常的 Session 状态从 `crashed` 改为 `unhandled`，不将可继续运行的异常当作宿主进程崩溃。Release Health 的统计与告警须重新建立基线，不能直接比较 1.x 的 crash-free 数据；没有真实原生崩溃证据时 SDK 不生成 `crashed`。
 
 自动 Session 按前台 episode 维护 client 自有引用，在业务同步 `onHide` 之后结束。异步事件处理使用采集时的 session；S1 结束后开始 S2，S1 的迟到错误不会修改或结束 S2。已结束 S1 是否补发更新遵循 core 原生语义，不能将迟到错误重新归到当前前台。
 

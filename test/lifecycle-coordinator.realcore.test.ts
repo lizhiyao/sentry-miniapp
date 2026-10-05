@@ -25,7 +25,6 @@ describe('独立 runtime lifecycle 与真实 core flush', () => {
     const client = init({
       dsn: 'https://test@example.com/0',
       release: 'lifecycle@2.0',
-      enableLogs: true,
       tracesSampleRate: 1,
       defaultIntegrations: [spanStreamingIntegration(), miniappLifecycleIntegration()],
       transport: createCapturingTransport(envelopes),

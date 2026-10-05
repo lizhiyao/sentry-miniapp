@@ -75,7 +75,10 @@ describe('Session owner 与前台 episode', () => {
     const sid = sessions()[0]!.sid;
     app.onHide();
     expect(sessions().every((session) => session.sid === sid)).toBe(true);
-    expect(sessions().some((session) => session.errors === 1)).toBe(true);
+    expect(
+      sessions().some((session) => session.errors === 1 && session.status === 'unhandled'),
+    ).toBe(true);
+    expect(sessions().some((session) => session.status === 'crashed')).toBe(false);
     expect(getIsolationScope().getSession()).toBeUndefined();
     app.onShow();
     expect(sessions().at(-1)!.sid).not.toBe(sid);

@@ -110,7 +110,7 @@ function buildOptionsDiagnostics(
     tracesSamplerConfigured: typeof options.tracesSampler === 'function',
     // 2.0 构造前已校验，只装配 core 原生 stream 路径。
     traceLifecycle: options.traceLifecycle ?? 'stream',
-    enableLogs: options.enableLogs === true,
+    sendClientReports: options.sendClientReports === true,
     enableSourceMap: options.enableSourceMap !== false,
     enableOfflineCache: hasOfflineStore,
     requireConsent: options.requireConsent === true,

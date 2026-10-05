@@ -339,6 +339,8 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it.each([
     'https://sentry.io/api/business',
+    'https://[2001:db8::1]:8443/business',
+    'https://[broken/business',
     'https://sentry.io.evil.com/api/envelope/?sentry_key=key',
     'https://evil-sentry.io/api/envelope/?sentry_key=key',
     'https://sentry.io/api/business#?sentry_key=key',

@@ -24,7 +24,7 @@ import {
 /**
  * GlobalHandlers 的真 @sentry/core 端到端验证：
  * 平台 `wx.onError` 触发 → 经真 core 上报为 exception 事件，并带 `mechanism.handled=false`
- * （未处理错误的标志，core 据此把 Session 标记为 crashed）。
+ * （未处理错误的标志，core 据此把 Session 标记为 unhandled）。
  *
  * 历史单测把 captureException mock 掉，只断言「调用了」，测不到事件实际形态——本用例补这个真窟窿。
  */
@@ -461,5 +461,60 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
 
     expect(boomEvents()).toHaveLength(1);
     g.setTimeout = originalSetTimeout;
+  });
+  it.each([true, false])('宿主 raw stack 含 message 首行=%s 时第一帧不丢失', async (header) => {
+    init({
+      dsn: 'https://key@example.com/1',
+      defaultIntegrations: [new GlobalHandlers()],
+      transport: createCapturingTransport(captured),
+    });
+    const lines = ['    at first (pages/first.js:10:2)', '    at second (pages/second.js:20:3)'];
+    onErrorHandler!({
+      name: 'Error',
+      message: 'raw stack',
+      stack: [...(header ? ['Error: raw stack'] : []), ...lines].join('\n'),
+    });
+    await flush();
+    const frames = collectEnvelopePayloads<Event>(captured, ['event'])[0]!.exception!.values![0]!
+      .stacktrace!.frames!;
+    expect(frames).toHaveLength(2);
+    expect(frames.map((frame) => frame.filename)).toEqual(['pages/second.js', 'pages/first.js']);
+  });
+
+  it.each([true, false])(
+    '同 type/message，stack 可用=%s：不同位置或缺失来源都不吞掉',
+    async (hasStack) => {
+      init({
+        dsn: 'https://key@example.com/1',
+        defaultIntegrations: [new GlobalHandlers()],
+        transport: createCapturingTransport(captured),
+      });
+      const instrument = new Error('same message');
+      instrument.stack = hasStack ? 'Error: same message\n    at first (page.js:1:1)' : '';
+      captureException(instrument, { mechanism: { type: 'instrument', handled: false } });
+      onErrorHandler!({
+        name: 'Error',
+        message: 'same message',
+        stack: hasStack ? 'Error: same message\n    at second (page.js:2:1)' : '',
+      });
+      await flush();
+      expect(collectEnvelopePayloads<Event>(captured, ['event'])).toHaveLength(2);
+    },
+  );
+  it('宿主保留 Error 身份但 stack 从 frame 开始时，不修改业务 Error 且第一帧保留', async () => {
+    init({
+      dsn: 'https://key@example.com/1',
+      defaultIntegrations: [new GlobalHandlers()],
+      transport: createCapturingTransport(captured),
+    });
+    const error = new Error('raw Error');
+    const stack = 'at first (pages/first.js:10:2)\nat second (pages/second.js:20:3)';
+    error.stack = stack;
+    onErrorHandler!(error);
+    await flush();
+    expect(error.stack).toBe(stack);
+    const frames = collectEnvelopePayloads<Event>(captured, ['event'])[0]!.exception!.values![0]!
+      .stacktrace!.frames!;
+    expect(frames.map((frame) => frame.filename)).toEqual(['pages/second.js', 'pages/first.js']);
   });
 });

@@ -107,8 +107,8 @@ describe('Integration（真 @sentry/core 端到端）', () => {
     expect(ev.level).toBe('warning');
   });
 
-  it('logger 端到端：enableLogs=true 时上报 log envelope', async () => {
-    initWithCapture({ enableLogs: true });
+  it('logger 端到端：默认按调用即采集并保留属性', async () => {
+    initWithCapture();
     logger.info('user completed checkout', { orderId: 'order-123' });
     await flush(2000);
 
@@ -121,17 +121,8 @@ describe('Integration（真 @sentry/core 端到端）', () => {
     });
   });
 
-  it('logger 端到端：enableLogs 未开启时不发送 log envelope', async () => {
-    initWithCapture();
-    logger.warn('ignored logger message');
-    await flush(2000);
-
-    expect(capturedLogs()).toHaveLength(0);
-  });
-
   it('beforeSendLog 端到端：返回 null 时丢弃 log', async () => {
     initWithCapture({
-      enableLogs: true,
       beforeSendLog: () => null,
     });
     logger.error('drop this log');

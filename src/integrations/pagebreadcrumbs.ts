@@ -4,7 +4,8 @@ import { addBreadcrumb, getClient } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 
 import { subscribeAppLifecycle } from '../appLifecycle';
-import { collectKeyValueData, sanitizeCollectedData, sensitiveDenyTerms } from '../dataCollection';
+import { collectKeyValueData, collectUrl, collectUrlName } from '../dataCollection';
+import { sdk } from '../crossPlatform';
 import {
   addFunctionInstrumentationHandler,
   ensureFunctionInstrumentation,
@@ -32,7 +33,7 @@ export interface PageBreadcrumbsOptions {
   enableLifecycle?: boolean;
   /** 是否追踪用户交互事件（默认 true） */
   enableUserInteraction?: boolean;
-  /** 在 core 内置敏感片段之上追加的键名片段，作用于页面入参与交互 dataset */
+  /** 在 core 内置敏感片段之上追加的键名片段，作用于页面入参与导航 URL query */
   sensitiveKeys?: string[];
 }
 
@@ -64,6 +65,7 @@ function recordPageLifecycle(
   if (!subscriber.options.enableLifecycle) return;
 
   const route = page?.route || page?.__route__ || 'unknown';
+  if (getActivePageEntry()?.subscriber !== subscriber) return;
   if ((method === 'onLoad' || method === 'onShow') && route !== 'unknown')
     getClientEnvironment(client).route = route;
   const breadcrumbData: Record<string, any> = { action: method, page: route };
@@ -76,6 +78,7 @@ function recordPageLifecycle(
     );
     if (query) breadcrumbData['query'] = query;
   }
+  if (getActivePageEntry()?.subscriber !== subscriber) return;
   if (method === 'onReady' && !subscriber.firstPageReady && subscriber.launchTime > 0) {
     subscriber.firstPageReady = true;
     const coldStartDuration = Date.now() - subscriber.launchTime;
@@ -92,6 +95,7 @@ function recordPageLifecycle(
 }
 
 function recordUserInteraction(
+  client: Client,
   subscriber: PageSubscriber,
   key: string,
   page: any,
@@ -100,36 +104,37 @@ function recordUserInteraction(
   if (!subscriber.options.enableUserInteraction) return;
 
   const route = page?.route || page?.__route__ || 'unknown';
-  const breadcrumbData: Record<string, any> = { handler: key, page: route };
+  const handler = key.slice(0, 128);
+  const breadcrumbData: Record<string, any> = { handler, page: route };
   if (event && typeof event === 'object') {
     if (event.target) {
-      if (event.target.id) breadcrumbData['targetId'] = event.target.id;
-      // dataset 由业务写在模板里，可能带 token／单号；按 core 的敏感片段口径脱敏。
-      if (event.target.dataset) {
-        breadcrumbData['dataset'] = sanitizeCollectedData(
-          event.target.dataset,
-          true,
-          sensitiveDenyTerms(subscriber.options.sensitiveKeys),
-        );
-      }
+      const id = event.target.id;
+      if (typeof id === 'string' && id) breadcrumbData['targetId'] = id.slice(0, 128);
     }
-    if (event.type) breadcrumbData['eventType'] = event.type;
+    const type = event.type;
+    if (typeof type === 'string' && type) breadcrumbData['eventType'] = type.slice(0, 64);
     if (event.detail) {
-      if (typeof event.detail.x === 'number') breadcrumbData['x'] = event.detail.x;
-      if (typeof event.detail.y === 'number') breadcrumbData['y'] = event.detail.y;
+      if (typeof event.detail.x === 'number' && Number.isFinite(event.detail.x))
+        breadcrumbData['x'] = event.detail.x;
+      if (typeof event.detail.y === 'number' && Number.isFinite(event.detail.y))
+        breadcrumbData['y'] = event.detail.y;
     }
     if (event.touches && event.touches.length > 0) {
       const touch = event.touches[0];
       if (touch) {
-        breadcrumbData['touchX'] = touch.pageX;
-        breadcrumbData['touchY'] = touch.pageY;
+        if (typeof touch.pageX === 'number' && Number.isFinite(touch.pageX))
+          breadcrumbData['touchX'] = touch.pageX;
+        if (typeof touch.pageY === 'number' && Number.isFinite(touch.pageY))
+          breadcrumbData['touchY'] = touch.pageY;
       }
     }
   }
 
+  const active = getActivePageEntry();
+  if (active?.client !== client || active.subscriber !== subscriber) return;
   addBreadcrumb({
     category: 'user.interaction',
-    message: `${key} on ${route}`,
+    message: `${handler} on ${route}`,
     level: 'info',
     data: breadcrumbData,
   });
@@ -173,7 +178,9 @@ function instrumentPageOptions(pageOptions: unknown): void {
       const active = getActivePageEntry();
       if (active) {
         try {
-          withTelemetryCritical(() => recordUserInteraction(active.subscriber, key, this, event));
+          withTelemetryCritical(() =>
+            recordUserInteraction(active.client, active.subscriber, key, this, event),
+          );
         } catch (_error) {
           /* 保留原业务回调。 */
         }
@@ -226,22 +233,33 @@ export class PageBreadcrumbs implements Integration {
     if (lifetime && !lifetime.canCollectAutomatic()) return;
     const subscriber = this._createSubscriber();
     pageSubscribers.set(client, subscriber);
-    const globalObject = globalThis as Record<PropertyKey, unknown>;
     const cleanups: Array<() => void> = [
       () => {
         if (pageSubscribers.get(client) === subscriber) pageSubscribers.delete(client);
       },
-      this._subscribeApp(subscriber),
     ];
-    if (typeof globalObject['Page'] === 'function') {
-      cleanups.push(addFunctionInstrumentationHandler(globalObject, 'Page', client, invokePage));
-    }
     const cleanup = this._trackCleanup(cleanups);
     const detach = lifetime?.registerStop(cleanup);
     client.registerCleanup(() => {
       detach?.();
       cleanup();
     });
+    const canContinue = (): boolean =>
+      pageSubscribers.get(client) === subscriber && (!lifetime || lifetime.canCollectAutomatic());
+    const adopt = (stop: () => void): void => {
+      if (canContinue()) cleanups.push(stop);
+      else stop();
+    };
+    if (!canContinue()) return;
+    adopt(this._subscribeApp(subscriber));
+    if (!canContinue()) return;
+    this._subscribeNavigation(client, subscriber, canContinue, adopt);
+    if (!canContinue()) return;
+    const globalObject = globalThis as Record<PropertyKey, unknown>;
+    const page = globalObject['Page'];
+    if (typeof page === 'function' && canContinue()) {
+      adopt(addFunctionInstrumentationHandler(globalObject, 'Page', client, invokePage));
+    }
   }
 
   public cleanup(): void {
@@ -268,6 +286,66 @@ export class PageBreadcrumbs implements Integration {
         if (activeSubscriber() === subscriber) this._appBreadcrumb('onHide');
       },
     });
+  }
+
+  /** 导航 API 是尝试跳转的 breadcrumb，不将目标当作已到达页面或写共享 scope。 */
+  private _subscribeNavigation(
+    client: Client,
+    subscriber: PageSubscriber,
+    canContinue: () => boolean,
+    adopt: (stop: () => void) => void,
+  ): void {
+    if (!subscriber.options.enableLifecycle) return;
+    let host: Record<string, unknown>;
+    try {
+      host = sdk() as unknown as Record<string, unknown>;
+    } catch (_error) {
+      return;
+    }
+    for (const action of ['navigateTo', 'redirectTo', 'switchTab', 'reLaunch', 'navigateBack']) {
+      if (!canContinue()) return;
+      adopt(
+        addFunctionInstrumentationHandler(host, action, client, (original, thisArg, args) => {
+          try {
+            withTelemetryCritical(() => {
+              const options = args[0] as { url?: unknown; delta?: unknown } | undefined;
+              const rawTo = action === 'navigateBack' ? 'back' : options?.url;
+              const to =
+                typeof rawTo === 'string'
+                  ? collectUrl(rawTo, client, subscriber.options.sensitiveKeys)
+                  : '';
+              const pages = (
+                globalThis as {
+                  getCurrentPages?: () => Array<{ route?: string; __route__?: string }>;
+                }
+              ).getCurrentPages?.();
+              const page = pages?.[pages.length - 1];
+              const from = collectUrlName(page?.route ?? page?.__route__ ?? '');
+              const delta = action === 'navigateBack' ? options?.delta : undefined;
+              const active = getActivePageEntry();
+              // 宿主 getter 可同步关闭 client；退休后不得继续产出遥测。
+              if (active?.client !== client || active.subscriber !== subscriber) return;
+              addBreadcrumb({
+                category: 'navigation',
+                type: 'navigation',
+                message: `Navigation ${action}: ${from} -> ${to}`,
+                data: {
+                  action,
+                  from,
+                  to,
+                  ...(typeof delta === 'number' &&
+                    Number.isSafeInteger(delta) &&
+                    delta > 0 && { delta }),
+                },
+              });
+            });
+          } catch (_error) {
+            /* getter、collector 或用户 hook 失败不能改变宿主调用。 */
+          }
+          return original.apply(thisArg, args);
+        }),
+      );
+    }
   }
 
   private _appBreadcrumb(method: string): void {

@@ -1,9 +1,10 @@
 import { captureException, getClient, withScope } from '@sentry/core';
-import type { Client, Event, EventHint, Integration, IntegrationFn } from '@sentry/core';
+import type { Client, Event, EventHint, Integration, IntegrationFn, Exception } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
 import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 import { getErrorDetails } from '../helpers';
+import { miniappStackParser } from '../stacktrace';
 import { collectKeyValueData, collectUrlName } from '../dataCollection';
 import type { MiniappOptions } from '../types';
 
@@ -11,6 +12,26 @@ interface RecentInstrumentEvent {
   capturedAt: number;
   type: string;
   value: string;
+  stack: string;
+}
+
+/** 只匹配完整、有位置证据的有限 stack；没有来源时宁可保留宿主真实报告。 */
+function stackSignature(exception: Exception): string | undefined {
+  const frames = exception.stacktrace?.frames;
+  if (!frames?.length || frames.length > 50) return undefined;
+  if (
+    frames.some(
+      (frame) =>
+        !frame.filename ||
+        frame.filename === '<anonymous>' ||
+        typeof frame.lineno !== 'number' ||
+        !Number.isSafeInteger(frame.lineno) ||
+        frame.lineno <= 0 ||
+        (frame.colno !== undefined && (!Number.isSafeInteger(frame.colno) || frame.colno < 0)),
+    )
+  )
+    return undefined;
+  return JSON.stringify(frames.map((frame) => [frame.filename, frame.lineno, frame.colno ?? null]));
 }
 
 const ON_ERROR_DEDUPLICATION_WINDOW_MS = 1000;
@@ -38,7 +59,12 @@ function errorFromPlatformValue(value: PlatformErrorValue): Error {
   // { message: "MiniProgramError\n...\nat ...", stack: "" }。覆盖本地构造 Error
   // 产生的无关 stack，让 MiniappClient 使用用户配置的 stackParser 解析宿主帧。
   if (details) {
-    error.stack = details.stack || details.message;
+    const stack = details.stack || details.message;
+    // core 的 exceptionFromError 固定跳过首行。宿主可能直接从 frame 开始，补标准 header。
+    const firstLine = stack.split('\n', 1)[0] ?? '';
+    error.stack = miniappStackParser(firstLine, 0).length
+      ? `${error.name}: ${error.message}\n${stack}`
+      : stack;
   }
   return error;
 }
@@ -157,7 +183,7 @@ export class GlobalHandlers implements Integration {
 
   /**
    * TryCatch 捕获并重新抛出的异常，可能在微信小游戏真机上延迟进入 onError。
-   * 在 Core 完成事件构建后比较最终异常类型和消息，避免依赖宿主原始 Error 的不稳定形态。
+   * 在 Core 构建后比较类型、消息和完整位置 stack；同一 Error 身份仍交给 core 判断。
    */
   public processEvent(event: Event, _hint?: EventHint, client?: Client): Event | null {
     if (client) {
@@ -177,12 +203,15 @@ export class GlobalHandlers implements Integration {
 
     const now = Date.now();
     this._removeExpiredInstrumentEvents(now);
+    const stack = stackSignature(exception);
+    if (!stack) return event;
 
     if (exception.mechanism?.type === 'instrument') {
       this._recentInstrumentEvents.push({
         capturedAt: now,
         type: exception.type,
         value: exception.value,
+        stack,
       });
       if (this._recentInstrumentEvents.length > MAX_RECENT_INSTRUMENT_EVENTS) {
         this._recentInstrumentEvents.splice(
@@ -194,7 +223,10 @@ export class GlobalHandlers implements Integration {
     }
 
     const matchIndex = this._recentInstrumentEvents.findIndex(
-      (candidate) => candidate.type === exception.type && candidate.value === exception.value,
+      (candidate) =>
+        candidate.type === exception.type &&
+        candidate.value === exception.value &&
+        candidate.stack === stack,
     );
     if (matchIndex === -1) {
       return event;
@@ -207,8 +239,8 @@ export class GlobalHandlers implements Integration {
   private _removeExpiredInstrumentEvents(now: number): void {
     for (let index = this._recentInstrumentEvents.length - 1; index >= 0; index -= 1) {
       if (
-        now - this._recentInstrumentEvents[index]!.capturedAt >
-        ON_ERROR_DEDUPLICATION_WINDOW_MS
+        now < this._recentInstrumentEvents[index]!.capturedAt ||
+        now - this._recentInstrumentEvents[index]!.capturedAt > ON_ERROR_DEDUPLICATION_WINDOW_MS
       ) {
         this._recentInstrumentEvents.splice(index, 1);
       }

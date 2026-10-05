@@ -2,6 +2,7 @@ import { getClientEnvironment } from '../src/clientState';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PageBreadcrumbs, pageBreadcrumbsIntegration } from '../src/integrations/pagebreadcrumbs';
+import * as crossPlatform from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 
 vi.mock('@sentry/core', async () => {
@@ -48,6 +49,45 @@ describe('PageBreadcrumbs Integration', () => {
     (globalThis as any).Page = originalPage;
     (globalThis as any).App = originalApp;
     _resetAppLifecycle();
+  });
+
+  it('导航宿主不可读时仍安装 Page 生命周期且保留业务调用', () => {
+    vi.spyOn(crossPlatform, 'sdk').mockImplementation(() => {
+      throw new Error('host inaccessible');
+    });
+    (globalThis as any).Page = vi.fn((options: any) => options);
+    setupIntegration(new PageBreadcrumbs());
+    const business = vi.fn();
+    const page = (globalThis as any).Page({ onShow: business });
+    page.onShow.call({ route: 'pages/home' });
+    expect(business).toHaveBeenCalledOnce();
+    expect(addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'page.lifecycle' }),
+    );
+  });
+
+  it('独立 subscriber 同时存在时，App launch 只使用当前 client 的状态', () => {
+    (globalThis as any).App = vi.fn((options: any) => options);
+    setupIntegration(new PageBreadcrumbs());
+    setupIntegration(new PageBreadcrumbs());
+    const app = (globalThis as any).App({ onLaunch: vi.fn() });
+    app.onLaunch();
+    expect(addBreadcrumb).toHaveBeenCalledTimes(1);
+  });
+
+  it('client 清理登记立即生效时不安装 App／Page 或导航资源', () => {
+    const original = vi.fn((options: any) => options);
+    (globalThis as any).Page = original;
+    const client = {
+      registerCleanup: (stop: () => void) => stop(),
+      getDataCollectionOptions: () => ({}),
+    } as any;
+    vi.mocked(getClient).mockReturnValue(client);
+    const integration = new PageBreadcrumbs();
+    integration.setup(client);
+    expect((globalThis as any).Page).toBe(original);
+    expect(addBreadcrumb).not.toHaveBeenCalled();
+    integration.cleanup();
   });
 
   describe('Page lifecycle breadcrumbs', () => {
@@ -207,7 +247,6 @@ describe('PageBreadcrumbs Integration', () => {
           handler: 'onTap',
           page: 'pages/index/index',
           targetId: 'btn-submit',
-          dataset: { action: 'submit' },
           eventType: 'tap',
         },
       });

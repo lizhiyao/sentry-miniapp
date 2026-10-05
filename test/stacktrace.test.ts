@@ -23,10 +23,7 @@ describe('miniappStackParser', () => {
     });
 
     it('should parse frames without function name', () => {
-      const stack = [
-        'Error: test',
-        '    at pages/index/index.js:42:13',
-      ].join('\n');
+      const stack = ['Error: test', '    at pages/index/index.js:42:13'].join('\n');
 
       const frames = miniappStackParser(stack, 0);
       expect(frames.length).toBe(1);
@@ -44,7 +41,7 @@ describe('miniappStackParser', () => {
       const frames = miniappStackParser(stack, 0);
       expect(frames.length).toBe(2);
 
-      const crashFrame = frames.find(f => f.filename === 'xmg-sdk-wx.js');
+      const crashFrame = frames.find((f) => f.filename === 'xmg-sdk-wx.js');
       expect(crashFrame).toBeDefined();
       expect(crashFrame!.function).toBe('?');
       expect(crashFrame!.lineno).toBe(3);
@@ -111,8 +108,8 @@ describe('miniappStackParser', () => {
 
       const frames = miniappStackParser(stack, 0);
       expect(frames.length).toBe(2);
-      const sdkFrame = frames.find(f => f.filename === 'sentry-miniapp.js');
-      const userFrame = frames.find(f => f.filename === 'pages/index/index.js');
+      const sdkFrame = frames.find((f) => f.filename === 'sentry-miniapp.js');
+      const userFrame = frames.find((f) => f.filename === 'pages/index/index.js');
       expect(userFrame!.in_app).toBe(true);
       expect(sdkFrame!.in_app).toBe(false);
     });
@@ -120,10 +117,7 @@ describe('miniappStackParser', () => {
 
   describe('Safari/JavaScriptCore style stack traces', () => {
     it('should parse Safari-style frames', () => {
-      const stack = [
-        'handleTap@pages/index/index.js:42:13',
-        '@app-service.js:100:20',
-      ].join('\n');
+      const stack = ['handleTap@pages/index/index.js:42:13', '@app-service.js:100:20'].join('\n');
 
       const frames = miniappStackParser(stack, 0);
       expect(frames.length).toBe(2);
@@ -208,15 +202,15 @@ describe('miniappStackParser', () => {
       const frames = miniappStackParser(stack, 0);
       expect(frames.length).toBe(2);
       // After reverse: WAService is at index 0 (bottom), user code at index 1 (top/call site)
-      const waFrame = frames.find(f => f.filename === 'WAService.js');
-      const userFrame = frames.find(f => f.filename === 'pages/index/index.js');
+      const waFrame = frames.find((f) => f.filename === 'WAService.js');
+      const userFrame = frames.find((f) => f.filename === 'pages/index/index.js');
       expect(waFrame!.in_app).toBe(false);
       expect(userFrame!.in_app).toBe(true);
     });
 
     it.each(['@sentry/core.js', 'WASubContext.js', 'aframeworkx.js', '__dev__.js'])(
       'should mark %s frames as not in_app',
-      filename => {
+      (filename) => {
         const frames = miniappStackParser(`    at internal (${filename}:1:1)`, 0);
 
         expect(frames).toHaveLength(1);
@@ -232,5 +226,11 @@ describe('miniappStackParser', () => {
       const frames = miniappStackParser(stack, 0);
       expect(Array.isArray(frames)).toBe(true);
     });
+  });
+  it('Error message 中的文件位置不伪装成 frame，正常 header skip 仍有效', () => {
+    const stack = 'Error: pages/failure.js:10:2\n    at first (pages/first.js:20:3)';
+    const frames = miniappStackParser(stack, 1);
+    expect(frames).toHaveLength(1);
+    expect(frames[0]!.filename).toBe('pages/first.js');
   });
 });

@@ -21,6 +21,12 @@ describe('公开 API 出口', () => {
     'spanStreamingIntegration',
     'startSpan',
     'startInactiveSpan',
+    'Scope',
+    'startSpanManual',
+    'withActiveSpan',
+    'continueTrace',
+    'startNewTrace',
+    'getTraceData',
     'getDiagnostics',
   ] as const;
 
@@ -45,10 +51,68 @@ describe('公开 API 出口', () => {
       .toEqualTypeOf<'stream' | undefined>();
     expectTypeOf<MiniappOptions>().not.toHaveProperty('beforeSendTransaction');
     expectTypeOf<MiniappOptions>().not.toHaveProperty('ignoreTransactions');
+    expectTypeOf<MiniappOptions>().not.toHaveProperty('enableLogs');
     expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('sampleRate');
     expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('bufferSize');
     expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('reportInterval');
     expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('thresholds');
     expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('enableMemory');
+  });
+  it('metrics 提供 count/distribution/gauge，Scope 是可构造的 runtime API', () => {
+    expect(typeof Sentry.metrics.count).toBe('function');
+    expect(typeof Sentry.metrics.distribution).toBe('function');
+    expect(typeof Sentry.metrics.gauge).toBe('function');
+    expect(new Sentry.Scope()).toBeInstanceOf(Sentry.Scope);
+  });
+  it('顶层与 namespace 的 factories 是同一函数；每次调用实例独立', () => {
+    const factories = [
+      'globalHandlersIntegration',
+      'tryCatchIntegration',
+      'linkedErrorsIntegration',
+      'httpContextIntegration',
+      'dedupeIntegration',
+      'rewriteFramesIntegration',
+      'networkBreadcrumbsIntegration',
+      'pageBreadcrumbsIntegration',
+      'consoleBreadcrumbsIntegration',
+      'sessionIntegration',
+      'networkStatusIntegration',
+      'minigameIntegration',
+      'minigameFrameRateIntegration',
+      'performanceIntegration',
+    ] as const;
+    for (const name of factories) {
+      const factory = Sentry[name];
+      expect(factory).toBe(Sentry.Integrations[name]);
+      expect(factory()).not.toBe(factory());
+    }
+  });
+  it('2.0 不保留公共 classes、共享快照和空 report dialog', () => {
+    for (const name of [
+      'System',
+      'Router',
+      'GlobalHandlers',
+      'TryCatch',
+      'LinkedErrors',
+      'HttpContext',
+      'Dedupe',
+      'PerformanceIntegration',
+      'RewriteFrames',
+      'NetworkBreadcrumbs',
+      'PageBreadcrumbs',
+      'ConsoleBreadcrumbs',
+      'SessionIntegration',
+      'NetworkStatusIntegration',
+      'MinigameIntegration',
+      'MinigameFrameRateIntegration',
+    ]) {
+      expect(Sentry.Integrations).not.toHaveProperty(name);
+    }
+    expect(Object.keys(Sentry.Integrations).every((name) => name.endsWith('Integration'))).toBe(
+      true,
+    );
+    expect(Sentry).not.toHaveProperty('defaultIntegrations');
+    expect(Sentry).not.toHaveProperty('showReportDialog');
+    expect(Sentry.MiniappClient.prototype).not.toHaveProperty('showReportDialog');
   });
 });

@@ -1,5 +1,5 @@
 import { rewriteFramesIntegration as coreRewriteFramesIntegration } from '@sentry/core';
-import type { Event, Integration, Exception, StackFrame } from '@sentry/core';
+import type { Integration } from '@sentry/core';
 
 const DEFAULT_PREFIX = 'app:///';
 
@@ -30,62 +30,3 @@ export const rewriteFramesIntegration = (options: { prefix?: string } = {}): Int
         : frame,
   });
 };
-
-/**
- * Normalize miniapp stack trace paths to a standard format for source map resolution.
- * E.g., 'appservice/pages/index.js' -> 'app:///pages/index.js'
- */
-export class RewriteFrames implements Integration {
-  /**
-   * @inheritDoc
-   */
-  public static id: string = 'RewriteFrames';
-
-  /**
-   * @inheritDoc
-   */
-  public name: string = RewriteFrames.id;
-
-  /**
-   * Optional prefix to append to the normalized path. Defaults to 'app:///'
-   */
-  private readonly _prefix: string;
-
-  public constructor(options: { prefix?: string } = {}) {
-    this._prefix = options.prefix || DEFAULT_PREFIX;
-  }
-
-  /**
-   * @inheritDoc
-   */
-  public setupOnce(): void {
-    // In Sentry v10, we usually use addGlobalEventProcessor or similar to add an event processor
-    // For integrations, we can just return the processor in processEvent or register it globally.
-    // However, the cleanest way in v10 is to use `processEvent`.
-  }
-
-  /**
-   * @inheritDoc
-   */
-  public processEvent(event: Event): Event {
-    if (event.exception && event.exception.values) {
-      event.exception.values.forEach((exception: Exception) => {
-        if (exception.stacktrace && exception.stacktrace.frames) {
-          exception.stacktrace.frames.forEach((frame: StackFrame) => {
-            if (frame.filename) {
-              frame.filename = this._normalizeFilename(frame.filename);
-            }
-          });
-        }
-      });
-    }
-    return event;
-  }
-
-  /**
-   * Normalizes a filename from various miniapp platforms
-   */
-  private _normalizeFilename(filename: string): string {
-    return normalizeMiniappFrameFilename(filename, this._prefix);
-  }
-}

@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TryCatch } from '../src/integrations/trycatch';
-import { System } from '../src/integrations/system';
-import {
-  HttpContext,
-  httpContextIntegration,
-  LinkedErrors,
-  linkedErrorsIntegration,
-} from '../src/integrations/index';
+import { HttpContext, httpContextIntegration } from '../src/integrations/httpcontext';
 
 describe('Integrations', () => {
   beforeEach(() => {
@@ -29,18 +23,6 @@ describe('Integrations', () => {
     });
   });
 
-  describe('System', () => {
-    let integration: System;
-
-    beforeEach(() => {
-      integration = new System();
-    });
-
-    it('should have correct name', () => {
-      expect(integration.name).toBe('System');
-    });
-  });
-
   describe('HttpContext', () => {
     let integration: HttpContext;
 
@@ -57,29 +39,6 @@ describe('Integrations', () => {
     });
 
     it('should setup HTTP request tracking', () => {
-      expect(() => integration.setupOnce()).not.toThrow();
-    });
-  });
-
-  describe('LinkedErrors', () => {
-    let integration: LinkedErrors;
-
-    beforeEach(() => {
-      integration = new LinkedErrors();
-    });
-
-    it('should create the functional integration with options', () => {
-      const created = linkedErrorsIntegration({ key: 'reason', limit: 2 });
-
-      expect(created.name).toBe('LinkedErrors');
-      expect(created.preprocessEvent).toEqual(expect.any(Function));
-    });
-
-    it('should have correct name', () => {
-      expect(integration.name).toBe('LinkedErrors');
-    });
-
-    it('should complete setup without throwing', () => {
       expect(() => integration.setupOnce()).not.toThrow();
     });
   });
