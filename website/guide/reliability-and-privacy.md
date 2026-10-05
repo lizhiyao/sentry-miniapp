@@ -96,7 +96,7 @@ Sentry.init({
 });
 ```
 
-当前同意缓冲与弱网缓存使用同一个 Storage key。受部分小程序单 key 容量限制影响，`consentCacheMaxBytes` 不建议超过默认约 900KB。
+当前同意缓冲与弱网缓存使用同一个 Storage key。受部分小程序单 key 容量限制影响，编码后的整个容器最多 900 KiB；增加 consentCacheMaxBytes 不能突破此硬上限。
 
 自定义 transport 且 requireConsent=false 时不自动套 SDK offline 层。required=true 时统一包装同意／offline 门，即使 enableOfflineCache=false；base factory 不应再叠第二层 offline，其私有队列需自管实际发送门。低层直接构造 MiniappClient 不获得持久 store／replay 权限，默认接入使用 init。
 
