@@ -2,6 +2,7 @@ import {
   captureFeedback as captureFeedbackCore,
   getClient,
   getCurrentScope,
+  getIsolationScope,
   getIntegrationsToSetup,
   initAndBind,
   stackParserFromStackParserOptions,
@@ -11,10 +12,16 @@ import {
 } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
+import { miniappLifecycleIntegration } from './integrations/lifecycle';
 import { setConsentGranted, isConsentGranted } from './consent';
 export { getDiagnostics } from './diagnostics';
 
-import { MiniappClient, setConfiguredDefaultIntegrationsMode } from './client';
+import {
+  MiniappClient,
+  setConfiguredDefaultIntegrationsMode,
+  markRuntimeConstruction,
+} from './client';
+import { isTelemetryCritical, withTelemetryCritical, getClientLifetime } from './lifecycle';
 import { isMiniappEnvironment, isMinigame, resolveMiniappPlatform } from './crossPlatform';
 import {
   GlobalHandlers,
@@ -141,6 +148,7 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
     integrations.push(new MinigameFrameRateIntegration(options.minigameFrameRateOptions));
   }
 
+  integrations.push(miniappLifecycleIntegration());
   return integrations;
 }
 
@@ -159,6 +167,15 @@ export const defaultIntegrations: Integration[] = getDefaultIntegrations({
  * @param options Configuration options for the SDK
  */
 export function init(options: MiniappOptions = {}): MiniappClient | undefined {
+  if (isTelemetryCritical()) {
+    const owner = getClient();
+    if (owner) getClientLifetime(owner)?.warnings.add('reentrant_init_unsupported');
+    return undefined;
+  }
+  return withTelemetryCritical(() => initialize(options));
+}
+
+function initialize(options: MiniappOptions): MiniappClient | undefined {
   if (!isMiniappEnvironment()) {
     console.warn('[sentry-miniapp] Not running in a supported miniapp environment');
     return undefined;
@@ -190,7 +207,27 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
   };
   // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
   // 更宽的公开 MiniappOptions，并在构造期间补齐 transport / stackParser，因此这里仅作边界适配。
-  initAndBind(MiniappClient as any, opts as any);
+  const bindingScope = getCurrentScope();
+  const previous = bindingScope.getClient();
+  if (previous instanceof MiniappClient) void previous.retireRuntime().catch(() => {});
+  markRuntimeConstruction(opts);
+  try {
+    initAndBind(MiniappClient as any, opts as any);
+  } catch (error) {
+    const failed = bindingScope.getClient();
+    try {
+      if (failed instanceof MiniappClient && failed !== previous) failed.dispose();
+    } finally {
+      // 失败终态不复活已退休 A，也不覆盖第三方后来设置的绑定。
+      if (
+        bindingScope.getClient() === failed &&
+        (failed === previous || failed instanceof MiniappClient)
+      ) {
+        bindingScope.setClient(undefined);
+      }
+    }
+    throw error;
+  }
   const client = getCurrentScope().getClient() as MiniappClient | undefined;
   if (client) {
     setConfiguredDefaultIntegrationsMode(client, options.defaultIntegrations);
@@ -218,20 +255,29 @@ export function showReportDialog(_options: ReportDialogOptions = {}): void {
  */
 export function wrap<T extends (...args: any[]) => any>(fn: T): T {
   return function (this: any, ...args: Parameters<T>) {
-    return withScope(() => {
+    const captured = getCurrentScope().clone();
+    captured.setSession(captured.getSession() ?? getIsolationScope().getSession());
+    try {
+      // 业务执行不持有 SDK fork；原 Promise 身份和业务 init 的绑定均保留。
+      return fn.apply(this, args);
+    } catch (error) {
       try {
-        return fn.apply(this, args);
-      } catch (error) {
-        getCurrentScope().captureException(error, {
-          mechanism: {
-            type: 'instrument',
-            handled: false,
-            data: { function: 'wrap' },
-          },
+        withScope(captured, () => {
+          withTelemetryCritical(() => {
+            captured.captureException(error, {
+              mechanism: {
+                type: 'instrument',
+                handled: false,
+                data: { function: 'wrap' },
+              },
+            });
+          });
         });
-        throw error;
+      } catch (_captureError) {
+        /* 遥测失败不能替换业务异常。 */
       }
-    });
+      throw error;
+    }
   } as T;
 }
 

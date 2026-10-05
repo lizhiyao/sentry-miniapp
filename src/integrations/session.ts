@@ -1,83 +1,85 @@
-import { startSession, endSession, captureSession, getClient } from '@sentry/core';
-import type { Client, Integration } from '@sentry/core';
+import {
+  closeSession,
+  getClient,
+  getCombinedScopeData,
+  getCurrentScope,
+  getIsolationScope,
+  makeSession,
+} from '@sentry/core';
+import type { Client, Integration, Session } from '@sentry/core';
 import { subscribeAppLifecycle } from '../appLifecycle';
+import { getClientLifetime } from '../lifecycle';
 
-/**
- * Session Integration
- * 自动管理小程序 Session 生命周期，为 Sentry Release Health 提供数据。
- *
- * - App.onLaunch / onShow → 开始新 Session
- * - App.onHide → 结束 Session
- *
- * crashed 标记不在本集成处理：@sentry/core 捕获未处理错误（mechanism.handled=false）时，
- * 会自动把当前 Session 标记为 crashed 并补发（client._updateSessionFromEvent）。早期此处曾用
- * App.onError 钩子手动标记，但它读 currentScope、而 Session 挂在 isolationScope 上——恒为
- * no-op，已删除，避免与 core 的自动标记重复或误导后人。
- *
- * 通过共享的 appLifecycle 订阅全局 App 生命周期（不再自行猴补 App，见架构 review P2-c）。
- */
+/** 前台 episode 的 owner session；不通过全局 endSession 结束另一个 owner。 */
 export class SessionIntegration implements Integration {
   public static id: string = 'Session';
   public name: string = SessionIntegration.id;
+  private readonly _cleanups = new Set<() => void>();
+  private readonly _clients = new WeakSet<Client>();
 
-  private _isSessionActive: boolean = false;
-  private _unsubscribe: (() => void) | null = null;
-  private _isSetup: boolean = false;
-  private _client: Client | undefined;
-
-  public setupOnce(): void {
-    this._setup();
-  }
+  public setupOnce(): void {}
 
   public setup(client: Client): void {
-    this._client = client;
-    this._setup();
-    client.registerCleanup(() => this.cleanup());
-  }
-
-  private _setup(): void {
-    if (this._isSetup) return;
-    this._isSetup = true;
-    this._unsubscribe = subscribeAppLifecycle({
-      onLaunch: () => this._startSession(),
-      onShow: () => {
-        if (!this._isSessionActive) {
-          this._startSession();
-        }
-      },
-      onHide: () => this._endSession(),
+    const lifetime = getClientLifetime(client);
+    if ((lifetime && !lifetime.canCollectAutomatic()) || this._clients.has(client)) return;
+    this._clients.add(client);
+    let ownedSession: Session | undefined;
+    let active = true;
+    const end = (): void => {
+      const session = ownedSession;
+      ownedSession = undefined;
+      if (!session) return;
+      try {
+        closeSession(session);
+        client.captureSession(session);
+      } finally {
+        const isolation = getIsolationScope();
+        if (isolation.getSession() === session) isolation.setSession();
+      }
+    };
+    const start = (): void => {
+      if (
+        !active ||
+        (lifetime && !lifetime.canCollectAutomatic()) ||
+        getClient() !== client ||
+        client.getOptions().enabled === false ||
+        ownedSession
+      )
+        return;
+      const session = makeSession({
+        ignoreDuration: true,
+        user: getCombinedScopeData(getIsolationScope(), getCurrentScope()).user,
+      });
+      ownedSession = session;
+      getIsolationScope().setSession(session);
+      client.captureSession(session);
+    };
+    const stopBefore = subscribeAppLifecycle({ onLaunch: start, onShow: start });
+    const stopAfter = subscribeAppLifecycle({ onHide: end }, 'after');
+    let detachFinalizer: (() => void) | undefined;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      detachFinalizer?.();
+      detachFinalizer = undefined;
+      stopBefore();
+      stopAfter();
+      const session = ownedSession;
+      ownedSession = undefined;
+      if (session && getIsolationScope().getSession() === session) getIsolationScope().setSession();
+      this._clients.delete(client);
+      this._cleanups.delete(cleanup);
+    };
+    this._cleanups.add(cleanup);
+    detachFinalizer = lifetime?.registerFinalizer(end);
+    const detach = lifetime?.registerStop(cleanup);
+    client.registerCleanup(() => {
+      detach?.();
+      cleanup();
     });
   }
 
-  private _startSession(): void {
-    if (this._client && getClient() !== this._client) return;
-    try {
-      startSession({ ignoreDuration: true });
-      captureSession();
-      this._isSessionActive = true;
-    } catch (_e) {
-      // Session 管理不应影响 SDK 正常运行
-    }
-  }
-
-  private _endSession(): void {
-    if (this._client && getClient() !== this._client) return;
-    try {
-      endSession();
-      captureSession();
-      this._isSessionActive = false;
-    } catch (_e) {
-      // ignore
-    }
-  }
-
   public cleanup(): void {
-    if (this._unsubscribe) {
-      this._unsubscribe();
-      this._unsubscribe = null;
-    }
-    this._isSessionActive = false;
-    this._isSetup = false;
-    this._client = undefined;
+    for (const cleanup of [...this._cleanups]) cleanup();
   }
 }

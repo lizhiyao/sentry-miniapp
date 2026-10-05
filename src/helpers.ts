@@ -1,5 +1,6 @@
 import { captureException, withScope } from '@sentry/core';
 import type { WrappedFunction } from '@sentry/core';
+import type { OwnerToken } from './owner';
 
 /**
  * 包装函数以捕获异常
@@ -14,6 +15,8 @@ export function wrap(
     };
   } = {},
   before?: WrappedFunction,
+  owner?: OwnerToken,
+  finish?: () => void,
 ): any {
   // tslint:disable-next-line:strict-type-predicates
   if (typeof fn !== 'function') {
@@ -22,19 +25,20 @@ export function wrap(
 
   try {
     // We don't wanna wrap it twice
-    if ((fn as any).__sentry__) {
-      return fn;
-    }
-
-    // If this has already been wrapped in the past, return that wrapped function
-    if (fn.__sentry_wrapped__) {
-      return fn.__sentry_wrapped__;
+    if (owner) {
+      // 每次调度有独立 owner；不能沿用原函数上的首次绑定。
+      if ((fn as any).__sentry__ && typeof fn.__sentry_original__ === 'function') {
+        fn = fn.__sentry_original__;
+      }
+    } else {
+      if ((fn as any).__sentry__) return fn;
+      if (fn.__sentry_wrapped__) return fn.__sentry_wrapped__;
     }
   } catch (_e) {
     // Just accessing custom props in some environments
     // can cause a "Permission denied" exception.
     // Bail on wrapping and return the function as-is.
-    return fn;
+    if (!owner) return fn;
   }
 
   const sentryWrapped: WrappedFunction = function (this: any, ...args: any[]): any {
@@ -46,25 +50,35 @@ export function wrap(
     try {
       return fn.apply(this, args);
     } catch (ex) {
-      // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
-      // 绝不能用 getCurrentScope().addEventProcessor——那会把处理器永久挂在当前 scope 上，给之后
-      // 每个 unrelated 事件都盖上本次的 mechanism/arguments（尤其把未处理错误误标成 handled:true，
-      // 进而虚高 crash-free 率）。
-      withScope((scope) => {
-        scope.addEventProcessor((event) => ({
-          ...event,
-          extra: {
-            ...event.extra,
-            arguments: args,
-          },
-        }));
+      const capture = (): void => {
+        // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
+        // 绝不能用 getCurrentScope().addEventProcessor——那会把处理器永久挂在当前 scope 上，给之后
+        // 每个 unrelated 事件都盖上本次的 mechanism/arguments（尤其把未处理错误误标成 handled:true，
+        // 进而虚高 crash-free 率）。
+        withScope((scope) => {
+          scope.addEventProcessor((event) => ({
+            ...event,
+            extra: {
+              ...event.extra,
+              arguments: args,
+            },
+          }));
 
-        // mechanism 交给 core 的 EventHint 处理：prepareEvent 会在 LinkedErrors 等 client
-        // processors 前把 mechanism 标到原始异常上；否则带 Error.cause 时，scope processor
-        // 阶段 values[0] 已经可能是 prepend 进来的 cause，落点会错。
-        captureException(ex, options.mechanism ? { mechanism: options.mechanism } : undefined);
-      });
+          // mechanism 交给 core 的 EventHint 处理：prepareEvent 会在 LinkedErrors 等 client
+          // processors 前把 mechanism 标到原始异常上；否则带 Error.cause 时，scope processor
+          // 阶段 values[0] 已经可能是 prepend 进来的 cause，落点会错。
+          captureException(ex, options.mechanism ? { mechanism: options.mechanism } : undefined);
+        });
+      };
+      try {
+        if (owner) owner.run(capture);
+        else capture();
+      } catch (_captureError) {
+        /* SDK 捕获失败不能替换原业务异常。 */
+      }
       throw ex;
+    } finally {
+      finish?.();
     }
   };
 
@@ -80,13 +94,19 @@ export function wrap(
     // no-empty
   }
 
-  fn.prototype = fn.prototype || {};
-  sentryWrapped.prototype = fn.prototype;
-
-  Object.defineProperty(fn, '__sentry_wrapped__', {
-    enumerable: false,
-    value: sentryWrapped,
-  });
+  try {
+    if (owner) sentryWrapped.prototype = fn.prototype;
+    else {
+      fn.prototype = fn.prototype || {};
+      sentryWrapped.prototype = fn.prototype;
+      Object.defineProperty(fn, '__sentry_wrapped__', {
+        enumerable: false,
+        value: sentryWrapped,
+      });
+    }
+  } catch (_error) {
+    /* 冻结的业务函数仍可透明调用，不要求写原函数。 */
+  }
 
   // Signal that this function has been wrapped/filled already
   Object.defineProperties(sentryWrapped, {

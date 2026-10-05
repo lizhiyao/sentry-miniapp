@@ -75,7 +75,7 @@ describe('MinigameFrameRateIntegration', () => {
     integration.setup(oldClient as any);
     vi.clearAllMocks();
 
-    frame(16);
+    expect(rafCallback).toBeNull();
     hideCb?.();
     showCb?.();
     integration.cleanup();
@@ -87,7 +87,11 @@ describe('MinigameFrameRateIntegration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetClient.mockReturnValue({ registerCleanup: vi.fn(), getOptions: () => ({}) });
+    mockGetClient.mockReturnValue({
+      registerCleanup: vi.fn(),
+      getOptions: () => ({}),
+      flush: mockFlush,
+    });
     rafCallback = null;
     clock = 0;
     hideCb = null;
@@ -237,14 +241,18 @@ describe('MinigameFrameRateIntegration', () => {
     expect(mockFlush).not.toHaveBeenCalled();
   });
 
-  it('onShow 重置会话累积（重置后无帧则 onHide 不发汇总）', () => {
+  it('重复 onShow 不丢弃已采集的前台窗口', () => {
     const integration = new MinigameFrameRateIntegration({ reportInterval: 1000 });
     integration.setup(mockGetClient() as any);
     frame(20);
     frame(1010); // 累积进会话
-    showCb!(); // 回前台 → 重置会话
-    hideCb!(); // 重置后无新帧
-    expect(mockStartInactiveSpan).not.toHaveBeenCalled();
+    showCb!(); // 已在前台：不能丢弃有效窗口
+    hideCb!();
+    expect(mockStartInactiveSpan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({ 'frames.total': 2 }),
+      }),
+    );
   });
 
   it('回前台不把退后台间隔计为卡顿帧（恢复间隔不污染新会话）', () => {
@@ -313,7 +321,7 @@ describe('MinigameFrameRateIntegration', () => {
   it('无 requestAnimationFrame 时安全降级（不报错、不注册）', () => {
     delete g.requestAnimationFrame;
     const integration = new MinigameFrameRateIntegration();
-    expect(() => integration.setupOnce()).not.toThrow();
+    expect(() => integration.setup(mockGetClient() as any)).not.toThrow();
   });
 
   // ---- 分级卡顿（jankLevels）----

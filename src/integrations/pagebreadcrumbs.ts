@@ -1,3 +1,4 @@
+import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 import { getClientEnvironment, setClientContext } from '../clientState';
 import { addBreadcrumb, getClient } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
@@ -45,7 +46,11 @@ const pageSubscribers = new Map<Client, PageSubscriber>();
 
 function getActivePageEntry(): { client: Client; subscriber: PageSubscriber } | undefined {
   const activeClient = getClient();
-  const subscriber = activeClient ? pageSubscribers.get(activeClient) : undefined;
+  const lifetime = activeClient && getClientLifetime(activeClient);
+  const subscriber =
+    activeClient && (!lifetime || lifetime.canCollectAutomatic())
+      ? pageSubscribers.get(activeClient)
+      : undefined;
   return subscriber && activeClient ? { client: activeClient, subscriber } : undefined;
 }
 
@@ -140,7 +145,15 @@ function instrumentPageOptions(pageOptions: unknown): void {
     if (typeof original !== 'function' || original.__sentryPageCallbackWrapper) continue;
     const wrapped = function (this: any, ...args: any[]): any {
       const active = getActivePageEntry();
-      if (active) recordPageLifecycle(active.client, active.subscriber, method, this, args);
+      if (active) {
+        try {
+          withTelemetryCritical(() =>
+            recordPageLifecycle(active.client, active.subscriber, method, this, args),
+          );
+        } catch (_error) {
+          /* 保留原业务回调。 */
+        }
+      }
       return original.apply(this, args);
     };
     Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
@@ -158,7 +171,13 @@ function instrumentPageOptions(pageOptions: unknown): void {
     }
     const wrapped = function (this: any, event: any, ...rest: any[]): any {
       const active = getActivePageEntry();
-      if (active) recordUserInteraction(active.subscriber, key, this, event);
+      if (active) {
+        try {
+          withTelemetryCritical(() => recordUserInteraction(active.subscriber, key, this, event));
+        } catch (_error) {
+          /* 保留原业务回调。 */
+        }
+      }
       return original.apply(this, [event, ...rest]);
     };
     Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
@@ -167,7 +186,11 @@ function instrumentPageOptions(pageOptions: unknown): void {
 }
 
 function invokePage(original: Function, thisArg: unknown, args: unknown[]): unknown {
-  instrumentPageOptions(args[0]);
+  try {
+    withTelemetryCritical(() => instrumentPageOptions(args[0]));
+  } catch (_error) {
+    /* 冻结或不可读定义不阻断宿主 Page 注册。 */
+  }
   return original.apply(thisArg, args);
 }
 
@@ -199,6 +222,8 @@ export class PageBreadcrumbs implements Integration {
   }
 
   public setup(client: Client): void {
+    const lifetime = getClientLifetime(client);
+    if (lifetime && !lifetime.canCollectAutomatic()) return;
     const subscriber = this._createSubscriber();
     pageSubscribers.set(client, subscriber);
     const globalObject = globalThis as Record<PropertyKey, unknown>;
@@ -212,7 +237,11 @@ export class PageBreadcrumbs implements Integration {
       cleanups.push(addFunctionInstrumentationHandler(globalObject, 'Page', client, invokePage));
     }
     const cleanup = this._trackCleanup(cleanups);
-    client.registerCleanup(cleanup);
+    const detach = lifetime?.registerStop(cleanup);
+    client.registerCleanup(() => {
+      detach?.();
+      cleanup();
+    });
   }
 
   public cleanup(): void {
@@ -242,12 +271,14 @@ export class PageBreadcrumbs implements Integration {
   }
 
   private _appBreadcrumb(method: string): void {
-    addBreadcrumb({
-      category: 'app.lifecycle',
-      message: `App.${method}`,
-      level: 'info',
-      data: { action: method },
-    });
+    withTelemetryCritical(() =>
+      addBreadcrumb({
+        category: 'app.lifecycle',
+        message: `App.${method}`,
+        level: 'info',
+        data: { action: method },
+      }),
+    );
   }
 
   private _trackCleanup(cleanups: Array<() => void>): () => void {
@@ -255,7 +286,13 @@ export class PageBreadcrumbs implements Integration {
     const cleanup = (): void => {
       if (!active) return;
       active = false;
-      for (const callback of cleanups.reverse()) callback();
+      for (const callback of cleanups.splice(0).reverse()) {
+        try {
+          callback();
+        } catch (_error) {
+          /* 继续解除其余订阅。 */
+        }
+      }
       this._cleanupCallbacks.delete(cleanup);
     };
     this._cleanupCallbacks.add(cleanup);

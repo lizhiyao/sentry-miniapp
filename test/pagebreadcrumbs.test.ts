@@ -487,4 +487,23 @@ describe('PageBreadcrumbs Integration', () => {
   it('creates an integration through the public factory', () => {
     expect(pageBreadcrumbsIntegration({ enableLifecycle: false })).toBeInstanceOf(PageBreadcrumbs);
   });
+  it('不可写 Page 定义和 breadcrumb 失败保留业务注册/回调返回及原异常', () => {
+    const page = vi.fn((options: unknown) => options);
+    (globalThis as any).Page = page;
+    setupIntegration(new PageBreadcrumbs());
+    const frozen = Object.freeze({ onShow: vi.fn() });
+    expect((globalThis as any).Page(frozen)).toBe(frozen);
+    const callback = vi.fn(() => 'business return');
+    const options = (globalThis as any).Page({ onShow: callback, onTap: callback });
+    vi.mocked(addBreadcrumb).mockImplementationOnce(() => {
+      throw new Error('breadcrumb');
+    });
+    expect(options.onShow.call({ route: 'home' })).toBe('business return');
+    vi.mocked(addBreadcrumb).mockImplementationOnce(() => {
+      throw new Error('breadcrumb');
+    });
+    expect(options.onTap.call({ route: 'home' }, { type: 'tap' })).toBe('business return');
+    expect(callback).toHaveBeenCalledTimes(2);
+    expect(page).toHaveBeenCalledTimes(2);
+  });
 });

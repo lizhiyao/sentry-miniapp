@@ -7,7 +7,7 @@
  *
  * - 首个订阅者触发对 `globalThis.App` 的包装；最后一个退订时还原。
  * - 还原仅在「全局 App 仍是我们的 wrapper」时进行，杜绝乱序 cleanup 丢层 / 覆盖他人后续包装。
- * - 每个生命周期事件（onLaunch/onShow/onHide/onError）在调用业务原回调**之前**广播给所有订阅者。
+ * - 每个生命周期事件（onLaunch/onShow/onHide/onError）分别在调用业务原回调前和 finally 中广播，收尾不会吞业务异常。
  * - wrapper 无条件注入四个生命周期回调，确保即使业务未定义某回调，订阅者也能收到广播
  *   （Session 依赖此点保证会话生命周期完整）。
  */
@@ -26,14 +26,28 @@ const LIFECYCLE_METHODS: Array<keyof AppLifecycleHandlers> = [
   'onError',
 ];
 
-const subscribers = new Set<AppLifecycleHandlers>();
-let originalApp: ((...args: any[]) => any) | null = null;
-let patched = false;
+type LifecyclePhase = 'before' | 'after' | 'flush';
+interface Subscription {
+  handlers: AppLifecycleHandlers;
+  phase: LifecyclePhase;
+}
+interface AppPatch {
+  original: (...args: any[]) => any;
+  wrapper: (...args: any[]) => any;
+  active: boolean;
+}
+const subscribers = new Set<Subscription>();
+let patch: AppPatch | undefined;
 
-function broadcast(method: keyof AppLifecycleHandlers, arg?: unknown): void {
-  // 复制一份再迭代，避免订阅者在回调里增删集合导致迭代异常。
-  for (const handlers of [...subscribers]) {
-    const fn = handlers[method];
+function broadcast(
+  eventSubscribers: Subscription[],
+  phase: LifecyclePhase,
+  method: keyof AppLifecycleHandlers,
+  arg?: unknown,
+): void {
+  for (const subscription of eventSubscribers) {
+    if (subscription.phase !== phase || !subscribers.has(subscription)) continue;
+    const fn = subscription.handlers[method];
     if (typeof fn === 'function') {
       try {
         (fn as (a?: unknown) => void)(arg);
@@ -44,61 +58,98 @@ function broadcast(method: keyof AppLifecycleHandlers, arg?: unknown): void {
   }
 }
 
-function patchApp(): void {
+function patchApp(): boolean {
+  if (patch) return true;
   const g = globalThis as any;
-  if (patched || typeof g.App !== 'function') return;
+  let currentOriginalApp: (...args: any[]) => any;
+  try {
+    currentOriginalApp = g.App;
+    if (typeof currentOriginalApp !== 'function') return false;
+  } catch (_error) {
+    return false;
+  }
 
-  const currentOriginalApp = g.App as (...args: any[]) => any;
-  originalApp = currentOriginalApp;
   const wrapper = function (this: any, appOptions: Record<string, any> = {}): any {
-    if (appOptions && typeof appOptions === 'object') {
+    if (registration.active && appOptions && typeof appOptions === 'object') {
       for (const method of LIFECYCLE_METHODS) {
-        const userHandler = appOptions[method];
-        appOptions[method] = function (this: any, ...args: any[]): any {
-          broadcast(method, args[0]);
-          if (typeof userHandler === 'function') {
-            return userHandler.apply(this, args);
-          }
-        };
+        try {
+          const userHandler = appOptions[method];
+          appOptions[method] = function (this: any, ...args: any[]): any {
+            // 两阶段使用同一快照，业务回调中新装的 client 不接收旧事件的 after。
+            const eventSubscribers = [...subscribers];
+            broadcast(eventSubscribers, 'before', method, args[0]);
+            try {
+              if (typeof userHandler === 'function') {
+                return userHandler.apply(this, args);
+              }
+            } finally {
+              broadcast(eventSubscribers, 'after', method, args[0]);
+              broadcast(eventSubscribers, 'flush', method, args[0]);
+            }
+          };
+        } catch (_error) {
+          /* 冻结定义或 getter 失败不能阻断业务 App 注册。 */
+        }
       }
     }
     return currentOriginalApp.call(this, appOptions);
   };
-  (wrapper as any).__sentryAppWrapper = true;
-  g.App = wrapper;
-  patched = true;
+  const registration: AppPatch = { original: currentOriginalApp, wrapper, active: true };
+  try {
+    g.App = wrapper;
+    if (g.App !== wrapper) {
+      registration.active = false;
+      return false;
+    }
+  } catch (_error) {
+    registration.active = false;
+    return false;
+  }
+  patch = registration;
+  return true;
+}
+
+/** 仅表示 SDK 能否包装后续 App 注册，不宣称已注册的业务 App 被补包。 */
+export function isAppLifecycleAvailable(): boolean {
+  return !!patch?.active;
 }
 
 function unpatchAppIfIdle(): void {
-  if (!patched || subscribers.size > 0) return;
+  if (!patch || subscribers.size > 0) return;
   const g = globalThis as any;
   // 仅当全局 App 仍是我们的 wrapper 时还原，避免覆盖他人后续包装。
-  if (g.App && g.App.__sentryAppWrapper && originalApp) {
-    g.App = originalApp;
+  const registration = patch;
+  registration.active = false;
+  patch = undefined;
+  try {
+    if (g.App === registration.wrapper) g.App = registration.original;
+  } catch (_error) {
+    /* 不可写入口保留透明的失效 wrapper；模块状态仍释放。 */
   }
-  originalApp = null;
-  patched = false;
 }
 
 /**
- * 订阅全局 App 生命周期。首次订阅会包装 `App()`；返回退订函数，
+ * 订阅全局 App 生命周期；after 在业务同步 handler 的 finally 内运行。首次订阅会包装 `App()`；返回退订函数，
  * 退订到无订阅者时还原 `App()`。
  */
-export function subscribeAppLifecycle(handlers: AppLifecycleHandlers): () => void {
+export function subscribeAppLifecycle(
+  handlers: AppLifecycleHandlers,
+  phase: LifecyclePhase = 'before',
+): () => void {
   // 无全局 App()（如小游戏，或尚未注入）：订阅毫无意义——既不会有广播，又会把 handler
   // 永久滞留在模块级 subscribers 里（闭包持有集成实例 → 泄漏）。直接返回 no-op 退订。
   // 注：一旦已包装，globalThis.App 即我们的 wrapper（仍是 function），后续订阅照常生效。
-  if (typeof (globalThis as any).App !== 'function') {
+  const subscription = { handlers, phase };
+  subscribers.add(subscription);
+  if (!patchApp()) {
+    subscribers.delete(subscription);
     return () => {};
   }
-
-  subscribers.add(handlers);
-  patchApp();
   let active = true;
   return () => {
     if (!active) return;
     active = false;
-    subscribers.delete(handlers);
+    subscribers.delete(subscription);
     unpatchAppIfIdle();
   };
 }
@@ -106,6 +157,6 @@ export function subscribeAppLifecycle(handlers: AppLifecycleHandlers): () => voi
 /** 仅供测试：重置内部包装状态。 */
 export function _resetAppLifecycle(): void {
   subscribers.clear();
-  originalApp = null;
-  patched = false;
+  if (patch) patch.active = false;
+  patch = undefined;
 }

@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { GlobalHandlers } from '../src/integrations/globalhandlers';
 import { TryCatch } from '../src/integrations/trycatch';
 import { System } from '../src/integrations/system';
 import {
@@ -12,42 +11,6 @@ import {
 describe('Integrations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('GlobalHandlers', () => {
-    let integration: GlobalHandlers;
-
-    beforeEach(() => {
-      integration = new GlobalHandlers();
-    });
-
-    it('should have correct name', () => {
-      expect(integration.name).toBe('GlobalHandlers');
-    });
-
-    it('should setup error handlers', () => {
-      const mockOnError = vi.fn();
-      const mockOnUnhandledRejection = vi.fn();
-      (global as any).wx.onError = mockOnError;
-      (global as any).wx.onUnhandledRejection = mockOnUnhandledRejection;
-
-      integration.setupOnce();
-
-      expect(mockOnError).toHaveBeenCalled();
-      expect(mockOnUnhandledRejection).toHaveBeenCalled();
-    });
-
-    it('should handle wx.onError callback', () => {
-      (global as any).wx.onError = vi.fn();
-
-      expect(() => integration.setupOnce()).not.toThrow();
-    });
-
-    it('should handle wx.onUnhandledRejection callback', () => {
-      (global as any).wx.onUnhandledRejection = vi.fn();
-
-      expect(() => integration.setupOnce()).not.toThrow();
-    });
   });
 
   describe('TryCatch', () => {

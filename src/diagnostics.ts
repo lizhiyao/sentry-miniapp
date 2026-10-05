@@ -12,6 +12,17 @@ import type {
   MiniappOptions,
 } from './types';
 import { SDK_NAME, SDK_VERSION } from './version';
+import { getClientLifetime, type LifecycleWarningCode } from './lifecycle';
+
+const lifecycleMessages: Record<LifecycleWarningCode, string> = {
+  late_init:
+    'App 已注册，SDK 使用宿主原生 lifecycle（如有）；监听顺序不受 SDK 控制，业务 onHide 末尾应显式 flush。',
+  lifecycle_unavailable:
+    '未安装或缺少可用 lifecycle 监听，业务须在 hide/show 边界显式管理 flush 与离线重放。',
+  reentrant_init_unsupported:
+    '同步遥测 hook 中的 init 已拒绝；请在 hook 返回后的独立控制流切换 client。',
+  invalid_close_timeout: '非法 close timeout 已回落为 2000ms 收尾预算。',
+};
 
 /** 读取当前 SDK 运行时诊断信息。不会发送事件，也不会触发缓存 flush。 */
 export function getDiagnostics(): MiniappDiagnostics {
@@ -53,6 +64,17 @@ export function getDiagnostics(): MiniappDiagnostics {
   };
 
   diagnostics.warnings = buildWarnings(diagnostics);
+  if (client) {
+    for (const code of getClientLifetime(client)?.warnings ?? []) {
+      diagnostics.warnings.push({ code, message: lifecycleMessages[code] });
+    }
+    if (isMiniappClient && !diagnostics.integrations.includes('MiniappLifecycle')) {
+      diagnostics.warnings.push({
+        code: 'lifecycle_unavailable',
+        message: lifecycleMessages.lifecycle_unavailable,
+      });
+    }
+  }
   return diagnostics;
 }
 

@@ -66,7 +66,7 @@ Sentry.init({
 });
 ```
 
-`reportInterval` 控制本地统计窗口，不代表每个窗口都会发送汇总 span。会话汇总仍在退后台或会话结束时发送，并随 `flush` 同步发出。
+`reportInterval` 控制本地统计窗口，不代表每个窗口都会发送汇总 span。会话汇总在退后台或 `client.close()` 的同步收尾窗口产生，并由 `flush` 排出。`client.dispose()` 与集成资源 cleanup 只释放状态，不产生最后汇总。退后台会停止 SDK 自己的 rAF，回前台重建基线；重复 show 不重置正在采集的窗口。
 
 ## 按严重程度区分卡顿
 

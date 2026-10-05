@@ -130,4 +130,148 @@ describe('appLifecycle（单一 App 包装）', () => {
     expect(good).toHaveBeenCalled();
     expect(user).toHaveBeenCalled();
   });
+  it('after 在业务同步 handler 后运行，保留 this、参数与 Promise 返回值', () => {
+    const order: string[] = [];
+    const context = { app: true };
+    const arg = { scene: 1001 };
+    const promise = Promise.resolve('later');
+    subscribeAppLifecycle({ onHide: () => order.push('before') });
+    subscribeAppLifecycle({ onHide: () => order.push('after') }, 'after');
+    (globalThis as any).App({
+      onHide(this: unknown, value: unknown) {
+        expect(this).toBe(context);
+        expect(value).toBe(arg);
+        order.push('business');
+        return promise;
+      },
+    });
+    expect(captured.onHide.call(context, arg)).toBe(promise);
+    expect(order).toEqual(['before', 'business', 'after']);
+  });
+
+  it('业务异常仍执行 after，收尾异常不能替换业务异常', () => {
+    const error = new Error('business failed');
+    const good = vi.fn();
+    subscribeAppLifecycle(
+      {
+        onHide: () => {
+          throw new Error('cleanup failed');
+        },
+      },
+      'after',
+    );
+    subscribeAppLifecycle({ onHide: good }, 'after');
+    (globalThis as any).App({
+      onHide: () => {
+        throw error;
+      },
+    });
+    expect(() => captured.onHide()).toThrow(error);
+    expect(good).toHaveBeenCalledOnce();
+  });
+
+  it('缺少业务 handler 时 after 仍执行；旧事件不交给业务中新订阅者', () => {
+    const after = vi.fn();
+    subscribeAppLifecycle({ onHide: after }, 'after');
+    (globalThis as any).App({});
+    captured.onHide();
+    expect(after).toHaveBeenCalledOnce();
+
+    const next = vi.fn();
+    (globalThis as any).App({ onHide: () => subscribeAppLifecycle({ onHide: next }, 'after') });
+    captured.onHide();
+    expect(next).not.toHaveBeenCalled();
+    captured.onHide();
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('业务中退订的 owner 不接收 after', () => {
+    const oldOwner = vi.fn();
+    const unsubscribe = subscribeAppLifecycle({ onHide: oldOwner }, 'after');
+    (globalThis as any).App({ onHide: unsubscribe });
+    captured.onHide();
+    expect(oldOwner).not.toHaveBeenCalled();
+  });
+
+  it('第三方保存旧 wrapper 后重装，不重复广播或覆盖第三方层', () => {
+    const unsubscribe = subscribeAppLifecycle({});
+    const oldWrapper = (globalThis as any).App;
+    const thirdParty = vi.fn((options: unknown) => oldWrapper(options));
+    (globalThis as any).App = thirdParty;
+    unsubscribe();
+    const before = vi.fn();
+    const after = vi.fn();
+    const business = vi.fn();
+    const stopBefore = subscribeAppLifecycle({ onHide: before });
+    const stopAfter = subscribeAppLifecycle({ onHide: after }, 'after');
+    (globalThis as any).App({ onHide: business });
+    captured.onHide();
+    expect(before).toHaveBeenCalledOnce();
+    expect(after).toHaveBeenCalledOnce();
+    expect(business).toHaveBeenCalledOnce();
+    expect(thirdParty).toHaveBeenCalledOnce();
+    stopBefore();
+    stopAfter();
+    expect((globalThis as any).App).toBe(thirdParty);
+  });
+  it.each(['throw', 'ignore', 'getter'] as const)(
+    'App 安装 %s 失败回滚订阅，恢复能力后只广播新订阅',
+    (mode) => {
+      const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'App')!;
+      const old = vi.fn(),
+        live = vi.fn();
+      try {
+        Object.defineProperty(globalThis, 'App', {
+          configurable: true,
+          get() {
+            if (mode === 'getter') throw new Error('App getter');
+            return realApp;
+          },
+          set() {
+            if (mode === 'throw') throw new Error('App setter');
+          },
+        });
+        expect(() => subscribeAppLifecycle({ onShow: old })).not.toThrow();
+        Object.defineProperty(globalThis, 'App', descriptor);
+        const stop = subscribeAppLifecycle({ onShow: live });
+        (globalThis as any).App({});
+        captured.onShow();
+        expect(old).not.toHaveBeenCalled();
+        expect(live).toHaveBeenCalledOnce();
+        stop();
+      } finally {
+        Object.defineProperty(globalThis, 'App', descriptor);
+      }
+    },
+  );
+
+  it('App 入口被改为只读后退订仍释放状态，保留失效透明 wrapper', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'App')!;
+    const observer = vi.fn();
+    const stop = subscribeAppLifecycle({ onShow: observer });
+    const wrapper = (globalThis as any).App;
+    try {
+      Object.defineProperty(globalThis, 'App', {
+        configurable: true,
+        writable: false,
+        value: wrapper,
+      });
+      expect(stop).not.toThrow();
+      (globalThis as any).App({});
+      expect(captured.onShow).toBeUndefined();
+      expect(observer).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(globalThis, 'App', descriptor);
+    }
+  });
+
+  it('冻结 App 定义保留业务原回调和注册返回值', () => {
+    const stop = subscribeAppLifecycle({ onHide: vi.fn() });
+    const business = vi.fn(() => 42);
+    const frozen = Object.freeze({ onHide: business });
+    expect((globalThis as any).App(frozen)).toBe(frozen);
+    expect(frozen.onHide()).toBe(42);
+    expect(business).toHaveBeenCalledOnce();
+    stop();
+  });
 });

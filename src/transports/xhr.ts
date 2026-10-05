@@ -26,6 +26,13 @@ interface MiniappRequestTask {
   abort?: () => void;
 }
 
+const shutdownHandlers = new WeakMap<Transport, () => void>();
+
+/** 内部 runtime 关闭入口；公开 transport 配置不暴露 SDK 控制回调。 */
+export function shutdownMiniappTransport(transport: Transport): void {
+  shutdownHandlers.get(transport)?.();
+}
+
 export function normalizeRequestTimeout(timeout: number | undefined): number {
   return typeof timeout === 'number' && isFinite(timeout) && timeout > 0
     ? Math.max(1, Math.floor(timeout))
@@ -51,7 +58,10 @@ function networkError(error: any): Error {
 /**
  * Creates a Transport that uses the miniapp request API to send events to Sentry.
  */
-export function createMiniappTransport(options: MiniappTransportOptions): Transport {
+export function createMiniappTransport(
+  options: MiniappTransportOptions,
+  canSend: () => boolean = () => true,
+): Transport {
   // 保存 URL 到局部变量
   const transportUrl = options.url;
   const transportHeaders = options.headers || {};
@@ -63,6 +73,8 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
     reject: (error: unknown) => void;
   }> = [];
   let activeRequests = 0;
+  let stopped = false;
+  const cancellations = new Set<() => void>();
 
   /**
    * Execute a request using the miniapp request API.
@@ -76,19 +88,31 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
         if (settled) return;
         settled = true;
         clearTimeout(timeoutTimer);
+        cancellations.delete(cancel);
         callback();
       };
 
       const timeoutTimer = setTimeout(() => {
         if (settled) return;
-        settled = true;
+        settle(() => {
+          abort();
+          reject(new Error(`Sentry request timed out after ${requestTimeout}ms`));
+        });
+      }, requestTimeout);
+
+      const abort = (): void => {
         try {
           requestTask?.abort?.();
         } catch (_error) {
-          // 某些宿主的 RequestTask.abort 可能抛错；超时仍需立即释放 SDK Promise。
+          /* 宿主 abort 故障不能阻断结算。 */
         }
-        reject(new Error(`Sentry request timed out after ${requestTimeout}ms`));
-      }, requestTimeout);
+      };
+      const cancel = (): void =>
+        settle(() => {
+          abort();
+          resolve({});
+        });
+      cancellations.add(cancel);
 
       const requestOptions = {
         url: transportUrl,
@@ -134,10 +158,14 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
       // Use the appropriate request method based on the platform
       try {
         const currentSdk = sdk();
-        if (currentSdk.request) {
-          requestTask = currentSdk.request(requestOptions) as MiniappRequestTask | undefined;
-        } else if (currentSdk.httpRequest) {
-          requestTask = currentSdk.httpRequest(requestOptions) as MiniappRequestTask | undefined;
+        const requestApi = currentSdk.request ?? currentSdk.httpRequest;
+        if (stopped || !canSend()) {
+          cancel();
+        } else if (typeof requestApi === 'function') {
+          requestTask = requestApi.call(currentSdk, requestOptions) as
+            MiniappRequestTask | undefined;
+          // 宿主 request 内可同步触发 dispose，返回的 task 此前尚不可 abort。
+          if (stopped) abort();
         } else {
           settle(() =>
             reject(new Error('No request method available in current miniapp environment')),
@@ -154,6 +182,10 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
       const pending = requestQueue.shift();
       if (!pending) return;
 
+      if (stopped || !canSend()) {
+        pending.resolve({});
+        continue;
+      }
       activeRequests += 1;
       void executeRequest(pending.request).then(
         (response) => {
@@ -175,13 +207,21 @@ export function createMiniappTransport(options: MiniappTransportOptions): Transp
    * requests can occupy scarce miniapp network slots at the same time.
    */
   function makeRequest(request: MiniappTransportRequest): Promise<TransportMakeRequestResponse> {
+    if (stopped || !canSend()) return Promise.resolve({});
     return new Promise((resolve, reject) => {
       requestQueue.push({ request, resolve, reject });
       drainRequestQueue();
     });
   }
 
-  return createTransport(options, makeRequest);
+  const transport = createTransport(options, makeRequest);
+  shutdownHandlers.set(transport, () => {
+    if (stopped) return;
+    stopped = true;
+    for (const pending of requestQueue.splice(0)) pending.resolve({});
+    for (const cancel of [...cancellations]) cancel();
+  });
+  return transport;
 }
 
 function getHeaderValue(headers: Record<string, unknown>, name: string): string | null {

@@ -1,3 +1,4 @@
+import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 import { addBreadcrumb } from '@sentry/core';
 import type { Client, Integration, SeverityLevel } from '@sentry/core';
 
@@ -53,6 +54,8 @@ export class ConsoleBreadcrumbs implements Integration {
   }
 
   public setup(client: Client): void {
+    const lifetime = getClientLifetime(client);
+    if (lifetime && !lifetime.canCollectAutomatic()) return;
     const cleanups: Array<() => void> = [];
     for (const level of this._levels) {
       if (typeof console[level] !== 'function') continue;
@@ -63,7 +66,11 @@ export class ConsoleBreadcrumbs implements Integration {
       );
     }
     const cleanup = this._trackCleanup(cleanups);
-    client.registerCleanup(cleanup);
+    const detach = lifetime?.registerStop(cleanup);
+    client.registerCleanup(() => {
+      detach?.();
+      cleanup();
+    });
   }
 
   private _handleConsole(
@@ -72,20 +79,26 @@ export class ConsoleBreadcrumbs implements Integration {
     thisArg: unknown,
     args: unknown[],
   ): unknown {
-    addBreadcrumb({
-      category: 'console',
-      level: LEVEL_TO_SEVERITY[level],
-      message: args
-        .map((arg) => {
-          if (typeof arg === 'string') return arg;
-          try {
-            return JSON.stringify(arg);
-          } catch (_e) {
-            return String(arg);
-          }
-        })
-        .join(' '),
-    });
+    try {
+      withTelemetryCritical(() => {
+        addBreadcrumb({
+          category: 'console',
+          level: LEVEL_TO_SEVERITY[level],
+          message: args
+            .map((arg) => {
+              if (typeof arg === 'string') return arg;
+              try {
+                return JSON.stringify(arg);
+              } catch (_e) {
+                return String(arg);
+              }
+            })
+            .join(' '),
+        });
+      });
+    } catch (_error) {
+      /* SDK 格式化/采集故障不影响原 console。 */
+    }
 
     return original.apply(thisArg ?? console, args);
   }
@@ -102,7 +115,13 @@ export class ConsoleBreadcrumbs implements Integration {
     const cleanup = (): void => {
       if (!active) return;
       active = false;
-      for (const callback of cleanups.reverse()) callback();
+      for (const callback of cleanups.splice(0).reverse()) {
+        try {
+          callback();
+        } catch (_error) {
+          /* 继续解除其余订阅。 */
+        }
+      }
       this._cleanupCallbacks.delete(cleanup);
     };
     this._cleanupCallbacks.add(cleanup);

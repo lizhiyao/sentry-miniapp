@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { init, captureException, captureMessage, addBreadcrumb, logger } from '../src/index';
-import { getClient, getCurrentScope, flush, installedIntegrations } from '@sentry/core';
+import {
+  getClient,
+  getCurrentScope,
+  flush,
+  installedIntegrations,
+  startInactiveSpan,
+  spanIsSampled,
+} from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
@@ -217,10 +224,21 @@ describe('Integration（真 @sentry/core 端到端）', () => {
     expect(capturedEvents().length).toBe(0);
   });
 
-  it('tracesSampler 透传到 client 选项', () => {
-    const tracesSampler = vi.fn<() => number>().mockReturnValue(0.5);
+  it('tracesSampler 的采样输入与决定仍由 core 处理', () => {
+    const tracesSampler = vi.fn<() => number>().mockReturnValue(1);
     const client = initWithCapture({ tracesSampler, integrations: [] });
-    expect(client?.getOptions().tracesSampler).toBe(tracesSampler);
+    expect(client?.getOptions().tracesSampler).toBeTypeOf('function');
+    const span = startInactiveSpan({ name: 'sampler probe', attributes: { route: 'pages/a' } });
+    expect(tracesSampler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'sampler probe',
+        attributes: expect.objectContaining({ route: 'pages/a' }),
+      }),
+    );
+    expect(spanIsSampled(span)).toBe(true);
+    span.end();
+    tracesSampler.mockReturnValue(0);
+    expect(spanIsSampled(startInactiveSpan({ name: 'dropped probe' }))).toBe(false);
   });
 
   it('非法 DSN：不抛错但记录错误日志', () => {

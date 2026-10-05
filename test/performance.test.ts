@@ -14,7 +14,6 @@ vi.mock('@sentry/core', async (importOriginal) => ({
   startInactiveSpan: vi.fn(),
   startSpan: vi.fn(),
   withActiveSpan: vi.fn((_span, callback) => callback()),
-  withScope: vi.fn(),
   getCurrentHub: vi.fn(() => ({
     getClient: vi.fn(() => ({
       captureException: vi.fn(),
@@ -42,6 +41,7 @@ describe('PerformanceIntegration', () => {
   let mockSpan: PerformanceTestHarness['mockSpan'];
 
   beforeEach(() => {
+    vi.useFakeTimers();
     ({ integration, activeClient, mockPerformanceManager, mockObserver, mockScope, mockSpan } =
       createPerformanceTestHarness({
         PerformanceIntegration,
@@ -57,6 +57,7 @@ describe('PerformanceIntegration', () => {
 
   afterEach(() => {
     integration.cleanup();
+    vi.useRealTimers();
   });
 
   describe('constructor', () => {
@@ -133,7 +134,7 @@ describe('PerformanceIntegration', () => {
 
       expect(consoleSpy).not.toHaveBeenCalled();
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
-      expect((integration as any)._reportTimer).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
       expect(mockScope.setTag).not.toHaveBeenCalled();
       expect(mockScope.setContext).not.toHaveBeenCalled();
 
@@ -147,7 +148,7 @@ describe('PerformanceIntegration', () => {
       integration.setup(activeClient as any);
 
       expect(consoleSpy).not.toHaveBeenCalled();
-      expect((integration as any)._reportTimer).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
       expect(mockScope.setTag).not.toHaveBeenCalled();
       expect(mockScope.setContext).not.toHaveBeenCalled();
 
@@ -180,7 +181,7 @@ describe('PerformanceIntegration', () => {
       disabledIntegration.setup(activeClient as any);
 
       expect(mockPerformanceManager.createObserver).not.toHaveBeenCalled();
-      expect((disabledIntegration as any)._reportTimer).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
       disabledIntegration.cleanup();
     });
 
@@ -210,7 +211,7 @@ describe('PerformanceIntegration', () => {
         '[sentry-miniapp] Failed to setup performance observers:',
         error,
       );
-      expect((integration as any)._reportTimer).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
       expect(mockScope.setTag).not.toHaveBeenCalled();
       expect(mockScope.setContext).not.toHaveBeenCalled();
 
@@ -378,7 +379,7 @@ describe('PerformanceIntegration', () => {
       }
 
       // Trigger reporting
-      (integration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -401,7 +402,7 @@ describe('PerformanceIntegration', () => {
         observerCallback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 1500 }]);
       }
 
-      (customIntegration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -423,7 +424,7 @@ describe('PerformanceIntegration', () => {
         ]);
       }
 
-      (integration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       expect(mockScope.addBreadcrumb).not.toHaveBeenCalledWith(
         expect.objectContaining({ category: 'performance.warning' }),
@@ -500,7 +501,7 @@ describe('PerformanceIntegration', () => {
         ]);
       }
 
-      (integration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       expect(getClientEnvironment(activeClient as any).contexts['performance_summary']).toEqual(
         expect.objectContaining({
@@ -519,7 +520,7 @@ describe('PerformanceIntegration', () => {
         observerCallback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 }]);
       }
 
-      (integration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       // Should not have memory in context
       const contextCall = mockScope.setContext.mock.calls.find(
@@ -544,7 +545,7 @@ describe('PerformanceIntegration', () => {
         observerCallback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 }]);
       }
 
-      (memIntegration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       expect(getClientEnvironment(activeClient as any).contexts['performance_summary']).toEqual(
         expect.objectContaining({
@@ -568,7 +569,7 @@ describe('PerformanceIntegration', () => {
         observerCallback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 100 }]);
       }
 
-      expect(() => (memIntegration as any)._reportBufferedEntries()).not.toThrow();
+      expect(() => vi.advanceTimersByTime(30000)).not.toThrow();
 
       memIntegration.cleanup();
     });
@@ -583,16 +584,9 @@ describe('PerformanceIntegration', () => {
       vi.mocked(startInactiveSpan).mockClear();
 
       observerCallback?.([{ name: 'stale', entryType: 'navigation', startTime: 0, duration: 100 }]);
-      (integration as any)._entryBuffer.push({
-        name: 'stale-buffer',
-        entryType: 'navigation',
-        startTime: 0,
-        duration: 100,
-      });
       integration.cleanup();
 
       expect(startInactiveSpan).not.toHaveBeenCalled();
-      expect((integration as any)._entryBuffer).toEqual([]);
       expect(mockScope.setContext).not.toHaveBeenCalledWith(
         'performance_summary',
         expect.anything(),
@@ -605,14 +599,12 @@ describe('PerformanceIntegration', () => {
       integration.cleanup();
       vi.mocked(startInactiveSpan).mockClear();
       mockScope.setContext.mockClear();
-      expect((integration as any)._isActiveClient()).toBe(false);
 
       // 宿主仍可能派发 disconnect 之前在途的回调：本实例已经没有 client，就不能再动 scope。
       observerCallback?.([{ name: 'late', entryType: 'navigation', startTime: 0, duration: 100 }]);
 
       expect(startInactiveSpan).not.toHaveBeenCalled();
       expect(mockScope.setContext).not.toHaveBeenCalled();
-      expect((integration as any)._entryBuffer).toEqual([]);
     });
 
     it('should disconnect observers and clear timers', () => {
@@ -634,7 +626,7 @@ describe('PerformanceIntegration', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should report remaining buffered entries before cleanup', () => {
+    it('cleanup 只丢弃缓冲，不产生最后汇总', () => {
       integration.setup(activeClient as any);
 
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
@@ -646,10 +638,9 @@ describe('PerformanceIntegration', () => {
 
       integration.cleanup();
 
-      // 清理时应完成最后一次汇总
-      expect(getClientEnvironment(activeClient as any).contexts['performance_summary']).toEqual(
-        expect.objectContaining({ total_entries: 1 }),
-      );
+      expect(
+        getClientEnvironment(activeClient as any).contexts['performance_summary'],
+      ).toBeUndefined();
     });
   });
 });

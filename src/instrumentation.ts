@@ -2,6 +2,7 @@ import { getClient } from '@sentry/core';
 import type { Client } from '@sentry/core';
 
 import { fill } from './helpers';
+import { getClientLifetime } from './lifecycle';
 
 export type FunctionInstrumentationHandler = (
   original: Function,
@@ -76,7 +77,11 @@ function createState(
       if (state.wrapper !== wrapper) return original.apply(this, args);
 
       const activeClient = getClient();
-      const handler = activeClient ? state.handlers.get(activeClient) : undefined;
+      const lifetime = activeClient && getClientLifetime(activeClient);
+      const handler =
+        activeClient && (!lifetime || lifetime.canCollectAutomatic())
+          ? state.handlers.get(activeClient)
+          : undefined;
       return handler ? handler(original, this, args) : original.apply(this, args);
     };
 

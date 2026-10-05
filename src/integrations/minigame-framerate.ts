@@ -1,10 +1,12 @@
 import { automaticSpanAttributes } from '../spanDimensions';
 import { setClientContext } from '../clientState';
-import { addBreadcrumb, flush, getClient, startInactiveSpan, setMeasurement } from '@sentry/core';
+import { addBreadcrumb, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 import type { MinigameFrameRateOptions, MinigameJankLevels } from '../types';
 import { resolveNonNegativeInteger } from '../numericOptions';
+import { getClientLifetime } from '../lifecycle';
+import { OwnerToken, registerOwnerListener } from '../owner';
 
 type FrameRateWindowStats = {
   fps: number;
@@ -122,8 +124,14 @@ export class MinigameFrameRateIntegration implements Integration {
   private _fpsSamples: number[] = [];
   private _showHandler: ((res: any) => void) | null = null;
   private _hideHandler: (() => void) | null = null;
-  private _isSetup: boolean = false;
   private _client: Client | undefined;
+  private _owner: OwnerToken | undefined;
+  private _sdk: ReturnType<typeof sdk> | undefined;
+  private _raf: Function | undefined;
+  private _cancelFrame: Function | undefined;
+  private _frameRequest: { id?: unknown } | undefined;
+  private readonly _clients = new WeakSet<Client>();
+  private readonly _cleanups = new Set<() => void>();
 
   constructor(options: MinigameFrameRateOptions = {}) {
     this._options = {
@@ -147,60 +155,142 @@ export class MinigameFrameRateIntegration implements Integration {
   }
 
   public setupOnce(): void {
-    this._setup();
+    // 全局 setupOnce 不持有 client 的资源。
   }
 
   public setup(client: Client): void {
-    this._client = client;
-    this._setup();
-    client.registerCleanup(() => this.cleanup());
+    if (this._clients.has(client)) return;
+    const lifetime = getClientLifetime(client);
+    if (lifetime && !lifetime.canCollectAutomatic()) return;
+    const controller = new MinigameFrameRateIntegration(this._options);
+    controller._tiers = this._tiers;
+    controller._tiered = this._tiered;
+    controller._jankEntryThreshold = this._jankEntryThreshold;
+    controller._client = client;
+    this._clients.add(client);
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      controller.cleanup();
+      this._clients.delete(client);
+      this._cleanups.delete(cleanup);
+    };
+    this._cleanups.add(cleanup);
+    const detach = lifetime?.registerStop(cleanup);
+    client.registerCleanup(() => {
+      detach?.();
+      cleanup();
+    });
+    const owner = new OwnerToken(client);
+    controller._owner = owner;
+    owner.registerFinalizer(() => {
+      controller._stopFrames();
+      controller._flushSummary();
+    });
+    owner.run(() => controller._setup());
   }
 
   private _setup(): void {
-    if (this._isSetup) return;
-    this._isSetup = true;
-
-    const raf = (globalThis as any).requestAnimationFrame;
-    if (typeof raf !== 'function') {
-      console.warn(
-        '[sentry-miniapp] requestAnimationFrame 不可用，小游戏帧率监控已跳过（小程序逻辑层不支持）',
-      );
+    try {
+      const raf = (globalThis as any).requestAnimationFrame;
+      if (typeof raf !== 'function') return;
+      this._raf = raf;
+      const cancel = (globalThis as any).cancelAnimationFrame;
+      if (typeof cancel === 'function') this._cancelFrame = cancel;
+    } catch (_error) {
       return;
     }
-
-    this._running = true;
-    const startTs = now();
-    this._lastFrameTs = startTs;
-    this._sessionEpochStart = epochNow();
-
-    const loop = (): void => {
-      if (!this._running) return;
-      const t = now();
-      if (this._isActiveClient()) {
-        this._onFrame(t - this._lastFrameTs);
+    this._restartOnResume();
+    if (!this._owner?.isActive()) return;
+    try {
+      this._sdk = sdk();
+    } catch (_error) {
+      return;
+    }
+    const host = this._sdk;
+    try {
+      if (this._owner?.isActive()) {
+        this._hideHandler = () =>
+          this._observe(() => {
+            this._stopFrames();
+            if (this._flushSummary()) this._flushPendingEvents();
+          });
+        registerOwnerListener(this._owner, host, 'onHide', 'offHide', this._hideHandler);
       }
-      this._lastFrameTs = t;
-      raf(loop);
-    };
-    raf(loop);
+    } catch (_error) {
+      /* 单项注册失败不阻断其余能力。 */
+    }
+    if (!this._owner?.isActive()) return;
+    try {
+      if (this._owner?.isActive()) {
+        this._showHandler = () => this._observe(() => this._restartOnResume());
+        registerOwnerListener(this._owner, host, 'onShow', 'offShow', this._showHandler);
+      }
+    } catch (_error) {
+      /* 已注册的资源仍由 cleanup 解除。 */
+    }
+  }
 
-    // 退后台 / 回前台：onHide 发会话汇总 span，onShow 开启新会话。
-    const miniappSdk = sdk();
-    if (miniappSdk && typeof miniappSdk.onHide === 'function') {
-      this._hideHandler = () => {
-        if (!this._isActiveClient()) return;
-        if (this._flushSummary()) {
-          this._flushPendingEvents();
+  private _observe(callback: () => void): void {
+    try {
+      this._owner?.run(callback);
+    } catch (_error) {
+      /* SDK 故障不能传播到宿主。 */
+    }
+  }
+
+  private _requestFrame(): void {
+    const raf = this._raf;
+    if (!raf || !this._running || !this._owner?.isActive() || this._frameRequest) return;
+    const cancel = this._cancelFrame;
+    const request: { id?: unknown } = {};
+    this._frameRequest = request;
+    let scheduling = true;
+    let called = false;
+    try {
+      const id = raf.call(globalThis, () => {
+        called = true;
+        if (this._frameRequest !== request) return;
+        this._frameRequest = undefined;
+        // 非异步 shim 不代表渲染帧，也不能递归占住业务线程。
+        if (scheduling) return;
+        this._observe(() => {
+          if (!this._running) return;
+          const t = now();
+          this._onFrame(t - this._lastFrameTs);
+          this._lastFrameTs = t;
+        });
+        this._requestFrame();
+      });
+      if (this._frameRequest === request && !called) request.id = id;
+      else if (!called) {
+        try {
+          cancel?.call(globalThis, id);
+        } catch (_error) {
+          /* 迟到句柄已失效。 */
         }
-      };
-      miniappSdk.onHide(this._hideHandler);
+      }
+    } catch (_error) {
+      if (this._frameRequest === request) this._frameRequest = undefined;
+    } finally {
+      scheduling = false;
     }
-    if (miniappSdk && typeof miniappSdk.onShow === 'function') {
-      this._showHandler = () => {
-        if (this._isActiveClient()) this._restartOnResume();
-      };
-      miniappSdk.onShow(this._showHandler);
+  }
+
+  private _cancel(id: unknown): void {
+    try {
+      this._cancelFrame?.call(globalThis, id);
+    } catch (_error) {
+      /* 无 cancel 或失败时靠请求身份与 owner 失效。 */
     }
+  }
+
+  private _stopFrames(): void {
+    this._running = false;
+    const request = this._frameRequest;
+    this._frameRequest = undefined;
+    if (request && request.id !== undefined) this._cancel(request.id);
   }
 
   private _onFrame(delta: number): void {
@@ -242,7 +332,7 @@ export class MinigameFrameRateIntegration implements Integration {
       }
     }
 
-    if (this._windowElapsed >= this._options.reportInterval) {
+    if (this._owner?.isActive() && this._windowElapsed >= this._options.reportInterval) {
       this._report();
     }
   }
@@ -335,10 +425,13 @@ export class MinigameFrameRateIntegration implements Integration {
    * 会被误判为一帧巨型卡顿，拉爆 worstFrame、把 minFps 打到 ~0、jank +1，污染新会话汇总。
    */
   private _restartOnResume(): void {
+    if (this._running) return;
     this._resetSession();
     const t = now();
     this._lastFrameTs = t;
     this._resetWindow();
+    this._running = true;
+    this._requestFrame();
   }
 
   /**
@@ -346,6 +439,8 @@ export class MinigameFrameRateIntegration implements Integration {
    * 仅在 tracing 启用时真正上报；会话无帧则跳过。发完重置会话累积。
    */
   private _flushSummary(): boolean {
+    const lifetime = this._client && getClientLifetime(this._client);
+    if (!this._client || (lifetime && !lifetime.acceptsTelemetry())) return false;
     this._rollupWindow();
     if (this._sessionFrames === 0) return false;
 
@@ -364,13 +459,17 @@ export class MinigameFrameRateIntegration implements Integration {
         tierAttributes[`jank.${tier.name}`] = this._sessionJankByTier[tier.name];
     }
 
+    const tierCounts = this._sessionJankByTier;
+    const epochStart = this._sessionEpochStart;
+    this._resetSession();
+    // 在任何用户 sampler/hook 前提交窗口结束，防止重入重复汇总。
     // span 绝对时间用 epoch 锚点 + 单调测得的 elapsed 作时长，避免单调时钟落到 1970。
     const span = startInactiveSpan({
       name: 'minigame.framerate.summary',
       op: 'ui.framerate',
       // core 11 废弃 forceTransaction；显式断掉父 span 即可让汇总自成一条 segment span。
       parentSpan: null,
-      startTime: this._sessionEpochStart / 1000,
+      startTime: epochStart / 1000,
       attributes: automaticSpanAttributes(
         this._client,
         {
@@ -386,6 +485,7 @@ export class MinigameFrameRateIntegration implements Integration {
       ),
     });
 
+    if (!this._client || (lifetime && !lifetime.acceptsTelemetry())) return false;
     // 属性是 stream 生命周期下唯一的指标载体；measurement 只在 `traceLifecycle: 'static'` 才产出。
     // 两份都写，用户选任一生命周期都能取到同一组数。
     setMeasurement('fps_avg', avgFps, 'none', span);
@@ -395,53 +495,48 @@ export class MinigameFrameRateIntegration implements Integration {
     // 分级模式：对启用的档增发计数（jank_count 仍为总数；未启用的档不发）。
     if (this._tiered) {
       for (const tier of this._tiers) {
-        const tierCount = this._sessionJankByTier[tier.name];
+        const tierCount = tierCounts[tier.name];
         setMeasurement(`jank_${tier.name}_count`, tierCount, 'none', span);
       }
     }
-    span.end((this._sessionEpochStart + Math.max(0, elapsed)) / 1000);
-
-    this._resetSession();
+    span.end((epochStart + Math.max(0, elapsed)) / 1000);
     return true;
   }
 
   private _flushPendingEvents(): void {
-    void Promise.resolve(flush(MinigameFrameRateIntegration._HIDE_FLUSH_TIMEOUT_MS)).catch(() => {
-      // ignore
-    });
+    if (!this._client || !this._owner?.isActive()) return;
+    void Promise.resolve(
+      this._client.flush(MinigameFrameRateIntegration._HIDE_FLUSH_TIMEOUT_MS),
+    ).catch(() => {});
   }
 
   public cleanup(): void {
-    this._running = false;
-    // 会话结束兜底：再发一次汇总；发出了就把传输 flush 掉（与 onHide 路径一致，
-    // 避免集成关闭/客户端拆除时这条汇总 span 还滞留在传输队列里没发出）。
-    if (this._isActiveClient()) {
-      if (this._flushSummary()) this._flushPendingEvents();
-    } else {
-      this._resetWindow();
-      this._resetSession();
-    }
-    const miniappSdk = sdk();
-    if (miniappSdk) {
-      try {
-        if (this._hideHandler && typeof miniappSdk.offHide === 'function') {
-          miniappSdk.offHide(this._hideHandler);
-        }
-        if (this._showHandler && typeof miniappSdk.offShow === 'function') {
-          miniappSdk.offShow(this._showHandler);
-        }
-      } catch (_e) {
-        // ignore
-      }
-    }
+    for (const cleanup of [...this._cleanups]) cleanup();
+    const owner = this._owner;
+    this._owner = undefined;
+    this._client = undefined;
+    owner?.release();
+    this._stopFrames();
+    this._raf = undefined;
+    this._cancelFrame = undefined;
+    const host = this._sdk;
+    this._sdk = undefined;
+    const hide = this._hideHandler;
+    const show = this._showHandler;
     this._hideHandler = null;
     this._showHandler = null;
-    this._isSetup = false;
-    this._client = undefined;
-  }
-
-  private _isActiveClient(): boolean {
-    return !this._client || getClient() === this._client;
+    for (const [key, handler] of [
+      ['offHide', hide],
+      ['offShow', show],
+    ] as const) {
+      try {
+        if (handler && host && typeof host[key] === 'function') host[key](handler);
+      } catch (_error) {
+        /* 一个 off 失败仍继续释放其余资源。 */
+      }
+    }
+    this._resetWindow();
+    this._resetSession();
   }
 }
 

@@ -12,6 +12,9 @@ import {
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { init } from '../src/index';
+import { GlobalHandlers } from '../src/integrations/globalhandlers';
+import { MiniappClient } from '../src/client';
+import { getClientLifetime } from '../src/lifecycle';
 import {
   assertDefined,
   collectEnvelopePayloads,
@@ -66,53 +69,235 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     delete g.wx;
   });
 
-  it.each([true, false])('默认 pageNotFound query=%s 时所有别名不泄露敏感值', async (urlQueryParams) => {
-    init({
-      dsn: 'https://test@o0.ingest.sentry.io/0',
-      dataCollection: { urlQueryParams },
-      sensitiveKeys: ['memberNo'],
-      enableAutoSessionTracking: false,
-      enableMinigameFrameRate: false,
+  it('onError 注册中 dispose 后才完成注册，仍解除迟到监听且不安装后续资源', () => {
+    const handlers: Array<(error: unknown) => void> = [];
+    g.wx.offError = vi.fn();
+    g.wx.onError = vi.fn((handler) => {
+      getClient()!.dispose();
+      handlers.push(handler);
+    });
+    const owner = init({
+      dsn: 'https://first@example.com/1',
+      defaultIntegrations: [new GlobalHandlers()],
       transport: createCapturingTransport(captured),
-    });
-    onPageNotFoundHandler!({
-      path: 'https://canary-user:canary-password@example.com/missing?token=canary-token#canary-fragment',
-      query: { token: 'canary-token', memberNo: 'canary-member', card_number: 'canary-card', id: '7' },
-      isEntryPage: false,
-    });
-    await flush(2000);
-    const event = collectEnvelopePayloads<Event>(captured, ['event'])[0];
-    assertDefined(event);
-    expect(event.contexts?.page_not_found?.query).toEqual(urlQueryParams
-      ? { token: '[Filtered]', memberNo: '[Filtered]', card_number: '[Filtered]', id: '7' }
-      : undefined);
-    expect(JSON.stringify(captured)).not.toContain('canary');
+    })!;
+    expect(g.wx.offError).toHaveBeenCalledTimes(2);
+    expect(g.wx.onUnhandledRejection).not.toHaveBeenCalled();
+    const read = vi.fn();
+    handlers[0]!(new Proxy({}, { get: read }));
+    expect(read).not.toHaveBeenCalled();
+    expect(getClientLifetime(owner)?.state).toBe('closed');
   });
 
-  it.each([true, false])('默认小游戏启动 query=%s 使用 client 的采集策略', async (urlQueryParams) => {
-    g.wx.getLaunchOptionsSync = () => ({
-      scene: 1001,
-      path: 'game.js?token=canary-path#canary-fragment',
-      query: { token: 'canary-token', memberNo: 'canary-member', card_number: 'canary-card', id: '7' },
+  it('同 integration 跨 A/B 复用仍独立；缺 off 的退休回调不读取参数或采集到 B', async () => {
+    g.wx.onMemoryWarning = vi.fn();
+    const integration = new GlobalHandlers();
+    const firstEnvelopes: Envelope[] = [];
+    const first = init({
+      dsn: 'https://first@example.com/1',
+      defaultIntegrations: [integration],
+      transport: createCapturingTransport(firstEnvelopes),
+    })!;
+    const oldError = onErrorHandler!;
+    const oldRejection = g.wx.onUnhandledRejection.mock.calls[0][0];
+    const oldPage = onPageNotFoundHandler!;
+    const oldMemory = g.wx.onMemoryWarning.mock.calls[0][0];
+    first.captureEvent({
+      exception: {
+        values: [
+          {
+            type: 'Error',
+            value: 'same message',
+            mechanism: { type: 'instrument', handled: false },
+          },
+        ],
+      },
     });
-    init({
-      dsn: 'https://test@o0.ingest.sentry.io/0',
-      dataCollection: { urlQueryParams },
-      sensitiveKeys: ['memberNo'],
-      enableAutoSessionTracking: false,
-      enableMinigameFrameRate: false,
+    const second = init({
+      dsn: 'https://second@example.com/2',
+      defaultIntegrations: [integration],
+      transport: createCapturingTransport(captured),
+    })!;
+    const read = vi.fn(() => {
+      throw new Error('retired parameter read');
+    });
+    const unreadable = new Proxy({}, { get: read });
+    expect(() => {
+      oldError(unreadable);
+      oldRejection(unreadable);
+      oldPage(unreadable as any);
+      oldMemory(unreadable);
+    }).not.toThrow();
+    expect(read).not.toHaveBeenCalled();
+    onErrorHandler!(new Error('same message'));
+    await second.flush();
+    expect(collectEnvelopePayloads<Event>(firstEnvelopes, ['event'])).toHaveLength(1);
+    expect(collectEnvelopePayloads<Event>(captured, ['event'])).toHaveLength(1);
+    first.dispose();
+    onErrorHandler!(new Error('B remains subscribed'));
+    await second.flush();
+    expect(collectEnvelopePayloads<Event>(captured, ['event'])).toHaveLength(2);
+  });
+
+  it('offError 失败或同步触发旧监听不影响其余 off，关闭后所有 handler 失效', () => {
+    g.wx.onMemoryWarning = vi.fn();
+    const owner = init({
+      dsn: 'https://test@example.com/1',
+      defaultIntegrations: [new GlobalHandlers()],
+      transport: createCapturingTransport(captured),
+    })!;
+    const previous = onErrorHandler!;
+    g.wx.offError = vi.fn(() => {
+      previous(new Error('during off'));
+      throw new Error('off failed');
+    });
+    g.wx.offUnhandledRejection = vi.fn();
+    g.wx.offPageNotFound = vi.fn();
+    g.wx.offMemoryWarning = vi.fn();
+    owner.dispose();
+    owner.dispose();
+    expect(g.wx.offError).toHaveBeenCalledOnce();
+    expect(g.wx.offUnhandledRejection).toHaveBeenCalledOnce();
+    expect(g.wx.offPageNotFound).toHaveBeenCalledOnce();
+    expect(g.wx.offMemoryWarning).toHaveBeenCalledOnce();
+    previous(new Error('after dispose'));
+    expect(getClientLifetime(owner)?.state).toBe('closed');
+    expect(captured).toEqual([]);
+  });
+
+  it('注册/getter 故障按能力隔离；不可读 native payload 不向宿主抛出', async () => {
+    g.wx.onError = vi.fn(() => {
+      throw new Error('register failed');
+    });
+    Object.defineProperty(g.wx, 'onMemoryWarning', {
+      get() {
+        throw new Error('capability getter');
+      },
+    });
+    const owner = init({
+      dsn: 'https://test@example.com/1',
+      defaultIntegrations: [new GlobalHandlers()],
+      transport: createCapturingTransport(captured),
+    })!;
+    const rejection = g.wx.onUnhandledRejection.mock.calls[0][0];
+    const unreadable = Object.defineProperty({}, 'reason', {
+      get() {
+        throw new Error('reason getter');
+      },
+    });
+    expect(() => rejection(unreadable)).not.toThrow();
+    rejection({ reason: new Error('valid rejection'), promise: Promise.resolve() });
+    await owner.flush();
+    const events = collectEnvelopePayloads<Event>(captured, ['event']);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.exception?.values?.[0]?.mechanism).toMatchObject({
+      type: 'onunhandledrejection',
+      handled: false,
+    });
+    expect(g.wx.onPageNotFound).toHaveBeenCalledOnce();
+  });
+
+  it('native 遥测的同步 callback 内 init 拒绝重入；低层 client 无自动监听权限', async () => {
+    let attempted: MiniappClient | undefined;
+    const owner = init({
+      dsn: 'https://test@example.com/1',
+      defaultIntegrations: [new GlobalHandlers()],
+      beforeSend: (event) => {
+        attempted = init({ dsn: 'https://other@example.com/2', defaultIntegrations: false });
+        return event;
+      },
+      transport: createCapturingTransport(captured),
+    })!;
+    onErrorHandler!(new Error('native callback'));
+    await owner.flush();
+    expect(attempted).toBeUndefined();
+    expect(getClient()).toBe(owner);
+    expect(getClientLifetime(owner)?.warnings.has('reentrant_init_unsupported')).toBe(true);
+    owner.dispose();
+    g.wx.onError.mockClear();
+    const low = new MiniappClient({
+      dsn: 'https://test@example.com/1',
+      integrations: [new GlobalHandlers()],
       transport: createCapturingTransport(captured),
     });
-    captureException(new Error('launch probe'));
-    await flush(2000);
-    const event = collectEnvelopePayloads<Event>(captured, ['event'])[0];
-    assertDefined(event);
-    expect(event.contexts?.minigame?.path).toBe('game.js');
-    expect(event.contexts?.minigame?.query).toEqual(urlQueryParams
-      ? { token: '[Filtered]', memberNo: '[Filtered]', card_number: '[Filtered]', id: '7' }
-      : undefined);
-    expect(JSON.stringify(captured)).not.toContain('canary');
+    const previous = getCurrentScope().getClient();
+    getCurrentScope().setClient(low);
+    try {
+      low.init();
+      expect(g.wx.onError).not.toHaveBeenCalled();
+    } finally {
+      low.dispose();
+      getCurrentScope().setClient(previous);
+    }
   });
+
+  it.each([true, false])(
+    '默认 pageNotFound query=%s 时所有别名不泄露敏感值',
+    async (urlQueryParams) => {
+      init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        dataCollection: { urlQueryParams },
+        sensitiveKeys: ['memberNo'],
+        enableAutoSessionTracking: false,
+        enableMinigameFrameRate: false,
+        transport: createCapturingTransport(captured),
+      });
+      onPageNotFoundHandler!({
+        path: 'https://canary-user:canary-password@example.com/missing?token=canary-token#canary-fragment',
+        query: {
+          token: 'canary-token',
+          memberNo: 'canary-member',
+          card_number: 'canary-card',
+          id: '7',
+        },
+        isEntryPage: false,
+      });
+      await flush(2000);
+      const event = collectEnvelopePayloads<Event>(captured, ['event'])[0];
+      assertDefined(event);
+      expect(event.contexts?.page_not_found?.query).toEqual(
+        urlQueryParams
+          ? { token: '[Filtered]', memberNo: '[Filtered]', card_number: '[Filtered]', id: '7' }
+          : undefined,
+      );
+      expect(JSON.stringify(captured)).not.toContain('canary');
+    },
+  );
+
+  it.each([true, false])(
+    '默认小游戏启动 query=%s 使用 client 的采集策略',
+    async (urlQueryParams) => {
+      g.wx.getLaunchOptionsSync = () => ({
+        scene: 1001,
+        path: 'game.js?token=canary-path#canary-fragment',
+        query: {
+          token: 'canary-token',
+          memberNo: 'canary-member',
+          card_number: 'canary-card',
+          id: '7',
+        },
+      });
+      init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        dataCollection: { urlQueryParams },
+        sensitiveKeys: ['memberNo'],
+        enableAutoSessionTracking: false,
+        enableMinigameFrameRate: false,
+        transport: createCapturingTransport(captured),
+      });
+      captureException(new Error('launch probe'));
+      await flush(2000);
+      const event = collectEnvelopePayloads<Event>(captured, ['event'])[0];
+      assertDefined(event);
+      expect(event.contexts?.minigame?.path).toBe('game.js');
+      expect(event.contexts?.minigame?.query).toEqual(
+        urlQueryParams
+          ? { token: '[Filtered]', memberNo: '[Filtered]', card_number: '[Filtered]', id: '7' }
+          : undefined,
+      );
+      expect(JSON.stringify(captured)).not.toContain('canary');
+    },
+  );
 
   it('wx.onError 触发 → core 上报 exception，mechanism.handled=false', async () => {
     init({

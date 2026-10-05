@@ -146,12 +146,8 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
     // log should not trigger breadcrumb (not in levels)
     expect(addBreadcrumb).toHaveBeenCalledTimes(2);
-    expect(addBreadcrumb).toHaveBeenCalledWith(
-      expect.objectContaining({ level: 'error' }),
-    );
-    expect(addBreadcrumb).toHaveBeenCalledWith(
-      expect.objectContaining({ level: 'warning' }),
-    );
+    expect(addBreadcrumb).toHaveBeenCalledWith(expect.objectContaining({ level: 'error' }));
+    expect(addBreadcrumb).toHaveBeenCalledWith(expect.objectContaining({ level: 'warning' }));
   });
 
   it('should handle circular references gracefully', () => {
@@ -223,8 +219,20 @@ describe('ConsoleBreadcrumbs Integration', () => {
   });
 
   it('creates an integration through the public factory', () => {
-    expect(consoleBreadcrumbsIntegration({ levels: ['error'] })).toBeInstanceOf(
-      ConsoleBreadcrumbs,
-    );
+    expect(consoleBreadcrumbsIntegration({ levels: ['error'] })).toBeInstanceOf(ConsoleBreadcrumbs);
+  });
+  it('breadcrumb 故障不阻断原 console 返回/this/参数', () => {
+    const original = vi.fn(function (this: unknown, ...args: unknown[]) {
+      return { receiver: this, args };
+    });
+    console.log = original as any;
+    setupIntegration(new ConsoleBreadcrumbs({ levels: ['log'] }));
+    vi.mocked(addBreadcrumb).mockImplementationOnce(() => {
+      throw new Error('breadcrumb failed');
+    });
+    const receiver = {};
+    const result = console.log.call(receiver, 'business');
+    expect(result).toEqual({ receiver, args: ['business'] });
+    expect(original).toHaveBeenCalledOnce();
   });
 });

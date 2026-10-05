@@ -1,7 +1,8 @@
 import { captureException, getClient, withScope } from '@sentry/core';
-import type { Client, Event, Integration, IntegrationFn } from '@sentry/core';
+import type { Client, Event, EventHint, Integration, IntegrationFn } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
+import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 import { getErrorDetails } from '../helpers';
 import { collectKeyValueData, collectUrlName } from '../dataCollection';
 import type { MiniappOptions } from '../types';
@@ -65,11 +66,6 @@ export class GlobalHandlers implements Integration {
   /** JSDoc */
   private readonly _options: GlobalHandlersIntegrations;
 
-  private _onErrorHandlerInstalled: boolean = false;
-  private _onUnhandledRejectionHandlerInstalled: boolean = false;
-  private _onPageNotFoundHandlerInstalled: boolean = false;
-  private _onMemoryWarningHandlerInstalled: boolean = false;
-
   private _errorHandler: ((err: PlatformErrorValue) => void) | null = null;
   private _rejectionHandler:
     ((res: { reason: string | Error; promise: Promise<any> }) => void) | null = null;
@@ -78,6 +74,9 @@ export class GlobalHandlers implements Integration {
     null;
   private _memoryWarningHandler: ((res: { level: number }) => void) | null = null;
   private _client: Client | undefined;
+  private _sdk: ReturnType<typeof sdk> | undefined;
+  private readonly _controllers = new WeakMap<Client, GlobalHandlers>();
+  private readonly _cleanups = new Set<() => void>();
   private readonly _recentInstrumentEvents: RecentInstrumentEvent[] = [];
 
   /** JSDoc */
@@ -94,22 +93,77 @@ export class GlobalHandlers implements Integration {
   /**
    * @inheritDoc
    */
-  public setupOnce(): void {
-    this._setup();
+  public setupOnce(): void {}
+
+  /** 同一 integration 对象复用时，各 client 的宿主资源与去重窗口仍独立。 */
+  public setup(client: Client): void {
+    if (this._controllers.has(client)) return;
+    const lifetime = getClientLifetime(client);
+    if (lifetime && !lifetime.canCollectAutomatic()) return;
+    const controller = new GlobalHandlers(this._options);
+    controller._client = client;
+    this._controllers.set(client, controller);
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      controller.cleanup();
+      this._controllers.delete(client);
+      this._cleanups.delete(cleanup);
+    };
+    this._cleanups.add(cleanup);
+    const detach = lifetime?.registerStop(cleanup);
+    // 在注册宿主资源前登记清理，部分注册成功后失败也不会泄漏归属。
+    client.registerCleanup(() => {
+      detach?.();
+      cleanup();
+    });
+    controller._sdk = sdk();
+    controller._setup();
   }
 
-  /** 按 core 官方生命周期在每个 client 上安装，并由 client 统一回收。 */
-  public setup(client: Client): void {
-    this._client = client;
-    this._setup();
-    client.registerCleanup(() => this.cleanup());
+  private _isActiveClient(): boolean {
+    const client = this._client;
+    if (!client || getClient() !== client || client.getOptions().enabled === false) return false;
+    const lifetime = getClientLifetime(client);
+    return !lifetime || lifetime.canCollectAutomatic();
+  }
+
+  private _guard<T extends unknown[]>(handler: (...args: T) => void): (...args: T) => void {
+    return (...args) => {
+      if (!this._isActiveClient()) return;
+      withTelemetryCritical(() => {
+        try {
+          handler(...args);
+        } catch (_error) {
+          /* 宿主数据或遥测故障不向宿主抛出。 */
+        }
+      });
+    };
+  }
+
+  private _listen(onName: string, offName: string, handler: Function): void {
+    const source = this._sdk;
+    const on = source?.[onName as keyof typeof source];
+    const off = source?.[offName as keyof typeof source];
+    if (typeof on !== 'function' || !this._isActiveClient()) return;
+    try {
+      on.call(source, handler);
+    } finally {
+      // 宿主可能在注册中退休 client，且在 cleanup 返回后才保存 handler。
+      if (!this._isActiveClient() && typeof off === 'function') off.call(source, handler);
+    }
   }
 
   /**
    * TryCatch 捕获并重新抛出的异常，可能在微信小游戏真机上延迟进入 onError。
    * 在 Core 完成事件构建后比较最终异常类型和消息，避免依赖宿主原始 Error 的不稳定形态。
    */
-  public processEvent(event: Event): Event | null {
+  public processEvent(event: Event, _hint?: EventHint, client?: Client): Event | null {
+    if (client) {
+      const controller = this._controllers.get(client);
+      return controller ? controller.processEvent(event) : event;
+    }
     if (!this._options.onerror || event.type) {
       return event;
     }
@@ -164,33 +218,27 @@ export class GlobalHandlers implements Integration {
   private _setup(): void {
     Error.stackTraceLimit = 50;
 
-    if (this._options.onerror) {
-      this._installGlobalOnErrorHandler();
-    }
-
-    if (this._options.onunhandledrejection) {
-      this._installGlobalOnUnhandledRejectionHandler();
-    }
-
-    if (this._options.onpagenotfound) {
-      this._installGlobalOnPageNotFoundHandler();
-    }
-
-    if (this._options.onmemorywarning) {
-      this._installGlobalOnMemoryWarningHandler();
+    const installers: Array<[boolean, () => void]> = [
+      [this._options.onerror, () => this._installGlobalOnErrorHandler()],
+      [this._options.onunhandledrejection, () => this._installGlobalOnUnhandledRejectionHandler()],
+      [this._options.onpagenotfound, () => this._installGlobalOnPageNotFoundHandler()],
+      [this._options.onmemorywarning, () => this._installGlobalOnMemoryWarningHandler()],
+    ];
+    for (const [enabled, install] of installers) {
+      if (!this._isActiveClient()) break;
+      if (!enabled) continue;
+      try {
+        install();
+      } catch (_error) {
+        /* 一个宿主能力失败不阻断其余监听。 */
+      }
     }
   }
 
   /** JSDoc */
   private _installGlobalOnErrorHandler(): void {
-    if (this._onErrorHandlerInstalled) {
-      return;
-    }
-
-    if (sdk().onError) {
-      this._errorHandler = (err: PlatformErrorValue) => {
-        if (this._client && getClient() !== this._client) return;
-
+    if (this._isActiveClient()) {
+      this._errorHandler = this._guard((err: PlatformErrorValue) => {
         const error = errorFromPlatformValue(err);
         captureException(error, {
           mechanism: {
@@ -198,96 +246,69 @@ export class GlobalHandlers implements Integration {
             handled: false,
           },
         });
-      };
-      sdk().onError?.(this._errorHandler);
+      });
+      this._listen('onError', 'offError', this._errorHandler);
     }
-
-    this._onErrorHandlerInstalled = true;
   }
 
   /** JSDoc */
   private _installGlobalOnUnhandledRejectionHandler(): void {
-    if (this._onUnhandledRejectionHandlerInstalled) {
-      return;
+    if (this._isActiveClient()) {
+      this._rejectionHandler = this._guard(
+        ({ reason, promise }: { reason: string | Error; promise: Promise<any> }) => {
+          const error = typeof reason === 'string' ? new Error(reason) : reason;
+          captureException(error, {
+            mechanism: {
+              type: 'onunhandledrejection',
+              handled: false,
+            },
+            data: {
+              promise,
+            },
+          });
+        },
+      );
+      this._listen('onUnhandledRejection', 'offUnhandledRejection', this._rejectionHandler);
     }
-
-    if (sdk().onUnhandledRejection) {
-      this._rejectionHandler = ({
-        reason,
-        promise,
-      }: {
-        reason: string | Error;
-        promise: Promise<any>;
-      }) => {
-        if (this._client && getClient() !== this._client) return;
-        const error = typeof reason === 'string' ? new Error(reason) : reason;
-        captureException(error, {
-          mechanism: {
-            type: 'onunhandledrejection',
-            handled: false,
-          },
-          data: {
-            promise,
-          },
-        });
-      };
-      sdk().onUnhandledRejection?.(this._rejectionHandler);
-    }
-
-    this._onUnhandledRejectionHandlerInstalled = true;
   }
 
   /** JSDoc */
   private _installGlobalOnPageNotFoundHandler(): void {
-    if (this._onPageNotFoundHandlerInstalled) {
-      return;
-    }
+    if (this._isActiveClient()) {
+      this._pageNotFoundHandler = this._guard(
+        (res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => {
+          const url = collectUrlName(res.path);
+          const query = collectKeyValueData(
+            res.query,
+            this._client,
+            (this._client?.getOptions?.() as MiniappOptions | undefined)?.sensitiveKeys,
+          );
 
-    if (sdk().onPageNotFound) {
-      this._pageNotFoundHandler = (res: {
-        path: string;
-        query: Record<string, any>;
-        isEntryPage: boolean;
-      }) => {
-        if (this._client && getClient() !== this._client) return;
-        const url = collectUrlName(res.path);
-        const query = collectKeyValueData(
-          res.query,
-          this._client,
-          (this._client?.getOptions?.() as MiniappOptions | undefined)?.sensitiveKeys,
-        );
+          withScope((scope) => {
+            scope.setTag('pagenotfound', url);
+            scope.setContext('page_not_found', {
+              path: url,
+              ...(query && { query }),
+              isEntryPage: res.isEntryPage,
+            });
 
-        withScope((scope) => {
-          scope.setTag('pagenotfound', url);
-          scope.setContext('page_not_found', {
-            path: url,
-            ...(query && { query }),
-            isEntryPage: res.isEntryPage,
+            captureException(new Error(`页面无法找到: ${url}`), {
+              mechanism: {
+                type: 'onpagenotfound',
+                handled: true,
+              },
+            });
           });
-
-          captureException(new Error(`页面无法找到: ${url}`), {
-            mechanism: {
-              type: 'onpagenotfound',
-              handled: true,
-            },
-          });
-        });
-      };
-      sdk().onPageNotFound?.(this._pageNotFoundHandler);
+        },
+      );
+      this._listen('onPageNotFound', 'offPageNotFound', this._pageNotFoundHandler);
     }
-
-    this._onPageNotFoundHandlerInstalled = true;
   }
 
   /** JSDoc */
   private _installGlobalOnMemoryWarningHandler(): void {
-    if (this._onMemoryWarningHandlerInstalled) {
-      return;
-    }
-
-    if (sdk().onMemoryWarning) {
-      this._memoryWarningHandler = ({ level = -1 }: { level: number }) => {
-        if (this._client && getClient() !== this._client) return;
+    if (this._isActiveClient()) {
+      this._memoryWarningHandler = this._guard(({ level = -1 }: { level: number }) => {
         let levelMessage = '没有获取到告警级别信息';
 
         switch (level) {
@@ -318,43 +339,40 @@ export class GlobalHandlers implements Integration {
             },
           });
         });
-      };
-      sdk().onMemoryWarning?.(this._memoryWarningHandler);
+      });
+      this._listen('onMemoryWarning', 'offMemoryWarning', this._memoryWarningHandler);
     }
-
-    this._onMemoryWarningHandlerInstalled = true;
   }
 
   /**
    * 清理资源，注销全局事件处理器
    */
   public cleanup(): void {
-    try {
-      const currentSdk = sdk() as any;
-      if (this._errorHandler && currentSdk.offError) {
-        currentSdk.offError(this._errorHandler);
+    for (const cleanup of [...this._cleanups]) cleanup();
+    // 先失效，off API 同步触发的回调也不能继续采集。
+    this._client = undefined;
+    const source = this._sdk;
+    this._sdk = undefined;
+    const listeners: Array<[string, Function | null]> = [
+      ['offError', this._errorHandler],
+      ['offUnhandledRejection', this._rejectionHandler],
+      ['offPageNotFound', this._pageNotFoundHandler],
+      ['offMemoryWarning', this._memoryWarningHandler],
+    ];
+    for (const [name, handler] of listeners) {
+      if (!handler) continue;
+      try {
+        const remove = source?.[name as keyof typeof source];
+        if (typeof remove === 'function') remove.call(source, handler);
+      } catch (_error) {
+        /* 每项 off 独立容错；无 off 仍已失效。 */
       }
-      if (this._rejectionHandler && currentSdk.offUnhandledRejection) {
-        currentSdk.offUnhandledRejection(this._rejectionHandler);
-      }
-      if (this._pageNotFoundHandler && currentSdk.offPageNotFound) {
-        currentSdk.offPageNotFound(this._pageNotFoundHandler);
-      }
-      if (this._memoryWarningHandler && currentSdk.offMemoryWarning) {
-        currentSdk.offMemoryWarning(this._memoryWarningHandler);
-      }
-    } catch (_e) {
-      // 部分平台可能不支持 off* 方法
     }
 
     this._errorHandler = null;
     this._rejectionHandler = null;
     this._pageNotFoundHandler = null;
     this._memoryWarningHandler = null;
-    this._onErrorHandlerInstalled = false;
-    this._onUnhandledRejectionHandlerInstalled = false;
-    this._onPageNotFoundHandlerInstalled = false;
-    this._onMemoryWarningHandlerInstalled = false;
     this._recentInstrumentEvents.length = 0;
   }
 }

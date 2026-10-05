@@ -40,7 +40,10 @@ export interface MiniappOfflineStoreOptions extends OfflineTransportOptions {
  * Creates an offline store using miniapp storage API.
  * 支持事件过期淘汰、按条数 / 体积上限淘汰，以及两种淘汰策略（见 {@link EvictionMode}）。
  */
-export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): OfflineStore {
+export function createMiniappOfflineStore(
+  options: MiniappOfflineStoreOptions,
+  isActive: () => boolean = () => true,
+): OfflineStore {
   // 有限容量保护淘汰循环；显式 0 仍表示不保留事件。
   const maxCacheSize = resolveNonNegativeInteger(
     options.offlineCacheLimit,
@@ -101,6 +104,7 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
 
   /** 写回 storage：超出字节上限时按策略丢弃再写，避免 setStorageSync 因超限整批失败。 */
   function persist(store: CachedEnvelope[]): void {
+    if (!isActive()) return;
     const storageApi = sdk().setStorageSync;
     if (!storageApi) {
       return;
@@ -121,7 +125,7 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
     }
     report('bytes', dropped);
     try {
-      storageApi(OFFLINE_STORE_KEY, serialized);
+      if (isActive()) storageApi(OFFLINE_STORE_KEY, serialized);
     } catch (_e) {
       // ignore（已尽力压到上限内；极端单条仍超限则吞掉，不阻断主流程）
     }
@@ -129,8 +133,9 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
 
   return {
     push: async (env: Envelope): Promise<void> => {
+      if (!isActive()) return;
       try {
-        const store = evictExpired(getStore());
+        const store = evictExpired(getStore(isActive));
         store.push({ envelope: env, timestamp: Date.now() });
         report('count', evictByCount(store, 'push'));
         persist(store);
@@ -139,8 +144,9 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
       }
     },
     unshift: async (env: Envelope): Promise<void> => {
+      if (!isActive()) return;
       try {
-        const store = evictExpired(getStore());
+        const store = evictExpired(getStore(isActive));
         store.unshift({ envelope: env, timestamp: Date.now() });
         report('count', evictByCount(store, 'unshift'));
         persist(store);
@@ -149,8 +155,9 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
       }
     },
     shift: async (): Promise<Envelope | undefined> => {
+      if (!isActive()) return undefined;
       try {
-        const before = getStore();
+        const before = getStore(isActive);
         const store = evictExpired(before);
         if (store.length === 0) {
           if (before.length > 0) {
@@ -160,7 +167,7 @@ export function createMiniappOfflineStore(options: MiniappOfflineStoreOptions): 
         }
         const item = store.shift();
         persist(store);
-        return item?.envelope;
+        return isActive() ? item?.envelope : undefined;
       } catch (e) {
         console.warn('[sentry-miniapp] Failed to shift from offline store', e);
         return undefined;
@@ -194,9 +201,10 @@ function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
   return -1;
 }
 
-function getStore(): CachedEnvelope[] {
+function getStore(isActive: () => boolean): CachedEnvelope[] {
+  if (!isActive()) return [];
   const storageApi = sdk().getStorageSync;
-  if (!storageApi) {
+  if (!storageApi || !isActive()) {
     return [];
   }
   let storedStr: any;
@@ -225,15 +233,16 @@ function getStore(): CachedEnvelope[] {
   } catch (_e) {
     // 解析失败 = 存储被写坏（部分写入 / 配额截断等）。主动清键自愈，避免坏数据常驻、
     // 让后续 flush 永远读到空，且坏 blob 一直占着这个 key 的空间。
-    removeStore();
+    removeStore(isActive);
     return [];
   }
 }
 
-function removeStore(): void {
+function removeStore(isActive: () => boolean): void {
+  if (!isActive()) return;
   try {
     const removeApi = sdk().removeStorageSync;
-    if (removeApi) {
+    if (removeApi && isActive()) {
       removeApi(OFFLINE_STORE_KEY);
     }
   } catch (_e) {

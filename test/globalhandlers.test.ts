@@ -3,10 +3,13 @@ import { captureException, withScope } from '@sentry/core';
 import type { Event } from '@sentry/core';
 import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/index';
 
+const mockClient = vi.hoisted(() => ({ getOptions: () => ({}), registerCleanup: vi.fn() }));
+
 // Mock @sentry/core
 vi.mock('@sentry/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@sentry/core')>(),
+  ...(await importOriginal<typeof import('@sentry/core')>()),
   captureException: vi.fn(),
+  getClient: () => mockClient,
   withScope: vi.fn(),
 }));
 
@@ -26,9 +29,7 @@ describe('GlobalHandlers', () => {
       setTag: vi.fn(),
       setContext: vi.fn(),
     };
-    (withScope as Mock).mockImplementation((callback: (scope: any) => void) =>
-      callback(mockScope),
-    );
+    (withScope as Mock).mockImplementation((callback: (scope: any) => void) => callback(mockScope));
 
     // 重置 mockSdk
     Object.keys(mockSdk).forEach((key) => delete mockSdk[key]);
@@ -49,10 +50,15 @@ describe('GlobalHandlers', () => {
     expect(integration.name).toBe('GlobalHandlers');
   });
 
-  describe('setupOnce', () => {
+  it('setupOnce 不注册有归属宿主资源', () => {
+    new GlobalHandlers().setupOnce();
+    expect(mockSdk.onError).not.toHaveBeenCalled();
+  });
+
+  describe('setup(client)', () => {
     it('should register all handlers by default', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       expect(mockSdk.onError).toHaveBeenCalledWith(expect.any(Function));
       expect(mockSdk.onUnhandledRejection).toHaveBeenCalledWith(expect.any(Function));
@@ -67,7 +73,7 @@ describe('GlobalHandlers', () => {
         onpagenotfound: false,
         onmemorywarning: false,
       });
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       expect(mockSdk.onError).not.toHaveBeenCalled();
       expect(mockSdk.onUnhandledRejection).not.toHaveBeenCalled();
@@ -77,8 +83,8 @@ describe('GlobalHandlers', () => {
 
     it('should not register handlers twice', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
+      integration.setup(mockClient as any);
 
       expect(mockSdk.onError).toHaveBeenCalledTimes(1);
     });
@@ -90,14 +96,14 @@ describe('GlobalHandlers', () => {
       delete mockSdk.onMemoryWarning;
 
       const integration = new GlobalHandlers();
-      expect(() => integration.setupOnce()).not.toThrow();
+      expect(() => integration.setup(mockClient as any)).not.toThrow();
     });
   });
 
   describe('onError handler', () => {
     it('should capture string errors', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onError.mock.calls[0][0];
       handler('Something went wrong');
@@ -115,7 +121,7 @@ describe('GlobalHandlers', () => {
 
     it('should capture Error objects', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onError.mock.calls[0][0];
       const error = new Error('Test error');
@@ -242,7 +248,7 @@ describe('GlobalHandlers', () => {
   describe('onUnhandledRejection handler', () => {
     it('should capture string reason', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onUnhandledRejection.mock.calls[0][0];
       handler({ reason: 'Promise failed', promise: Promise.resolve() });
@@ -257,7 +263,7 @@ describe('GlobalHandlers', () => {
 
     it('should capture Error reason directly', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onUnhandledRejection.mock.calls[0][0];
       const error = new Error('Rejection error');
@@ -275,7 +281,7 @@ describe('GlobalHandlers', () => {
   describe('onPageNotFound handler', () => {
     it('should capture page not found with context', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onPageNotFound.mock.calls[0][0];
       handler({
@@ -306,7 +312,7 @@ describe('GlobalHandlers', () => {
   describe('onMemoryWarning handler', () => {
     it('should capture level 5 warning (MODERATE)', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onMemoryWarning.mock.calls[0][0];
       handler({ level: 5 });
@@ -325,7 +331,7 @@ describe('GlobalHandlers', () => {
 
     it('should capture level 10 warning (LOW)', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onMemoryWarning.mock.calls[0][0];
       handler({ level: 10 });
@@ -338,7 +344,7 @@ describe('GlobalHandlers', () => {
 
     it('should capture level 15 warning (CRITICAL)', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onMemoryWarning.mock.calls[0][0];
       handler({ level: 15 });
@@ -351,7 +357,7 @@ describe('GlobalHandlers', () => {
 
     it('should ignore unknown levels', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onMemoryWarning.mock.calls[0][0];
       handler({ level: 99 });
@@ -361,7 +367,7 @@ describe('GlobalHandlers', () => {
 
     it('should ignore default level (-1)', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       const handler = mockSdk.onMemoryWarning.mock.calls[0][0];
       handler({ level: -1 });
@@ -373,7 +379,7 @@ describe('GlobalHandlers', () => {
   describe('cleanup', () => {
     it('should unregister all handlers via off* methods', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
       integration.cleanup();
 
       expect(mockSdk.offError).toHaveBeenCalled();
@@ -389,14 +395,14 @@ describe('GlobalHandlers', () => {
       delete mockSdk.offMemoryWarning;
 
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
 
       expect(() => integration.cleanup()).not.toThrow();
     });
 
     it('should allow re-setup after cleanup', () => {
       const integration = new GlobalHandlers();
-      integration.setupOnce();
+      integration.setup(mockClient as any);
       integration.cleanup();
 
       vi.clearAllMocks();
@@ -405,7 +411,7 @@ describe('GlobalHandlers', () => {
       mockSdk.onPageNotFound = vi.fn();
       mockSdk.onMemoryWarning = vi.fn();
 
-      integration.setupOnce();
+      integration.setup(mockClient as any);
       expect(mockSdk.onError).toHaveBeenCalled();
     });
   });
