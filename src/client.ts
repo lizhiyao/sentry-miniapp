@@ -4,7 +4,6 @@ import {
   captureFeedback as captureFeedbackCore,
   eventFromMessage as eventFromMessageCore,
   eventFromUnknownInput,
-  getIsolationScope,
   getCurrentScope,
   makeOfflineTransport,
   resolvedSyncPromise,
@@ -19,7 +18,8 @@ import type {
   SeverityLevel,
 } from '@sentry/core';
 
-import { getAccountInfo, getSystemInfo, resolveMiniappPlatform } from './crossPlatform';
+import { resolveMiniappPlatform } from './crossPlatform';
+import { EnvironmentState, registerClientEnvironment } from './clientState';
 import type { AppName } from './crossPlatform';
 import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
@@ -99,6 +99,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
    * @param options Configuration options for this SDK.
    */
   public constructor(options: MiniappOptions | MiniappClientOptions = {}) {
+    const environment = new EnvironmentState(options);
     const usesCustomTransport = typeof options.transport === 'function';
     const defaultIntegrationsMode = resolveDefaultIntegrationsMode(options.defaultIntegrations);
     const hasConfiguredMiniappPlatform =
@@ -122,6 +123,20 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     // SDK 不再为旧生命周期补适配。
     const clientOptions: MiniappClientOptions = {
       ...options,
+      _metadata: {
+        ...options._metadata,
+        sdk: {
+          ...options._metadata?.sdk,
+          name: SDK_NAME,
+          version: SDK_VERSION,
+          packages: [
+            ...(options._metadata?.sdk?.packages ?? []).filter(
+              (pkg) => pkg.name !== 'npm:sentry-miniapp',
+            ),
+            { name: 'npm:sentry-miniapp', version: SDK_VERSION },
+          ],
+        },
+      },
       // Sentry 后端按顶层 platform 选择 JavaScript 栈解析与聚合逻辑。
       // 小程序宿主类型单独放在 contexts.miniapp.platform。
       platform: 'javascript',
@@ -185,6 +200,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     };
 
     super(clientOptions);
+    registerClientEnvironment(this, environment);
+    this.addEventProcessor((event) => environment.fillEvent(event));
 
     if (usesCustomTransport) {
       clientsWithCustomTransport.add(this);
@@ -221,106 +238,18 @@ export class MiniappClient extends Client<MiniappClientOptions> {
 
   protected override _prepareEvent(
     event: Event,
-    hint?: EventHint,
-    scope?: Scope,
+    hint: EventHint,
+    currentScope: Scope,
+    isolationScope: Scope,
   ): PromiseLike<Event | null> {
-    event.platform = event.platform || 'javascript';
-
-    // Add SDK information
-    event.sdk = {
-      ...event.sdk,
-      name: SDK_NAME,
-      packages: [
-        ...((event.sdk && event.sdk.packages) || []).filter(
-          (pkg) => pkg.name !== 'npm:sentry-miniapp',
-        ),
-        { name: 'npm:sentry-miniapp', version: SDK_VERSION },
-      ],
-      version: SDK_VERSION,
-    };
-
     try {
-      // @sentry/core 只读取 globalThis 上的 Debug ID maps。微信小游戏可能由 sentry-cli
-      // 注入到 global / window / self，因此在 core 准备事件前合并一次候选全局。
-      try {
-        syncDebugIdsToCoreGlobal();
-      } catch (error) {
-        if (this.getOptions().debug) {
-          console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
-        }
-      }
-
-      const currentScope = scope || getCurrentScope();
-      const isolationScope = getIsolationScope();
-      // 保留 core SyncPromise 的同步完成语义：抖音小游戏 onHide 返回后可能立即冻结 JS，
-      // 若用原生 Promise 包裹，底层 request 会被推迟到下次 onShow，甚至因进程回收而丢失。
-      return super
-        ._prepareEvent(event, hint || {}, currentScope, isolationScope)
-        .then((prepared) => this._fillDefaultContexts(prepared));
+      syncDebugIdsToCoreGlobal();
     } catch (error) {
-      // Fallback if scopes are not properly initialized
       if (this.getOptions().debug) {
-        console.warn('[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:', error);
+        console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
       }
-      return resolvedSyncPromise(this._fillDefaultContexts(event));
     }
-  }
-
-  /**
-   * 用 SDK 采集的 device/os/app 填充事件上下文——**仅填充缺失的键**，不覆盖用户经
-   * setContext / per-event hint / 其它集成（如 HttpContext 写的 app.name）已提供的值。
-   *
-   * 必须在 super._prepareEvent **之后**调用：core 以「event 优先」合并 scope contexts
-   * （scopeData.js：`event.contexts = {...scope, ...event}`），若在 super 之前写，SDK 的
-   * 自动值会盖掉用户的 setContext('device'/'os'/'app')。放到 super 之后按缺失填充即可两头兼顾。
-   */
-  private _fillDefaultContexts(event: Event | null): Event | null {
-    if (!event) {
-      return event;
-    }
-    if (!event.contexts) {
-      event.contexts = {};
-    }
-    const contexts = event.contexts;
-    contexts['miniapp'] = {
-      environment: 'miniapp',
-      ...contexts['miniapp'],
-      platform: this.getOptions().miniappPlatform ?? resolveMiniappPlatform({}),
-      sdk_version: SDK_VERSION,
-    };
-
-    if (this.getOptions().enableSystemInfo === false) {
-      return event;
-    }
-
-    const info = getSystemInfo();
-    const account = getAccountInfo();
-    contexts['miniapp'] = {
-      ...contexts['miniapp'],
-      host_version: info?.version || 'unknown',
-      host_sdk_version: info?.SDKVersion || 'unknown',
-    };
-    contexts.device = {
-      brand: info?.brand || 'unknown',
-      model: info?.model || 'unknown',
-      screen_resolution: `${info?.screenWidth || 0}x${info?.screenHeight || 0}`,
-      language: info?.language || 'unknown',
-      version: info?.version || 'unknown',
-      system: info?.system || 'unknown',
-      platform: info?.platform || 'unknown',
-      ...contexts.device,
-    };
-    contexts.os = {
-      name: info?.system || 'unknown',
-      version: info?.version || 'unknown',
-      ...contexts.os,
-    };
-    contexts.app = {
-      app_identifier: account.appId,
-      app_version: account.version,
-      ...contexts.app,
-    };
-    return event;
+    return super._prepareEvent(event, hint, currentScope, isolationScope);
   }
 
   /** @inheritDoc */
@@ -373,6 +302,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
    * @returns Event ID
    */
   public captureFeedback(params: SendFeedbackParams): string {
-    return captureFeedbackCore(params, {}, getCurrentScope());
+    const scope = getCurrentScope().clone();
+    scope.setClient(this);
+    return captureFeedbackCore(params, {}, scope);
   }
 }

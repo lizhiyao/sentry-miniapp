@@ -1,10 +1,6 @@
-import {
-  addBreadcrumb,
-  getClient,
-  setContext,
-  startInactiveSpan,
-  setMeasurement,
-} from '@sentry/core';
+import { automaticSpanAttributes } from '../spanDimensions';
+import { setClientContext } from '../clientState';
+import { addBreadcrumb, getClient, startInactiveSpan, setMeasurement } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 import { collectKeyValueData, collectUrlName } from '../dataCollection';
@@ -75,7 +71,7 @@ export class MinigameIntegration implements Integration {
           this._client,
           (this._client?.getOptions?.() as MiniappOptions | undefined)?.sensitiveKeys,
         );
-        setContext('minigame', { ...this._minigameContext });
+        setClientContext(this._client, 'minigame', { ...this._minigameContext });
         addBreadcrumb({
           category: 'minigame.launch',
           message: '小游戏冷启动',
@@ -130,7 +126,7 @@ export class MinigameIntegration implements Integration {
       // 向后跳（NTP 校正 / 用户改表），不至于报出负数冷启动。
       const coldStartMs = Math.max(0, Math.round(firstFrameTs - this._initTs));
       this._minigameContext.coldStartMs = coldStartMs;
-      setContext('minigame', { ...this._minigameContext });
+      setClientContext(this._client, 'minigame', { ...this._minigameContext });
       addBreadcrumb({
         category: 'minigame.performance',
         message: `SDK 初始化到首帧耗时: ${coldStartMs}ms`,
@@ -148,12 +144,17 @@ export class MinigameIntegration implements Integration {
         // core 11 废弃 forceTransaction；断掉父 span 后这条 root span 自成一个 segment。
         parentSpan: null,
         startTime: this._initEpoch / 1000,
+        attributes: automaticSpanAttributes(
+          this._client,
+          {
+            'minigame.scene': this._minigameContext.scene as any,
+            'minigame.path': this._minigameContext.path as any,
+            'minigame.cold_start_ms': coldStartMs,
+          },
+          false,
+        ),
       });
-      span.setAttributes({
-        'minigame.scene': this._minigameContext.scene as any,
-        'minigame.path': this._minigameContext.path as any,
-        'minigame.cold_start_ms': coldStartMs,
-      });
+
       // 同上：属性供 stream 生命周期取数，measurement 只在 static 生命周期产出。
       setMeasurement('cold_start', coldStartMs, 'millisecond', span);
       span.end((this._initEpoch + coldStartMs) / 1000);

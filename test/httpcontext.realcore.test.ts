@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { captureException, flush, getClient, withScope, type Envelope, type Event } from '@sentry/core';
+import {
+  captureException,
+  flush,
+  getClient,
+  withScope,
+  type Envelope,
+  type Event,
+} from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { init } from '../src/index';
 import {
@@ -8,7 +15,7 @@ import {
   createCapturingTransport,
 } from './support/envelopes';
 
-describe('HttpContext（真 @sentry/core 集成）', () => {
+describe('client 环境（真 @sentry/core 集成）', () => {
   const g = global as any;
   let captured: Envelope[];
 
@@ -47,7 +54,7 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
     resetPlatformCache();
   });
 
-  it('processEvent 直接补充当前事件的 runtime/app context', async () => {
+  it('client processor 补充当前事件的 runtime/app context', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       transport: createCapturingTransport(captured),
@@ -71,8 +78,6 @@ describe('HttpContext（真 @sentry/core 集成）', () => {
       expect.objectContaining({
         app_identifier: 'wx-app-id',
         app_version: '1.2.3',
-        name: 'wx-app-id',
-        version: '1.2.3',
       }),
     );
   });

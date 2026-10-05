@@ -1,9 +1,7 @@
+import { getClientEnvironment } from '../src/clientState';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  PageBreadcrumbs,
-  pageBreadcrumbsIntegration,
-} from '../src/integrations/pagebreadcrumbs';
+import { PageBreadcrumbs, pageBreadcrumbsIntegration } from '../src/integrations/pagebreadcrumbs';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 
 vi.mock('@sentry/core', async () => {
@@ -150,8 +148,8 @@ describe('PageBreadcrumbs Integration', () => {
       page.onReady.call({ route: 'pages/home/index' });
       page.onReady.call({ route: 'pages/home/index' });
 
-      expect(setContext).toHaveBeenCalledTimes(1);
-      expect(setContext).toHaveBeenCalledWith('startup', {
+      expect(setContext).not.toHaveBeenCalled();
+      expect(getClientEnvironment(getClient()! as any).contexts['startup']).toEqual({
         coldStartDuration: 250,
         firstPage: 'pages/home/index',
       });
@@ -242,30 +240,26 @@ describe('PageBreadcrumbs Integration', () => {
       expect(submitSpy).toHaveBeenCalled();
     });
 
-    it.each([
-      'itemTap',
-      'buttonClick',
-      'valueChange',
-      'formSubmit',
-      'pageScroll',
-      'textInput',
-    ])('should recognize the %s suffix as an interaction handler', handlerName => {
-      (globalThis as any).Page = vi.fn((options: any) => options);
-      const handler = vi.fn();
-      const integration = new PageBreadcrumbs();
-      setupIntegration(integration);
+    it.each(['itemTap', 'buttonClick', 'valueChange', 'formSubmit', 'pageScroll', 'textInput'])(
+      'should recognize the %s suffix as an interaction handler',
+      (handlerName) => {
+        (globalThis as any).Page = vi.fn((options: any) => options);
+        const handler = vi.fn();
+        const integration = new PageBreadcrumbs();
+        setupIntegration(integration);
 
-      const page = (globalThis as any).Page({ [handlerName]: handler });
-      page[handlerName].call({}, null);
+        const page = (globalThis as any).Page({ [handlerName]: handler });
+        page[handlerName].call({}, null);
 
-      expect(handler).toHaveBeenCalledWith(null);
-      expect(addBreadcrumb).toHaveBeenCalledWith(
-        expect.objectContaining({
-          category: 'user.interaction',
-          message: `${handlerName} on unknown`,
-        }),
-      );
-    });
+        expect(handler).toHaveBeenCalledWith(null);
+        expect(addBreadcrumb).toHaveBeenCalledWith(
+          expect.objectContaining({
+            category: 'user.interaction',
+            message: `${handlerName} on unknown`,
+          }),
+        );
+      },
+    );
 
     it('captures interaction coordinates and touch details', () => {
       (globalThis as any).Page = vi.fn((options: any) => options);
@@ -491,8 +485,6 @@ describe('PageBreadcrumbs Integration', () => {
   });
 
   it('creates an integration through the public factory', () => {
-    expect(pageBreadcrumbsIntegration({ enableLifecycle: false })).toBeInstanceOf(
-      PageBreadcrumbs,
-    );
+    expect(pageBreadcrumbsIntegration({ enableLifecycle: false })).toBeInstanceOf(PageBreadcrumbs);
   });
 });

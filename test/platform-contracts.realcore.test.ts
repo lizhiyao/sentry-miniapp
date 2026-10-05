@@ -461,7 +461,7 @@ describe.each(PLATFORM_CONTRACTS)(
         ),
       );
       expect(event?.contexts?.miniapp?.platform).toBe(platform);
-      expect(event?.contexts?.device?.brand).toBe('unknown');
+      expect(event?.contexts?.device?.brand).toBeUndefined();
       await client!.close(2000);
     });
 

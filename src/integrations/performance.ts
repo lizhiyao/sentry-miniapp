@@ -1,3 +1,4 @@
+import { getClientEnvironment, setClientContext } from '../clientState';
 import {
   getClient,
   getCurrentScope,
@@ -9,7 +10,6 @@ import type { Client, Integration, IntegrationFn } from '@sentry/core';
 
 import {
   getPerformanceManager,
-  getSystemInfo,
   sdk,
   epochNow,
   type PerformanceEntry,
@@ -20,7 +20,7 @@ import {
   type PerformanceManager,
   type PerformanceObserver,
 } from '../crossPlatform';
-import { setClientSpanDimension } from '../spanDimensions';
+import { automaticSpanAttributes, setClientSpanDimension } from '../spanDimensions';
 import { collectUrlName } from '../dataCollection';
 import { resolveNonNegativeInteger } from '../numericOptions';
 
@@ -171,7 +171,9 @@ export class PerformanceIntegration implements Integration {
 
       if (canObserveUserTiming) {
         try {
-          const systemInfo = getSystemInfo();
+          const systemInfo = this._client
+            ? { platform: getClientEnvironment(this._client).hostPlatform }
+            : undefined;
 
           if (systemInfo && systemInfo.platform === 'devtools') {
             canObserveUserTiming = false;
@@ -424,16 +426,19 @@ export class PerformanceIntegration implements Integration {
         name: `Navigation: ${name}`,
         op: 'navigation',
         startTime: times.start,
+        attributes: automaticSpanAttributes(
+          this._client,
+          {
+            'navigation.name': name,
+            'navigation.duration': entry.duration,
+            'navigation.app_launch_time': entry.appLaunchTime || 0,
+            'navigation.page_ready_time': entry.pageReadyTime || 0,
+            'navigation.first_render_time': entry.firstRenderTime || 0,
+          },
+          false,
+        ),
       },
       (span) => {
-        span.setAttributes({
-          'navigation.name': name,
-          'navigation.duration': entry.duration,
-          'navigation.app_launch_time': entry.appLaunchTime || 0,
-          'navigation.page_ready_time': entry.pageReadyTime || 0,
-          'navigation.first_render_time': entry.firstRenderTime || 0,
-        });
-
         span.end(times.end);
       },
     );
@@ -449,17 +454,20 @@ export class PerformanceIntegration implements Integration {
         name: `Render: ${entry.name}`,
         op: 'render',
         startTime: times.start,
+        attributes: automaticSpanAttributes(
+          this._client,
+          {
+            'render.name': entry.name,
+            'render.duration': entry.duration,
+            'render.start': entry.renderStart || 0,
+            'render.end': entry.renderEnd || 0,
+            'render.script_start': entry.scriptStart || 0,
+            'render.script_end': entry.scriptEnd || 0,
+          },
+          false,
+        ),
       },
       (span) => {
-        span.setAttributes({
-          'render.name': entry.name,
-          'render.duration': entry.duration,
-          'render.start': entry.renderStart || 0,
-          'render.end': entry.renderEnd || 0,
-          'render.script_start': entry.scriptStart || 0,
-          'render.script_end': entry.scriptEnd || 0,
-        });
-
         span.end(times.end);
       },
     );
@@ -496,26 +504,27 @@ export class PerformanceIntegration implements Integration {
         name: `Resource: ${name}`,
         op: 'resource',
         startTime: times.start,
+        attributes: automaticSpanAttributes(
+          this._client,
+          {
+            'resource.name': name,
+            'resource.duration': entry.duration,
+            'resource.type': entry.initiatorType || 'unknown',
+            'resource.transfer_size': entry.transferSize || 0,
+            'resource.encoded_size': entry.encodedBodySize || 0,
+            'resource.decoded_size': entry.decodedBodySize || 0,
+            ...(entry.fetchStart && entry.responseEnd
+              ? {
+                  'resource.fetch_start': entry.fetchStart,
+                  'resource.response_end': entry.responseEnd,
+                  'resource.network_time': entry.responseEnd - entry.fetchStart,
+                }
+              : {}),
+          },
+          false,
+        ),
       },
       (span) => {
-        span.setAttributes({
-          'resource.name': name,
-          'resource.duration': entry.duration,
-          'resource.type': entry.initiatorType || 'unknown',
-          'resource.transfer_size': entry.transferSize || 0,
-          'resource.encoded_size': entry.encodedBodySize || 0,
-          'resource.decoded_size': entry.decodedBodySize || 0,
-        });
-
-        // 网络时序信息
-        if (entry.fetchStart && entry.responseEnd) {
-          span.setAttributes({
-            'resource.fetch_start': entry.fetchStart,
-            'resource.response_end': entry.responseEnd,
-            'resource.network_time': entry.responseEnd - entry.fetchStart,
-          });
-        }
-
         span.end(times.end);
       },
     );
@@ -532,14 +541,17 @@ export class PerformanceIntegration implements Integration {
           name: `Measure: ${entry.name}`,
           op: 'measure',
           startTime: times.start,
+          attributes: automaticSpanAttributes(
+            this._client,
+            {
+              'measure.name': entry.name,
+              'measure.duration': entry.duration,
+              'measure.detail': entry.detail ? JSON.stringify(entry.detail) : undefined,
+            },
+            false,
+          ),
         },
         (span) => {
-          span.setAttributes({
-            'measure.name': entry.name,
-            'measure.duration': entry.duration,
-            'measure.detail': entry.detail ? JSON.stringify(entry.detail) : undefined,
-          });
-
           span.end(times.end);
         },
       );
@@ -588,8 +600,6 @@ export class PerformanceIntegration implements Integration {
     }
 
     try {
-      const scope = getCurrentScope();
-
       // 计算性能统计
       const stats = this._calculatePerformanceStats();
 
@@ -599,7 +609,7 @@ export class PerformanceIntegration implements Integration {
         stats['memory'] = memoryInfo;
       }
 
-      scope.setContext('performance_summary', {
+      setClientContext(this._client, 'performance_summary', {
         total_entries: this._entryBuffer.length,
         navigation_count: this._entryBuffer.filter((e) => e.entryType === 'navigation').length,
         render_count: this._entryBuffer.filter((e) => e.entryType === 'render').length,
@@ -752,27 +762,27 @@ export class PerformanceIntegration implements Integration {
    */
   private _addPerformanceContext(): void {
     try {
-      const scope = getCurrentScope();
       const currentSdk = sdk();
 
       // 检查 Performance API 支持情况
       const hasPerformanceAPI = !!currentSdk.getPerformance;
 
-      scope.setTag('performance.api.available', true);
+      if (this._client) getClientEnvironment(this._client).tags['performance.api.available'] = true;
       setClientSpanDimension(this._client, 'performance.api.available', true);
-      scope.setContext('performance', {
+      setClientContext(this._client, 'performance', {
         api_version: 'miniapp-1.0',
         sample_rate: this._options.sampleRate,
         buffer_size: this._options.bufferSize,
       });
 
-      scope.setContext('performance_support', {
+      setClientContext(this._client, 'performance_support', {
         has_performance_api: hasPerformanceAPI,
         integration_enabled: true,
         options: this._options,
       });
 
-      scope.setTag('performance.integration', 'enabled');
+      if (this._client)
+        getClientEnvironment(this._client).tags['performance.integration'] = 'enabled';
       setClientSpanDimension(this._client, 'performance.integration', 'enabled');
     } catch (error) {
       console.warn('[sentry-miniapp] Failed to add performance context:', error);

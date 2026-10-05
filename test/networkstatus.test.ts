@@ -1,7 +1,18 @@
+import {
+  getClientEnvironment,
+  EnvironmentState,
+  registerClientEnvironment,
+} from '../src/clientState';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-const { mockAddBreadcrumb, mockSetContext, mockSetAttribute, mockFlush, mockGetClient, mockClient } =
-  vi.hoisted(() => {
+const {
+  mockAddBreadcrumb,
+  mockSetContext,
+  mockSetAttribute,
+  mockFlush,
+  mockGetClient,
+  mockClient,
+} = vi.hoisted(() => {
   const mockFlush = vi.fn(() => Promise.resolve(true));
 
   return {
@@ -33,6 +44,7 @@ describe('NetworkStatusIntegration', () => {
     vi.clearAllMocks();
     // clearAllMocks 只清调用记录、不清 mockReturnValue，上个用例的桩会渗下来。
     mockGetClient.mockImplementation(() => mockClient);
+    registerClientEnvironment(mockClient as any, new EnvironmentState({ enableSystemInfo: false }));
     networkChangeCallback = null;
 
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
@@ -57,7 +69,7 @@ describe('NetworkStatusIntegration', () => {
     const integration = new NetworkStatusIntegration();
     integration.setup(mockClient as any);
 
-    expect(mockSetContext).toHaveBeenCalledWith('network', {
+    expect(getClientEnvironment(mockClient as any).contexts['network']).toEqual({
       type: 'wifi',
       isConnected: true,
     });
@@ -86,7 +98,7 @@ describe('NetworkStatusIntegration', () => {
     // Simulate network change to 4G
     networkChangeCallback!({ networkType: '4g', isConnected: true });
 
-    expect(mockSetContext).toHaveBeenCalledWith('network', {
+    expect(getClientEnvironment(mockClient as any).contexts['network']).toEqual({
       type: '4g',
       isConnected: true,
     });
@@ -167,19 +179,19 @@ describe('NetworkStatusIntegration', () => {
     const integration = new NetworkStatusIntegration();
 
     integration.setup(mockClient as any);
-    expect(mockSetContext).toHaveBeenCalledWith('network', {
+    expect(getClientEnvironment(mockClient as any).contexts['network']).toEqual({
       type: 'unknown',
       isConnected: true,
     });
 
     networkChangeCallback!({ networkType: 'none' });
-    expect(mockSetContext).toHaveBeenLastCalledWith('network', {
+    expect(getClientEnvironment(mockClient as any).contexts['network']).toEqual({
       type: 'none',
       isConnected: false,
     });
 
     networkChangeCallback!({});
-    expect(mockSetContext).toHaveBeenLastCalledWith('network', {
+    expect(getClientEnvironment(mockClient as any).contexts['network']).toEqual({
       type: 'unknown',
       isConnected: true,
     });

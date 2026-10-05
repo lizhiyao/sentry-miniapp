@@ -1,4 +1,5 @@
-import { addBreadcrumb, getClient, setContext } from '@sentry/core';
+import { getClientEnvironment, setClientContext } from '../clientState';
+import { addBreadcrumb, getClient } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 
 import { subscribeAppLifecycle } from '../appLifecycle';
@@ -58,6 +59,8 @@ function recordPageLifecycle(
   if (!subscriber.options.enableLifecycle) return;
 
   const route = page?.route || page?.__route__ || 'unknown';
+  if ((method === 'onLoad' || method === 'onShow') && route !== 'unknown')
+    getClientEnvironment(client).route = route;
   const breadcrumbData: Record<string, any> = { action: method, page: route };
   if (method === 'onLoad' && args[0] && typeof args[0] === 'object') {
     // 页面入参就是 URL query，按 dataCollection.urlQueryParams 脱敏后再记；false 时整块不采。
@@ -72,7 +75,7 @@ function recordPageLifecycle(
     subscriber.firstPageReady = true;
     const coldStartDuration = Date.now() - subscriber.launchTime;
     breadcrumbData['coldStartDuration'] = coldStartDuration;
-    setContext('startup', { coldStartDuration, firstPage: route });
+    setClientContext(client, 'startup', { coldStartDuration, firstPage: route });
   }
 
   addBreadcrumb({

@@ -40,7 +40,7 @@ tracesSampler: ({ name, inheritOrSampleWith }) => {
 | `enableUserInteractionBreadcrumbs` | `boolean` | `true` | 用户点击 / 触摸面包屑 |
 | `enableNavigationBreadcrumbs` | `boolean` | `true` | 页面生命周期 / 路由面包屑 |
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | 把 `console` 输出记为面包屑 |
-| `enableSystemInfo` | `boolean` | `true` | 采集设备 / 系统信息作为 context |
+| `enableSystemInfo` | `boolean` | `true` | 采集 client 自有的设备 / 系统 / 应用与宿主版本快照 |
 | `traceNetworkBody` | `boolean` | `false` | 网络面包屑中记录请求 / 响应体；体先按敏感键脱敏再按 `maxRequestBodySize` 截断，且仍受 `dataCollection.httpBodies` 约束 |
 | `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | 单个请求 / 响应体上报的字节上限（`small` = 1 KB、`medium` = 10 KB）。数值须为正安全整数，否则回落默认；超出部分截断，省略号也计入上限，1／2 字节预算分别最多补 `.`／`..`。`request_body_size` / `response_body_size` 仍记录原文的完整字节数 |
 | `dataCollection` | `object` | 见下 | core 11 的采集开关。本 SDK 尊重 `urlQueryParams`（URL、`url.full`、面包屑 `url.query`、页面 `onLoad` 入参）与 `httpBodies`（请求 / 响应体方向）；**不采集请求头、响应头与 cookie**，因此 `httpHeaders` / `cookies` 在本 SDK 无作用对象 |
@@ -170,31 +170,34 @@ Sentry.setConsent(false);
 
 ## 性能数据里的运行环境维度
 
-core 11 的 span 只携带 attributes：事件上的 `tags` 不会进 span，`contexts` 也只有 `response` /
-`profile` / `culture` 等白名单会被映射。SDK 因此在**每个 span 结束进入处理阶段时**，按所属 client 补齐自动采集的运行环境维度，
-Performance / Traces 可以直接按这些键筛选（键名沿用 `@sentry/conventions` 的 OTel 语义）：
+core 11 的 span 使用 attributes；事件上的 tags 与一般 context 不会自动成为 span 属性。
+SDK 在 client 构造时保存稳定环境快照，在 core 合并公共属性后只填缺失字段：
 
 | 属性 | 含义 |
 |------|------|
 | `miniapp.platform` | 小程序宿主标识（`wechat` / `alipay` / `bytedance` 等） |
-| `miniapp.host_version` | 宿主 App 版本（微信 / 抖音自身版本） |
+| `miniapp.host_version` / `miniapp.host_sdk_version` | 宿主 App / 基础库版本 |
 | `app.app_version` | 小程序自身版本 |
 | `device.manufacturer` / `device.model` | 设备厂商与机型 |
 | `os.name` / `os.version` / `os.type` | 系统名、系统版本、系统类型（如 `iOS` / `17.4` / `ios`） |
-| `network.type` | 当前网络类型 |
-| `route` | 当前页面路径 |
-| `performance.api.available` / `performance.integration` | 宿主性能 API 与集成可用性 |
+| `performance.api.available` / `performance.integration` | 性能集成登记的稳定能力 |
 
-宿主版本与小程序版本是两个独立的键。事件侧 `contexts.os` 沿用宿主信息、`os.version` 取的是宿主
-版本，而 span 侧的 `os.version` 按 OTel 语义是系统版本——按 `os.*` 筛选 span 时以本表为准。
+事件与 span 的 OS name/version 都表示操作系统，不再把宿主版本当成 OS 版本。宿主能力缺失时省略字段，不填 `unknown` 或 `0x0`。
 
-其余说明：
+自动 HTTP 操作在创建 span 前捕获页面栈 route 和已观测的 network.type，供 `tracesSampler` / `ignoreSpans` 使用；请求在另一页面完成也保留开始维度。延迟交付的 PerformanceEntry 不使用交付时页面。小游戏没有页面栈时不写 route。
 
-- 维度属于「哪个 client 在采集」：多个 client 重叠时各自携带自己的平台标记与采集开关，`enableSystemInfo: false` 的那一路不会拿到别的 client 的设备信息。
-- `route` 取 `getCurrentPages()` 页面栈栈顶，随每次 span 实时计算；业务没有定义 `onShow` 时，`navigateBack` 之后也不会停留在旧页面。小游戏没有 `getCurrentPages()`，因此不写 `route`。
-- `network.type`、`performance.api.available`、`performance.integration` 由各集成登记到所属 client。
-- 用户或集成已经写过的同名属性一律保留，SDK 只填空缺。
-- `enableSystemInfo: false` 时只保留 `miniapp.platform` 与 `route`，设备与系统维度不采集。
+手动 span 只补稳定环境；动态 route/network 由业务在创建时显式传入：
+
+```js
+Sentry.startInactiveSpan({
+  name: 'checkout',
+  attributes: { route: 'pages/checkout', 'network.type': 'wifi' },
+});
+```
+
+自动操作初始属性的优先级为 SDK 默认值 → 显式 scope 同名属性 → 操作显式属性。初始值只支持合法标量、同类数组和无单位包装值；带 unit 或不适配创建类型的 scope 值不强转，也不补该键的默认值，最终仍由 core 合并原始属性。若要按这些值采样，应在创建时显式提供合法标量。手动 span 的显式属性和 scope 单位始终优先于稳定默认值。
+
+`enableSystemInfo: false` 禁止 SDK 自动采集 device/os/app/runtime version，包括显式 HttpContext 的残余路径；平台标识与用户自己提供的字段保留。默认环境状态不写共享 scope。小程序 tracing 的正式支持范围是一个活动 init client，不承诺任意并发 client 或跨 await 上下文隔离。
 
 ## 运行环境与自建 Sentry
 
