@@ -145,7 +145,7 @@ SDK 的缓存条数、字节数、TTL 与性能 buffer/report interval 使用非
 | `consentCacheLimit` | `number` | `100` | 同意前缓冲最大事件数；满了保留最早的冷启动数据、丢弃最新事件 |
 | `consentCacheMaxBytes` | `number` | `921600` | 同意前缓冲最大字节数；受小程序单 key Storage 约 1MB 限制，默认约 900KB |
 | `consentCacheMaxAge` | `number` | `86400000` | 同意前缓冲过期时间（ms），默认 24 小时 |
-| `onConsentCacheDrop` | `function` | — | 同意缓冲因 `count` / `bytes` / `age` 丢弃事件时回调 `{ reason, dropped }` |
+| `onConsentCacheDrop` | `function` | — | 同意缓冲因 `count` / `bytes` / `age` / `target_changed` / `policy_changed` / `migration_drop` 丢弃已知数量的事件时回调 `{ reason, dropped }` |
 
 ```js
 import * as Sentry from 'sentry-miniapp';
@@ -166,7 +166,15 @@ Sentry.setConsent(true);
 Sentry.setConsent(false);
 ```
 
-`requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；如果传入自定义 `transport`，SDK 也会先用 consent 门禁包住它。当前版本使用单 key 存储，同意缓冲与弱网重试复用 `sentry_offline_store`，因此 `consentCacheMaxBytes` 实际建议不超过默认约 900KB；如需突破单 key 上限，需要未来改为分片存储。
+2.0 的 `new MiniappClient(options)` 是自管的低层入口，必须显式提供 `transport`（类型和运行时都检查）。它只保障有显式 scope 的 event／feedback，不启动 SDK 自动 lifecycle、持久 store 或离线重放，也不承诺任意异步多 client tracing 隔离。旧的无参数或默认 transport 构造请迁移到 `init`。低层 `requireConsent: true` 未授权时拒绝发送并报告 `low_level_consent_blocking`，不声称已缓存；授权后只交给显式 transport。需要 SDK 缓存和自动恢复时使用 `init`。
+
+同意状态、缓存配置和丢弃回调属于各 client。顶层 `Sentry.setConsent` / `Sentry.getConsent` 只路由当前 MiniappClient；也可调用 `client.setConsent` / `client.getConsent`。构造其他 client 不改变原实例状态；新的 `init({ requireConsent: true })` 默认未同意，不继承旧授权。关闭或退休的实例不能用授权 API 影响新实例。
+
+授权会同步调用 client.flush，排出 core span/log/metric 等缓冲，并通过独立 runtime handle 请求离线重放，不等待尚未完成的 beforeSend processing。默认 show 与网络从离线恢复也经过该恢复入口；撤回暂停重放，退休／关闭永久停止旧 owner 的重放权限。离线磁盘重放仍是 best-effort，flush 成功不表示磁盘排空或后台已接收。撤回会立即阻止默认 transport 新的实际请求，对在途 SDK 遥测请求 best-effort abort；已传输字节无法撤回，业务 HTTP 不受影响。未完成的排队/在途请求由唯一 core offline 层处理，缓存保留待重新同意，仍受容量与过期限制。自定义 transport 的私有队列由其自身控制，SDK 入口门禁不能强制撤销其中已接收的工作。
+
+`requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；如果传入自定义 `transport`，SDK 也会先用 consent 门禁包住它。2.0 的同意缓冲与弱网重试共用一个 `sentry_miniapp_offline_v2` 容器，记录包含版本、目标身份、原始创建时间和 typed payload；总 UTF-8 字节预算（含元数据）硬封顶 900KB。DSN（含 public key、project、path）或 tunnel 切换，以及不兼容的缓存隐私协议变化，会丢弃旧容器；容量、TTL、淘汰策略调整只裁剪记录。旧 `sentry_offline_store` 无可验证目标身份，直接删除，不恢复或刷新 TTL。SDK 只访问这两个缓存 key。
+
+重试沿用记录原始时间，不延长 TTL。删除提交失败时不向 core 交付记录，本实例停止消费磁盘并降级为有界内存；写入失败会拒绝 store 的 Promise，不能当作持久化成功。缺少同步 Storage API 时也使用有界内存，冷启动会丢失其中的数据。直接调用 `createMiniappOfflineStore` 必须提供 `targetId` 和版本化 `policyId`；返回值的 `getDiagnostics()` 以及 SDK `getDiagnostics().transport.offlineStore` 报告实际 storage 模式和失败代码，不返回原始缓存数据；`unknown` 表示尚未进行存储操作，`persistent` 表示同步存储通道可用，`memory` 表示本实例已回退为有界内存。模式不代表后台接收或 durable ACK。丢弃通知在成功提交后执行；未知格式无法可靠计数时只记诊断。
 
 ## 性能数据里的运行环境维度
 
@@ -273,6 +281,10 @@ Sentry.init({
 
 - `requestTimeout`：单次 Sentry 上报的超时时间（ms），默认 `3000`。超时后 SDK 会在宿主支持时调用 `RequestTask.abort()`，并把发送失败交给离线缓存处理。
 - `maxConcurrentRequests`：最多同时占用宿主网络槽位的 Sentry 请求数，默认 `2`。更多事件会先在 `@sentry/core` 的有界缓冲中等待，避免监控请求占满小程序网络并发、影响业务接口。
+- `binaryRequestBody`：`'arraybuffer'` 或 `'unsupported'`。默认仅在微信／抖音上采用精确 ArrayBuffer；其余平台暂按未确认能力拒绝二进制 envelope，并报告 `binary_request_unsupported`，永久能力错误不进入离线重试。文本 envelope 仍按原字符串发送。对于含附件的 mixed envelope，拒绝作用于整个 envelope，不拆分或强转 payload。其他宿主在对应基础库、设备上验证原始请求字节后，可显式设置 `'arraybuffer'`；也可在任何平台设置 `'unsupported'` 禁用二进制发送。
+
+默认依据：[微信官方请求类型](https://github.com/wechat-miniprogram/api-typings/blob/master/types/wx/lib.wx.api.d.ts)和[抖音小程序请求说明](https://developer.open-douyin.com/docs/resource/zh-CN/mini-app/develop/api/network/http/tt-request)包含 ArrayBuffer 请求体。支付宝、钉钉、QQ、百度、快手暂未进入默认二进制能力白名单，这表示 SDK 尚未确认，不能据此断言这些宿主都不支持。尤其[快手小程序](https://open.kuaishou.com/docs/develop/api/network/request/request)与[小游戏](https://open.kuaishou.com/miniGameDocs/gameDev/api/network/request/ks.request.html)的参数表不同，不能按品牌混用支持结论。七平台 fixture 验证 SDK 的数据类型、拒绝与显式配置契约；真机及后台接收仍需单独验收。
+
 - `headers`：附加到 envelope 请求的自定义请求头。
 
 通常不建议调大 `requestTimeout` 或 `maxConcurrentRequests`。自建 Sentry 服务响应较慢时，应先检查服务和网络链路；确需调整时，也要在真机上确认业务请求不受影响。

@@ -133,9 +133,12 @@ export interface MiniappOptions extends CoreOptions<MiniappTransportOptions> {
 
   /**
    * 同意前缓存因超限 / 过期丢弃事件时的回调，便于接入方评估上限配置是否合理。
-   * reason 为 'count'（条数）| 'bytes'（体积）| 'age'（过期）；dropped 为本次丢弃条数。
+   * reason 包含容量、过期、目标／策略变更和可计数的迁移丢弃；dropped 以 envelope 记录计数。
    */
-  onConsentCacheDrop?: (info: { reason: 'count' | 'bytes' | 'age'; dropped: number }) => void;
+  onConsentCacheDrop?: (info: {
+    reason: import('./consent').ConsentDropReason;
+    dropped: number;
+  }) => void;
 
   /** 是否启用分布式追踪头注入（默认 true）。只控制 sentry-trace/baggage，以及 propagateTraceparent 开启后的 traceparent 传播，不关闭本地 API 请求 span。 */
   enableTracePropagation?: boolean;
@@ -216,6 +219,8 @@ export interface MiniappDiagnosticsOptions {
 
 /** `Sentry.getDiagnostics()` 返回的 transport 摘要。 */
 export interface MiniappDiagnosticsTransport {
+  /** 实际离线介质与有界诊断；null 表示没有创建 SDK store。 */
+  offlineStore: import('./transports/offlineStore').OfflineStoreDiagnostics | null;
   custom: boolean;
   offlineCache: boolean;
   consentGate: boolean;
@@ -241,7 +246,9 @@ export interface MiniappDiagnosticsWarning {
     | 'late_init'
     | 'lifecycle_unavailable'
     | 'reentrant_init_unsupported'
-    | 'invalid_close_timeout';
+    | 'invalid_close_timeout'
+    | 'binary_request_unsupported'
+    | 'low_level_consent_blocking';
   message: string;
 }
 

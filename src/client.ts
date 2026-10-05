@@ -5,7 +5,7 @@ import {
   eventFromMessage as eventFromMessageCore,
   eventFromUnknownInput,
   getCurrentScope,
-  makeOfflineTransport,
+  makeDsn,
   withScope,
   resolvedSyncPromise,
   stackParserFromStackParserOptions,
@@ -22,14 +22,22 @@ import type {
 
 import { resolveMiniappPlatform } from './crossPlatform';
 import { EnvironmentState, registerClientEnvironment } from './clientState';
+import { ensureEnvelopeEncoding } from './coreCompat';
+import { resolveNonNegativeInteger } from './numericOptions';
 import { ClientLifetime, withTelemetryCritical, registerClientLifetime } from './lifecycle';
 import type { AppName } from './crossPlatform';
-import { configureConsent, isConsentGranted, notifyConsentDrop } from './consent';
+import { ConsentController } from './consent';
 import type { MiniappOptions, ReportDialogOptions, SendFeedbackParams } from './types';
 import { createMiniappTransport, createMiniappOfflineStore } from './transports';
 import type { MiniappTransportOptions } from './transports';
-import { shutdownMiniappTransport } from './transports/xhr';
-import { createConsentAwareOfflineTransport } from './transports/consent';
+import { shutdownMiniappTransport, revokeMiniappTransport } from './transports/xhr';
+import {
+  createConsentAwareOfflineTransport,
+  getTransportRuntime,
+  type TransportRuntimeHandle,
+} from './transports/consent';
+import type { MiniappOfflineStore, OfflineStoreDiagnostics } from './transports/offlineStore';
+import { offlineTargetId } from './transports/offlineRecords';
 import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
 import { miniappStackParser } from './stacktrace';
@@ -44,6 +52,11 @@ export type MiniappClientOptions = Omit<
     /** 小程序宿主标识；与 Sentry 顶层 event.platform 分离。 */
     miniappPlatform?: AppName | undefined;
   };
+
+/** 直接构造只支持自管 transport；自动 runtime 请使用 init。 */
+export type MiniappLowLevelClientOptions = MiniappOptions & {
+  transport: NonNullable<MiniappOptions['transport']>;
+};
 
 const clientsWithCustomTransport = new WeakSet<MiniappClient>();
 type DefaultIntegrationsMode = 'enabled' | 'disabled' | 'custom';
@@ -103,7 +116,11 @@ export function setConfiguredDefaultIntegrationsMode(
 export class MiniappClient extends Client<MiniappClientOptions> {
   private readonly _disposeCallbacks: Array<() => void> = [];
   private readonly _lifetime: ClientLifetime;
+  private readonly _consent: ConsentController;
   private readonly _shutdownTransport: () => void;
+  private readonly _revokeTransport: () => void;
+  private readonly _transportRuntime: TransportRuntimeHandle | undefined;
+  private readonly _offlineStore: MiniappOfflineStore | undefined;
   private _closePromise: Promise<boolean> | undefined;
   private _stopClose: (() => void) | undefined;
   private _hookDepth = 0;
@@ -131,17 +148,43 @@ export class MiniappClient extends Client<MiniappClientOptions> {
    *
    * @param options Configuration options for this SDK.
    */
-  public constructor(options: MiniappOptions | MiniappClientOptions = {}) {
+  public constructor(options: MiniappLowLevelClientOptions) {
+    const runtimeManaged = !!options && runtimeConstructionOptions.delete(options);
+    if (!options) {
+      throw new Error(
+        'Direct MiniappClient construction requires an explicit transport; use init for the managed runtime',
+      );
+    }
+    const { transport: transportFactory, ...snapshot } = options;
+    if (!runtimeManaged && typeof transportFactory !== 'function') {
+      throw new Error(
+        'Direct MiniappClient construction requires an explicit transport; use init for the managed runtime',
+      );
+    }
+    options = { ...snapshot, transport: transportFactory };
+    ensureEnvelopeEncoding();
     const environment = new EnvironmentState(options);
     const lifetime = new ClientLifetime();
+    const dsn = options.dsn ? makeDsn(options.dsn) : undefined;
+    const storeIdentity = {
+      targetId: dsn ? offlineTargetId(dsn, options.tunnel) : 'no-dsn',
+      policyId: JSON.stringify(['miniapp-privacy-v2', options.requireConsent === true]),
+    };
     let shutdownTransport = (): void => {};
+    let revokeTransport = (): void => {};
+    let transportRuntime: TransportRuntimeHandle | undefined;
+    let offlineStore: MiniappOfflineStore | undefined;
     const tracesSampler = options.tracesSampler;
     const beforeSendSpan = options.beforeSendSpan;
     const guardTransport = (transport: Transport): Transport => ({
       send: (envelope) => (lifetime.canSend() ? transport.send(envelope) : resolvedSyncPromise({})),
       flush: (timeout) => transport.flush(timeout),
     });
-    const usesCustomTransport = typeof options.transport === 'function';
+    const managedOffline = (transport: Transport): Transport => {
+      transportRuntime = getTransportRuntime(transport);
+      return guardTransport(transport);
+    };
+    const usesCustomTransport = typeof transportFactory === 'function';
     const defaultIntegrationsMode = resolveDefaultIntegrationsMode(options.defaultIntegrations);
     const hasConfiguredMiniappPlatform =
       options.miniappPlatform !== undefined || options.platform !== undefined;
@@ -149,12 +192,11 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       ? resolveMiniappPlatform(options)
       : undefined;
 
-    // 配置隐私合规「同意门禁」。必须在 super() 之前——transport 工厂在 super() 执行期间被 core
-    // 调用建立，其同意门禁 / store 需读到已就绪的 consent 状态。configureConsent 是模块函数、
-    // 不触碰 this，故在 super 前调用合法。requireConsent=false 时它把门禁置为「恒放行」，行为不变。
-    configureConsent({
+    // super 创建 transport 前，先建立只属于此 client 的控制闭包。
+    const consentCacheLimit = resolveNonNegativeInteger(options.consentCacheLimit, 100);
+    const consent = new ConsentController({
       required: options.requireConsent === true,
-      cacheLimit: options.consentCacheLimit,
+      cacheLimit: consentCacheLimit,
       cacheMaxBytes: options.consentCacheMaxBytes,
       cacheMaxAge: options.consentCacheMaxAge,
       onDrop: options.onConsentCacheDrop,
@@ -164,6 +206,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     // SDK 不再为旧生命周期补适配。
     const clientOptions: MiniappClientOptions = {
       ...options,
+      consentCacheLimit,
       _metadata: {
         ...options._metadata,
         sdk: {
@@ -212,69 +255,90 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
       transport: (transportOptions: BaseTransportOptions) => {
         const miniappTransportOptions = transportOptions as MiniappTransportOptions;
-        const underlyingTransport = options.transport
-          ? options.transport(miniappTransportOptions)
+        const underlyingTransport = transportFactory
+          ? transportFactory(miniappTransportOptions)
           : createMiniappTransport(
               {
                 ...miniappTransportOptions,
                 headers: miniappTransportOptions.headers ?? {},
               },
               () => lifetime.canSend(),
+              () => consent.isGranted(),
+              () => lifetime.warnings.add('binary_request_unsupported'),
             );
-        if (!options.transport)
+        if (!transportFactory) {
           shutdownTransport = () => shutdownMiniappTransport(underlyingTransport);
-        const baseTransport = {
-          send: (envelope: Parameters<typeof underlyingTransport.send>[0]) =>
-            lifetime.canSend() ? underlyingTransport.send(envelope) : resolvedSyncPromise({}),
-          flush: (timeout?: number) => underlyingTransport.flush(timeout),
+          revokeTransport = () => revokeMiniappTransport(underlyingTransport);
+        }
+        const baseTransport: Transport = {
+          send: (envelope) => {
+            if (!lifetime.canSend()) return resolvedSyncPromise({});
+            if (!runtimeManaged && !consent.isGranted()) {
+              lifetime.warnings.add('low_level_consent_blocking');
+              return Promise.reject(
+                new Error('Low-level client consent blocked; no SDK offline store is available'),
+              );
+            }
+            return underlyingTransport.send(envelope);
+          },
+          flush: (timeout) => underlyingTransport.flush(timeout),
         };
+        if (!runtimeManaged) return baseTransport;
 
-        // 同意门禁：在调用 core offline transport 前同步闸断网络（同意前 envelope 不发、
-        // 直接转入本地缓冲），setConsent(true) 后由 transport.flush() 补发。即便用户关了
-        // enableOfflineCache，requireConsent 仍需缓冲，故强制走 offline 路径；若用户传了自定义
-        // transport，也要包住它，避免合规开关被高级用法绕过。
+        // 同意门与弱网重试共用一层 core offline；required=true 保留强制缓存含义。
+        // 自定义 transport 也经过 consent 入口，不旁路 core 私有队列。
         if (options.requireConsent === true) {
           const store = createMiniappOfflineStore(
             {
-              ...transportOptions,
+              ...storeIdentity,
               // 同意前缓存用独立上限 + 冷启动优先（保留最旧）淘汰，区别于弱网那套默认值。
-              offlineCacheLimit: options.consentCacheLimit ?? 100,
-              ...(options.consentCacheMaxAge !== undefined && {
-                offlineCacheMaxAge: options.consentCacheMaxAge,
+              offlineCacheLimit: consent.config.cacheLimit ?? 100,
+              ...(consent.config.cacheMaxAge !== undefined && {
+                offlineCacheMaxAge: consent.config.cacheMaxAge,
               }),
-              ...(options.consentCacheMaxBytes !== undefined && {
-                maxBytes: options.consentCacheMaxBytes,
+              ...(consent.config.cacheMaxBytes !== undefined && {
+                maxBytes: consent.config.cacheMaxBytes,
               }),
               evictionMode: 'preserve-oldest',
-              onDrop: notifyConsentDrop,
+              onDrop: consent.notifyDrop,
             },
             () => lifetime.canUseStore(),
           );
-          return guardTransport(
+          offlineStore = store;
+          return managedOffline(
             createConsentAwareOfflineTransport(
               baseTransport,
               miniappTransportOptions,
               store,
-              isConsentGranted,
+              () => consent.isGranted(),
+              () => lifetime.canUseStore(),
             ),
           );
         }
 
-        if (!options.transport && options.enableOfflineCache !== false) {
-          return guardTransport(
-            makeOfflineTransport(() => baseTransport)({
-              ...transportOptions,
-              createStore: (storeOptions: any) =>
-                createMiniappOfflineStore(
-                  {
-                    ...storeOptions,
-                    offlineCacheLimit: options.offlineCacheLimit,
-                    offlineCacheMaxAge: options.offlineCacheMaxAge,
-                  },
-                  () => lifetime.canUseStore(),
-                ),
-              flushAtStartup: true, // 启动时自动重试发送
-            } as any),
+        if (!transportFactory && options.enableOfflineCache !== false) {
+          const store = createMiniappOfflineStore(
+            {
+              ...storeIdentity,
+              ...(options.offlineCacheLimit !== undefined && {
+                offlineCacheLimit: options.offlineCacheLimit,
+              }),
+              ...(options.offlineCacheMaxAge !== undefined && {
+                offlineCacheMaxAge: options.offlineCacheMaxAge,
+              }),
+            },
+            () => lifetime.canUseStore(),
+          );
+          offlineStore = store;
+          return managedOffline(
+            createConsentAwareOfflineTransport(
+              baseTransport,
+              transportOptions,
+              store,
+              () => consent.isGranted(),
+              () => lifetime.canUseStore(),
+              true,
+            ),
           );
         }
 
@@ -284,7 +348,12 @@ export class MiniappClient extends Client<MiniappClientOptions> {
 
     super(clientOptions);
     this._lifetime = lifetime;
+    this._consent = consent;
     this._shutdownTransport = shutdownTransport;
+    this._revokeTransport = revokeTransport;
+    this._transportRuntime = transportRuntime;
+    this._offlineStore = offlineStore;
+    lifetime.registerStop(() => transportRuntime?.stopReplay());
     registerClientLifetime(this, lifetime);
     registerClientEnvironment(this, environment);
     this.addEventProcessor((event) => environment.fillEvent(event));
@@ -295,7 +364,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     clientDefaultIntegrationsModes.set(this, defaultIntegrationsMode);
     // 自动维度属于本 client，走 core 的 processSpan 钩子按 client 填充；不写共享 isolation scope。
     this.registerCleanup(registerClientSpanDimensions(this));
-    if (runtimeConstructionOptions.delete(options)) lifetime.activate();
+    if (runtimeManaged) lifetime.activate();
   }
 
   /**
@@ -352,6 +421,27 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     return super._prepareEvent(event, hint, currentScope, isolationScope);
   }
 
+  /** 顶层 API 只路由当前实例；实例 API 永远修改自己的 consent。 */
+  public getConsent(): boolean {
+    return this._consent.isGranted();
+  }
+
+  public setConsent(granted: boolean): void {
+    if (this._lifetime.state !== 'open' || !this._consent.config.required) return;
+    this._consent.setGranted(granted);
+    if (!granted) {
+      this._transportRuntime?.stopReplay();
+      this._revokeTransport();
+    }
+    if (granted) {
+      try {
+        void Promise.resolve(this.flush()).catch(() => {});
+      } catch (_error) {
+        /* 同步用户 hook 故障不撤回已提交的授权状态。 */
+      }
+    }
+  }
+
   /** @inheritDoc */
   public override registerCleanup(callback: () => void): void {
     if (this._lifetime.state === 'closed') this._runCleanup(callback);
@@ -380,11 +470,20 @@ export class MiniappClient extends Client<MiniappClientOptions> {
 
   public override flush(timeout?: number): PromiseLike<boolean> {
     let flushed!: PromiseLike<boolean>;
-    withScope((scope) => {
-      scope.setClient(this);
-      flushed = super.flush(timeout);
-    });
+    try {
+      withScope((scope) => {
+        scope.setClient(this);
+        flushed = super.flush(timeout);
+      });
+    } finally {
+      // 授权/show/reconnect 都经过此入口；不等 processing drain 才唤醒磁盘重放。
+      this._transportRuntime?.requestReplay();
+    }
     return flushed;
+  }
+
+  public getOfflineStoreDiagnostics(): OfflineStoreDiagnostics | null {
+    return this._offlineStore?.getDiagnostics() ?? null;
   }
 
   /** 立即禁采集/发送；排弃 core 公开 buffer 后解除资源。 */
@@ -392,6 +491,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     if (this._lifetime.state === 'closed') return;
     this._lifetime.finish();
     this.getOptions().enabled = false;
+    this._transportRuntime?.shutdown();
     this._shutdownTransport();
     this._stopClose?.();
     this._finishPending = true;

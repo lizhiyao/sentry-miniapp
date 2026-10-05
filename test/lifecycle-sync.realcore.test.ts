@@ -7,7 +7,6 @@ import {
 } from '@sentry/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resetConsentState } from '../src/consent';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { init, setConsent } from '../src/index';
 
@@ -42,7 +41,6 @@ describe('小游戏生命周期同步发送链路（真 @sentry/core）', () => 
     vi.useRealTimers();
     const client = getClient();
     if (client) await client.close(0);
-    resetConsentState();
     delete g.tt;
     resetPlatformCache();
   });
@@ -91,7 +89,7 @@ describe('小游戏生命周期同步发送链路（真 @sentry/core）', () => 
 
     client!.captureEvent({ type: 'transaction', transaction: 'before consent' });
     expect(rawRequest).not.toHaveBeenCalled();
-    expect(String(storage.get('sentry_offline_store'))).toContain('before consent');
+    expect(String(storage.get('sentry_miniapp_offline_v2'))).toContain('before consent');
 
     setConsent(true);
     client!.captureEvent({ type: 'transaction', transaction: 'after consent' });
@@ -100,6 +98,6 @@ describe('小游戏生命周期同步发送链路（真 @sentry/core）', () => 
     await Promise.resolve();
     await vi.runAllTimersAsync();
     expect(rawRequest).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(String(storage.get('sentry_offline_store')))).toEqual([]);
+    expect(storage.get('sentry_miniapp_offline_v2')).toBe('');
   });
 });

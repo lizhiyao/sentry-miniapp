@@ -1,5 +1,4 @@
 import { getClient, isEnabled, makeDsn } from '@sentry/core';
-import { isConsentGranted, isConsentRequired } from './consent';
 import { appName, isMiniappEnvironment, isMinigame } from './crossPlatform';
 import { getConfiguredDefaultIntegrationsMode, MiniappClient, usesCustomTransport } from './client';
 import { miniappStackParser } from './stacktrace';
@@ -15,6 +14,10 @@ import { SDK_NAME, SDK_VERSION } from './version';
 import { getClientLifetime, type LifecycleWarningCode } from './lifecycle';
 
 const lifecycleMessages: Record<LifecycleWarningCode, string> = {
+  low_level_consent_blocking:
+    '低层 client 未授权，发送入口已拒绝；它没有 SDK 持久缓存，需使用 init 或自行管理合法缓存。',
+  binary_request_unsupported:
+    '当前 transport 未确认支持二进制请求体，附件 envelope 已拒绝且不会进入离线重试；验证宿主后可显式配置 binaryRequestBody。',
   late_init:
     'App 已注册，SDK 使用宿主原生 lifecycle（如有）；监听顺序不受 SDK 控制，业务 onHide 末尾应显式 flush。',
   lifecycle_unavailable:
@@ -30,13 +33,20 @@ export function getDiagnostics(): MiniappDiagnostics {
   const isMiniappClient = client instanceof MiniappClient;
   const options = isMiniappClient ? (client.getOptions() as MiniappOptions) : null;
   const customTransport = isMiniappClient ? usesCustomTransport(client) : false;
+  const storeDiagnostics = isMiniappClient ? client.getOfflineStoreDiagnostics() : null;
   const transport = options ? buildTransportDiagnostics(options, customTransport) : null;
+  if (transport) {
+    transport.offlineStore = storeDiagnostics;
+    transport.offlineCache = storeDiagnostics !== null;
+  }
   const diagnosticsOptions =
     options && isMiniappClient
       ? buildOptionsDiagnostics(
           options,
           customTransport,
           getConfiguredDefaultIntegrationsMode(client),
+          client.getConsent(),
+          storeDiagnostics !== null,
         )
       : null;
   const diagnostics: MiniappDiagnostics = {
@@ -82,6 +92,8 @@ function buildOptionsDiagnostics(
   options: MiniappOptions,
   customTransport: boolean,
   defaultIntegrations: MiniappDiagnosticsOptions['defaultIntegrations'],
+  consentGranted: boolean,
+  hasOfflineStore: boolean,
 ): MiniappDiagnosticsOptions {
   const dsn = normalizeDsn(options.dsn);
   return {
@@ -96,10 +108,9 @@ function buildOptionsDiagnostics(
     traceLifecycle: options.traceLifecycle ?? 'stream',
     enableLogs: options.enableLogs === true,
     enableSourceMap: options.enableSourceMap !== false,
-    enableOfflineCache:
-      options.requireConsent === true || (!customTransport && options.enableOfflineCache !== false),
+    enableOfflineCache: hasOfflineStore,
     requireConsent: options.requireConsent === true,
-    consentGranted: isConsentGranted(),
+    consentGranted,
     enableTracePropagation: options.enableTracePropagation !== false,
     enableStandaloneHttpSpans: options.enableStandaloneHttpSpans !== false,
     tracePropagationTargetsCount: options.tracePropagationTargets?.length ?? 0,
@@ -127,6 +138,7 @@ function buildTransportDiagnostics(
   customTransport: boolean,
 ): MiniappDiagnosticsTransport {
   return {
+    offlineStore: null,
     custom: customTransport,
     offlineCache:
       options.requireConsent === true || (!customTransport && options.enableOfflineCache !== false),
@@ -233,10 +245,12 @@ function buildWarnings(diagnostics: MiniappDiagnostics): MiniappDiagnosticsWarni
     });
   }
 
-  if (isConsentRequired() && !options.consentGranted) {
+  if (options.requireConsent && !options.consentGranted) {
     warnings.push({
       code: 'consent_blocking',
-      message: 'requireConsent 已开启且当前未同意，事件会进入本地缓冲，不会发送网络请求。',
+      message: diagnostics.transport?.offlineCache
+        ? 'requireConsent 已开启且当前未同意，事件进入 SDK 缓冲，不会发送网络请求；介质及失败见 offlineStore 诊断。'
+        : 'requireConsent 已开启且当前未同意，低层发送入口拒绝；没有 SDK 本地缓冲。',
     });
   }
 

@@ -1,5 +1,6 @@
 import type {
   Envelope,
+  EventEnvelope,
   EnvelopeItemType,
   Event,
   SerializedStreamedSpan,
@@ -16,13 +17,10 @@ export function assertDefined<T>(
   }
 }
 
-export function createEventEnvelope(eventId: string): Envelope {
+export function createEventEnvelope(eventId: string): EventEnvelope {
   const event: Event = { event_id: eventId };
 
-  return [
-    { event_id: eventId, sent_at: '2022-01-01T00:00:00.000Z' },
-    [[{ type: 'event' }, event]],
-  ];
+  return [{ event_id: eventId, sent_at: '2022-01-01T00:00:00.000Z' }, [[{ type: 'event' }, event]]];
 }
 
 export function createCapturingTransport(envelopes: Envelope[]): () => Transport {

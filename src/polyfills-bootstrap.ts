@@ -5,5 +5,8 @@
  * polyfills.ts 本身仍保持无导入副作用，便于工具函数单测和按需复用。
  */
 import { ensurePolyfills } from './polyfills';
+import { ensureEnvelopeEncoding } from './coreCompat';
 
 ensurePolyfills();
+
+ensureEnvelopeEncoding();
