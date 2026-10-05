@@ -237,7 +237,11 @@ export interface MiniappDiagnosticsWarning {
     | 'tracing_disabled'
     | 'source_map_disabled'
     | 'consent_blocking'
-    | 'span_streaming_missing';
+    | 'span_streaming_missing'
+    | 'late_init'
+    | 'lifecycle_unavailable'
+    | 'reentrant_init_unsupported'
+    | 'invalid_close_timeout';
   message: string;
 }
 

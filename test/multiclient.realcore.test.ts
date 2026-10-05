@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getIsolationScope, installedIntegrations } from '@sentry/core';
+import { getClient, getIsolationScope, installedIntegrations } from '@sentry/core';
 import type { Client, Integration, Transport } from '@sentry/core';
 
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
+import { NetworkStatusIntegration } from '../src/integrations/networkstatus';
+import { getClientEnvironment } from '../src/clientState';
 import { PageBreadcrumbs } from '../src/integrations/pagebreadcrumbs';
 import { GlobalHandlers } from '../src/integrations/globalhandlers';
 import { SessionIntegration } from '../src/integrations/session';
@@ -154,8 +156,14 @@ describe('重叠 client 的全局 instrumentation 所有权', () => {
     let firstSends = 0;
     let secondSends = 0;
 
-    const first = start([new SessionIntegration()], makeTransport(() => firstSends++));
-    start([new SessionIntegration()], makeTransport(() => secondSends++));
+    const first = start(
+      [new SessionIntegration()],
+      makeTransport(() => firstSends++),
+    );
+    start(
+      [new SessionIntegration()],
+      makeTransport(() => secondSends++),
+    );
     g.App({ onLaunch: vi.fn() });
     appOptions.onLaunch({ scene: 1001 });
     await Promise.resolve();
@@ -169,7 +177,120 @@ describe('重叠 client 的全局 instrumentation 所有权', () => {
     expect(secondSends).toBe(2);
   });
 
-  it('GlobalHandlers 订阅共存，旧 client 关闭不影响当前 client', async () => {
+  it('NetworkStatus 同对象跨 A/B 复用，旧查询/无 off 监听失效；迟到初始结果不覆盖新变化', async () => {
+    const queries: Array<(res: unknown) => void> = [];
+    const listeners: Array<(res: unknown) => void> = [];
+    g.wx = {
+      getNetworkType: ({ success }: { success: (res: unknown) => void }) => queries.push(success),
+      onNetworkStatusChange: (handler: (res: unknown) => void) => listeners.push(handler),
+    };
+    const integration = new NetworkStatusIntegration();
+    const first = start([integration]);
+    const second = start([integration]);
+    expect(listeners).toHaveLength(2);
+    const read = vi.fn(() => {
+      throw new Error('retired network read');
+    });
+    const unreadable = new Proxy({}, { get: read });
+    listeners[0]!(unreadable);
+    queries[0]!(unreadable);
+    expect(read).not.toHaveBeenCalled();
+    expect(getClientEnvironment(first).contexts.network).toBeUndefined();
+    listeners[1]!({ networkType: 'none', isConnected: false });
+    queries[1]!({ networkType: 'wifi' });
+    expect(getClientEnvironment(second).contexts.network).toEqual({
+      type: 'none',
+      isConnected: false,
+    });
+    const flush = vi.spyOn(second, 'flush').mockResolvedValue(true);
+    listeners[1]!({ networkType: '4g', isConnected: true });
+    expect(flush).toHaveBeenCalledOnce();
+    first.dispose();
+    listeners[1]!({ networkType: '5g', isConnected: true });
+    expect(getClientEnvironment(second).contexts.network).toEqual({
+      type: '5g',
+      isConnected: true,
+    });
+    expect(flush).toHaveBeenCalledOnce();
+    expect(getClient()).toBe(second);
+  });
+
+  it('NetworkStatus 退休在 off 前失效，off 故障不使旧查询或监听恢复', () => {
+    let queried!: (res: unknown) => void;
+    let changed!: (res: unknown) => void;
+    const off = vi.fn(() => {
+      changed({ networkType: 'none' });
+      throw new Error('off failed');
+    });
+    g.wx = {
+      getNetworkType: ({ success }: { success: typeof queried }) => {
+        queried = success;
+      },
+      onNetworkStatusChange: (handler: typeof changed) => {
+        changed = handler;
+      },
+      offNetworkStatusChange: off,
+    };
+    const owner = start([new NetworkStatusIntegration()]);
+    owner.dispose();
+    owner.dispose();
+    queried({ networkType: 'wifi' });
+    changed({ networkType: 'wifi' });
+    expect(off).toHaveBeenCalledOnce();
+    expect(getClientEnvironment(owner).contexts.network).toBeUndefined();
+    expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
+  });
+
+  it('NetworkStatus 恢复联网的异步 flush reject 被接住，活动实例仍正常', async () => {
+    let changed!: (res: unknown) => void;
+    g.wx = {
+      onNetworkStatusChange: (handler: typeof changed) => {
+        changed = handler;
+      },
+    };
+    const owner = start([new NetworkStatusIntegration()]);
+    const flush = vi.spyOn(owner, 'flush').mockRejectedValueOnce(new Error('flush failed'));
+    changed({ networkType: 'none' });
+    changed({ networkType: 'wifi' });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(flush).toHaveBeenCalledOnce();
+    expect(getClientEnvironment(owner).contexts.network).toEqual({
+      type: 'wifi',
+      isConnected: true,
+    });
+    expect(getClient()).toBe(owner);
+    flush.mockRestore();
+  });
+
+  it('NetworkStatus payload getter 重入 dispose 后不读后续字段或更新状态', () => {
+    let changed!: (res: unknown) => void;
+    g.wx = {
+      onNetworkStatusChange: (handler: typeof changed) => {
+        changed = handler;
+      },
+    };
+    const owner = start([new NetworkStatusIntegration()]);
+    const readConnected = vi.fn(() => true);
+    const response = Object.defineProperties(
+      {},
+      {
+        networkType: {
+          get() {
+            owner.dispose();
+            return 'wifi';
+          },
+        },
+        isConnected: { get: readConnected },
+      },
+    );
+    expect(() => changed(response)).not.toThrow();
+    expect(readConnected).not.toHaveBeenCalled();
+    expect(getClientEnvironment(owner).contexts.network).toBeUndefined();
+    expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
+  });
+
+  it('GlobalHandlers 替换时退订旧监听，旧 client 关闭不影响新监听', async () => {
     const errorHandlers = new Set<(error: string | Error) => void>();
     g.wx = {
       getSystemInfoSync: () => ({}),
@@ -182,9 +303,15 @@ describe('重叠 client 的全局 instrumentation 所有权', () => {
     let firstSends = 0;
     let secondSends = 0;
 
-    const first = start([new GlobalHandlers()], makeTransport(() => firstSends++));
-    const second = start([new GlobalHandlers()], makeTransport(() => secondSends++));
-    expect(errorHandlers).toHaveLength(2);
+    const first = start(
+      [new GlobalHandlers()],
+      makeTransport(() => firstSends++),
+    );
+    const second = start(
+      [new GlobalHandlers()],
+      makeTransport(() => secondSends++),
+    );
+    expect(errorHandlers).toHaveLength(1);
 
     for (const handler of errorHandlers) handler(new Error('current client failure'));
     await second.flush(100);

@@ -22,7 +22,7 @@ const {
     mockFlush,
     // 稳定的 client 桩：集成按「绑定的 client 是否仍是当前 client」过滤回调，
     // 每次新建对象会让 setup(client) 之后的回调全部被当成 stale 丢掉。
-    mockClient: { flush: mockFlush, registerCleanup: vi.fn() },
+    mockClient: { flush: mockFlush, registerCleanup: vi.fn(), getOptions: () => ({}) },
     mockGetClient: vi.fn(() => mockClient),
   };
 });
@@ -65,6 +65,25 @@ describe('NetworkStatusIntegration', () => {
     vi.restoreAllMocks();
   });
 
+  it('注册中 cleanup 后才保存的监听也会被解除，旧回调不读取参数', () => {
+    const integration = new NetworkStatusIntegration();
+    const handlers: Array<(res: any) => void> = [];
+    const off = vi.fn();
+    vi.mocked(crossPlatform.sdk).mockReturnValue({
+      request: vi.fn(),
+      onNetworkStatusChange: (handler: (res: any) => void) => {
+        integration.cleanup();
+        handlers.push(handler);
+      },
+      offNetworkStatusChange: off,
+    });
+    integration.setup(mockClient as any);
+    expect(off).toHaveBeenCalledTimes(2);
+    const read = vi.fn();
+    handlers[0]!(new Proxy({}, { get: read }));
+    expect(read).not.toHaveBeenCalled();
+  });
+
   it('should get initial network type on setup', () => {
     const integration = new NetworkStatusIntegration();
     integration.setup(mockClient as any);
@@ -78,7 +97,11 @@ describe('NetworkStatusIntegration', () => {
   it('ignores initial and change callbacks owned by an inactive client', () => {
     const oldClient = { registerCleanup: vi.fn() };
     // 全局 client 已被新一轮 init 换掉：本实例的回调必须失活。
-    mockGetClient.mockReturnValue({ flush: mockFlush, registerCleanup: vi.fn() });
+    mockGetClient.mockReturnValue({
+      flush: mockFlush,
+      registerCleanup: vi.fn(),
+      getOptions: () => ({}),
+    });
     const integration = new NetworkStatusIntegration();
 
     integration.setup(oldClient as any);
@@ -134,7 +157,7 @@ describe('NetworkStatusIntegration', () => {
     expect(miniappSdk.offNetworkStatusChange).toHaveBeenCalled();
   });
 
-  it('同一实例被第二个 client 复用时不重复挂载宿主监听', () => {
+  it('同 client 重复 setup 幂等，第二个 client 有独立订阅', () => {
     const getNetworkType = vi.fn((options: any) => options.success({ networkType: 'wifi' }));
     const onNetworkStatusChange = vi.fn((callback: any) => {
       networkChangeCallback = callback;
@@ -147,11 +170,14 @@ describe('NetworkStatusIntegration', () => {
 
     const integration = new NetworkStatusIntegration();
     integration.setup(mockClient as any);
-    integration.setup({ flush: mockFlush, registerCleanup } as any);
+    integration.setup(mockClient as any);
+    const second = { flush: mockFlush, registerCleanup, getOptions: () => ({}) };
+    mockGetClient.mockReturnValue(second);
+    integration.setup(second as any);
 
-    // 宿主监听是进程级的，重复挂载会让同一网络变化被记录两次。
-    expect(getNetworkType).toHaveBeenCalledOnce();
-    expect(onNetworkStatusChange).toHaveBeenCalledOnce();
+    // 分发只采用活动 owner；不同 client 的订阅不能共享可变归属。
+    expect(getNetworkType).toHaveBeenCalledTimes(2);
+    expect(onNetworkStatusChange).toHaveBeenCalledTimes(2);
     expect(registerCleanup).toHaveBeenCalledOnce();
   });
 

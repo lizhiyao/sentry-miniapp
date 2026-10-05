@@ -311,3 +311,31 @@ Sentry.init({
 每次 `init()` 都应创建新的有状态 integration 实例。不要跨多次初始化复用
 `defaultIntegrations` 静态数组或缓存后的 `getDefaultIntegrations()` 结果；静态数组仅为 1.x
 兼容保留且已弃用。
+
+## 2.0 的 client 关闭与切换契约
+
+`init()` 只保留一个活动 runtime。切换前，旧 client 停止持久缓存消费，同步执行 SDK finalizer 并启动 owner flush，再绑定新 client；内部收尾预算为 2000ms。同步 span/sampler/DSC hook 中重入 `init()` 会返回 `undefined` 并诊断 `reentrant_init_unsupported`，业务应在 hook 返回后的独立控制流中切换。
+
+`client.close(timeout)` 的正有限 timeout 是整个收尾的预算；`0` 或省略 timeout 表示等待排空，不套内部 2000ms 预算。负数、NaN、Infinity 使用 2000ms 安全预算。重复 close 共享同一 Promise。`dispose()` 是立即废弃：禁用采集与发送，排弃 core buffer，再解除资源；它不生成最后的 summary，也可以中断等待中的 close，使其返回 `false`。宿主恢复后，默认发送队列在实际出队时仍检查终态与绝对 deadline。
+
+SDK finalizer 与资源 cleanup 分开，前者只在关闭的同步收尾窗口产生最后数据。关闭后日志／指标不会再执行用户采集 callback 或填入 buffer；callback 内关闭 client 后返回的日志／指标也被拒收。任意第三方 core hook 抛错可能中断 core 其余 listener，内部 buffer 清理只能 best-effort；SDK 仍完成终态和资源清理，不修改 core 私有 hooks/buffers。
+
+`close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。
+
+自动 Session 按前台 episode 维护 client 自有引用，在业务同步 `onHide` 之后结束。异步事件处理使用采集时的 session；S1 结束后开始 S2，S1 的迟到错误不会修改或结束 S2。已结束 S1 是否补发更新遵循 core 原生语义，不能将迟到错误重新归到当前前台。
+
+默认 MiniappLifecycle 协调器独立于 Session、Page 与 FPS。可包装 App 时，业务同步 handler、SDK after 收尾和最后 flush 按阶段运行；Session 在协调器之后安装也不会越过最后 flush。小游戏使用原生 onShow/onHide；可检测到已注册 App 的 late init 使用原生 onAppShow/onAppHide（如有）。原生监听相对业务监听的顺序由宿主控制，业务 handler 末尾显式 flush 才能覆盖随后产生的数据。App 入口不可读、不可写或 setter 忽略包装时，改用可用的原生监听；冻结的 App 定义仍交给宿主注册，无法注入的 handler 不保证自动收尾，业务需显式 flush。没有监听能力时安全降级；没有 getApp 检测能力时，SDK 也无法可靠判断 App 是否已注册。
+
+默认 transport 的终态 shutdown 会清掉等待队列、尝试 abort SDK 在途请求并一次结算；abort 抛错、同步 fail 或迟到 success/fail 都不能重复结算。第三方 transport 的私有队列与取消能力由其实现负责。core 自己创建的单次 drain timeout 可能在关闭后空执行一次，SDK 不改写其私有 timer。
+
+`getDiagnostics().warnings` 可查询 `late_init`、`lifecycle_unavailable`、`reentrant_init_unsupported` 和 `invalid_close_timeout`。这些诊断只保留有界的状态代码，不发送事件；禁用默认集成时，生命周期与 hide/show 边界由业务显式管理。
+
+TryCatch 的 timer/rAF 捕获按每次调度绑定到活动 `init` client。同一函数多次调度不会复用首个 owner；one-shot 完成、对应 clear/cancel 或 client 退休后释放采集状态。退休不取消业务 interval/rAF，迟到业务回调仍保留 `this`、参数、返回值和原异常，但不再由旧 SDK 回调捕获到新 client。回调返回 Promise 时保持原 Promise 身份，不捕获其异步 rejection，也不提供跨 await 的 scope 隔离；宿主独立发出的全局未处理异常遵循当前 runtime 的捕获边界。
+
+GlobalHandlers 的宿主监听按 client 安装，重复使用同一 integration 对象时也保持独立去重窗口。运行实例退休即退订并释放 client；缺少 off API 的旧监听仅保留失效回调，迟到参数不会被读取。注册或解除某个监听失败不阻断其他能力，低层直接构造的 MiniappClient 不自动注册这些监听。宿主随后独立发出的全局异常仍按当前活动 runtime 捕获，不承诺恢复已丢失的旧异步来源。
+
+NetworkStatus 的初始查询与变化监听属于安装它的 client。运行实例退休后，旧查询和无 off API 的监听不会读取迟到参数；已经观察到实时变化后，迟到初始查询不能覆盖网络状态。恢复联网时同步发起 flush，异步失败由 SDK 接住；这不代表磁盘重放已完成。
+
+小游戏首帧与 FPS 的 SDK rAF 同样按 client 管理。FPS 退后台停止自己的帧循环，回前台重建基线，重复 show 不丢弃有效窗口；缺 cancel API 时旧帧以请求身份失效。close 的同步 finalizer 最多产生一次最后汇总，dispose 和资源 cleanup 只释放状态、不产生汇总。注册或解除某项监听失败不阻断其余资源释放，业务自身的 rAF 不由这些集成取消。
+
+Performance 的 observer、报告定时器和缓冲状态按 client 独立维护，复用 integration 配置对象不会把旧 observer 转给新 client。运行实例退休时同步释放这些资源，迟到 entry 不再读取；close 的 finalizer 提交最后汇总，dispose/cleanup 丢弃缓冲。Page、Console、HTTP 与生命周期协调器也在退休时同步退订；低层直接构造并手动绑定 client 不会启动这些自动 producer。SDK 的 breadcrumb 格式化或不可写 Page 定义失败不阻断原业务 API、回调或 console。

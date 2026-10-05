@@ -1,11 +1,5 @@
 import { getClientEnvironment, setClientContext } from '../clientState';
-import {
-  getClient,
-  getCurrentScope,
-  startInactiveSpan,
-  startSpan,
-  withActiveSpan,
-} from '@sentry/core';
+import { getCurrentScope, startInactiveSpan, startSpan, withActiveSpan } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 
 import {
@@ -23,6 +17,8 @@ import {
 import { automaticSpanAttributes, setClientSpanDimension } from '../spanDimensions';
 import { collectUrlName } from '../dataCollection';
 import { resolveNonNegativeInteger } from '../numericOptions';
+import { getClientLifetime } from '../lifecycle';
+import { OwnerToken } from '../owner';
 
 const EPOCH_TIMESTAMP_THRESHOLD = 100_000_000_000;
 const MAX_PLAUSIBLE_RELATIVE_RUNTIME = 30 * 24 * 60 * 60 * 1000;
@@ -62,26 +58,16 @@ export interface PerformanceIntegrationOptions {
 }
 
 /** Performance API 集成 */
-export class PerformanceIntegration implements Integration {
-  /**
-   * @inheritDoc
-   */
-  public static id: string = 'PerformanceAPI';
-
-  /**
-   * @inheritDoc
-   */
-  public name: string = PerformanceIntegration.id;
-
+class PerformanceController {
   private _options: Required<PerformanceIntegrationOptions>;
   private _performanceManager: PerformanceManager | null = null;
   private _observers: PerformanceObserver[] = [];
   private _entryBuffer: PerformanceEntry[] = [];
   private _reportTimer: ReturnType<typeof setInterval> | null = null;
-  private _isSetup: boolean = false;
   private _relativeTimeOrigin: number | null = null;
   private _setupEpochMilliseconds: number | null = null;
   private _client: Client | undefined;
+  private _owner: OwnerToken | undefined;
 
   constructor(options: PerformanceIntegrationOptions = {}) {
     this._options = {
@@ -112,16 +98,24 @@ export class PerformanceIntegration implements Integration {
    */
   public setup(client: Client): void {
     this._client = client;
-    this._setup();
-    client.registerCleanup(() => this.cleanup());
+    const owner = new OwnerToken(client);
+    this._owner = owner;
+    owner.registerFinalizer(() => this._reportBufferedEntries(true));
+    owner.run(() => this._setup());
+  }
+
+  private _observe(callback: () => void): void {
+    try {
+      this._owner?.run(callback);
+    } catch (_error) {
+      /* 不可读 entry 或用户 hook 故障不传播到 observer。 */
+    }
   }
 
   private _setup(): void {
-    if (this._isSetup) return;
-    this._isSetup = true;
     this._setupEpochMilliseconds = epochNow();
     this._initializePerformanceManager();
-    if (!this._setupPerformanceObservers()) {
+    if (!this._isActiveClient() || !this._setupPerformanceObservers() || !this._isActiveClient()) {
       return;
     }
     this._startAutoReporting();
@@ -217,9 +211,15 @@ export class PerformanceIntegration implements Integration {
 
       // 创建性能观察者
       const observer = this._performanceManager.createObserver((entries) => {
-        this._handlePerformanceEntries(entries);
+        this._observe(() => this._handlePerformanceEntries(entries));
       });
 
+      if (!this._isActiveClient()) {
+        observer.disconnect();
+        return false;
+      }
+      // observe 可能回调或部分注册后抛错，先纳入资源 ledger。
+      this._observers.push(observer);
       try {
         observer.observe({ entryTypes });
       } catch (e) {
@@ -239,7 +239,7 @@ export class PerformanceIntegration implements Integration {
         }
       }
 
-      this._observers.push(observer);
+      if (!this._isActiveClient()) return false;
 
       const globalProcess =
         typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
@@ -295,6 +295,7 @@ export class PerformanceIntegration implements Integration {
     const rootStart = Math.min(...entriesArray.map((entry) => this._entryTimes(entry).start));
     const rootEnd = Math.max(...entriesArray.map((entry) => this._entryTimes(entry).end));
     const navigation = entriesArray.find((entry) => entry.entryType === 'navigation');
+    if (!this._isActiveClient()) return;
     const rootSpan = startInactiveSpan({
       name: navigation ? `Navigation: ${collectUrlName(navigation.name)}` : 'Miniapp Performance',
       op: navigation ? 'navigation' : 'miniapp.performance',
@@ -303,6 +304,7 @@ export class PerformanceIntegration implements Integration {
       parentSpan: null,
       startTime: rootStart,
     });
+    if (!this._isActiveClient()) return;
     rootSpan.setAttributes({
       'performance.entry_count': entriesArray.length,
       'performance.entry_types': Array.from(
@@ -312,15 +314,16 @@ export class PerformanceIntegration implements Integration {
 
     withActiveSpan(rootSpan, () => {
       entriesArray.forEach((entry) => {
+        if (!this._isActiveClient()) return;
         try {
           this._processPerformanceEntry(entry);
-          this._addToBuffer(entry);
+          if (this._isActiveClient()) this._addToBuffer(entry);
         } catch (error) {
           console.warn('[sentry-miniapp] Failed to process performance entry:', error);
         }
       });
     });
-    rootSpan.end(rootEnd);
+    if (this._isActiveClient()) rootSpan.end(rootEnd);
   }
 
   /**
@@ -439,7 +442,7 @@ export class PerformanceIntegration implements Integration {
         ),
       },
       (span) => {
-        span.end(times.end);
+        if (this._isActiveClient()) span.end(times.end);
       },
     );
   }
@@ -468,7 +471,7 @@ export class PerformanceIntegration implements Integration {
         ),
       },
       (span) => {
-        span.end(times.end);
+        if (this._isActiveClient()) span.end(times.end);
       },
     );
 
@@ -525,7 +528,7 @@ export class PerformanceIntegration implements Integration {
         ),
       },
       (span) => {
-        span.end(times.end);
+        if (this._isActiveClient()) span.end(times.end);
       },
     );
   }
@@ -552,7 +555,7 @@ export class PerformanceIntegration implements Integration {
           ),
         },
         (span) => {
-          span.end(times.end);
+          if (this._isActiveClient()) span.end(times.end);
         },
       );
     } else if (entry.entryType === 'mark') {
@@ -588,14 +591,19 @@ export class PerformanceIntegration implements Integration {
       return;
     }
 
-    this._reportTimer = setInterval(() => {
-      this._reportBufferedEntries();
+    const timer = setInterval(() => {
+      this._observe(() => this._reportBufferedEntries());
     }, this._options.reportInterval);
+    if (this._isActiveClient()) this._reportTimer = timer;
+    else clearInterval(timer);
   }
 
   /** 汇总缓冲的性能条目，并写入当前 Sentry scope */
-  private _reportBufferedEntries(): void {
-    if (!this._isActiveClient() || this._entryBuffer.length === 0) {
+  private _reportBufferedEntries(finalizing = false): void {
+    const lifetime = this._client && getClientLifetime(this._client);
+    const accepted = (): boolean =>
+      finalizing ? !!this._client && !!lifetime?.acceptsTelemetry() : this._isActiveClient();
+    if (!accepted() || this._entryBuffer.length === 0) {
       return;
     }
 
@@ -609,6 +617,7 @@ export class PerformanceIntegration implements Integration {
         stats['memory'] = memoryInfo;
       }
 
+      if (!accepted()) return;
       setClientContext(this._client, 'performance_summary', {
         total_entries: this._entryBuffer.length,
         navigation_count: this._entryBuffer.filter((e) => e.entryType === 'navigation').length,
@@ -620,11 +629,9 @@ export class PerformanceIntegration implements Integration {
         ...stats,
       });
 
-      // 检查性能阈值并发送警告
-      this._checkPerformanceThresholds(stats);
-
-      // 清空缓冲区
+      // 成功提交后先释放窗口，用户 breadcrumb 重入关闭不能再提交同一批。
       this._entryBuffer = [];
+      if (accepted()) this._checkPerformanceThresholds(stats);
     } catch (error) {
       console.warn('[sentry-miniapp] Failed to summarize buffered performance entries:', error);
     }
@@ -766,6 +773,7 @@ export class PerformanceIntegration implements Integration {
 
       // 检查 Performance API 支持情况
       const hasPerformanceAPI = !!currentSdk.getPerformance;
+      if (!this._isActiveClient()) return;
 
       if (this._client) getClientEnvironment(this._client).tags['performance.api.available'] = true;
       setClientSpanDimension(this._client, 'performance.api.available', true);
@@ -793,47 +801,75 @@ export class PerformanceIntegration implements Integration {
    * 清理资源
    */
   public cleanup(): void {
-    // 断开所有观察者
-    this._observers.forEach((observer) => {
-      try {
-        observer.disconnect();
-      } catch (error) {
-        console.warn('[sentry-miniapp] Failed to disconnect observer:', error);
-      }
-    });
+    const owner = this._owner;
+    this._owner = undefined;
+    this._client = undefined;
+    owner?.release();
+    const observers = this._observers;
     this._observers = [];
-
-    // 清除定时器
-    if (this._reportTimer) {
-      clearInterval(this._reportTimer);
-      this._reportTimer = null;
-    }
-
-    // 旧 client 乱序关闭时不能把它的历史缓冲写入当前 client 的 scope。
-    if (this._isActiveClient()) {
-      this._reportBufferedEntries();
-    } else {
-      this._entryBuffer = [];
-    }
+    const timer = this._reportTimer;
+    this._reportTimer = null;
+    this._entryBuffer = [];
     this._performanceManager = null;
     this._relativeTimeOrigin = null;
     this._setupEpochMilliseconds = null;
-    this._isSetup = false;
-    this._client = undefined;
+    if (timer !== null) clearInterval(timer);
+    for (const observer of observers) {
+      try {
+        observer.disconnect();
+      } catch (_error) {
+        /* 解除失败不阻断其余资源。 */
+      }
+    }
   }
 
   private _isActiveClient(): boolean {
-    // 两个条件都要：`this._client` 为空说明本实例已 cleanup（迟到的回调必须丢弃，
-    // cleanup 里那次汇总走的是显式分支，不经过这里）；全局 client 不是本实例的那个
-    // 说明已被新一轮 init 取代——re-init 不会 dispose 旧 client，旧实例的 observer
-    // 回调全靠这一判定失活。要本实例的 client 时一律用 this._client，不从全局取。
-    return !!this._client && getClient() === this._client;
+    return !!this._owner?.isActive();
   }
 }
 
-/**
- * Performance API 集成工厂函数
- */
+/** 配置对象可复用；每次 setup 的 observer、timer 与状态归属独立 client。 */
+export class PerformanceIntegration implements Integration {
+  public static id = 'PerformanceAPI';
+  public name = PerformanceIntegration.id;
+  private readonly _clients = new WeakSet<Client>();
+  private readonly _cleanups = new Set<() => void>();
+
+  private readonly _options: PerformanceIntegrationOptions;
+
+  public constructor(options: PerformanceIntegrationOptions = {}) {
+    this._options = { ...options };
+    if (options.thresholds) this._options.thresholds = { ...options.thresholds };
+  }
+
+  public setup(client: Client): void {
+    if (this._clients.has(client)) return;
+    const lifetime = getClientLifetime(client);
+    if (lifetime && !lifetime.canCollectAutomatic()) return;
+    const controller = new PerformanceController(this._options);
+    this._clients.add(client);
+    let active = true;
+    const cleanup = (): void => {
+      if (!active) return;
+      active = false;
+      controller.cleanup();
+      this._clients.delete(client);
+      this._cleanups.delete(cleanup);
+    };
+    this._cleanups.add(cleanup);
+    const detach = lifetime?.registerStop(cleanup);
+    client.registerCleanup(() => {
+      detach?.();
+      cleanup();
+    });
+    controller.setup(client);
+  }
+
+  public cleanup(): void {
+    for (const cleanup of [...this._cleanups]) cleanup();
+  }
+}
+
 export const performanceIntegration = ((
   options?: PerformanceIntegrationOptions,
 ): PerformanceIntegration => new PerformanceIntegration(options)) satisfies IntegrationFn;

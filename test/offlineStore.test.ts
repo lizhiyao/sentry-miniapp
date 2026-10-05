@@ -180,10 +180,7 @@ describe('OfflineStore', () => {
 
     it('超出单 key 体积上限时丢弃最旧的非错误事件，保住错误事件写入', async () => {
       const big = 'x'.repeat(1024 * 1024); // 1MB，单条即超 900KB 上限
-      const bigTransaction: any = [
-        { event_id: 'big' },
-        [[{ type: 'transaction' }, { data: big }]],
-      ];
+      const bigTransaction: any = [{ event_id: 'big' }, [[{ type: 'transaction' }, { data: big }]]];
       const errorEnv: any = [{ event_id: 'err' }, [[{ type: 'event' }, { msg: 'boom' }]]];
 
       const store = createMiniappOfflineStore({ offlineCacheLimit: 50 } as any);
@@ -275,5 +272,111 @@ describe('OfflineStore', () => {
         expect.any(Error),
       );
     });
+  });
+  it('活动 token 撤销后不读取、删除或改写缓存，也不交付旧记录', async () => {
+    let active = true;
+    const get = vi.fn((key: string) => mockStorage[key]);
+    const set = vi.fn((key: string, value: string) => {
+      mockStorage[key] = value;
+    });
+    (sdk as Mock).mockReturnValue({ getStorageSync: get, setStorageSync: set });
+    const store = createMiniappOfflineStore({ recordDroppedEvent: vi.fn() }, () => active);
+    const envelope = [{ event_id: 'old' }, []] as any;
+    await store.push(envelope);
+    const disk = mockStorage['sentry_offline_store'];
+    const readCount = get.mock.calls.length;
+    const writeCount = set.mock.calls.length;
+    active = false;
+    await store.push(envelope);
+    await store.unshift(envelope);
+    expect(await store.shift()).toBeUndefined();
+    expect(get).toHaveBeenCalledTimes(readCount);
+    expect(set).toHaveBeenCalledTimes(writeCount);
+    expect(mockStorage['sentry_offline_store']).toBe(disk);
+  });
+
+  it('onDrop 重入撤销 token 后，A 的旧快照不能覆盖 B 写入', async () => {
+    let active = true;
+    const next = JSON.stringify([{ envelope: [{ event_id: 'B' }, []], timestamp: Date.now() }]);
+    const store = createMiniappOfflineStore(
+      {
+        recordDroppedEvent: vi.fn(),
+        offlineCacheLimit: 0,
+        onDrop: () => {
+          active = false;
+          mockStorage['sentry_offline_store'] = next;
+        },
+      },
+      () => active,
+    );
+    await store.push([{ event_id: 'A' }, []]);
+    expect(mockStorage['sentry_offline_store']).toBe(next);
+    expect(await store.shift()).toBeUndefined();
+  });
+  it('宿主读取中撤销 token，损坏缓存不能由退休 A 删除', async () => {
+    let active = true;
+    const remove = vi.fn();
+    (sdk as Mock).mockReturnValue({
+      getStorageSync: vi.fn(() => {
+        active = false;
+        return 'broken';
+      }),
+      removeStorageSync: remove,
+      setStorageSync: vi.fn(),
+    });
+    const store = createMiniappOfflineStore({ recordDroppedEvent: vi.fn() }, () => active);
+    expect(await store.shift()).toBeUndefined();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('读取 API getter 撤销 token 后不再调用宿主读取', async () => {
+    let active = true;
+    const get = vi.fn(() => 'broken');
+    (sdk as Mock).mockReturnValue({
+      get getStorageSync() {
+        active = false;
+        return get;
+      },
+    });
+    const store = createMiniappOfflineStore({ recordDroppedEvent: vi.fn() }, () => active);
+    expect(await store.shift()).toBeUndefined();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('删除 API getter 交接给 B 后不能删除 B 的新缓存', async () => {
+    let active = true;
+    const next = JSON.stringify([{ envelope: [{ event_id: 'B' }, []], timestamp: Date.now() }]);
+    const remove = vi.fn((key: string) => {
+      delete mockStorage[key];
+    });
+    (sdk as Mock).mockReturnValue({
+      getStorageSync: vi.fn(() => 'broken'),
+      get removeStorageSync() {
+        active = false;
+        mockStorage['sentry_offline_store'] = next;
+        return remove;
+      },
+    });
+    const store = createMiniappOfflineStore({ recordDroppedEvent: vi.fn() }, () => active);
+    expect(await store.shift()).toBeUndefined();
+    expect(remove).not.toHaveBeenCalled();
+    expect(mockStorage['sentry_offline_store']).toBe(next);
+  });
+
+  it('bytes drop 通知在 persist 内撤销 token，也不能覆盖 B 的缓存', async () => {
+    let active = true;
+    const store = createMiniappOfflineStore(
+      {
+        recordDroppedEvent: vi.fn(),
+        maxBytes: 0,
+        onDrop: () => {
+          active = false;
+          mockStorage['sentry_offline_store'] = 'B';
+        },
+      },
+      () => active,
+    );
+    await store.push([{ event_id: 'A' }, []]);
+    expect(mockStorage['sentry_offline_store']).toBe('B');
   });
 });

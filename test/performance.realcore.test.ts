@@ -3,7 +3,6 @@ import {
   flush,
   captureException,
   getClient,
-  installedIntegrations,
   startInactiveSpan,
   type Envelope,
   type StreamedSpanJSON,
@@ -30,8 +29,6 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
   beforeEach(() => {
     observerCallback = undefined;
     captured = [];
-    // 复位进程级 setupOnce 去重表，让每条用例都按「首次安装」跑一遍集成装配。
-    installedIntegrations.length = 0;
 
     g.wx = {
       request: vi.fn(),
@@ -77,8 +74,6 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
 
     const performance = client?.getIntegrationByName?.('PerformanceAPI') as any;
     expect(performance).toBeDefined();
-    expect(performance._observers).toEqual([]);
-    expect(performance._reportTimer).toBeNull();
     expect(
       consoleSpy.mock.calls.some((call) =>
         String(call[0]).includes('Failed to setup performance observers'),
@@ -150,15 +145,21 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
       tracesSampleRate: 1,
       transport: createCapturingTransport(captured),
     });
-    observerCallback!(['navigation', 'resource'].map((entryType) => Object.create({
-      entryType,
-      name: 'https://canary-user:canary-password@example.com/path?token=canary-token#canary-fragment',
-      startTime: 250,
-      duration: 120,
-    })));
+    observerCallback!(
+      ['navigation', 'resource'].map((entryType) =>
+        Object.create({
+          entryType,
+          name: 'https://canary-user:canary-password@example.com/path?token=canary-token#canary-fragment',
+          startTime: 250,
+          duration: 120,
+        }),
+      ),
+    );
     captureException(new Error('performance privacy probe'));
     await flush(2000);
-    expect(collectSpans(captured).some((span) => spanAttribute(span, 'sentry.op') === 'resource')).toBe(true);
+    expect(
+      collectSpans(captured).some((span) => spanAttribute(span, 'sentry.op') === 'resource'),
+    ).toBe(true);
     expect(JSON.stringify(captured)).not.toContain('canary');
   });
 
@@ -169,7 +170,9 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
       tracesSampleRate: 1,
       transport: createCapturingTransport(captured),
     });
-    observerCallback!([{ entryType: 'measure', name: 'business?phase=ready#paint', startTime: 250, duration: 1 }]);
+    observerCallback!([
+      { entryType: 'measure', name: 'business?phase=ready#paint', startTime: 250, duration: 1 },
+    ]);
     captureException(new Error('user timing name probe'));
     await flush(2000);
     expect(JSON.stringify(captured)).toContain('business?phase=ready#paint');

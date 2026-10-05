@@ -83,7 +83,7 @@ export function createPerformanceTestHarness(
   dependencies.getPerformanceManager.mockReset().mockReturnValue(mockPerformanceManager);
   dependencies.getSystemInfo.mockReset().mockReturnValue({ platform: 'devtools' });
   dependencies.sdk.mockReset().mockReturnValue({ getPerformance: vi.fn() });
-  const activeClient = { registerCleanup: vi.fn() };
+  const activeClient = { registerCleanup: vi.fn(), getOptions: () => ({}) };
   dependencies.getClient.mockReset().mockReturnValue(activeClient);
   dependencies.getCurrentScope.mockReset().mockReturnValue(mockScope);
   dependencies.startInactiveSpan.mockReset().mockReturnValue(mockSpan);

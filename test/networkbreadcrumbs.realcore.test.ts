@@ -6,6 +6,7 @@ import {
   getCurrentScope,
   getIsolationScope,
   startSpan,
+  spanStreamingIntegration,
   type Envelope,
   type Event,
   type EventHint,
@@ -13,6 +14,8 @@ import {
   type TransactionEvent,
 } from '@sentry/core';
 import { init } from '../src/index';
+import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
+import { MiniappClient } from '../src/client';
 import { resetPlatformCache } from '../src/crossPlatform';
 import {
   assertDefined,
@@ -81,6 +84,262 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     resetPlatformCache();
   });
 
+  it('A 在途请求退休时同步结束在 A；迟到回调保持业务语义，不读响应或写 B', async () => {
+    const pending: any[] = [];
+    const task = { abort: vi.fn() };
+    requestMock.mockImplementation((options) => {
+      pending.push(options);
+      return task;
+    });
+    const firstEnvelopes: Envelope[] = [];
+    const first = init({
+      dsn: 'https://first@example.com/1',
+      release: 'A',
+      tracesSampleRate: 1,
+      defaultIntegrations: [
+        spanStreamingIntegration(),
+        new NetworkBreadcrumbs({ traceNetworkBody: true }),
+      ],
+      transport: createCapturingTransport(firstEnvelopes),
+    })!;
+    const receiver = { host: true };
+    const success = vi.fn(function (this: typeof receiver, response: unknown, extra: unknown) {
+      expect(this).toBe(receiver);
+      expect(extra).toBe('extra');
+      return response;
+    });
+    const complete = vi.fn(() => 'completed');
+    const fail = vi.fn(() => 'failed');
+    expect(g.tt.request({ url: 'https://api.example.com/old', success, complete, fail })).toBe(
+      task,
+    );
+    const second = init({
+      dsn: 'https://second@example.com/2',
+      release: 'B',
+      tracesSampleRate: 1,
+      defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(captured),
+    })!;
+    const spans = collectSpans(firstEnvelopes);
+    expect(spans).toHaveLength(1);
+    expect(spanAttribute(spans[0]!, 'miniapp.collection_end_reason')).toBe('client_replaced');
+    expect(firstEnvelopes[0]![0].trace).toMatchObject({ public_key: 'first' });
+    expect(task.abort).not.toHaveBeenCalled();
+    getIsolationScope().clearBreadcrumbs();
+    const readResponse = vi.fn(() => {
+      throw new Error('must not read retired response');
+    });
+    const response = Object.defineProperties(
+      {},
+      {
+        statusCode: { get: readResponse },
+        data: { get: readResponse },
+        errMsg: { get: readResponse },
+      },
+    );
+    expect(pending[0].success.call(receiver, response, 'extra')).toBe(response);
+    expect(pending[0].complete(response)).toBe('completed');
+    expect(pending[0].fail(response)).toBe('failed');
+    expect(readResponse).not.toHaveBeenCalled();
+    expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
+    expect(getClient()).toBe(second);
+    expect(captured).toEqual([]);
+    await first.close();
+    expect(collectSpans(firstEnvelopes)).toHaveLength(1);
+  });
+
+  it('dispose 不结束业务请求，迟到业务 throw 保持身份且不产生 span', async () => {
+    let pending: any;
+    const abort = vi.fn();
+    requestMock.mockImplementation((options) => {
+      pending = options;
+      return { abort };
+    });
+    const owner = init({
+      dsn: 'https://test@example.com/1',
+      tracesSampleRate: 1,
+      defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(captured),
+    })!;
+    const original = new Error('business success throw');
+    g.tt.request({
+      url: 'https://api.example.com/disposed',
+      success: () => {
+        throw original;
+      },
+    });
+    owner.dispose();
+    expect(() => pending.success({ statusCode: 200 })).toThrow(original);
+    pending.complete({ statusCode: 200 });
+    expect(abort).not.toHaveBeenCalled();
+    expect(captured).toEqual([]);
+  });
+
+  it('正常完成已解除 finalizer；业务 success 中 init 生效且不会重复结束 span', async () => {
+    requestMock.mockImplementation((options) => {
+      options.success({ statusCode: 200 });
+      options.complete({ statusCode: 200 });
+      return {};
+    });
+    const firstEnvelopes: Envelope[] = [];
+    const first = init({
+      dsn: 'https://first@example.com/1',
+      tracesSampleRate: 1,
+      defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(firstEnvelopes),
+    })!;
+    let second: MiniappClient | undefined;
+    g.tt.request({
+      url: 'https://api.example.com/completed',
+      success: () => {
+        second = init({
+          dsn: 'https://second@example.com/2',
+          defaultIntegrations: false,
+          transport: createCapturingTransport(captured),
+        });
+      },
+    });
+    expect(getClient()).toBe(second);
+    await first.close();
+    const spans = collectSpans(firstEnvelopes);
+    expect(spans).toHaveLength(1);
+    expect(spanAttribute(spans[0]!, 'miniapp.collection_end_reason')).toBeUndefined();
+    expect(captured).toEqual([]);
+  });
+
+  it('不可读响应的 SDK 采集失败仍结束 span，业务 success/complete 保持返回值', async () => {
+    let pending: any;
+    requestMock.mockImplementation((options) => {
+      pending = options;
+      return {};
+    });
+    const owner = init({
+      dsn: 'https://test@example.com/1',
+      tracesSampleRate: 1,
+      defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(captured),
+    })!;
+    const success = vi.fn((_response: unknown) => 'business success');
+    const complete = vi.fn((_response: unknown) => 'business complete');
+    g.tt.request({ url: 'https://api.example.com/unreadable', success, complete });
+    const response = Object.defineProperty({}, 'statusCode', {
+      get() {
+        throw new Error('host response getter');
+      },
+    });
+    expect(pending.success(response)).toBe('business success');
+    expect(pending.complete(response)).toBe('business complete');
+    await owner.flush();
+    const spans = collectSpans(captured);
+    expect(spans).toHaveLength(1);
+    expect(spanAttribute(spans[0]!, 'error.message')).toBe('telemetry_error');
+    expect(success.mock.calls[0]![0]).toBe(response);
+    expect(complete.mock.calls[0]![0]).toBe(response);
+  });
+
+  it('响应 getter 与备用 span hook 同时失败仍执行原业务 success/complete', () => {
+    let pending: any;
+    requestMock.mockImplementation((options) => {
+      pending = options;
+      return {};
+    });
+    init({
+      dsn: 'https://test@example.com/1',
+      tracesSampleRate: 1,
+      defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(captured),
+      beforeSendSpan: () => {
+        throw new Error('fallback span hook failed');
+      },
+    });
+    const businessError = new Error('business success');
+    const success = vi.fn(() => {
+      throw businessError;
+    });
+    const complete = vi.fn(() => 'complete');
+    g.tt.request({ url: 'https://api.example.com/dual-failure', success, complete });
+    const response = Object.defineProperty({}, 'statusCode', {
+      get() {
+        throw new Error('response getter');
+      },
+    });
+    expect(() => pending.success(response)).toThrow(businessError);
+    expect(success).toHaveBeenCalledOnce();
+    expect(pending.complete(response)).toBe('complete');
+    expect(collectSpans(captured)).toHaveLength(1);
+    expect(spanAttribute(collectSpans(captured)[0]!, 'error.message')).toBe('telemetry_error');
+  });
+
+  it('span hook 重入 dispose 后不继续读取响应正文或写 breadcrumb', () => {
+    let pending: any;
+    requestMock.mockImplementation((options) => {
+      pending = options;
+      return {};
+    });
+    const owner = init({
+      dsn: 'https://test@example.com/1',
+      tracesSampleRate: 1,
+      defaultIntegrations: [
+        spanStreamingIntegration(),
+        new NetworkBreadcrumbs({ traceNetworkBody: true }),
+      ],
+      transport: createCapturingTransport(captured),
+      beforeSendSpan: (span) => {
+        owner.dispose();
+        return span;
+      },
+    })!;
+    const success = vi.fn((_response: unknown) => 'business success');
+    g.tt.request({ url: 'https://api.example.com/reentry', success });
+    const readBody = vi.fn(() => 'private body');
+    const response = Object.defineProperty({ statusCode: 200 }, 'data', { get: readBody });
+    expect(pending.success(response)).toBe('business success');
+    expect(readBody).not.toHaveBeenCalled();
+    expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
+    expect(captured).toEqual([]);
+  });
+
+  it('sampler 内 dispose 后请求透明转发，不继续持有 span 或包装回调', () => {
+    const success = vi.fn();
+    const owner = init({
+      dsn: 'https://test@example.com/1',
+      defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(captured),
+      tracesSampler: () => {
+        owner.dispose();
+        return 1;
+      },
+    })!;
+    const options = { url: 'https://api.example.com/sampler-dispose', success };
+    g.tt.request(options);
+    expect(requestMock.mock.calls[0]![0]).toBe(options);
+    expect(success).toHaveBeenCalledOnce();
+    expect(captured).toEqual([]);
+  });
+
+  it('低层 MiniappClient 手动绑定仍不获得自动 HTTP producer 权限', () => {
+    const previous = getCurrentScope().getClient();
+    const client = new MiniappClient({
+      dsn: 'https://test@example.com/1',
+      tracesSampleRate: 1,
+      integrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(captured),
+    });
+    getCurrentScope().setClient(client);
+    client.init();
+    const options = { url: 'https://api.example.com/advanced', success: vi.fn() };
+    try {
+      g.tt.request(options);
+      expect(requestMock).toHaveBeenCalledWith(options);
+      expect(requestMock.mock.calls[0]![0]).toBe(options);
+      expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
+      expect(captured).toEqual([]);
+    } finally {
+      client.dispose();
+      getCurrentScope().setClient(previous);
+    }
+  });
+
   it('无 PerformanceObserver 和 active span 时上报独立 http.client segment span', async () => {
     const beforeSendSpan = vi.fn((span: StreamedSpanJSON) => span);
     const beforeSendTransaction = vi.fn((event: TransactionEvent, _hint: EventHint) => event);
@@ -117,7 +376,9 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(spanAttribute(span, 'sentry.op')).toBe('http.client');
     expect(spanAttribute(span, 'sentry.origin')).toBe('auto.http.miniapp');
     expect(spanAttribute(span, 'sentry.exclusive_time')).toEqual(expect.any(Number));
-    expect(spanAttribute(span, 'sentry.segment.name')).toBe('POST https://api.example.com/v1/login');
+    expect(spanAttribute(span, 'sentry.segment.name')).toBe(
+      'POST https://api.example.com/v1/login',
+    );
     expect(spanAttribute(span, 'http.request.method')).toBe('POST');
     expect(spanAttribute(span, 'http.response.status_code')).toBe(201);
     // core 11 的 dataCollection 默认就会抹掉 token 这类敏感键值（此前我们原样上报）。
@@ -152,12 +413,15 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       enableMinigameFrameRate: false,
       transport: createCapturingTransport(captured),
     });
-    const url = 'https://canary-user:canary-password@api.example.com/path?memberNo=canary-member&card_number=canary-card#canary-fragment';
+    const url =
+      'https://canary-user:canary-password@api.example.com/path?memberNo=canary-member&card_number=canary-card#canary-fragment';
     g.tt.request({ url });
     captureException(new Error('URL privacy probe'));
     await flush(2000);
     expect(collectSpans(captured)).toHaveLength(1);
-    expect(xhrBreadcrumbData(captured)['url.query']).toBe('memberNo=[Filtered]&card_number=[Filtered]');
+    expect(xhrBreadcrumbData(captured)['url.query']).toBe(
+      'memberNo=[Filtered]&card_number=[Filtered]',
+    );
     expect(requestMock.mock.calls[0]?.[0].url).toBe(url);
     expect(JSON.stringify(captured)).not.toContain('canary');
   });
@@ -462,36 +726,40 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     });
   });
 
-  it.each([true, false])('query=%s 时 form 正文在最终 envelope 独立脱敏', async (urlQueryParams) => {
-    init({
-      dsn: 'https://test@o0.ingest.sentry.io/0',
-      platform: 'bytedance',
-      tracesSampleRate: 1,
-      traceNetworkBody: true,
-      sensitiveKeys: ['memberNo'],
-      dataCollection: { urlQueryParams },
-      enableOfflineCache: false,
-      enableAutoSessionTracking: false,
-      enableMinigameLifecycle: false,
-      enableMinigameFrameRate: false,
-      transport: createCapturingTransport(captured),
-    });
+  it.each([true, false])(
+    'query=%s 时 form 正文在最终 envelope 独立脱敏',
+    async (urlQueryParams) => {
+      init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        platform: 'bytedance',
+        tracesSampleRate: 1,
+        traceNetworkBody: true,
+        sensitiveKeys: ['memberNo'],
+        dataCollection: { urlQueryParams },
+        enableOfflineCache: false,
+        enableAutoSessionTracking: false,
+        enableMinigameLifecycle: false,
+        enableMinigameFrameRate: false,
+        transport: createCapturingTransport(captured),
+      });
 
-    const body = 'id=7&id=8&access%54oken=canary-token&memberNo=canary-member&card_number=canary-card';
-    const success = vi.fn();
-    g.tt.request({ url: 'https://api.example.com/v1/form', method: 'POST', data: body, success });
-    captureException(new Error('form probe'));
-    await flush(2000);
+      const body =
+        'id=7&id=8&access%54oken=canary-token&memberNo=canary-member&card_number=canary-card';
+      const success = vi.fn();
+      g.tt.request({ url: 'https://api.example.com/v1/form', method: 'POST', data: body, success });
+      captureException(new Error('form probe'));
+      await flush(2000);
 
-    expect(success).toHaveBeenCalledOnce();
-    expect(requestMock.mock.calls[0]?.[0].data).toBe(body);
-    const crumbData = xhrBreadcrumbData(captured);
-    expect(crumbData.request_body).toBe(
-      'id=7&id=8&access%54oken=[Filtered]&memberNo=[Filtered]&card_number=[Filtered]',
-    );
-    expect(crumbData.request_body_size).toBe(utf8ByteLength(body));
-    expect(JSON.stringify(captured)).not.toContain('canary');
-  });
+      expect(success).toHaveBeenCalledOnce();
+      expect(requestMock.mock.calls[0]?.[0].data).toBe(body);
+      const crumbData = xhrBreadcrumbData(captured);
+      expect(crumbData.request_body).toBe(
+        'id=7&id=8&access%54oken=[Filtered]&memberNo=[Filtered]&card_number=[Filtered]',
+      );
+      expect(crumbData.request_body_size).toBe(utf8ByteLength(body));
+      expect(JSON.stringify(captured)).not.toContain('canary');
+    },
+  );
 
   it('面包屑按 core 口径拆成 url 与 url.query', async () => {
     init({
@@ -594,9 +862,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     await flush(2000);
 
     const [options] = requestMock.mock.calls.map(([arg]) => arg);
-    expect(options.header).toEqual(
-      expect.objectContaining({ 'sentry-trace': expect.any(String) }),
-    );
+    expect(options.header).toEqual(expect.objectContaining({ 'sentry-trace': expect.any(String) }));
   });
 
   it('正则目标独立生效，且带 g 标志连续命中不丢注入', async () => {

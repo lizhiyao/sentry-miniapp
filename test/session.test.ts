@@ -1,163 +1,185 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-
-// Mock @sentry/core
-const { mockStartSession, mockEndSession, mockCaptureSession } = vi.hoisted(() => ({
-  mockStartSession: vi.fn(),
-  mockEndSession: vi.fn(),
-  mockCaptureSession: vi.fn(),
-}));
-
-vi.mock('@sentry/core', () => ({
-  startSession: mockStartSession,
-  endSession: mockEndSession,
-  captureSession: mockCaptureSession,
-}));
-
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  getClient,
+  getCurrentScope,
+  getIsolationScope,
+  makeSession,
+  type Envelope,
+  type SerializedSession,
+} from '@sentry/core';
 import { SessionIntegration } from '../src/integrations/session';
 import { _resetAppLifecycle } from '../src/appLifecycle';
+import { init } from '../src/sdk';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import { MiniappClient } from '../src/client';
 
-describe('SessionIntegration', () => {
-  let originalApp: any;
-  let capturedAppOptions: any;
-  let savedApp: any;
-
+describe('Session owner 与前台 episode', () => {
+  let app: { onLaunch: () => void; onShow: () => void; onHide: () => void };
+  let savedApp: unknown;
+  let envelopes: Envelope[];
+  const clients: MiniappClient[] = [];
+  function start(integration = new SessionIntegration()) {
+    const owner = init({
+      dsn: 'https://test@example.com/0',
+      release: 'session@2.0',
+      defaultIntegrations: [integration],
+      transport: createCapturingTransport(envelopes),
+    })!;
+    clients.push(owner);
+    return owner;
+  }
+  function sessions() {
+    return collectEnvelopePayloads<SerializedSession>(envelopes, ['session']);
+  }
   beforeEach(() => {
-    vi.clearAllMocks();
-    _resetAppLifecycle(); // 清共享 App 包装状态，避免用例间残留
-    capturedAppOptions = null;
-
-    // 新模型经共享 appLifecycle 猴补全局 App（不再是 wx.App）
-    savedApp = (globalThis as any).App;
-    originalApp = vi.fn((options: any) => {
-      capturedAppOptions = options;
+    _resetAppLifecycle();
+    savedApp = (globalThis as { App?: unknown }).App;
+    envelopes = [];
+    vi.stubGlobal('App', (options: typeof app) => {
+      app = options;
+      return options;
     });
-    (globalThis as any).App = originalApp;
   });
-
   afterEach(() => {
-    (globalThis as any).App = savedApp;
+    clients.splice(0).forEach((client) => client.dispose());
+    getIsolationScope().setSession();
+    (globalThis as { App?: unknown }).App = savedApp;
+    vi.unstubAllGlobals();
     _resetAppLifecycle();
   });
 
-  it('should wrap global App() on setup', () => {
+  it('setupOnce 不启动宿主资源，setup 配对清理 App wrapper', () => {
     const integration = new SessionIntegration();
+    const original = (globalThis as { App?: unknown }).App;
     integration.setupOnce();
-
-    expect((globalThis as any).App).not.toBe(originalApp);
+    expect((globalThis as { App?: unknown }).App).toBe(original);
+    const owner = start(integration);
+    expect((globalThis as { App?: unknown }).App).not.toBe(original);
+    owner.dispose();
+    expect((globalThis as { App?: unknown }).App).toBe(original);
   });
 
-  it('should start session on onLaunch', () => {
-    const integration = new SessionIntegration();
-    integration.setupOnce();
-
-    (globalThis as any).App({ onLaunch: vi.fn() });
-    capturedAppOptions.onLaunch();
-
-    expect(mockStartSession).toHaveBeenCalledWith({ ignoreDuration: true });
-    expect(mockCaptureSession).toHaveBeenCalled();
-  });
-
-  it('should start session on onShow when not active', () => {
-    const integration = new SessionIntegration();
-    integration.setupOnce();
-
-    (globalThis as any).App({ onShow: vi.fn() });
-    capturedAppOptions.onShow();
-
-    expect(mockStartSession).toHaveBeenCalled();
-  });
-
-  it('should not start duplicate session on onShow if already active', () => {
-    const integration = new SessionIntegration();
-    integration.setupOnce();
-
-    (globalThis as any).App({ onLaunch: vi.fn(), onShow: vi.fn() });
-
-    capturedAppOptions.onLaunch();
-    mockStartSession.mockClear();
-    mockCaptureSession.mockClear();
-
-    capturedAppOptions.onShow();
-    expect(mockStartSession).not.toHaveBeenCalled();
-  });
-
-  it('should end session on onHide', () => {
-    const integration = new SessionIntegration();
-    integration.setupOnce();
-
-    (globalThis as any).App({ onLaunch: vi.fn(), onHide: vi.fn() });
-
-    capturedAppOptions.onLaunch();
-    capturedAppOptions.onHide();
-
-    expect(mockEndSession).toHaveBeenCalled();
-  });
-
-  // 注：crashed 标记已不在本集成处理（删除了恒为 no-op 的 onError 钩子），改由
-  // @sentry/core 在未处理错误时自动标记。真·端到端验证见 session.realcore.test.ts。
-
-  it('should call original lifecycle methods', () => {
-    const integration = new SessionIntegration();
-    integration.setupOnce();
-
-    const originalOnLaunch = vi.fn();
-    const originalOnShow = vi.fn();
-    const originalOnHide = vi.fn();
-
-    (globalThis as any).App({
-      onLaunch: originalOnLaunch,
-      onShow: originalOnShow,
-      onHide: originalOnHide,
+  it('launch/show 不重复开始；业务 onHide 内错误仍属于当前 session，之后结束', () => {
+    const owner = start();
+    (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({
+      onHide: () =>
+        owner.captureEvent({
+          exception: {
+            values: [{ value: 'onHide failure', mechanism: { handled: false, type: 'onerror' } }],
+          },
+        }),
     });
-
-    capturedAppOptions.onLaunch('arg1');
-    capturedAppOptions.onShow('arg2');
-    capturedAppOptions.onHide();
-
-    expect(originalOnLaunch).toHaveBeenCalledWith('arg1');
-    expect(originalOnShow).toHaveBeenCalledWith('arg2');
-    expect(originalOnHide).toHaveBeenCalled();
+    app.onLaunch();
+    app.onShow();
+    expect(sessions()).toHaveLength(1);
+    const sid = sessions()[0]!.sid;
+    app.onHide();
+    expect(sessions().every((session) => session.sid === sid)).toBe(true);
+    expect(sessions().some((session) => session.errors === 1)).toBe(true);
+    expect(getIsolationScope().getSession()).toBeUndefined();
+    app.onShow();
+    expect(sessions().at(-1)!.sid).not.toBe(sid);
   });
 
-  it('should restart session after onHide + onShow', () => {
-    const integration = new SessionIntegration();
-    integration.setupOnce();
-
-    (globalThis as any).App({ onLaunch: vi.fn(), onHide: vi.fn(), onShow: vi.fn() });
-
-    capturedAppOptions.onLaunch();
-    mockStartSession.mockClear();
-
-    capturedAppOptions.onHide();
-
-    capturedAppOptions.onShow();
-    expect(mockStartSession).toHaveBeenCalled();
+  it('异步 S1 错误处理在 S2 开始后完成，不修改或结束 S2', async () => {
+    const owner = start();
+    (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
+    app.onLaunch();
+    const s1 = getIsolationScope().getSession()!;
+    let resume!: () => void;
+    owner.addEventProcessor(
+      (event) =>
+        new Promise((resolve) => {
+          resume = () => resolve(event);
+        }),
+    );
+    owner.captureEvent({
+      exception: { values: [{ value: 'late S1', mechanism: { handled: false, type: 'onerror' } }] },
+    });
+    app.onHide();
+    app.onShow();
+    const s2 = getIsolationScope().getSession()!;
+    expect(s2.sid).not.toBe(s1.sid);
+    resume();
+    await owner.flush(100);
+    expect(getIsolationScope().getSession()).toBe(s2);
+    expect(s2.status).toBe('ok');
+    expect(s2.errors).toBe(0);
+    expect(
+      sessions()
+        .filter((session) => session.sid === s2.sid)
+        .every((session) => session.errors === 0),
+    ).toBe(true);
   });
 
-  it('should restore original App on cleanup', () => {
+  it('替换时同步结束 A 的 session，A cleanup 不删除 B 或业务手动 session', async () => {
+    const first = start();
+    (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
+    app.onLaunch();
+    const sid = sessions()[0]!.sid;
+    const second = start();
+    expect(sessions().some((session) => session.sid === sid && session.status === 'exited')).toBe(
+      true,
+    );
+    app.onShow();
+    const current = getIsolationScope().getSession()!;
+    await first.close();
+    expect(getClient()).toBe(second);
+    expect(getIsolationScope().getSession()).toBe(current);
+    const manual = makeSession();
+    getIsolationScope().setSession(manual);
+    second.dispose();
+    expect(getIsolationScope().getSession()).toBe(manual);
+  });
+  it('手动 cleanup 幂等，已注册 App 的迟到事件不重新开始 session', () => {
     const integration = new SessionIntegration();
-    integration.setupOnce();
-
-    expect((globalThis as any).App).not.toBe(originalApp);
-
+    start(integration);
+    (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
+    app.onLaunch();
+    expect(sessions()).toHaveLength(1);
     integration.cleanup();
-    expect((globalThis as any).App).toBe(originalApp);
+    integration.cleanup();
+    app.onHide();
+    app.onShow();
+    expect(sessions()).toHaveLength(1);
+    expect(getIsolationScope().getSession()).toBeUndefined();
   });
 
-  it('contains session start and end failures from core', () => {
-    mockStartSession.mockImplementationOnce(() => {
-      throw new Error('start failed');
+  it('session capture hook 失败仍解除自己的引用，业务回调仍运行', () => {
+    const owner = start();
+    const business = vi.fn();
+    owner.on('beforeSendSession', () => {
+      throw new Error('hook');
     });
-    mockEndSession.mockImplementationOnce(() => {
-      throw new Error('end failed');
+    (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({
+      onHide: business,
     });
+    expect(() => app.onLaunch()).not.toThrow();
+    expect(getIsolationScope().getSession()).toBeDefined();
+    expect(() => app.onHide()).not.toThrow();
+    expect(business).toHaveBeenCalledOnce();
+    expect(getIsolationScope().getSession()).toBeUndefined();
+    expect(sessions()).toHaveLength(0);
+  });
+  it('同 client 重复 setup 幂等；退休同步释放 App；低层绑定也不安装 session', () => {
     const integration = new SessionIntegration();
-    integration.setupOnce();
-    (globalThis as any).App({ onLaunch: vi.fn(), onHide: vi.fn() });
-
-    expect(() => capturedAppOptions.onLaunch()).not.toThrow();
-    expect(() => capturedAppOptions.onHide()).not.toThrow();
-    expect(mockStartSession).toHaveBeenCalled();
-    expect(mockEndSession).toHaveBeenCalled();
+    const original = (globalThis as any).App;
+    const first = start(integration);
+    integration.setup(first);
+    (globalThis as any).App({});
+    app.onLaunch();
+    expect(sessions()).toHaveLength(1);
+    first.dispose();
+    expect((globalThis as any).App).toBe(original);
+    const low = new MiniappClient({
+      dsn: 'https://low@example.com/1',
+      integrations: [integration],
+      transport: createCapturingTransport(envelopes),
+    });
+    clients.push(low);
+    getCurrentScope().setClient(low);
+    low.init();
+    expect((globalThis as any).App).toBe(original);
+    expect(sessions()).toHaveLength(1);
   });
 });

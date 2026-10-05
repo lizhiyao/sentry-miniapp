@@ -19,6 +19,10 @@ interface SDK {
   onPageNotFound?: Function;
   onMemoryWarning?: Function;
   // App / 小游戏全局生命周期（小游戏没有 App()，用全局 onShow/onHide）
+  onAppShow?: Function;
+  onAppHide?: Function;
+  offAppShow?: Function;
+  offAppHide?: Function;
   onShow?: Function;
   onHide?: Function;
   offShow?: Function;
@@ -51,14 +55,7 @@ interface SDK {
  * 小程序平台类型
  */
 export type AppName =
-  | 'wechat'
-  | 'alipay'
-  | 'bytedance'
-  | 'dingtalk'
-  | 'qq'
-  | 'swan'
-  | 'kuaishou'
-  | 'unknown';
+  'wechat' | 'alipay' | 'bytedance' | 'dingtalk' | 'qq' | 'swan' | 'kuaishou' | 'unknown';
 
 /** 可显式配置的小程序宿主平台。`unknown` 仅供自动检测结果使用。 */
 export type MiniappPlatform = Exclude<AppName, 'unknown'>;
@@ -531,12 +528,17 @@ let _isMinigame: boolean | null = null;
 export const isMinigame = (): boolean => {
   if (_isMinigame === null) {
     const g = globalThis as any;
-    const hasGameGlobal = typeof g.GameGlobal !== 'undefined';
-    const lacksMiniprogramHost =
-      typeof g.App !== 'function' &&
-      typeof g.Page !== 'function' &&
-      typeof g.getCurrentPages !== 'function';
-    _isMinigame = isMiniappEnvironment() && (hasGameGlobal || lacksMiniprogramHost);
+    try {
+      const hasGameGlobal = typeof g.GameGlobal !== 'undefined';
+      const lacksMiniprogramHost =
+        typeof g.App !== 'function' &&
+        typeof g.Page !== 'function' &&
+        typeof g.getCurrentPages !== 'function';
+      _isMinigame = isMiniappEnvironment() && (hasGameGlobal || lacksMiniprogramHost);
+    } catch (_error) {
+      // 不可读入口不是小游戏证据；保守选择小程序能力，交给 producer 特性检测。
+      _isMinigame = false;
+    }
   }
   return _isMinigame;
 };

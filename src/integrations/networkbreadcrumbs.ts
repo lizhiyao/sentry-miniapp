@@ -1,4 +1,6 @@
+import { getClientLifetime } from '../lifecycle';
 import { automaticSpanAttributes } from '../spanDimensions';
+import { OwnerToken } from '../owner';
 import {
   addBreadcrumb,
   getUrlQuery,
@@ -99,6 +101,8 @@ export class NetworkBreadcrumbs implements Integration {
   }
 
   public setup(client: Client): void {
+    const lifetime = getClientLifetime(client);
+    if (lifetime && !lifetime.canCollectAutomatic()) return;
     const miniappSdk = sdk();
     const cleanups: Array<() => void> = [];
     for (const name of ['request', 'httpRequest'] as const) {
@@ -110,7 +114,11 @@ export class NetworkBreadcrumbs implements Integration {
       );
     }
     const cleanup = this._trackCleanup(cleanups);
-    client.registerCleanup(cleanup);
+    const detach = lifetime?.registerStop(cleanup);
+    client.registerCleanup(() => {
+      detach?.();
+      cleanup();
+    });
   }
 
   /**
@@ -135,7 +143,13 @@ export class NetworkBreadcrumbs implements Integration {
     const cleanup = (): void => {
       if (!active) return;
       active = false;
-      for (const callback of cleanups.reverse()) callback();
+      for (const callback of cleanups.splice(0).reverse()) {
+        try {
+          callback();
+        } catch (_error) {
+          /* 继续解除其余订阅。 */
+        }
+      }
       this._cleanupCallbacks.delete(cleanup);
     };
     this._cleanupCallbacks.add(cleanup);
@@ -182,6 +196,13 @@ export class NetworkBreadcrumbs implements Integration {
         return originalRequest.call(this, options);
       }
 
+      if (!client) return originalRequest.call(this, options);
+      const owner = new OwnerToken(client);
+      if (!owner.isActive()) {
+        owner.release();
+        return originalRequest.call(this, options);
+      }
+
       // 浅拷贝 options，后续回调包装与 header 注入不污染调用方对象。
       const requestOptions = { ...options };
 
@@ -192,16 +213,38 @@ export class NetworkBreadcrumbs implements Integration {
       // dataCollection.urlQueryParams 只管 SDK 自己采集的数据：span 与面包屑用过滤后的 URL，
       // 而 Sentry 自身请求识别、追踪头注入和 body 黑名单仍按原始 URL 匹配。
       const collectedUrl = collectUrl(url, client, sensitiveKeys);
-      const requestSpan = startRequestSpan(method, collectedUrl, enableStandaloneHttpSpans, client);
-      let requestSpanFinished = false;
+      let requestSpan: RequestSpan | null = null;
+      owner.run((activeClient) => {
+        requestSpan = startRequestSpan(
+          method,
+          collectedUrl,
+          enableStandaloneHttpSpans,
+          activeClient,
+        );
+      });
+      owner.onRelease(() => {
+        requestSpan = null;
+      });
+      if (!owner.isActive()) {
+        owner.release();
+        return originalRequest.call(this, options);
+      }
       const finishSpanOnce = (finish: RequestSpanFinishOptions): void => {
-        if (requestSpanFinished) return;
-        requestSpanFinished = true;
-        finishRequestSpan(requestSpan, finish);
+        const span = requestSpan;
+        requestSpan = null;
+        finishRequestSpan(span, finish);
       };
 
+      owner.registerFinalizer((reason) =>
+        finishSpanOnce({
+          status: 'error',
+          errorMessage: reason,
+          collectionEndReason: reason,
+          durationMs: Date.now() - startTime,
+        }),
+      );
       if (enableTracePropagation && shouldPropagateTrace(url)) {
-        injectTraceHeaders(requestOptions, requestSpan, propagateTraceparent);
+        owner.run(() => injectTraceHeaders(requestOptions, requestSpan, propagateTraceparent));
       }
 
       // 面包屑的 url 只到 path（core 的 getSanitizedUrlString），query 单列成 url.query，
@@ -239,96 +282,93 @@ export class NetworkBreadcrumbs implements Integration {
       const originalFail = options.fail;
       const originalComplete = options.complete;
 
-      // Wrap success callback
-      requestOptions.success = function (this: any, ...args: any[]) {
-        const res = args[0] || {};
-        const statusCode = getResponseStatusCode(res);
-        const duration = Date.now() - startTime;
-        breadcrumbData['status_code'] = statusCode;
-        breadcrumbData['duration'] = duration;
-        finishSpanOnce({
-          statusCode,
-          status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
-          durationMs: duration,
-        });
-
-        if (traceResponseBody && res.data && !shouldDenyBodyUrl(url)) {
-          try {
-            const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
-            const collected = collectBody(body, client, maxBodyBytes, sensitiveKeys);
-            breadcrumbData['response_body'] = collected.body;
-            breadcrumbData['response_body_size'] = collected.byteLength;
-          } catch (_e) {
-            breadcrumbData['response_body'] = '[Cannot serialize response body]';
-          }
-        }
-
-        // 慢请求标记为 warning
-        const level = isErrorStatusCode(statusCode)
-          ? 'warning'
-          : duration > 3000
-            ? 'warning'
-            : 'info';
-
-        addBreadcrumb({
-          type: 'http',
-          category: 'xhr',
-          data: breadcrumbData,
-          level,
-        });
-
-        if (typeof originalSuccess === 'function') {
-          return originalSuccess.apply(this, args);
+      // SDK 观察只占同步 owner 范围；业务回调保持宿主的 this/参数/返回值/throw。
+      const observe = (callback: (ownerClient: Client) => void): void => {
+        try {
+          owner.run(callback);
+        } catch (_error) {
+          // 不可读响应等采集故障仍结束本操作，不留下等待退休的 span。
+          owner.run(() =>
+            finishSpanOnce({
+              status: 'error',
+              errorMessage: 'telemetry_error',
+              durationMs: Date.now() - startTime,
+            }),
+          );
+        } finally {
+          owner.release();
         }
       };
+      requestOptions.success = function (this: any, ...args: any[]) {
+        observe((ownerClient) => {
+          const res = args[0] || {};
+          const statusCode = getResponseStatusCode(res);
+          const duration = Date.now() - startTime;
+          breadcrumbData['status_code'] = statusCode;
+          breadcrumbData['duration'] = duration;
+          finishSpanOnce({
+            statusCode,
+            status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
+            durationMs: duration,
+          });
+          if (!owner.isActive()) return;
+          if (traceResponseBody && res.data && !shouldDenyBodyUrl(url)) {
+            try {
+              const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+              const collected = collectBody(body, ownerClient, maxBodyBytes, sensitiveKeys);
+              breadcrumbData['response_body'] = collected.body;
+              breadcrumbData['response_body_size'] = collected.byteLength;
+            } catch (_error) {
+              breadcrumbData['response_body'] = '[Cannot serialize response body]';
+            }
+          }
+          addBreadcrumb({
+            type: 'http',
+            category: 'xhr',
+            data: breadcrumbData,
+            level: isErrorStatusCode(statusCode) || duration > 3000 ? 'warning' : 'info',
+          });
+        });
+        if (typeof originalSuccess === 'function') return originalSuccess.apply(this, args);
+      };
 
-      // Wrap fail callback
       requestOptions.fail = function (this: any, ...args: any[]) {
-        const err = args[0] || {};
-        const duration = Date.now() - startTime;
-        const errorMessage = err.errMsg || err.errorMessage || 'Network request failed';
-        breadcrumbData['error'] = errorMessage;
-        breadcrumbData['duration'] = duration;
-        finishSpanOnce({
-          status: 'error',
-          errorMessage,
-          durationMs: duration,
+        observe(() => {
+          const err = args[0] || {};
+          const duration = Date.now() - startTime;
+          const errorMessage = err.errMsg || err.errorMessage || 'Network request failed';
+          breadcrumbData['error'] = errorMessage;
+          breadcrumbData['duration'] = duration;
+          finishSpanOnce({ status: 'error', errorMessage, durationMs: duration });
+          if (!owner.isActive()) return;
+          addBreadcrumb({ type: 'http', category: 'xhr', data: breadcrumbData, level: 'error' });
         });
-
-        addBreadcrumb({
-          type: 'http',
-          category: 'xhr',
-          data: breadcrumbData,
-          level: 'error',
-        });
-
-        if (typeof originalFail === 'function') {
-          return originalFail.apply(this, args);
-        }
+        if (typeof originalFail === 'function') return originalFail.apply(this, args);
       };
 
       requestOptions.complete = function (this: any, ...args: any[]) {
-        const res = args[0] || {};
-        const statusCode = getResponseStatusCode(res);
-        finishSpanOnce({
-          statusCode,
-          status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
-          durationMs: Date.now() - startTime,
+        observe(() => {
+          const res = args[0] || {};
+          const statusCode = getResponseStatusCode(res);
+          finishSpanOnce({
+            statusCode,
+            status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
+            durationMs: Date.now() - startTime,
+          });
         });
-
-        if (typeof originalComplete === 'function') {
-          return originalComplete.apply(this, args);
-        }
+        if (typeof originalComplete === 'function') return originalComplete.apply(this, args);
       };
 
       try {
         return originalRequest.call(this, requestOptions);
       } catch (error) {
-        finishSpanOnce({
-          status: 'error',
-          errorMessage: error instanceof Error ? error.message : String(error),
-          durationMs: Date.now() - startTime,
-        });
+        observe(() =>
+          finishSpanOnce({
+            status: 'error',
+            errorMessage: error instanceof Error ? error.message : String(error),
+            durationMs: Date.now() - startTime,
+          }),
+        );
         throw error;
       }
     };
@@ -359,6 +399,7 @@ type RequestSpanFinishOptions = {
   statusCode?: unknown;
   errorMessage?: string;
   durationMs: number;
+  collectionEndReason?: string;
 };
 
 type RequestSpan = {
@@ -470,6 +511,9 @@ function finishRequestSpan(
         code: options.status === 'error' ? SPAN_STATUS_ERROR : SPAN_STATUS_OK,
         message: options.status === 'error' ? options.errorMessage || 'error' : 'ok',
       });
+    }
+    if (options.collectionEndReason) {
+      span.setAttribute('miniapp.collection_end_reason', options.collectionEndReason);
     }
     if (options.errorMessage) {
       span.setAttribute('error.message', options.errorMessage);

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { getClient, getCurrentScope, startInactiveSpan, startSpan } from '@sentry/core';
 import { PerformanceIntegration } from '../src/integrations/performance';
 import { epochNow, getPerformanceManager, getSystemInfo, sdk } from '../src/crossPlatform';
-import type { PerformanceEntry } from '../src/crossPlatform';
 import { createPerformanceTestHarness, type PerformanceTestHarness } from './support/performance';
 
 vi.mock('@sentry/core', async (importOriginal) => ({
@@ -13,7 +12,6 @@ vi.mock('@sentry/core', async (importOriginal) => ({
   startInactiveSpan: vi.fn(),
   startSpan: vi.fn(),
   withActiveSpan: vi.fn((_span, callback) => callback()),
-  withScope: vi.fn(),
   getCurrentHub: vi.fn(() => ({
     getClient: vi.fn(() => ({
       captureException: vi.fn(),
@@ -41,6 +39,7 @@ describe('PerformanceIntegration entries and reporting', () => {
   let mockSpan: PerformanceTestHarness['mockSpan'];
 
   beforeEach(() => {
+    vi.useFakeTimers();
     ({ integration, activeClient, mockPerformanceManager, mockObserver, mockScope, mockSpan } =
       createPerformanceTestHarness({
         PerformanceIntegration,
@@ -56,6 +55,7 @@ describe('PerformanceIntegration entries and reporting', () => {
 
   afterEach(() => {
     integration.cleanup();
+    vi.useRealTimers();
   });
 
   describe('resource entry processing', () => {
@@ -188,60 +188,37 @@ describe('PerformanceIntegration entries and reporting', () => {
   });
 
   describe('entry formats', () => {
-    it('normalizes epoch, invalid, and negative timing values conservatively', () => {
-      const epochEntry = {
-        name: 'epoch-entry',
-        entryType: 'navigation',
-        startTime: 1_700_000_000_000,
-        duration: Number.NaN,
-      } as PerformanceEntry;
-
-      (integration as any)._initializeRelativeTimeOrigin([epochEntry]);
-      expect((integration as any)._relativeTimeOrigin).toBeNull();
-      expect((integration as any)._entryTimes(epochEntry)).toEqual({
-        start: 1_700_000_000,
-        end: 1_700_000_000,
-      });
-
-      const invalidEntry = {
-        name: 'invalid-entry',
-        entryType: 'render',
-        startTime: Number.NaN,
-        duration: -10,
-      } as PerformanceEntry;
-      expect((integration as any)._entryTimes(invalidEntry)).toEqual({
-        start: 1_700_000_000,
-        end: 1_700_000_000,
-      });
-
-      const relativeEntry = {
-        name: 'relative-entry',
-        entryType: 'render',
-        startTime: 100,
-        duration: Number.NaN,
-      } as PerformanceEntry;
-      (integration as any)._initializeRelativeTimeOrigin([relativeEntry]);
-      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
-
-      (integration as any)._initializeRelativeTimeOrigin([{ ...relativeEntry, startTime: 500 }]);
-      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_900);
+    it('通过 observer 规范化 epoch/duration，非法 startTime 被忽略', () => {
+      integration.setup(activeClient as any);
+      const callback = mockPerformanceManager.createObserver.mock.calls[0]![0];
+      callback([
+        { name: 'epoch', entryType: 'navigation', startTime: 1_700_000_000_000, duration: NaN },
+        { name: 'invalid', entryType: 'render', startTime: NaN, duration: -10 },
+      ]);
+      expect(startSpan).toHaveBeenCalledTimes(1);
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Navigation: epoch',
+          startTime: 1_700_000_000,
+        }),
+        expect.any(Function),
+      );
+      expect(mockSpan.end).toHaveBeenCalledWith(1_700_000_000);
     });
 
-    it('keeps delayed first-batch entries anchored no later than SDK setup', () => {
-      (integration as any)._setupEpochMilliseconds = 1_699_999_999_000;
+    it('迟到首批数据的锚点不晚于 setup', () => {
+      vi.mocked(epochNow).mockReturnValue(1_699_999_999_000);
+      integration.setup(activeClient as any);
       vi.mocked(epochNow).mockReturnValue(1_700_000_000_000);
-
-      (integration as any)._initializeRelativeTimeOrigin([
-        { name: 'stale', entryType: 'render', startTime: 50, duration: 50 },
-        {
-          name: 'absolute',
-          entryType: 'resource',
-          startTime: 1_699_999_999_500,
-          duration: 10,
-        },
-      ]);
-
-      expect((integration as any)._relativeTimeOrigin).toBe(1_699_999_999_000);
+      const callback = mockPerformanceManager.createObserver.mock.calls[0]![0];
+      callback([{ name: 'stale', entryType: 'render', startTime: 50, duration: 50 }]);
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Render: stale',
+          startTime: 1_699_999_999.05,
+        }),
+        expect.any(Function),
+      );
     });
 
     it('drops implausible relative entries before creating spans', () => {
@@ -257,45 +234,30 @@ describe('PerformanceIntegration entries and reporting', () => {
         },
       ]);
 
-      expect((integration as any)._relativeTimeOrigin).toBeNull();
       expect(startInactiveSpan).not.toHaveBeenCalled();
       expect(mockSpan.end).not.toHaveBeenCalled();
     });
 
-    it('rejects absolute entries outside the plausible runtime window', () => {
+    it('observer 忽略过旧/未来/非法绝对时间，只创建可信条目', () => {
       const now = 1_700_000_000_000;
-      const isPlausible = (integration as any)._isPlausiblePerformanceEntry.bind(integration);
-
-      expect(
-        isPlausible(
-          { name: 'old', entryType: 'resource', startTime: now - 31 * 86_400_000, duration: 0 },
-          now,
-        ),
-      ).toBe(false);
-      expect(
-        isPlausible(
-          { name: 'future', entryType: 'resource', startTime: now + 60_001, duration: 0 },
-          now,
-        ),
-      ).toBe(false);
-      expect(
-        isPlausible(
-          { name: 'current', entryType: 'resource', startTime: now - 1_000, duration: 500 },
-          now,
-        ),
-      ).toBe(true);
-      expect(
-        isPlausible(
-          { name: 'invalid', entryType: 'resource', startTime: Number.NaN, duration: 0 },
-          now,
-        ),
-      ).toBe(false);
-      expect(
-        isPlausible(
-          { name: 'relative', entryType: 'render', startTime: 100, duration: Number.NaN },
-          now,
-        ),
-      ).toBe(true);
+      integration.setup(activeClient as any);
+      const callback = mockPerformanceManager.createObserver.mock.calls[0]![0];
+      callback([
+        { name: 'old', entryType: 'resource', startTime: now - 31 * 86_400_000, duration: 0 },
+        { name: 'future', entryType: 'resource', startTime: now + 60_001, duration: 0 },
+        { name: 'current', entryType: 'resource', startTime: now - 1000, duration: 500 },
+        { name: 'invalid', entryType: 'resource', startTime: NaN, duration: 0 },
+        { name: 'relative', entryType: 'render', startTime: 100, duration: NaN },
+      ]);
+      expect(startSpan).toHaveBeenCalledTimes(2);
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Resource: current' }),
+        expect.any(Function),
+      );
+      expect(startSpan).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Render: relative' }),
+        expect.any(Function),
+      );
     });
 
     it('should handle PerformanceObserverEntryList format', () => {
@@ -395,9 +357,10 @@ describe('PerformanceIntegration entries and reporting', () => {
         ]);
       }
 
-      // 缓冲区应该被修剪到 3 个
-      const buffer = (smallBufferIntegration as any)._entryBuffer;
-      expect(buffer.length).toBeLessThanOrEqual(3);
+      vi.advanceTimersByTime(30000);
+      expect(
+        getClientEnvironment(activeClient as any).contexts.performance_summary?.total_entries,
+      ).toBe(3);
 
       smallBufferIntegration.cleanup();
     });
@@ -418,7 +381,7 @@ describe('PerformanceIntegration entries and reporting', () => {
         ]);
       }
 
-      (customIntegration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -447,7 +410,7 @@ describe('PerformanceIntegration entries and reporting', () => {
         ]);
       }
 
-      (customIntegration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       expect(mockScope.addBreadcrumb).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -476,7 +439,7 @@ describe('PerformanceIntegration entries and reporting', () => {
         observerCallback([{ name: 'entry', entryType: 'navigation', startTime: 0, duration: 100 }]);
       }
 
-      (integration as any)._reportBufferedEntries();
+      vi.advanceTimersByTime(30000);
 
       expect(mockReportPerformance).not.toHaveBeenCalled();
     });
@@ -487,7 +450,7 @@ describe('PerformanceIntegration entries and reporting', () => {
       const noReportIntegration = new PerformanceIntegration({ reportInterval: 0 });
       noReportIntegration.setup(activeClient as any);
 
-      expect((noReportIntegration as any)._reportTimer).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
 
       noReportIntegration.cleanup();
     });
@@ -496,18 +459,22 @@ describe('PerformanceIntegration entries and reporting', () => {
   describe('reporting fallbacks', () => {
     it('should keep buffered entries when summary context writing fails', () => {
       const error = new Error('scope unavailable');
-      vi.spyOn(getClientEnvironment(activeClient as any), 'setContext').mockImplementation(
-        (name: string) => {
+      const contextSpy = vi
+        .spyOn(getClientEnvironment(activeClient as any), 'setContext')
+        .mockImplementation((name: string) => {
           if (name === 'performance_summary') throw error;
-        },
-      );
+        });
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       integration.setup(activeClient as any);
       const observerCallback = mockPerformanceManager.createObserver.mock.calls[0]?.[0];
       observerCallback?.([{ name: 'pending', entryType: 'navigation', startTime: 0, duration: 1 }]);
 
-      expect(() => (integration as any)._reportBufferedEntries()).not.toThrow();
-      expect((integration as any)._entryBuffer).toHaveLength(1);
+      expect(() => vi.advanceTimersByTime(30000)).not.toThrow();
+      contextSpy.mockRestore();
+      vi.advanceTimersByTime(30000);
+      expect(
+        getClientEnvironment(activeClient as any).contexts.performance_summary?.total_entries,
+      ).toBe(1);
       expect(consoleSpy).toHaveBeenCalledWith(
         '[sentry-miniapp] Failed to summarize buffered performance entries:',
         error,
@@ -522,7 +489,14 @@ describe('PerformanceIntegration entries and reporting', () => {
       });
       const memIntegration = new PerformanceIntegration({ enableMemory: true });
 
-      expect((memIntegration as any)._collectMemoryInfo()).toBeNull();
+      memIntegration.setup(activeClient as any);
+      const callback = mockPerformanceManager.createObserver.mock.calls[0]![0];
+      callback([{ name: 'nav', entryType: 'navigation', startTime: 0, duration: 1 }]);
+      vi.advanceTimersByTime(30000);
+      expect(
+        getClientEnvironment(activeClient as any).contexts.performance_summary?.memory,
+      ).toBeUndefined();
+      memIntegration.cleanup();
     });
 
     it('should contain performance context failures', () => {

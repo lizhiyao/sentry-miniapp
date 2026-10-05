@@ -20,7 +20,10 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
   let rafCallback: (() => void) | null;
   let clock: number;
   let savedRaf: any;
-  let hideCb: (() => void) | null;
+  const hideHandlers = new Set<() => void>();
+  const hideCb = (): void => {
+    for (const handler of [...hideHandlers]) handler();
+  };
   let captured: Envelope[];
 
   function frame(t: number): void {
@@ -33,7 +36,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
   beforeEach(() => {
     rafCallback = null;
     clock = 0;
-    hideCb = null;
+    hideHandlers.clear();
     captured = [];
 
     savedRaf = g.requestAnimationFrame;
@@ -51,10 +54,10 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
       onUnhandledRejection: vi.fn(),
       onMemoryWarning: vi.fn(),
       onHide: vi.fn((cb: any) => {
-        hideCb = cb;
+        hideHandlers.add(cb);
       }),
       onShow: vi.fn(),
-      offHide: vi.fn(),
+      offHide: vi.fn((cb: () => void) => hideHandlers.delete(cb)),
       offShow: vi.fn(),
     };
 
@@ -84,13 +87,13 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
 
     // setupOnce 已在 init 内执行：rAF loop 与 onHide 都应已注册。
     expect(rafCallback).not.toBeNull();
-    expect(hideCb).not.toBeNull();
+    expect(hideHandlers.size).toBeGreaterThan(0);
 
     frame(20); // delta 20 → minor（17<20≤33）
     frame(85); // delta 65 → major（33<65≤100）
     frame(285); // delta 200 → severe（>100）
 
-    hideCb!(); // 退后台后 JS 线程可能立即冻结，transport 必须已收到汇总 span。
+    hideCb(); // 退后台后 JS 线程可能立即冻结，transport 必须已收到汇总 span。
 
     // stream 生命周期靠 core flush 时同步 drain 的 span buffer 发出，断言不能等 tick。
     const summary = collectSpans(captured).find(
