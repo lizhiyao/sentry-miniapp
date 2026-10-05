@@ -1,8 +1,11 @@
 import {
   _INTERNAL_filterKeyValueData as coreFilterKeyValueData,
-  filterCollectedUrlQuery,
+  getSanitizedUrlString,
+  parseUrl,
+  stripDataUrlContent,
 } from '@sentry/core';
 import type { Client, CollectBehavior } from '@sentry/core';
+import { resolveNonNegativeInteger } from './numericOptions';
 
 /**
  * core 11 的内置敏感片段（auth / token / secret / key / sid …，共 18 项）按大小写不敏感的
@@ -28,8 +31,7 @@ export type MaxBodySizeOption = 'small' | 'medium' | number;
 export function resolveMaxBodyBytes(option: MaxBodySizeOption | undefined): number {
   if (option === 'small') return 1000;
   if (option === 'medium') return 10_000;
-  if (typeof option === 'number' && option > 0) return option;
-  return DEFAULT_MAX_BODY_BYTES;
+  return resolveNonNegativeInteger(option, DEFAULT_MAX_BODY_BYTES) || DEFAULT_MAX_BODY_BYTES;
 }
 
 /**
@@ -50,9 +52,12 @@ export function utf8ByteLength(value: string): number {
 
 /** 按字节上限截断并补 `...`，与 core 的截断标记一致；结果不超过 maxBytes。 */
 export function truncateToBytes(value: string, maxBytes: number): string {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) return '';
   if (utf8ByteLength(value) <= maxBytes) return value;
 
-  const budget = Math.max(0, maxBytes - 3);
+  const marker = '.'.repeat(Math.min(3, maxBytes));
+
+  const budget = maxBytes - marker.length;
   let output = '';
   let used = 0;
   for (const character of value) {
@@ -61,7 +66,7 @@ export function truncateToBytes(value: string, maxBytes: number): string {
     output += character;
     used += size;
   }
-  return `${output}...`;
+  return `${output}${marker}`;
 }
 
 /** 本 SDK 追加到 core 内置名单上的敏感键片段（core 内置部分由 core 自己判，不在此列）。 */
@@ -88,12 +93,7 @@ export function sanitizeCollectedData(
     return value.map((item) => sanitizeCollectedData(item, behavior, denyTerms, depth + 1));
   }
   if (value && typeof value === 'object') {
-    return filterRecordLevel(
-      value as Record<string, unknown>,
-      behavior,
-      denyTerms,
-      depth,
-    );
+    return filterRecordLevel(value as Record<string, unknown>, behavior, denyTerms, depth);
   }
   return value;
 }
@@ -120,20 +120,61 @@ export function collectKeyValueData(
   const behavior = client?.getDataCollectionOptions?.().urlQueryParams ?? true;
   if (behavior === false) return undefined;
 
-  return filterRecordLevel(data, behavior, sensitiveDenyTerms(extraDenyTerms), 0) as Record<string, unknown>;
+  try {
+    return filterRecordLevel(data, behavior, sensitiveDenyTerms(extraDenyTerms), 0);
+  } catch (_error) {
+    // 宿主入参可能含 getter/proxy；采集失败不能阻断业务回调。
+    return undefined;
+  }
+}
+
+/** SDK 自动产生的 URL 名称不含 query、fragment 或明文 userinfo。 */
+export function collectUrlName(url: string): string {
+  if (typeof url !== 'string') return '';
+  const parsed = parseUrl(url);
+  if (parsed.protocol === 'data') return stripDataUrlContent(url, false);
+  if (parsed.protocol && !/^(https?|wxfile|ttfile|file)$/i.test(parsed.protocol)) {
+    return `${parsed.protocol}:[Filtered]`;
+  }
+  return getSanitizedUrlString(parsed);
+}
+
+/** query 与 body 使用独立策略；敏感值替换不重排重复键或改变其他字段的编码。 */
+export function collectQueryString(
+  query: string | undefined,
+  client: Client | undefined,
+  extraDenyTerms: string[] = [],
+): string | undefined {
+  const behavior = client?.getDataCollectionOptions?.().urlQueryParams ?? true;
+  if (!query || behavior === false) return undefined;
+  return filterEncodedPairs(query.replace(/^\?/, ''), behavior, sensitiveDenyTerms(extraDenyTerms));
+}
+
+export function collectUrl(
+  url: string,
+  client: Client | undefined,
+  extraDenyTerms: string[] = [],
+): string {
+  const name = collectUrlName(url);
+  const parsed = parseUrl(url);
+  const query =
+    !parsed.protocol || /^(https?|wxfile|ttfile|file)$/i.test(parsed.protocol)
+      ? collectQueryString(parsed.search, client, extraDenyTerms)
+      : undefined;
+  return query ? `${name}?${query}` : name;
 }
 
 /**
  * 采集请求 / 响应体：**先**对能解析成 JSON 的体做敏感键脱敏，再按字节上限截断。
  * 顺序反了会把截断后的半截 JSON 解析失败，敏感字段原样发出。
- * 其余形态（form-urlencoded、纯文本）走 core 的 query 串过滤语义；
- * `filterCollectedUrlQuery` 在 `urlQueryParams: false` 时返回 undefined，此时保留原文——
- * 体采不采由 `httpBodies` 管，不该被 query 开关连带清空。
+ * form-urlencoded 使用独立的 body 脱敏策略，保留重复键与非敏感字段原始编码；
+ * 无法安全解码键名时省略正文。1.x 的未知纯文本采集行为暂时保留。
+ * 体采不采由 `httpBodies` 管，不由 `urlQueryParams` 控制。
  * 体积按截断前的完整字节数上报，与 core 的 `request_body_size` 口径一致。
  */
 export function collectBody(
   body: string,
-  client: Client | undefined,
+  _client: Client | undefined,
   maxBytes: number,
   extraDenyTerms: string[] = [],
 ): { body: string; byteLength: number } {
@@ -149,9 +190,36 @@ export function collectBody(
       sanitized = JSON.stringify(sanitizeCollectedData(parsed, true, denyTerms));
     }
   } catch (_error) {
-    const filtered = filterCollectedUrlQuery(body, client);
-    sanitized = filtered ?? body;
+    sanitized = filterFormBody(body, denyTerms);
   }
 
   return { body: truncateToBytes(sanitized, maxBytes), byteLength };
+}
+
+function filterFormBody(body: string, denyTerms: string[]): string {
+  if (!body.includes('=')) return body;
+  return filterEncodedPairs(body, true, denyTerms) ?? '';
+}
+
+function filterEncodedPairs(
+  body: string,
+  behavior: CollectBehavior,
+  denyTerms: string[],
+): string | undefined {
+  try {
+    return body
+      .split('&')
+      .map((segment) => {
+        const equals = segment.indexOf('=');
+        const rawKey = equals < 0 ? segment : segment.slice(0, equals);
+        const key = decodeURIComponent(rawKey.replace(/\+/g, ' '));
+        // core 的结果对象有 Object.prototype；此键不能通过赋值判断过滤结果。
+        if (key === '__proto__') return `${rawKey}=[Filtered]`;
+        const filtered = coreFilterKeyValueData({ [key]: true }, behavior, denyTerms);
+        return filtered[key] === '[Filtered]' ? `${rawKey}=[Filtered]` : segment;
+      })
+      .join('&');
+  } catch (_error) {
+    return undefined;
+  }
 }

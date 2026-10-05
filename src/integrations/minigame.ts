@@ -7,6 +7,8 @@ import {
 } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
+import { collectKeyValueData, collectUrlName } from '../dataCollection';
+import type { MiniappOptions } from '../types';
 
 /**
  * Minigame Integration
@@ -42,7 +44,7 @@ export class MinigameIntegration implements Integration {
   } = { runtime: 'minigame' };
 
   public setupOnce(): void {
-    this._setup();
+    // 启动参数必须在 client 配置可用后采集。
   }
 
   public setup(client: Client): void {
@@ -66,14 +68,19 @@ export class MinigameIntegration implements Integration {
       try {
         const launch = miniappSdk.getLaunchOptionsSync() || {};
         this._minigameContext.scene = launch.scene;
-        this._minigameContext.path = launch.path;
-        this._minigameContext.query = launch.query;
+        this._minigameContext.path =
+          typeof launch.path === 'string' ? collectUrlName(launch.path) : undefined;
+        this._minigameContext.query = collectKeyValueData(
+          launch.query || {},
+          this._client,
+          (this._client?.getOptions?.() as MiniappOptions | undefined)?.sensitiveKeys,
+        );
         setContext('minigame', { ...this._minigameContext });
         addBreadcrumb({
           category: 'minigame.launch',
           message: '小游戏冷启动',
           level: 'info',
-          data: { scene: launch.scene, path: launch.path },
+          data: { scene: launch.scene, path: this._minigameContext.path },
         });
       } catch (_e) {
         // ignore

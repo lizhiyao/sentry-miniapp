@@ -16,7 +16,7 @@ class URLSearchParamsPolyfill {
     } else if (Array.isArray(init)) {
       for (const pair of init) {
         if (Array.isArray(pair) && pair.length >= 2) {
-          this._entries.push([pair[0] || '', pair[1] || '']);
+          this._entries.push([toScalarString(pair[0]), toScalarString(pair[1])]);
         }
       }
     } else if (init && typeof init === 'object') {
@@ -24,7 +24,7 @@ class URLSearchParamsPolyfill {
         this._entries = init._entries.map(([k, v]) => [k, v]);
       } else {
         for (const [key, value] of Object.entries(init)) {
-          this._entries.push([key, value]);
+          this._entries.push([toScalarString(key), toScalarString(value)]);
         }
       }
     }
@@ -48,41 +48,44 @@ class URLSearchParamsPolyfill {
       const eqIndex = pair.indexOf('=');
       if (eqIndex === -1) {
         if (pair) {
-          this._entries.push([decodeURIComponent(pair), '']);
+          this._entries.push([decodeFormComponent(pair), '']);
         }
       } else {
         const key = pair.slice(0, eqIndex);
         const value = pair.slice(eqIndex + 1);
-        if (key) {
-          this._entries.push([decodeURIComponent(key), decodeURIComponent(value)]);
-        }
+        this._entries.push([decodeFormComponent(key), decodeFormComponent(value)]);
       }
     }
   }
 
   append(name: string, value: string): void {
-    this._entries.push([name, String(value)]);
+    this._entries.push([toScalarString(name), toScalarString(value)]);
   }
 
   delete(name: string): void {
+    name = toScalarString(name);
     this._entries = this._entries.filter(([key]) => key !== name);
   }
 
   get(name: string): string | null {
+    name = toScalarString(name);
     const entry = this._entries.find(([key]) => key === name);
     return entry ? entry[1] : null;
   }
 
   getAll(name: string): string[] {
+    name = toScalarString(name);
     return this._entries.filter(([key]) => key === name).map(([, value]) => value);
   }
 
   has(name: string): boolean {
+    name = toScalarString(name);
     return this._entries.some(([key]) => key === name);
   }
 
   set(name: string, value: string): void {
-    const strValue = String(value);
+    name = toScalarString(name);
+    const strValue = toScalarString(value);
     let found = false;
     this._entries = this._entries.filter(([key]) => {
       if (key === name) {
@@ -110,7 +113,7 @@ class URLSearchParamsPolyfill {
 
   toString(): string {
     return this._entries
-      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .map(([key, value]) => `${encodeFormComponent(key)}=${encodeFormComponent(value)}`)
       .join('&');
   }
 
@@ -142,6 +145,76 @@ class URLSearchParamsPolyfill {
   [Symbol.iterator](): IterableIterator<[string, string]> {
     return this.entries();
   }
+}
+
+function toScalarString(value: unknown): string {
+  let result = '';
+  for (const character of String(value)) {
+    const code = character.charCodeAt(0);
+    result += character.length === 1 && code >= 0xd800 && code <= 0xdfff ? '\ufffd' : character;
+  }
+  return result;
+}
+
+function encodeFormComponent(value: string): string {
+  return encodeURIComponent(value)
+    .replace(/%20/g, '+')
+    .replace(/[!'()~]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/** WHATWG form 解码：坏百分号保留，非法 UTF-8 替换；不要求宿主有 TextDecoder。 */
+function decodeFormComponent(value: string): string {
+  return toScalarString(value)
+    .replace(/\+/g, ' ')
+    .replace(/(?:%[\da-f]{2})+/gi, (encoded) => {
+      try {
+        return decodeURIComponent(encoded);
+      } catch (_error) {
+        const bytes = encoded.match(/[\da-f]{2}/gi)!.map((byte) => parseInt(byte, 16));
+        let output = '';
+        for (let index = 0; index < bytes.length;) {
+          const first = bytes[index++]!;
+          if (first < 0x80) {
+            output += String.fromCharCode(first);
+            continue;
+          }
+          const count =
+            first >= 0xc2 && first <= 0xdf
+              ? 1
+              : first >= 0xe0 && first <= 0xef
+                ? 2
+                : first >= 0xf0 && first <= 0xf4
+                  ? 3
+                  : 0;
+          if (!count) {
+            output += '\ufffd';
+            continue;
+          }
+          let codePoint = first & (0x7f >> count);
+          let consumed = 0;
+          for (; consumed < count && index < bytes.length; consumed++) {
+            const next = bytes[index]!;
+            const lower =
+              consumed === 0 && first === 0xe0
+                ? 0xa0
+                : consumed === 0 && first === 0xf0
+                  ? 0x90
+                  : 0x80;
+            const upper =
+              consumed === 0 && first === 0xed
+                ? 0x9f
+                : consumed === 0 && first === 0xf4
+                  ? 0x8f
+                  : 0xbf;
+            if (next < lower || next > upper) break;
+            codePoint = (codePoint << 6) | (next & 0x3f);
+            index++;
+          }
+          output += consumed === count ? String.fromCodePoint(codePoint) : '\ufffd';
+        }
+        return output;
+      }
+    });
 }
 
 /**

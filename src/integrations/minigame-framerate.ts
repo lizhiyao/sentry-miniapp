@@ -9,6 +9,7 @@ import {
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 import type { MinigameFrameRateOptions, MinigameJankLevels } from '../types';
+import { resolveNonNegativeInteger } from '../numericOptions';
 
 type FrameRateWindowStats = {
   fps: number;
@@ -133,8 +134,11 @@ export class MinigameFrameRateIntegration implements Integration {
     this._options = {
       fpsWarningThreshold: options.fpsWarningThreshold ?? 30,
       longFrameThresholdMs: options.longFrameThresholdMs ?? 50,
-      reportInterval: options.reportInterval ?? 10000,
-      maxJankBreadcrumbsPerWindow: options.maxJankBreadcrumbsPerWindow ?? 3,
+      reportInterval: resolveNonNegativeInteger(options.reportInterval, 10000),
+      maxJankBreadcrumbsPerWindow: resolveNonNegativeInteger(
+        options.maxJankBreadcrumbsPerWindow,
+        3,
+      ),
     };
 
     // 分级卡顿：收集有效档（有限正数）。至少一档有效则启用分级，入档阈值取最低档；

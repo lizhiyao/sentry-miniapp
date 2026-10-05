@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   flush,
+  captureException,
   getClient,
   installedIntegrations,
   startInactiveSpan,
@@ -8,6 +9,7 @@ import {
   type StreamedSpanJSON,
 } from '@sentry/core';
 import { init } from '../src/index';
+import { performanceIntegration } from '../src/integrations/performance';
 import {
   assertDefined,
   collectEnvelopePayloads,
@@ -140,5 +142,36 @@ describe('PerformanceIntegration（真 @sentry/core 集成）', () => {
     expect(beforeSendSpan).toHaveBeenCalled();
     // stream 生命周期不再产出 transaction 事件（beforeSendTransaction / ignoreTransactions 失效）。
     expect(collectEnvelopePayloads(captured, ['transaction'])).toEqual([]);
+  });
+
+  it('默认 navigation/resource 的 span、summary 和 breadcrumb 无 URL 敏感别名', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      tracesSampleRate: 1,
+      transport: createCapturingTransport(captured),
+    });
+    observerCallback!(['navigation', 'resource'].map((entryType) => Object.create({
+      entryType,
+      name: 'https://canary-user:canary-password@example.com/path?token=canary-token#canary-fragment',
+      startTime: 250,
+      duration: 120,
+    })));
+    captureException(new Error('performance privacy probe'));
+    await flush(2000);
+    expect(collectSpans(captured).some((span) => spanAttribute(span, 'sentry.op') === 'resource')).toBe(true);
+    expect(JSON.stringify(captured)).not.toContain('canary');
+  });
+
+  it('User Timing 名称保留业务语义，不按 URL 清除 query/fragment', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      integrations: [performanceIntegration({ enableUserTiming: true })],
+      tracesSampleRate: 1,
+      transport: createCapturingTransport(captured),
+    });
+    observerCallback!([{ entryType: 'measure', name: 'business?phase=ready#paint', startTime: 250, duration: 1 }]);
+    captureException(new Error('user timing name probe'));
+    await flush(2000);
+    expect(JSON.stringify(captured)).toContain('business?phase=ready#paint');
   });
 });

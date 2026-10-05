@@ -24,7 +24,8 @@ const {
   };
 });
 
-vi.mock('@sentry/core', () => ({
+vi.mock('@sentry/core', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@sentry/core')>(),
   addBreadcrumb: mockAddBreadcrumb,
   getClient: mockGetClient,
   setContext: mockSetContext,
@@ -45,6 +46,7 @@ describe('MinigameIntegration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetClient.mockReturnValue({ registerCleanup: vi.fn(), getOptions: () => ({}) });
     rafCallback = null;
     showCb = null;
     hideCb = null;
@@ -84,7 +86,7 @@ describe('MinigameIntegration', () => {
   });
 
   it('记录启动场景上下文与冷启动面包屑', () => {
-    new MinigameIntegration().setupOnce();
+    new MinigameIntegration().setup(mockGetClient() as any);
 
     expect(mockSetContext).toHaveBeenCalledWith(
       'minigame',
@@ -113,7 +115,7 @@ describe('MinigameIntegration', () => {
 
   it('用首帧 requestAnimationFrame 计算冷启动耗时', () => {
     const integration = new MinigameIntegration(); // 构造时 now()=1000
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     expect(rafCallback).not.toBeNull();
 
     clock = 1150; // 首帧
@@ -130,7 +132,7 @@ describe('MinigameIntegration', () => {
 
   it('启动阶段系统时钟回拨时，冷启动耗时夹为 0（不报负数）', () => {
     const integration = new MinigameIntegration(); // 构造时 now()=1000
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     clock = 950; // 首帧前系统时钟回拨 → firstFrameTs < initTs
     rafCallback!();
@@ -143,7 +145,7 @@ describe('MinigameIntegration', () => {
 
   it('冷启动上报不覆盖启动场景上下文（setContext 合并）', () => {
     const integration = new MinigameIntegration();
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     clock = 1150;
     rafCallback!();
 
@@ -158,7 +160,7 @@ describe('MinigameIntegration', () => {
     // Date.now 被 test/setup 固定为 1640995200000（2022-01-01）；now() 被 spy 为 clock。
     const EPOCH = 1640995200000;
     const integration = new MinigameIntegration(); // 构造 now()=1000、Date.now()=EPOCH
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     clock = 1150; // 首帧（单调 delta = 150ms）
     rafCallback!();
 
@@ -180,7 +182,7 @@ describe('MinigameIntegration', () => {
 
   it('首帧只上报一次冷启动', () => {
     const integration = new MinigameIntegration();
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     clock = 1100;
     rafCallback!();
     const calls = mockAddBreadcrumb.mock.calls.filter(
@@ -195,7 +197,7 @@ describe('MinigameIntegration', () => {
   });
 
   it('onShow / onHide 产生生命周期面包屑', () => {
-    new MinigameIntegration().setupOnce();
+    new MinigameIntegration().setup(mockGetClient() as any);
     expect(showCb).not.toBeNull();
     expect(hideCb).not.toBeNull();
 
@@ -214,7 +216,7 @@ describe('MinigameIntegration', () => {
   });
 
   it('onShow 缺少参数时仍记录安全的生命周期面包屑', () => {
-    new MinigameIntegration().setupOnce();
+    new MinigameIntegration().setup(mockGetClient() as any);
 
     expect(() => (showCb as (() => void) | null)?.()).not.toThrow();
     expect(mockAddBreadcrumb).toHaveBeenLastCalledWith(
@@ -229,7 +231,7 @@ describe('MinigameIntegration', () => {
     const miniappSdk = crossPlatform.sdk() as any;
     miniappSdk.getLaunchOptionsSync = vi.fn(() => undefined);
 
-    expect(() => new MinigameIntegration().setupOnce()).not.toThrow();
+    expect(() => new MinigameIntegration().setup(mockGetClient() as any)).not.toThrow();
     expect(mockSetContext).toHaveBeenCalledWith(
       'minigame',
       expect.objectContaining({ runtime: 'minigame', scene: undefined }),
@@ -238,12 +240,12 @@ describe('MinigameIntegration', () => {
     miniappSdk.getLaunchOptionsSync = vi.fn(() => {
       throw new Error('launch options unavailable');
     });
-    expect(() => new MinigameIntegration().setupOnce()).not.toThrow();
+    expect(() => new MinigameIntegration().setup(mockGetClient() as any)).not.toThrow();
   });
 
   it('cleanup 调用 offShow / offHide', () => {
     const integration = new MinigameIntegration();
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
     integration.cleanup();
     const miniappSdk = crossPlatform.sdk();
     expect(miniappSdk.offShow).toHaveBeenCalled();
@@ -256,7 +258,7 @@ describe('MinigameIntegration', () => {
       throw new Error('offShow failed');
     });
     const integration = new MinigameIntegration();
-    integration.setupOnce();
+    integration.setup(mockGetClient() as any);
 
     expect(() => integration.cleanup()).not.toThrow();
   });
@@ -265,12 +267,12 @@ describe('MinigameIntegration', () => {
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue(null as any);
     const integration = new MinigameIntegration();
 
-    expect(() => integration.setupOnce()).not.toThrow();
+    expect(() => integration.setup(mockGetClient() as any)).not.toThrow();
     expect(() => integration.cleanup()).not.toThrow();
   });
 
   it('无 requestAnimationFrame 时不报错', () => {
     delete g.requestAnimationFrame;
-    expect(() => new MinigameIntegration().setupOnce()).not.toThrow();
+    expect(() => new MinigameIntegration().setup(mockGetClient() as any)).not.toThrow();
   });
 });

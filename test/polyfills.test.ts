@@ -120,14 +120,15 @@ describe('Polyfills', () => {
           'not-a-pair',
         ] as any);
 
-        expect(params.getAll('')).toEqual(['', '']);
+        expect(params.getAll('')).toEqual(['']);
+        expect(params.get('undefined')).toBe('undefined');
         expect(params.size).toBe(2);
       });
 
-      it('should ignore empty query segments and keys', () => {
+      it('should ignore empty query segments and retain empty keys', () => {
         const params = new URLSearchParamsPolyfill('&&=ignored&valid=value');
 
-        expect(params.toString()).toBe('valid=value');
+        expect(params.toString()).toBe('=ignored&valid=value');
       });
 
       it('should create from another URLSearchParamsPolyfill instance', () => {
@@ -136,6 +137,19 @@ describe('Polyfills', () => {
         expect(copy.get('key')).toBe('value');
         expect(copy.size).toBe(1);
       });
+    });
+
+    it.each([
+      'a=x+y&=empty&dup=1&dup=2',
+      'key=%&x=%GG&unicode=%E4%B8%AD%F0%9F%99%82',
+      'bad=%FF%E4%B8%41%C2%C2%A9%ED%A0%80%F4%90%80%80',
+      'partial=%E4%B8&x=%E0%9F%80&y=%F0%8F%BF%BF',
+      'raw=中🙂&symbols=~!()*&surrogate=\ud800',
+    ])('与宿主原生 URLSearchParams 保持编码语义：%s', (input) => {
+      const expected = new originalGlobal(input);
+      const actual = new URLSearchParamsPolyfill(input);
+      expect([...actual]).toEqual([...expected]);
+      expect(actual.toString()).toBe(expected.toString());
     });
 
     describe('append', () => {
@@ -265,7 +279,7 @@ describe('Polyfills', () => {
       it('should return encoded parameter string', () => {
         const params = new URLSearchParamsPolyfill();
         params.set('key', 'value with spaces');
-        expect(params.toString()).toBe('key=value%20with%20spaces');
+        expect(params.toString()).toBe('key=value+with+spaces');
       });
 
       it('should join multiple parameters with &', () => {

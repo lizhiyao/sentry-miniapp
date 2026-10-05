@@ -8,7 +8,8 @@ import {
   type PerformanceTestHarness,
 } from './support/performance';
 
-vi.mock('@sentry/core', () => ({
+vi.mock('@sentry/core', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@sentry/core')>(),
   getClient: vi.fn(),
   getCurrentScope: vi.fn(),
   setAttributes: vi.fn(),

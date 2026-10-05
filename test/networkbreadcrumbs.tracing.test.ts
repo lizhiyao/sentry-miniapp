@@ -56,8 +56,6 @@ vi.mock('@sentry/core', async () => {
   return {
     ...actual,
     addBreadcrumb: vi.fn(),
-    // 过滤语义由 networkbreadcrumbs.realcore 用真 core 覆盖，这里保持恒等以专注装配路径。
-    filterCollectedUrl: (url: string) => url,
     getActiveSpan: mockGetActiveSpan,
     getClient: mockGetClient,
     hasSpansEnabled: mockHasSpansEnabled,
@@ -106,7 +104,7 @@ describe('NetworkBreadcrumbs tracing', () => {
       expect.objectContaining({
         name: 'GET https://api.example.com/users',
         attributes: expect.objectContaining({
-          'url.full': 'https://api.example.com/users?token=secret#profile',
+          'url.full': 'https://api.example.com/users?token=[Filtered]',
         }),
       }),
     );
