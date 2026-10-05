@@ -52,16 +52,13 @@ Sentry.init({
     return event;
   },
 
-  // 默认集成 + 性能监控集成
+  // 显式启用可选 Performance factory，默认集成自动保留
   integrations: [
-    ...Sentry.getDefaultIntegrations(),
-    new Sentry.Integrations.PerformanceIntegration({
-      enableNavigationTiming: true,
-      enableRenderTiming: true,
-      enableResourceTiming: true,
+    Sentry.performanceIntegration({
+      enableNavigation: true,
+      enableRender: true,
+      enableResource: true,
       enableUserTiming: true,
-      sampleRate: 1.0,
-      reportInterval: 30000,
     }),
   ],
 });

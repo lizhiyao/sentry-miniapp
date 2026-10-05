@@ -1,71 +1,36 @@
-# Offline Cache — Mini Program SDK
+# Offline and consent in the 2.0 miniapp SDK
 
-Reliable event delivery for mini programs in weak network environments.
+Use one core makeOfflineTransport layer, one active persistent target and one runtime owner token. Do not add a second retry engine, multi-target archive, durable ACK or exactly-once promise.
 
-## Overview
-
-Mini programs often run on mobile networks where connectivity is unreliable. The offline cache feature ensures error events are not lost when the network is unavailable:
-
-1. When a request to Sentry fails (network error, timeout), the event is saved to local storage
-2. When the app is next launched or network connectivity returns, cached events are automatically retried
-3. Events expire after a configurable time period to prevent stale data
-
-## Configuration
-
-```javascript
+```js
 Sentry.init({
-  dsn: '...',
-  enableOfflineCache: true,       // default: true
-  offlineCacheLimit: 30,          // max events to store (default: 30)
-  offlineCacheMaxAge: 86400000,   // expiry in ms (default: 24 hours)
+  dsn: 'YOUR_DSN',
+  enableOfflineCache: true,
+  offlineCacheLimit: 30,
+  offlineCacheMaxAge: 24 * 60 * 60 * 1000,
 });
 ```
 
-### Options
+The container is capped at 900 KiB including metadata. Typed records preserve binary payloads and subviews; retry retains original capture time/TTL. Default eviction prioritizes errors and then older records; consent preserve-oldest may reject new data when full. Storage faults are observable, never described as durable success.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enableOfflineCache` | `boolean` | `true` | Enable/disable offline caching |
-| `offlineCacheLimit` | `number` | `30` | Maximum events stored locally |
-| `offlineCacheMaxAge` | `number` | `86400000` | Cache expiry time in milliseconds (default 24h) |
+DSN/tunnel target, old schema or incompatible privacy/storage policy changes drop incompatible data with diagnostics; count/bytes/TTL/eviction adjustments only trim compatible data. A replacement runtime may consume compatible stored records but does not inherit grant. Retired owners cannot write back an in-flight failure over the new owner's store.
 
-## How It Works
+shift commits removal to storage before handing a record to transport. Failed commit returns no record and pauses replay; it must not repeatedly deliver the same item or leak retry timers. Successful removal before network handoff is best-effort and can lose data if interrupted; it is not an atomic delivery transaction.
 
-```
-Event captured
-    ↓
-Attempt to send to Sentry
-    ↓
-┌─ Success → Event delivered ✓
-└─ Failure (network error) → Save to local storage
-                                    ↓
-                              Next app launch / network restored
-                                    ↓
-                              Retry sending cached events
-                                    ↓
-                              ┌─ Success → Remove from cache ✓
-                              └─ Still failing → Keep in cache (retry later)
+## Consent
+
+```js
+Sentry.init({ dsn: 'YOUR_DSN', requireConsent: true });
+Sentry.setConsent(true); // After explicit user consent.
+Sentry.setConsent(false); // Revoke the current client's permission.
 ```
 
-### Smart Eviction
+required=true implies a consent/offline layer even with enableOfflineCache=false. Count/bytes=0 disables SDK caching; missing Storage can fall back to bounded memory with diagnostics. Before grant, SDK collection may still occur but no SDK Sentry request starts. Revocation also checks queued work at actual host dequeue; in-flight abort depends on host capability.
 
-When the cache reaches `offlineCacheLimit`:
-1. Non-error events (messages, info) are evicted first
-2. Then oldest error events are evicted
-3. New events always get stored (oldest are dropped)
+Custom transport with required=false remains user-managed with no automatic SDK offline layer. With required=true it is wrapped for consent; it should not itself stack a second offline layer. Its private queue needs its own actual-send gate for strict revocation. Low-level directly constructed MiniappClient does not acquire persistent store or runtime replay ownership.
 
-## Best Practices
+## Verification
 
-- **Don't set `offlineCacheLimit` too high** — each event consumes local storage, which is limited on mini programs (typically 10MB)
-- **Keep `offlineCacheMaxAge` reasonable** — 24 hours is usually sufficient; very old events lose diagnostic value
-- **Monitor storage usage** — if your events are large (lots of breadcrumbs/context), consider lowering the limit
-- **The feature is enabled by default** — you only need to configure it if you want to change limits or disable it
+Capture before grant: observe no request and an allowed storage/memory record. Grant: observe replay without TTL renewal. Revoke while one request occupies a host slot: queued requests must not start. Force storage write/delete failures and runtime replacement: no false success, cross-target delivery or retired-owner overwrite. Check diagnostics and final payload bytes.
 
-## Disabling
-
-```javascript
-Sentry.init({
-  dsn: '...',
-  enableOfflineCache: false,
-});
-```
+Then verify on the real target host and Sentry deployment. Mock storage/request and successful flush do not prove survival of process termination, timer freeze or backend receipt. client_report is not stored on disk.
