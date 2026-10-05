@@ -17,7 +17,9 @@ function buildLaunchContext(options) {
   return {
     scene: options && options.scene,
     path: options && options.path,
-    query: options && options.query
+    // 业务 query 使用显式枚举，不复制 token／用户标识等任意入参。
+    query: options && options.query && ['organic', 'campaign'].includes(options.query.entry)
+      ? { entry: options.query.entry } : undefined
   };
 }
 
@@ -89,30 +91,13 @@ Sentry.init({
     return event;
   },
 
-  // 自定义集成
+  // 可选宿主性能采集；不重复展开默认集成，不添加第二次采样／定时汇总。
   integrations: [
-    // 使用默认集成，但限制面包屑配置
-    ...Sentry.getDefaultIntegrations().map(integration => {
-      // 限制面包屑集成的配置
-      if (integration.name === 'Breadcrumbs') {
-        return new Sentry.Integrations.Breadcrumbs({
-          console: true,
-          navigation: true,
-          request: true,
-          userInteraction: true,
-        });
-      }
-      return integration;
-    }),
-    // 添加 Performance API 集成
-    new Sentry.Integrations.PerformanceIntegration({
-      enableNavigationTiming: true,
-      enableRenderTiming: true,
-      enableResourceTiming: true,
+    Sentry.performanceIntegration({
+      enableNavigation: true,
+      enableRender: true,
+      enableResource: true,
       enableUserTiming: true,
-      sampleRate: 1.0,
-      bufferSize: 100,
-      reportInterval: 30000, // 30秒上报一次
     }),
   ],
 });
@@ -138,7 +123,6 @@ App({
     launchState.launchSpan = Sentry.startInactiveSpan({
       name: 'miniapp.launch',
       op: 'app.startup',
-      forceTransaction: true,
       attributes: {
         'demo.launch_id': launchId
       }
@@ -186,9 +170,9 @@ App({
       category: 'app',
       level: 'info',
       data: {
-        scene: options.scene,
-        path: options.path,
-        query: options.query,
+        scene: showContext.scene,
+        path: showContext.path,
+        query: showContext.query,
         launchId: launchState.launchId
       },
     });

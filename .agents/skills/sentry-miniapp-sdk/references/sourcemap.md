@@ -17,14 +17,14 @@ ByteDance:  tt://pages/index.js          →  app:///pages/index.js
 Baidu:      swan://pages/index.js        →  app:///pages/index.js
 ```
 
-This means you only need to upload source maps with `--url-prefix "app:///"` regardless of platform.
+Normalize final event filenames and compare actual uploaded artifact names; a prefix alone does not prove symbolication, especially with a second host compilation layer.
 
 ## Setup
 
 ### Step 1: Install sentry-cli
 
 ```bash
-npm install @sentry/cli --save-dev
+npm install @sentry/cli@3.6.2 --save-dev --save-exact
 ```
 
 ### Step 2: Configure Authentication
@@ -96,7 +96,7 @@ module.exports = {
 VERSION="my-miniapp@1.0.0"
 
 npx sentry-cli releases new "$VERSION"
-npx sentry-cli releases files "$VERSION" upload-sourcemaps ./dist \
+npx sentry-cli sourcemaps upload --release "$VERSION" ./dist \
   --url-prefix "app:///" \
   --ext js --ext map
 npx sentry-cli releases finalize "$VERSION"
@@ -126,7 +126,7 @@ find ./dist -type f -name "*.map" -delete
 - name: Upload Source Maps
   run: |
     npx sentry-cli releases new "$SENTRY_RELEASE"
-    npx sentry-cli releases files "$SENTRY_RELEASE" upload-sourcemaps ./dist \
+    npx sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./dist \
       --url-prefix "app:///" \
       --ext js --ext map
     npx sentry-cli releases finalize "$SENTRY_RELEASE"
@@ -189,10 +189,7 @@ Let your build tool (Webpack/Vite) handle these. DevTools' built-in transforms b
 
 ## Verification
 
-```bash
-# List uploaded files
-npx sentry-cli releases files "my-miniapp@1.0.0" list
-```
+Check the project's Source Maps/artifact bundle UI for the upload record, names and Debug IDs.
 
 Should show entries like:
 ```
@@ -210,3 +207,5 @@ Then trigger a test error — Sentry should display the original source code in 
 | File paths don't match | Verify `--url-prefix "app:///"` and `enableSourceMap: true` (default) |
 | Upload timeout | Increase timeout in `.sentryclirc`: `[http]` → `timeout = 120` |
 | WeChat DevTools line numbers off | Disable DevTools' ES6/minification features |
+
+CLI examples pin @sentry/cli 3.6.2. CLI 3 removed releases files and sourcemaps explain; use sourcemaps upload and the event Unminify Code flow ([official migration](https://github.com/getsentry/sentry-cli/releases/tag/3.0.0)). If using Debug IDs, inject before both upload and deployment, and deploy the same injected JS/map pair. Do not inject only an upload copy and assume runtime debug_meta matches. Local mappings do not certify platform recompilation or backend symbolication.

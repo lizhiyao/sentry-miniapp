@@ -1,6 +1,6 @@
 # 可靠上报与隐私同意
 
-小程序可能在弱网、断网或授权弹窗出现前产生事件。SDK 提供两种本地缓冲，但它们解决的问题不同。
+小程序可能在弱网、断网或授权弹窗出现前产生事件。SDK 用一层 core offline 管道处理弱网与同意等待；两种状态共享一个有界容器，不是两套独立重试引擎。
 
 ## 两种缓冲分别解决什么
 
@@ -27,7 +27,7 @@ Sentry.init({
 
 Sentry 服务不可达或长时间无响应时，SDK 除了把超时传给平台请求 API，还会启动自己的计时器；到时会主动调用宿主 `RequestTask.abort()`（宿主提供该能力时），尽快释放网络槽位。发送失败的事件随后进入离线缓存，等待网络恢复后重试。
 
-当已有 `2` 个 Sentry 请求未结束时，新事件会先在 `@sentry/core` 的有界缓冲中等待；只有缓冲也达到上限时才会记为 `queue_overflow` 并丢弃。这样既优先保障正常业务请求，也能承接短时间的 Sentry 上报峰值。可以通过 `transportOptions` 调整超时和网络并发，但通常应保持较短超时和较小并发。
+当宿主网络槽满时，新请求进入 miniapp transport 队列，实际出队再次检查 consent／lifetime。core promise buffer 的在途容量另有上限；其溢出记为 queue_overflow，不等同于宿主并发排队。通常保持较短超时和较小并发。
 
 ## 弱网离线缓存
 
@@ -42,7 +42,11 @@ Sentry.init({
 });
 ```
 
-发送失败的事件会写入本地 Storage；网络恢复或后续 flush 时静默重试。超过条数或有效期的事件会被淘汰，避免长期占用用户存储空间。
+符合存储策略的失败 envelope 会写入 Storage；网络恢复或后续 flush 唤醒重放。记录保留原始时间，retry 不续 TTL；client_report 失败不落盘。写入失败有诊断，不冒称持久化成功。
+
+2.0 仅维护一个持久投递目标，整个容器最多 900 KiB（含元数据）。DSN／tunnel、旧 schema 或不兼容隐私／存储策略变化时丢弃并诊断；条数／字节／TTL 调整仅裁剪兼容记录。新 client 不继承旧 grant，退休 owner 不得回写覆盖新 store。binary 与子视图经 typed codec 保留。
+
+shift 必须先成功提交删除再交给 transport；提交失败不发送。提交成功后中断仍可能丢失，SDK 不承诺 durable ACK、恰好一次或绝不丢失。限流、容量淘汰、关闭及存储故障也属于 best-effort 边界。
 
 如果宿主缺少必要的 Storage API，SDK 仍可初始化并尝试实时上报，但持久化重试会降级。可通过 `Sentry.getDiagnostics()` 查看 transport 状态。
 
@@ -71,7 +75,7 @@ SDK 会开始补发同意前的缓冲事件，并恢复后续实时上报。用�
 Sentry.setConsent(false);
 ```
 
-之后的新事件会再次只进入本地缓冲，不发 Sentry 网络。`Sentry.getConsent()` 可读取当前状态；没有开启 `requireConsent` 时恒为 `true`。
+之后的新数据不发 Sentry 网络，排队请求不得启动；在途请求在宿主提供能力时 abort。`Sentry.getConsent()` 读取当前 client 状态；未启用 requireConsent 时恒为 true。缺 Storage 可降级为有界内存；条数／字节上限为 0 时不缓存。
 
 > `requireConsent` 是网络发送门禁，不是采样开关。要减少上报量，请配置 `sampleRate`、`tracesSampleRate` 或过滤规则。
 
@@ -92,9 +96,9 @@ Sentry.init({
 });
 ```
 
-当前同意缓冲与弱网缓存使用同一个 Storage key。受部分小程序单 key 容量限制影响，`consentCacheMaxBytes` 不建议超过默认约 900KB。
+当前同意缓冲与弱网缓存使用同一个 Storage key。受部分小程序单 key 容量限制影响，编码后的整个容器最多 900 KiB；增加 consentCacheMaxBytes 不能突破此硬上限。
 
-传入自定义 `transport` 时，SDK 仍会在外层应用 consent 门禁；开启 `requireConsent` 也会隐含启用同意前缓冲，即使 `enableOfflineCache` 设置为 `false`。
+自定义 transport 且 requireConsent=false 时不自动套 SDK offline 层。required=true 时统一包装同意／offline 门，即使 enableOfflineCache=false；base factory 不应再叠第二层 offline，其私有队列需自管实际发送门。低层直接构造 MiniappClient 不获得持久 store／replay 权限，默认接入使用 init。
 
 ## 上线前怎样验证
 
