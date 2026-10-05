@@ -366,9 +366,7 @@ describe('SDK', () => {
       expect(
         client
           ?.getOptions()
-          .integrations.some((integration: any) =>
-            integration.name === 'EventFilters',
-          ),
+          .integrations.some((integration: any) => integration.name === 'EventFilters'),
       ).toBe(true);
     });
 
@@ -379,9 +377,9 @@ describe('SDK', () => {
         integrations: [eventFilters],
       });
       expect(
-        clientWithEventFilters?.getOptions().integrations.filter((integration: any) =>
-          integration.name === 'EventFilters',
-        ),
+        clientWithEventFilters
+          ?.getOptions()
+          .integrations.filter((integration: any) => integration.name === 'EventFilters'),
       ).toEqual([eventFilters]);
     });
 
@@ -395,9 +393,7 @@ describe('SDK', () => {
       expect(
         client
           ?.getOptions()
-          .integrations.filter((integration: any) =>
-            integration.name === 'EventFilters',
-          ),
+          .integrations.filter((integration: any) => integration.name === 'EventFilters'),
       ).toEqual([eventFilters]);
     });
   });
@@ -475,9 +471,7 @@ describe('SDK', () => {
       });
       const transport = client?.getTransport();
       expect(transport).toBeDefined();
-      const flushSpy = vi
-        .spyOn(transport!, 'flush')
-        .mockImplementation(() => Promise.resolve(true));
+      const flushSpy = vi.spyOn(client!, 'flush').mockImplementation(() => Promise.resolve(true));
 
       expect(getConsent()).toBe(false);
 

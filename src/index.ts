@@ -94,6 +94,7 @@ export type {
   MiniappPlatform,
 } from './types';
 export { MiniappClient } from './client';
+export type { MiniappLowLevelClientOptions } from './client';
 export * as Integrations from './integrations/index';
 export * as Transports from './transports/index';
 

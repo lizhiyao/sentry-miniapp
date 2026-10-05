@@ -2,7 +2,6 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { close, getCurrentScope } from '@sentry/core';
 import { getDiagnostics, init, setConsent } from '../src/index';
 import { MiniappClient } from '../src/client';
-import { resetConsentState } from '../src/consent';
 import { resetPlatformCache } from '../src/crossPlatform';
 
 describe('getDiagnostics', () => {
@@ -10,7 +9,6 @@ describe('getDiagnostics', () => {
     await close(0);
     getCurrentScope().setClient(undefined);
     delete (global as any).GameGlobal;
-    resetConsentState();
     resetPlatformCache();
   });
 
@@ -159,6 +157,7 @@ describe('getDiagnostics', () => {
 
   it('handles an unnormalized client integration callback defensively', () => {
     const client = new MiniappClient({
+      transport: () => ({ send: () => Promise.resolve({}), flush: () => Promise.resolve(true) }),
       dsn: 'https://public@example.ingest.sentry.io/123',
       integrations: (defaults) => defaults,
     });
@@ -219,7 +218,6 @@ describe('getDiagnostics', () => {
     await close(0);
     getCurrentScope().setClient(undefined);
     delete (global as any).wx;
-    resetConsentState();
     resetPlatformCache();
 
     const diagnostics = getDiagnostics();
@@ -246,7 +244,7 @@ describe('getDiagnostics', () => {
 
     expect(diagnostics.client).toMatchObject({ initialized: true, miniappClient: false });
     expect(diagnostics.options).toBeNull();
-    expect(diagnostics.warnings.map(warning => warning.code)).toContain('non_miniapp_client');
+    expect(diagnostics.warnings.map((warning) => warning.code)).toContain('non_miniapp_client');
   });
 
   it('替换 defaultIntegrations 漏掉 SpanStreaming 时给出可自检警告', () => {

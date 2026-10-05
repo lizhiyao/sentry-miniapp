@@ -1,17 +1,7 @@
-/**
- * 隐私合规「同意门禁」的状态单一来源。
- *
- * `requireConsent` 模式下，事件在用户同意隐私协议前先入本地缓冲、**不发网络**，
- * `setConsent(true)` 后补发并恢复正常上报。
- *
- * 采用模块级单例（对齐 `crossPlatform.ts` 的缓存 + `resetPlatformCache` 范式）：门禁状态
- * 要同时被 transport（在 `MiniappClient` 构造时建立）读取、被公开的 `setConsent` API 写入，
- * 二者跨文件，需共享同一处状态。这也是它放在 `src/` 顶层而非 `integrations/` 的原因——
- * 门禁挂在 transport 上、早于集成 setupOnce，集成来不及提供状态。
- */
-
+/** 同意状态与缓存配置属于 client；构造其他实例不改变此控制器。 */
 /** `onConsentCacheDrop` 回调的丢弃原因。 */
-export type ConsentDropReason = 'count' | 'bytes' | 'age';
+export type ConsentDropReason =
+  'count' | 'bytes' | 'age' | 'target_changed' | 'policy_changed' | 'migration_drop';
 
 /**
  * 同意前缓存的上限与可观测配置。
@@ -31,54 +21,30 @@ export interface ConsentConfig {
   onDrop?: ((info: { reason: ConsentDropReason; dropped: number }) => void) | undefined;
 }
 
-let _config: ConsentConfig = { required: false };
-let _granted = false;
+export class ConsentController {
+  public readonly config: Readonly<ConsentConfig>;
+  private _granted: boolean;
 
-/**
- * 配置同意门禁。在 `init` / `MiniappClient` 构造阶段调用。
- * `required` 为 true 时初始视为「未同意」（闸断），直到 `setConsentGranted(true)`。
- */
-export function configureConsent(config: ConsentConfig): void {
-  _config = { ...config };
-  // required 开启 → 初始未同意；未开启 → 视为已同意（不闸断任何上报）。
-  _granted = !config.required;
-}
-
-/** 设置同意状态。 */
-export function setConsentGranted(granted: boolean): void {
-  _granted = granted;
-}
-
-/**
- * 当前是否允许上报。
- * 未启用门禁（`required=false`）时恒为 true；启用时取决于用户是否已同意。
- */
-export function isConsentGranted(): boolean {
-  return !_config.required || _granted;
-}
-
-/** 是否启用了同意门禁。 */
-export function isConsentRequired(): boolean {
-  return _config.required;
-}
-
-/**
- * 通知一次缓存丢弃，转发给接入方的 `onConsentCacheDrop` 回调。
- * 仅在门禁开启时上报。requireConsent 模式下 consent 缓冲与后续重试复用同一个 store，
- * 所以即使用户同意后 flush 才发现过期 / 超限，也仍属于这条 consent 缓冲通道的可观测范围。
- */
-export function notifyConsentDrop(reason: ConsentDropReason, dropped: number): void {
-  if (dropped > 0 && _config.required && typeof _config.onDrop === 'function') {
-    try {
-      _config.onDrop({ reason, dropped });
-    } catch (_e) {
-      // 接入方回调里抛错不应影响 SDK 主流程。
-    }
+  public constructor(config: ConsentConfig) {
+    this.config = Object.freeze({ ...config });
+    this._granted = !config.required;
   }
-}
 
-/** 测试钩子：重置门禁状态与配置。对齐 `resetPlatformCache`。 */
-export function resetConsentState(): void {
-  _config = { required: false };
-  _granted = false;
+  public setGranted(granted: boolean): void {
+    this._granted = granted;
+  }
+
+  public isGranted(): boolean {
+    return !this.config.required || this._granted;
+  }
+
+  /** 同意后发现的过期/容量丢弃仍属于同一 consent 缓冲通道。 */
+  public readonly notifyDrop = (reason: ConsentDropReason, dropped: number): void => {
+    if (dropped <= 0 || !this.config.required || !this.config.onDrop) return;
+    try {
+      this.config.onDrop({ reason, dropped });
+    } catch (_error) {
+      /* 观察回调失败不阻断 SDK。 */
+    }
+  };
 }

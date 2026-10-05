@@ -1,152 +1,54 @@
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
-import {
-  configureConsent,
-  isConsentGranted,
-  notifyConsentDrop,
-  resetConsentState,
-  setConsentGranted,
-} from '../src/consent';
-import { createMiniappOfflineStore } from '../src/transports/offlineStore';
-import { sdk } from '../src/crossPlatform';
-
-vi.mock('../src/crossPlatform', () => ({
-  sdk: vi.fn(),
-}));
-
-const OFFLINE_KEY = 'sentry_offline_store';
-
-function makeEnvelope(id: string, type = 'event', data: Record<string, unknown> = {}): any {
-  return [
-    { event_id: id },
-    [[{ type }, { event_id: id, ...data }]],
-  ];
-}
+import { describe, it, expect, vi } from 'vitest';
+import { ConsentController } from '../src/consent';
 
 describe('Consent gate state', () => {
-  beforeEach(() => {
-    resetConsentState();
+  it('未启用时恒为已授权，启用时默认为未授权', () => {
+    const disabled = new ConsentController({ required: false });
+    const enabled = new ConsentController({ required: true });
+    disabled.setGranted(false);
+    expect(disabled.isGranted()).toBe(true);
+    expect(enabled.isGranted()).toBe(false);
+    enabled.setGranted(true);
+    expect(enabled.isGranted()).toBe(true);
+    enabled.setGranted(false);
+    expect(enabled.isGranted()).toBe(false);
   });
 
-  afterEach(() => {
-    resetConsentState();
+  it('A/B 状态、配置和丢弃回调各自独立，调用方修改配置不能改变已构造实例', () => {
+    const onA = vi.fn();
+    const onB = vi.fn();
+    const config = { required: true, cacheLimit: 1, onDrop: onA };
+    const first = new ConsentController(config);
+    config.required = false;
+    config.cacheLimit = 100;
+    config.onDrop = onB;
+    const second = new ConsentController({ required: true, cacheLimit: 2, onDrop: onB });
+    second.setGranted(true);
+    expect(first.isGranted()).toBe(false);
+    expect(first.config.cacheLimit).toBe(1);
+    first.notifyDrop('count', 2);
+    second.notifyDrop('age', 1);
+    expect(onA).toHaveBeenCalledWith({ reason: 'count', dropped: 2 });
+    expect(onB).toHaveBeenCalledWith({ reason: 'age', dropped: 1 });
   });
 
-  it('defaults to granted when requireConsent is not enabled', () => {
-    expect(isConsentGranted()).toBe(true);
-
-    configureConsent({ required: false });
-    expect(isConsentGranted()).toBe(true);
-
-    setConsentGranted(false);
-    expect(isConsentGranted()).toBe(true);
-  });
-
-  it('starts blocked when requireConsent is enabled and follows setConsentGranted', () => {
-    configureConsent({ required: true, cacheLimit: 25 });
-    expect(isConsentGranted()).toBe(false);
-
-    setConsentGranted(true);
-    expect(isConsentGranted()).toBe(true);
-
-    setConsentGranted(false);
-    expect(isConsentGranted()).toBe(false);
-  });
-
-  it('notifies consent cache drops only when the consent gate is enabled', () => {
+  it('丢弃通知只在启用门禁及正计数时触发，同意后仍通知且回调异常被隔离', () => {
     const onDrop = vi.fn();
-
-    configureConsent({ required: false, onDrop });
-    notifyConsentDrop('count', 1);
+    const disabled = new ConsentController({ required: false, onDrop });
+    disabled.notifyDrop('count', 1);
+    const enabled = new ConsentController({ required: true, onDrop });
+    enabled.notifyDrop('count', 0);
     expect(onDrop).not.toHaveBeenCalled();
-
-    configureConsent({ required: true, onDrop });
-    notifyConsentDrop('count', 2);
-    expect(onDrop).toHaveBeenCalledWith({ reason: 'count', dropped: 2 });
-
-    setConsentGranted(true);
-    notifyConsentDrop('age', 1);
-    expect(onDrop).toHaveBeenLastCalledWith({ reason: 'age', dropped: 1 });
-
-    configureConsent({
+    enabled.setGranted(true);
+    enabled.notifyDrop('age', 1);
+    expect(onDrop).toHaveBeenCalledWith({ reason: 'age', dropped: 1 });
+    const throwing = new ConsentController({
       required: true,
       onDrop: () => {
-        throw new Error('observer failed');
+        throw new Error('observer');
       },
     });
-    expect(() => notifyConsentDrop('bytes', 1)).not.toThrow();
-  });
-});
-
-describe('Consent cache store behavior', () => {
-  let mockStorage: Record<string, string>;
-
-  function cachedIds(): string[] {
-    const raw = mockStorage[OFFLINE_KEY];
-    if (!raw) return [];
-    return JSON.parse(raw).map((item: any) => item.envelope[0].event_id);
-  }
-
-  beforeEach(() => {
-    mockStorage = {};
-    (sdk as Mock).mockReturnValue({
-      getStorageSync: vi.fn((key: string) => mockStorage[key]),
-      setStorageSync: vi.fn((key: string, value: string) => {
-        mockStorage[key] = value;
-      }),
-      removeStorageSync: vi.fn((key: string) => {
-        delete mockStorage[key];
-      }),
-    });
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('preserves the oldest envelopes and drops the newest when count is exceeded', async () => {
-    const onDrop = vi.fn();
-    const store = createMiniappOfflineStore({
-      offlineCacheLimit: 2,
-      evictionMode: 'preserve-oldest',
-      onDrop,
-    } as any);
-
-    await store.push(makeEnvelope('cold-start'));
-    await store.push(makeEnvelope('early-error'));
-    await store.push(makeEnvelope('later-transaction', 'transaction'));
-
-    expect(cachedIds()).toEqual(['cold-start', 'early-error']);
-    expect(onDrop).toHaveBeenCalledWith('count', 1);
-  });
-
-  it('uses the configurable byte limit and reports byte drops', async () => {
-    const onDrop = vi.fn();
-    const store = createMiniappOfflineStore({
-      offlineCacheLimit: 10,
-      maxBytes: 120,
-      evictionMode: 'preserve-oldest',
-      onDrop,
-    } as any);
-
-    await store.push(makeEnvelope('too-large', 'transaction', { body: 'x'.repeat(200) }));
-
-    expect(cachedIds()).toEqual([]);
-    expect(onDrop).toHaveBeenCalledWith('bytes', 1);
-  });
-
-  it('drops expired entries, reports age drops, and clears stale storage on shift', async () => {
-    const onDrop = vi.fn();
-    mockStorage[OFFLINE_KEY] = JSON.stringify([
-      { envelope: makeEnvelope('expired'), timestamp: 0 },
-    ]);
-
-    const store = createMiniappOfflineStore({
-      offlineCacheMaxAge: 1,
-      onDrop,
-    } as any);
-
-    await expect(store.shift()).resolves.toBeUndefined();
-    expect(cachedIds()).toEqual([]);
-    expect(onDrop).toHaveBeenCalledWith('age', 1);
+    expect(() => throwing.notifyDrop('bytes', 1)).not.toThrow();
+    expect(() => new ConsentController({ required: true }).notifyDrop('bytes', 1)).not.toThrow();
   });
 });

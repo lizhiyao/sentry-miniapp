@@ -25,7 +25,12 @@ export function isTelemetryCritical(): boolean {
 }
 
 export type LifecycleWarningCode =
-  'late_init' | 'lifecycle_unavailable' | 'reentrant_init_unsupported' | 'invalid_close_timeout';
+  | 'late_init'
+  | 'lifecycle_unavailable'
+  | 'reentrant_init_unsupported'
+  | 'invalid_close_timeout'
+  | 'binary_request_unsupported'
+  | 'low_level_consent_blocking';
 
 /** SDK 资源边界；core buffer/采样/传输结果仍由 core 管理。 */
 export class ClientLifetime {

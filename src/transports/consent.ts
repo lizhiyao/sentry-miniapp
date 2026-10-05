@@ -1,59 +1,66 @@
-import { envelopeContainsItemType, makeOfflineTransport, resolvedSyncPromise } from '@sentry/core';
-import type { BaseTransportOptions, Envelope, OfflineStore, Transport } from '@sentry/core';
+import { envelopeContainsItemType, makeOfflineTransport } from '@sentry/core';
+import type { BaseTransportOptions, OfflineStore, Transport } from '@sentry/core';
+import { UnsupportedBinaryRequestError } from './xhr';
 
-type ConsentStateReader = () => boolean;
+/** 宿主控制句柄独立于 core Transport，不伪装成公开 flush/持久化 ACK。 */
+export interface TransportRuntimeHandle {
+  requestReplay(): void;
+  stopReplay(): void;
+  shutdown(): void;
+}
+const runtimes = new WeakMap<Transport, TransportRuntimeHandle>();
+export function getTransportRuntime(transport: Transport): TransportRuntimeHandle | undefined {
+  return runtimes.get(transport);
+}
 
-/**
- * 在 miniapp 生命周期同步段内执行同意判断，同时复用 core 的离线重试能力。
- *
- * core offline transport 的 `shouldSend` 会被 `await`，即使返回 boolean 也会产生微任务。
- * 抖音小游戏在 onHide 返回后可能冻结 JS，因此门禁必须在调用 core transport 前同步完成。
- */
+/** 一个 core offline 层拥有入库/重入/重试；同步 boolean 门禁不会增加 await。 */
 export function createConsentAwareOfflineTransport(
   baseTransport: Transport,
   options: BaseTransportOptions,
   store: OfflineStore,
-  hasConsent: ConsentStateReader,
+  hasConsent: () => boolean,
+  canStore: () => boolean = () => true,
+  flushAtStartup = false,
 ): Transport {
-  const isClientReport = (envelope: Envelope): boolean =>
-    envelopeContainsItemType(envelope, ['client_report']);
-
-  const consentGuardedTransport: Transport = {
-    send: (envelope) => {
-      if (hasConsent()) {
-        return baseTransport.send(envelope);
-      }
-
-      // 已安排的离线重试可能遇到中途撤回同意。同步放回队首，并用 4xx 阻止 core
-      // 继续安排重试；下次 setConsent(true) 会显式触发 flush。
-      if (!isClientReport(envelope)) {
-        void store.unshift(envelope);
-      }
-      return resolvedSyncPromise({ statusCode: 403 });
-    },
-    flush: (timeout) => baseTransport.flush(timeout),
-  };
-
-  const offlineTransport = makeOfflineTransport(() => consentGuardedTransport)({
+  let replayEnabled = true;
+  let stopped = false;
+  const transport = makeOfflineTransport(() => baseTransport)({
     ...options,
-    createStore: () => store,
-    // requireConsent 初始化时默认未同意，必须等 setConsent(true) 后才能排空历史缓存。
-    flushAtStartup: false,
+    shouldSend: () => !stopped && hasConsent(),
+    shouldStore: (envelope, error) =>
+      !(error instanceof UnsupportedBinaryRequestError) &&
+      !stopped &&
+      canStore() &&
+      !envelopeContainsItemType(envelope, ['client_report']),
+    createStore: () => ({
+      push: (envelope) => store.push(envelope),
+      unshift: (envelope) => store.unshift(envelope),
+      // 已安排的单次 timer 可空转，但未授权或退休 owner 不消费磁盘记录。
+      shift: () =>
+        !stopped && replayEnabled && hasConsent() && canStore()
+          ? store.shift()
+          : Promise.resolve(undefined),
+    }),
+    flushAtStartup,
   });
-
-  return {
-    send: (envelope) => {
-      if (hasConsent()) {
-        return offlineTransport.send(envelope);
+  runtimes.set(transport, {
+    requestReplay: () => {
+      if (stopped || !hasConsent() || !canStore()) return;
+      replayEnabled = true;
+      try {
+        // 只有 undefined 调用才会触发 core 的 MIN_DELAY 重试，正 timeout 不会。
+        void Promise.resolve(transport.flush()).catch(() => {});
+      } catch (_error) {
+        /* 不让底层 flush 故障逃逸宿主恢复入口。 */
       }
-      if (isClientReport(envelope)) {
-        return resolvedSyncPromise({});
-      }
-
-      // createMiniappOfflineStore 在返回 Promise 前已同步完成 Storage 写入。
-      return resolvedSyncPromise(store.push(envelope)).then(() => ({}));
     },
-    flush: (timeout) =>
-      hasConsent() ? offlineTransport.flush(timeout) : baseTransport.flush(timeout),
-  };
+    stopReplay: () => {
+      replayEnabled = false;
+    },
+    shutdown: () => {
+      stopped = true;
+      replayEnabled = false;
+    },
+  });
+  return transport;
 }

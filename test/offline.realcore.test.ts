@@ -22,7 +22,7 @@ import {
  * makeOfflineTransport 上，确认「底层 send 失败 → envelope 真落进小程序 storage」这条接缝跑通，
  * 以及恢复后能从 storage 取回重发。store 本身的增删改另由 offlineStore.test 覆盖。
  */
-const OFFLINE_KEY = 'sentry_offline_store';
+const OFFLINE_KEY = 'sentry_miniapp_offline_v2';
 
 describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
   const g = global as any;
@@ -58,7 +58,8 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
     const offline = makeOfflineTransport(makeBase as any)({
       url: 'https://o0.ingest.sentry.io/api/0/envelope/',
       recordDroppedEvent: () => {},
-      createStore: (o: any) => createMiniappOfflineStore(o),
+      createStore: (o: any) =>
+        createMiniappOfflineStore({ ...o, targetId: 'target-A', policyId: 'privacy-v2' }),
       flushAtStartup: false,
     } as any);
 
@@ -80,7 +81,8 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
     )({
       url: 'https://o0.ingest.sentry.io/api/0/envelope/',
       recordDroppedEvent: () => {},
-      createStore: (o: any) => createMiniappOfflineStore(o),
+      createStore: (o: any) =>
+        createMiniappOfflineStore({ ...o, targetId: 'target-A', policyId: 'privacy-v2' }),
       flushAtStartup: false,
     } as any);
 
@@ -94,10 +96,9 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
   });
 
   it('storage 中已有积压 → 恢复后经 makeOfflineTransport 取回重发', async () => {
-    // 预置一条积压（新格式：{envelope, timestamp}[]）
-    mem[OFFLINE_KEY] = JSON.stringify([
-      { envelope: createEventEnvelope('queued-1'), timestamp: 1640995200000 },
-    ]);
+    await createMiniappOfflineStore({ targetId: 'target-A', policyId: 'privacy-v2' }).push(
+      createEventEnvelope('queued-1'),
+    );
 
     const sent: any[] = [];
     const baseSend = vi.fn((env: any) => {
@@ -109,7 +110,8 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
     const offline = makeOfflineTransport(makeBase as any)({
       url: 'https://o0.ingest.sentry.io/api/0/envelope/',
       recordDroppedEvent: () => {},
-      createStore: (o: any) => createMiniappOfflineStore(o),
+      createStore: (o: any) =>
+        createMiniappOfflineStore({ ...o, targetId: 'target-A', policyId: 'privacy-v2' }),
       flushAtStartup: false,
     } as any);
 
@@ -167,7 +169,8 @@ describe('离线缓存（真 makeOfflineTransport + 小程序 store）', () => {
     )({
       url: 'https://o0.ingest.sentry.io/api/0/envelope/',
       recordDroppedEvent: () => {},
-      createStore: (options: any) => createMiniappOfflineStore(options),
+      createStore: (options: any) =>
+        createMiniappOfflineStore({ ...options, targetId: 'target-A', policyId: 'privacy-v2' }),
       flushAtStartup: false,
     } as any);
 

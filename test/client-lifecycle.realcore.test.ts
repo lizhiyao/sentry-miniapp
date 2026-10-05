@@ -9,6 +9,7 @@ import {
   spanStreamingIntegration,
   type Envelope,
 } from '@sentry/core';
+import { createMiniappTransport } from '../src/transports/xhr';
 import { MiniappClient } from '../src/client';
 import { init, wrap } from '../src/sdk';
 import { getDiagnostics } from '../src/diagnostics';
@@ -22,13 +23,18 @@ describe('真实 core client 关闭与发送边界', () => {
   const clients: MiniappClient[] = [];
   let envelopes: Envelope[];
   function make(options: MiniappOptions = {}, customTransport = true) {
-    const client = new MiniappClient({
+    const configured = {
       dsn: 'https://test@o0.ingest.sentry.io/0',
-      defaultIntegrations: false,
+      defaultIntegrations: false as const,
       enableLogs: true,
-      ...(customTransport ? { transport: createCapturingTransport(envelopes) } : {}),
       ...options,
-    });
+    };
+    const client = customTransport
+      ? new MiniappClient({
+          ...configured,
+          transport: options.transport ?? createCapturingTransport(envelopes),
+        })
+      : init(configured)!;
     clients.push(client);
     return client;
   }
@@ -544,7 +550,7 @@ describe('真实 core client 关闭与发送边界', () => {
     clients.push(first);
     first.captureMessage('A failed request');
     await vi.advanceTimersByTimeAsync(1);
-    expect(storage.get('sentry_offline_store')).toContain('A failed request');
+    expect(storage.get('sentry_miniapp_offline_v2')).toContain('A failed request');
     const second = init({ ...options, enableOfflineCache: false })!;
     clients.push(second);
     const reads = get.mock.calls.length;
@@ -554,7 +560,7 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(get).toHaveBeenCalledTimes(reads);
     expect(set).toHaveBeenCalledTimes(writes);
     expect(request).toHaveBeenCalledTimes(requests);
-    expect(storage.get('sentry_offline_store')).toContain('A failed request');
+    expect(storage.get('sentry_miniapp_offline_v2')).toContain('A failed request');
     expect(getClient()).toBe(second);
   });
 
@@ -568,7 +574,7 @@ describe('真实 core client 关闭与发送边界', () => {
       getStorageSync: get,
       setStorageSync: set,
     });
-    const advanced = make({ enableOfflineCache: true }, false);
+    const advanced = make({ enableOfflineCache: true, transport: createMiniappTransport });
     advanced.captureMessage('advanced error');
     await vi.advanceTimersByTimeAsync(6000);
     expect(get).not.toHaveBeenCalled();

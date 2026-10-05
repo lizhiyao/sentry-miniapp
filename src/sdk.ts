@@ -13,7 +13,6 @@ import {
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
 import { miniappLifecycleIntegration } from './integrations/lifecycle';
-import { setConsentGranted, isConsentGranted } from './consent';
 export { getDiagnostics } from './diagnostics';
 
 import {
@@ -206,7 +205,7 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
     transport: options.transport,
   };
   // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
-  // 更宽的公开 MiniappOptions，并在构造期间补齐 transport / stackParser，因此这里仅作边界适配。
+  // init 专用的宽选项，已通过内部标记允许默认 transport；低层公开构造必须显式提供 transport。
   const bindingScope = getCurrentScope();
   const previous = bindingScope.getClient();
   if (previous instanceof MiniappClient) void previous.retireRuntime().catch(() => {});
@@ -290,17 +289,14 @@ export function wrap<T extends (...args: any[]) => any>(fn: T): T {
  * 未开启 `requireConsent` 时调用本函数无门禁副作用（门禁本就放行）。
  */
 export function setConsent(granted: boolean): void {
-  setConsentGranted(granted);
-  if (granted) {
-    // 不传 timeout → 触发 core offline transport 立即排空缓冲队列（见 makeOfflineTransport.flush，
-    // 内部 retryDelay 复位 + flushIn(MIN_DELAY)）。fire-and-forget：排空走定时器，无需 await。
-    getClient()?.getTransport()?.flush?.();
-  }
+  const client = getClient();
+  if (client instanceof MiniappClient) client.setConsent(granted);
 }
 
-/** 读取当前同意状态（未开启 requireConsent 时恒为 true）。 */
+/** 读取当前同意状态；没有当前 MiniappClient 时没有已配置门禁。 */
 export function getConsent(): boolean {
-  return isConsentGranted();
+  const client = getClient();
+  return client instanceof MiniappClient ? client.getConsent() : true;
 }
 
 /**

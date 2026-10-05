@@ -13,6 +13,13 @@ import {
 } from '@sentry/core';
 import { miniappStackParser } from '../src/stacktrace';
 
+function createClient(options: MiniappOptions = {}): MiniappClient {
+  return new MiniappClient({
+    transport: () => ({ send: () => Promise.resolve({}), flush: () => Promise.resolve(true) }),
+    ...options,
+  });
+}
+
 function prepare(client: MiniappClient, event: Event, hint: EventHint) {
   return client['_prepareEvent'](event, hint, getCurrentScope(), getIsolationScope());
 }
@@ -28,7 +35,7 @@ describe('MiniappClient', () => {
       dsn: 'https://test@sentry.io/123456',
       debug: false,
     };
-    client = new MiniappClient(options);
+    client = createClient(options);
     vi.clearAllMocks();
   });
 
@@ -140,7 +147,7 @@ describe('MiniappClient', () => {
 
     it('attaches a synthetic stack when attachStacktrace is enabled', async () => {
       resetPlatformCache();
-      const c = new MiniappClient({
+      const c = createClient({
         attachStacktrace: true,
         stackParser: miniappStackParser,
       });
@@ -181,7 +188,7 @@ describe('MiniappClient', () => {
 
     it('should skip system information when enableSystemInfo is false', async () => {
       resetPlatformCache();
-      const client = new MiniappClient({
+      const client = createClient({
         dsn: 'https://test@sentry.io/123',
         enableSystemInfo: false,
       });
@@ -219,7 +226,7 @@ describe('MiniappClient', () => {
 
       resetPlatformCache();
 
-      const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
+      const client = createClient({ dsn: 'https://test@sentry.io/123' });
       const event = await prepare(client, { message: 'test' }, {});
 
       expect(event?.contexts?.device).toEqual({
@@ -272,7 +279,7 @@ describe('MiniappClient', () => {
 
       resetPlatformCache();
 
-      const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
+      const client = createClient({ dsn: 'https://test@sentry.io/123' });
       const event = await prepare(client, { message: 'test' }, {});
 
       expect(event?.contexts?.device).toEqual({
@@ -298,7 +305,7 @@ describe('MiniappClient', () => {
 
       resetPlatformCache();
 
-      const client = new MiniappClient({ dsn: 'https://test@sentry.io/123' });
+      const client = createClient({ dsn: 'https://test@sentry.io/123' });
       const event = await prepare(client, { message: 'test' }, {});
 
       expect(event?.contexts?.device).toBeUndefined();
@@ -356,7 +363,7 @@ describe('MiniappClient', () => {
 
       try {
         resetPlatformCache();
-        const c = new MiniappClient({
+        const c = createClient({
           dsn: 'https://test@sentry.io/123',
           integrations: [],
           stackParser: miniappStackParser,
@@ -423,7 +430,7 @@ describe('MiniappClient', () => {
 
       try {
         resetPlatformCache();
-        const c = new MiniappClient({
+        const c = createClient({
           debug: true,
           integrations: [],
           stackParser: miniappStackParser,
@@ -443,7 +450,7 @@ describe('MiniappClient', () => {
     it('normalizes direct client construction so event preparation does not need a fallback', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       resetPlatformCache();
-      const c = new MiniappClient({ debug: true });
+      const c = createClient({ debug: true });
 
       const event = await prepare(c, { message: 'test' }, {});
 
@@ -477,7 +484,7 @@ describe('MiniappClient', () => {
         }),
       };
       resetPlatformCache();
-      const c = new MiniappClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
+      const c = createClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
       const event = await prepare(
         c,
         { message: 'test', contexts: { os: { name: 'CustomOS', version: '99' } } },
@@ -500,7 +507,7 @@ describe('MiniappClient', () => {
         }),
       };
       resetPlatformCache();
-      const c = new MiniappClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
+      const c = createClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
 
       const scope = getCurrentScope();
       scope.setContext('os', { name: 'ScopeOS', version: '1' });
@@ -561,8 +568,8 @@ describe('MiniappClient', () => {
 
   describe('client configuration and cleanup', () => {
     it('默认关闭 Logs，并保留用户显式开启配置', () => {
-      expect(new MiniappClient().getOptions().enableLogs).toBe(false);
-      expect(new MiniappClient({ enableLogs: true }).getOptions().enableLogs).toBe(true);
+      expect(createClient().getOptions().enableLogs).toBe(false);
+      expect(createClient({ enableLogs: true }).getOptions().enableLogs).toBe(true);
     });
 
     it('derives the default integration mode for clients outside the constructor cache', () => {
@@ -576,7 +583,7 @@ describe('MiniappClient', () => {
     it('warns in debug mode when a registered cleanup callback fails', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       resetPlatformCache();
-      const c = new MiniappClient({
+      const c = createClient({
         debug: true,
         transport: () => ({
           send: async () => ({}),
@@ -598,7 +605,7 @@ describe('MiniappClient', () => {
     it('runs cleanup callbacks even when transport flush rejects', async () => {
       const cleanup = vi.fn();
       resetPlatformCache();
-      const c = new MiniappClient({
+      const c = createClient({
         dsn: 'https://test@sentry.io/123',
         transport: () => ({
           send: async () => ({}),

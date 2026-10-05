@@ -48,7 +48,11 @@ const client = init({
 });
 parentPort.postMessage({ ready: true });
 observer([{ name: '/resource', entryType: 'resource', startTime: Date.now(), duration: 1 }]);
-const store = createMiniappOfflineStore({ offlineCacheLimit: workerData.value });
+const store = createMiniappOfflineStore({
+  targetId: 'target-A',
+  policyId: 'privacy-v2',
+  offlineCacheLimit: workerData.value,
+});
 for (let index = 0; index < 35; index++) {
   await store.push([{ event_id: String(index) }, []]);
 }
