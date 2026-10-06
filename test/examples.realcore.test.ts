@@ -2,7 +2,14 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getCurrentScope, getIsolationScope, type Envelope, type Event } from '@sentry/core';
+import {
+  getCurrentScope,
+  getIsolationScope,
+  type Envelope,
+  type Event,
+  type Span,
+  spanToJSON,
+} from '@sentry/core';
 import * as Sentry from '../src/index';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
@@ -98,6 +105,97 @@ describe('仓库示例的真实 init／生命周期契约', () => {
     ).toBe(false);
     app.onHide?.();
   });
+
+  it.each(['success', 'failure'] as const)(
+    '微信测试页请求 %s 使用 core v11 的 Span 状态',
+    async (outcome) => {
+      const spans: Span[] = [];
+      const facade = createFacade();
+      facade.init({ tracesSampleRate: 1, integrations: [] });
+      const page = loadTestPage(
+        {
+          ...facade,
+          startInactiveSpan: (options: Parameters<typeof Sentry.startInactiveSpan>[0]) => {
+            const span = Sentry.startInactiveSpan(options);
+            spans.push(span);
+            return span;
+          },
+        },
+        {
+          showModal: vi.fn(),
+          request: (options: {
+            success: (response: { data: string }) => void;
+            fail: (error: { errMsg: string }) => void;
+            complete: () => void;
+          }) => {
+            if (outcome === 'success') options.success({ data: 'synthetic response' });
+            else options.fail({ errMsg: 'synthetic network failure' });
+            options.complete();
+          },
+        },
+      );
+      page.testRequest?.();
+      expect(spans).toHaveLength(1);
+      expect(spanToJSON(spans[0]!).status).toBe(outcome === 'success' ? 'ok' : 'error');
+      expect(spanToJSON(spans[0]!).end_timestamp).toBeDefined();
+      if (outcome === 'failure') {
+        expect(spanToJSON(spans[0]!).attributes['sentry.status.message']).toBe('internal_error');
+      }
+      await owner?.flush(2000);
+    },
+  );
+
+  it('微信测试页跨定时器创建的子 Span 显式关联父 Span', async () => {
+    const spans: Span[] = [];
+    const facade = createFacade();
+    facade.init({ tracesSampleRate: 1, integrations: [] });
+    const page = loadTestPage(
+      {
+        ...facade,
+        startInactiveSpan: (options: Parameters<typeof Sentry.startInactiveSpan>[0]) => {
+          const span = Sentry.startInactiveSpan(options);
+          spans.push(span);
+          return span;
+        },
+      },
+      { showModal: vi.fn() },
+    );
+    vi.useFakeTimers();
+    try {
+      page.testNetworkPerformance?.();
+      await vi.advanceTimersByTimeAsync(700);
+      expect(spans).toHaveLength(2);
+      const parent = spanToJSON(spans[0]!);
+      const child = spanToJSON(spans[1]!);
+      expect(child.parent_span_id).toBe(parent.span_id);
+      expect(child.trace_id).toBe(parent.trace_id);
+      expect(parent.end_timestamp).toBeDefined();
+      expect(child.end_timestamp).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+    await owner?.flush(2000);
+  });
+
+  function loadTestPage(facade: object, wx: object) {
+    let page: Record<string, (() => unknown) | undefined> = {};
+    runInNewContext(
+      readFileSync(new URL('../examples/wxapp/pages/test/test.js', import.meta.url), 'utf8'),
+      {
+        require: (path: string) => {
+          expect(path).toBe('../../lib/sentry-miniapp.js');
+          return facade;
+        },
+        Page: (options: typeof page) => {
+          page = options;
+        },
+        wx,
+        console,
+        setTimeout: (...args: Parameters<typeof setTimeout>) => setTimeout(...args),
+      },
+    );
+    return page;
+  }
 
   it.each(['taro', 'uniapp'] as const)(
     '%s 初始化模块使用当前入口，Logs 按调用采集',
