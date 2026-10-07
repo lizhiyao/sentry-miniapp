@@ -145,37 +145,61 @@ describe('仓库示例的真实 init／生命周期契约', () => {
     },
   );
 
-  it('微信测试页跨定时器创建的子 Span 显式关联父 Span', async () => {
-    const spans: Span[] = [];
-    const facade = createFacade();
-    facade.init({ tracesSampleRate: 1, integrations: [] });
-    const page = loadTestPage(
-      {
-        ...facade,
-        startInactiveSpan: (options: Parameters<typeof Sentry.startInactiveSpan>[0]) => {
-          const span = Sentry.startInactiveSpan(options);
-          spans.push(span);
-          return span;
+  it.each(['wxapp', 'uniapp'] as const)(
+    '%s 测试页跨定时器创建的子 Span 显式关联父 Span',
+    async (platform) => {
+      const spans: Span[] = [];
+      const facade = createFacade();
+      facade.init({ tracesSampleRate: 1, integrations: [] });
+      const loadPage = platform === 'wxapp' ? loadTestPage : loadUniappTestPage;
+      const page = loadPage(
+        {
+          ...facade,
+          startInactiveSpan: (options: Parameters<typeof Sentry.startInactiveSpan>[0]) => {
+            const span = Sentry.startInactiveSpan(options);
+            spans.push(span);
+            return span;
+          },
         },
-      },
-      { showModal: vi.fn() },
+        { showModal: vi.fn() },
+      );
+      vi.useFakeTimers();
+      try {
+        page.testNetworkPerformance?.();
+        await vi.advanceTimersByTimeAsync(700);
+        expect(spans).toHaveLength(2);
+        const parent = spanToJSON(spans[0]!);
+        const child = spanToJSON(spans[1]!);
+        expect(child.parent_span_id).toBe(parent.span_id);
+        expect(child.trace_id).toBe(parent.trace_id);
+        expect(parent.end_timestamp).toBeDefined();
+        expect(child.end_timestamp).toBeDefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      await owner?.flush(2000);
+    },
+  );
+
+  function loadUniappTestPage(facade: object, uni: object) {
+    const source = readFileSync(
+      new URL('../examples/uniapp/src/pages/test/test.vue', import.meta.url),
+      'utf8',
     );
-    vi.useFakeTimers();
-    try {
-      page.testNetworkPerformance?.();
-      await vi.advanceTimersByTimeAsync(700);
-      expect(spans).toHaveLength(2);
-      const parent = spanToJSON(spans[0]!);
-      const child = spanToJSON(spans[1]!);
-      expect(child.parent_span_id).toBe(parent.span_id);
-      expect(child.trace_id).toBe(parent.trace_id);
-      expect(parent.end_timestamp).toBeDefined();
-      expect(child.end_timestamp).toBeDefined();
-    } finally {
-      vi.useRealTimers();
-    }
-    await owner?.flush(2000);
-  });
+    const script = source.match(/<script setup>([\s\S]*?)<\/script>/)?.[1];
+    expect(script).toBeDefined();
+    let testPerformance: (() => unknown) | undefined;
+    runInNewContext(script!.replace(/^import .+;$/gm, '') + '\nexpose(testPerformance);', {
+      Sentry: facade,
+      uni,
+      onLoad: (callback: () => void) => callback(),
+      setTimeout: (...args: Parameters<typeof setTimeout>) => setTimeout(...args),
+      expose: (callback: () => unknown) => {
+        testPerformance = callback;
+      },
+    });
+    return { testNetworkPerformance: testPerformance };
+  }
 
   function loadTestPage(facade: object, wx: object) {
     let page: Record<string, (() => unknown) | undefined> = {};

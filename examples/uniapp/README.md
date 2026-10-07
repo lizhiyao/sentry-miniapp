@@ -13,6 +13,8 @@
 
 应用启动（`App.vue`）会生成 `launchId` 并开启启动链路 span；每个测试事件带唯一 `demo_trigger_id` 与 `fingerprint`，便于在 Sentry 后台按本次点击精确定位。
 
+跨定时器创建子 Span 时，示例通过 `withActiveSpan(parent, ...)` 显式关联父级，不依赖异步上下文自动传播。
+
 集成核心都在 [`src/utils/sentry.js`](./src/utils/sentry.js)。
 
 ## 运行
