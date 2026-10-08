@@ -1,5 +1,7 @@
 # 快速接入
 
+本页对应开发中的 2.0 契约，不表示 npm 已发布。先核对安装版本，1.x 用户参考[2.0 迁移说明](/guide/migration-2.0)；仓库示例默认使用当前构建产物。
+
 `sentry-miniapp` 是基于 [`@sentry/core`](https://github.com/getsentry/sentry-javascript) 的跨端小程序 Sentry SDK，覆盖微信、支付宝、字节跳动、钉钉、QQ、百度、快手，并兼容 Taro / uni-app。
 
 > 本页是**原生小程序**的最短接入路径。Taro、uni-app 或小游戏请直接进入 [Taro](/guide/taro)、[uni-app](/guide/uniapp)或[小游戏](/guide/minigame)指南。
@@ -31,7 +33,7 @@ Sentry.init({
 不要把 `Sentry.init` 放进 `App.onLaunch` 里：此时 `App()` 已注册完成，SDK 无法再提前包装本次 `onLaunch`。这会导致 App 生命周期面包屑、首次 Session 启动，以及依赖 `onLaunch` 起点的冷启动耗时缺失。若只关心后续异常、网络面包屑和手动上报，放在 `onLaunch` 内仍可工作，但启动阶段能力会降级。
 :::
 
-默认初始化路径已包含自动异常捕获、Source Map 路径归一化、网络面包屑、Session、网络状态与可用的平台性能集成。通常无需手动传 `integrations`。
+默认初始化路径已包含自动异常捕获、Source Map 路径归一化、网络面包屑、Session 与网络状态；通用 Performance／FPS 需显式启用。通常无需手动传 `integrations`。
 
 先用最小配置跑通事件，再按需要开启性能采样、Logs、隐私同意或其它能力。全部选项见[配置项参考](/guide/configuration)。
 

@@ -34,7 +34,7 @@
 | 多平台堆栈解析 | ✅ | ✅ | 支持 V8 / Safari / JavaScriptCore 格式，配合 Source Map 精准定位 |
 | 弱网离线缓存重试 | ✅ | ✅ | 失败缓存到本地 Storage |
 | 隐私同意前停止网络发送 | ✅ | ✅ | 开启 `requireConsent` 后进入本地缓冲 |
-| Sentry Logs | ✅ | ✅ | 需开启 `enableLogs` |
+| Sentry Logs | ✅ | ✅ | 按 logger 调用采集 |
 
 > ➖ 表示该环境无对应能力，SDK 自动跳过（no-op），不会报错。
 

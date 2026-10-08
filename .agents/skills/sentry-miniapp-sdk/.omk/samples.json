@@ -108,18 +108,17 @@
     "provenance": "human"
   },
   {
-    "sample_id": "s005",
+    "sample_id": "s005-v2",
     "prompt": "用户要求给微信小游戏新建 App() 和 Page() 来接入生命周期，同时采集冷启动和 FPS。请判断这个方案是否正确，并给出符合 sentry-miniapp 当前能力的替代方案。无需修改文件。",
-    "context": "项目只有 game.js 和 wx API，没有 App()、Page() 或路由。sentry-miniapp 已安装。小游戏需要保留现有入口，不应伪造普通小程序生命周期。",
-    "rubric": "评分维度：（1）拒绝新建 App()、Page() 或路由，识别小游戏与普通小程序的生命周期差异；（2）说明 crossPlatform.isMinigame() 的环境判断，以及页面面包屑和基于页面的 Session 能力在小游戏中的守卫或 no-op；（3）使用 enableMinigameLifecycle 和 enableMinigameFrameRate，或说明它们在小游戏运行时默认开启；（4）把冷启动、scene/path/query、onShow/onHide 归于 MinigameIntegration，把 FPS/jank 归于 FrameRateIntegration。",
+    "context": "项目只有 game.js 和 wx API，没有 App()、Page() 或路由。使用 sentry-miniapp 开发中的 2.0 契约。小游戏需要保留现有入口，不应伪造普通小程序生命周期。本样本替代 s005 的 1.x 评分口径，版本不同，分数不可直接比较。",
+    "rubric": "评分维度：（1）拒绝新建 App()、Page() 或路由，识别小游戏与普通小程序的生命周期差异；（2）按实际宿主检测小游戏能力，页面能力守卫 no-op，Session 使用宿主前台 episode，不将 JS 未处理异常说成进程崩溃；（3）说明 enableMinigameLifecycle 默认按小游戏检测启用，而 FPS 默认关闭，必须使用 enableMinigameFrameRate: true 显式启用；（4）说明首帧 minigame.init_to_first_frame 只测 SDK 安装至首个 rAF，并非完整冷启动，FPS/jank 是可选测量，不等于 Sentry slow/frozen frames；（5）使用配置开关或 named factories，不建议构造已删除的公共类，launch query 经采集策略过滤。",
     "assertions": [
       {
         "type": "contains_all",
         "values": [
           "enableMinigameLifecycle",
           "enableMinigameFrameRate",
-          "MinigameIntegration",
-          "FrameRateIntegration"
+          "minigame.init_to_first_frame"
         ],
         "weight": 1
       }
@@ -127,7 +126,7 @@
     "capability": [
       "小游戏识别",
       "能力降级",
-      "冷启动监控",
+      "首帧测量边界",
       "帧率采样"
     ],
     "difficulty": "hard",

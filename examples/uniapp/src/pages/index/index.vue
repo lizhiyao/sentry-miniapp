@@ -41,7 +41,7 @@ function trackRequest(item) {
     url: item.url,
     method: 'GET',
     success: (res) => {
-      span.setStatus('ok');
+      span.setStatus({ code: 1 });
       item.state = 'ok';
       item.detail = `HTTP ${res.statusCode} · ${Date.now() - startedAt}ms`;
       Sentry.addBreadcrumb({
@@ -52,7 +52,7 @@ function trackRequest(item) {
       });
     },
     fail: (err) => {
-      span.setStatus('internal_error');
+      span.setStatus({ code: 2, message: 'internal_error' });
       item.state = 'fail';
       item.detail = (err && err.errMsg) || '请求失败';
       Sentry.withScope((scope) => {
@@ -78,7 +78,6 @@ onLoad(() => {
   pageSpan = Sentry.startInactiveSpan({
     name: 'index.page.load',
     op: 'ui.load',
-    forceTransaction: true,
     attributes: { 'demo.page_visit_id': pageVisitId },
   });
   Sentry.setTag('page', 'index');

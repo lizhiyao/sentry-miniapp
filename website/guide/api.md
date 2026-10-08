@@ -89,7 +89,7 @@ Sentry.withScope(scope => {
 
 ## Logs
 
-先在 `init` 中设置 `enableLogs: true`，再使用：
+2.0 按 logger 调用采集，无需 enableLogs；使用 beforeSendLog 过滤或停止调用以抑制日志：
 
 ```js
 Sentry.logger.trace('cache lookup', { key: 'profile' });
@@ -102,6 +102,18 @@ Sentry.logger.fatal('bootstrap unavailable');
 
 这些日志会作为独立 log 发送，不等同于 console 面包屑。
 
+## Metrics
+
+业务显式调用 core 的 metrics API，按需提供单位和有限维度；SDK 不默认采集 memory 或建立第二套聚合引擎：
+
+```js
+Sentry.metrics.count('checkout.completed', 1, { attributes: { channel: 'miniapp' } });
+Sentry.metrics.distribution('checkout.duration', 250, { unit: 'millisecond' });
+Sentry.metrics.gauge('cart.items', 3);
+```
+
+使用 `beforeSendMetric` 过滤或修改，core 负责缓冲与批处理。与 Logs 一样，需要分别验证目标后台接收；应用退后台的同步 flush 不证明所有数据已送达。避免将订单号、用户标识等高基数或敏感值用作自动维度。
+
 ## 性能 API
 
 | API | 用途 |
@@ -109,8 +121,10 @@ Sentry.logger.fatal('bootstrap unavailable');
 | `startSpan(options, callback)` | 测量一个有明确回调生命周期的操作 |
 | `startInactiveSpan(options)` | 创建需要手动结束的 span |
 | `spanStreamingIntegration()` | core 11 的 span 批量发送集成；已在默认集成中，仅当你自定义 `defaultIntegrations` 时需要手动加入 |
-| `withStaticSpan(callback)` | 自定义 `traceLifecycle: 'static'` 时，用它包装 `beforeSendSpan`，否则 core 会跳过该回调 |
-| `withStreamedSpan(callback)` | 显式声明回调接收 stream 形状（默认即是，用于迁移期兼容写法） |
+| `startSpanManual(options, callback)` | callback 接收 span 与 end 回调 |
+| `withActiveSpan(span, callback)` | 在同步范围绑定活跃 span |
+| `continueTrace(options, callback)` / `startNewTrace(callback)` | 显式延续或开始 trace |
+| `getTraceData()` | 获取当前追踪传播数据 |
 | `getPerformanceManager()` | 读取宿主小程序 Performance API 适配对象，可能为 `null` |
 
 ```js
@@ -153,13 +167,9 @@ console.log(Sentry.getDiagnostics());
 | `miniappStackParser` | 默认小程序堆栈解析器 |
 | `wrap(fn)` | 包裹函数，捕获后继续抛出异常 |
 
-`Integrations` 同时提供类构造器与函数式工厂。核心集成可使用
-`globalHandlersIntegration()`、`tryCatchIntegration()`、`linkedErrorsIntegration()`、
-`httpContextIntegration()` 和 `dedupeIntegration()`；两种形式都会创建独立实例。
-旧的 `new Integrations.Dedupe({ fuzzyMatch: true })` 仅为 1.x 历史兼容保留，已弃用并计划在
-2.0 移除；新代码应使用复用 `@sentry/core` 官方实现的 `dedupeIntegration()`。
+2.0 的顶层与 `Integrations` namespace 仅提供同一组 named factories，删除公共 class 与共享默认数组。迁移清单见[升级到 2.0](/guide/migration-2.0)。
 
-`integrations` 数组会追加到默认集合，同名时用户实例优先。因此自定义默认性能集成时无需手动展开默认集合：
+`integrations` 数组会追加到默认集合，同名时用户实例优先。显式启用可选性能集成时无需手动展开默认集合：
 
 ```js
 Sentry.init({
@@ -170,8 +180,6 @@ Sentry.init({
       enableRender: true,
       enableResource: true,
       enableUserTiming: true,
-      sampleRate: 1,
-      reportInterval: 30000,
     }),
   ],
 });

@@ -167,7 +167,7 @@ npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
   --build-maps ./maps/cocos-build \
   --out ./sentry-upload/game.js.map
 
-npx sentry-cli releases files "$SENTRY_RELEASE" upload-sourcemaps ./sentry-upload \
+npx sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./sentry-upload \
   --url-prefix "app:///" \
   --ext js \
   --ext map \
@@ -206,10 +206,10 @@ Sentry.init({
 按这个顺序检查，通常比反复重传更快：
 
 1. 在新事件原始 JSON 中确认 release、`filename`、行号和列号。
-2. 用 `sentry-cli releases files <release> list` 对照 artifact 名称。
+2. 在 Sentry 项目 Source Maps／artifact bundle 页面检查上传记录、文件名与 Debug ID。
 3. 确认上传的是同一次生产构建生成的 JS 与 map，并包含 `sourcesContent`。
 4. 检查 `filename` 是否为 `appservice.app.js`，避免拿分页 map 匹配合并文件。
-5. 使用 Sentry 的 Source Map Debug；支持时也可运行 `sentry-cli sourcemaps explain <event-id>`。
+5. 使用事件详情的 Unminify Code／Source Map Debug 检查未匹配原因。
 6. 上传完成后重新触发事件；Sentry 不会回溯处理旧事件。
 7. 自托管 Sentry 还需检查 symbolicator、worker 与 artifact 存储是否正常。
 

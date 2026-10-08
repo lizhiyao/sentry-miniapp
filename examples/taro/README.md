@@ -37,7 +37,7 @@ class SentryBoundary extends Component {
 ## 运行
 
 ```bash
-# 在本目录下
+# 先在仓库根执行 yarn build，再到本目录
 npm install
 
 # 编译微信小程序（产出到 dist/，--watch 持续编译）
@@ -60,18 +60,15 @@ npm run build:weapp
 
 ## Source Map（真机）
 
-Taro 真机错误栈是微信合并后的 `appservice.app.js`，**分页 Source Map 解不出**，需要两层 map 串联。详见[文档站 · 跨端框架的两层 Source Map 串联](https://sentry-miniapp.pages.dev/guide/sourcemap#跨端框架的两层-source-map-串联)与 [`scripts/merge-sourcemap.mjs`](../../scripts/merge-sourcemap.mjs)。
+示例 webpackChain 显式使用 hidden-source-map，生成上传前 JS／map。当前 Taro 工具链生成的 comp.js 无 map、taro.js.map 有少量缺失 sourcesContent，doctor 会告警；不能把完整构建成功写成所有框架文件可符号化。先核对应用页面与 SDK 栈的实际映射，保留框架限制和真机证据。
 
-## 用本地源码而非已发布版
+若微信真机栈指向二次合并后的 `appservice.app.js`，分页 Source Map 不能直接解释该文件，需要对应的二次编译 map 与框架 map 串联。以实际 frame 和宿主产物为准，详见[文档站 · 跨端框架的两层 Source Map 串联](https://sentry-miniapp.pages.dev/guide/sourcemap#跨端框架的两层-source-map-串联)与 [`scripts/merge-sourcemap.mjs`](../../scripts/merge-sourcemap.mjs)。
 
-示例默认按 `package.json` 的 semver 范围安装已发布的 `sentry-miniapp`。
-若想验证仓库当前源码，先在仓库根执行 `yarn build`，再把本目录依赖改为：
+## 验证当前仓库的 2.0 契约
 
-```jsonc
-"sentry-miniapp": "file:../.."
-```
+示例默认使用 `file:../..` 的仓库产物，避免新示例安装到旧的已发布 SDK。先在仓库根执行 `yarn build`，再进入示例目录安装依赖和构建。验证发布包时可在隔离副本中将依赖替换为同一次构建的 tarball；不要用旧 npm 版本证明当前源码兼容。
 
-重新 `npm install` 即可。
+2.0 仍在开发中，不表示已经发 npm/tag。要改为已发布版本时，先核对安装版本对应的 API 和[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ## 说明
 

@@ -32,7 +32,7 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 | 全局异常与 Promise rejection | 支持 | 支持 | 以宿主实际提供的监听 API 为准 |
 | 网络请求面包屑与 `http.client` span | 支持 | 支持 | 走 `wx.request` / `tt.request`，不依赖 PerformanceObserver |
 | 设备信息与离线缓存 | 支持 | 支持 | 依赖宿主系统信息与 Storage API |
-| 冷启动首帧 | 支持 | 支持 | 上报 `minigame.init_to_first_frame` |
+| SDK 初始化到首帧 | 支持 | 支持 | 上报 `minigame.init_to_first_frame` |
 | FPS 与卡顿 | 支持 | 支持 | 依赖全局 `requestAnimationFrame` |
 | 小程序导航 / 渲染 / 资源 PerformanceObserver | 不适用 | 不适用 | 小游戏通常只有 `performance.now()`，通用 Performance 默认不安装，显式安装时按实际能力跳过 |
 | 页面路由、点击面包屑 | 不适用 | 不适用 | 没有 Page 模型，自动跳过 |
@@ -57,6 +57,7 @@ API 请求 span 与小游戏 Performance API 能力分开采集。即使抖音�
 Sentry.init({
   dsn: 'YOUR_DSN',
   tracesSampleRate: 0.2,
+  enableMinigameFrameRate: true,
   minigameFrameRateOptions: {
     fpsWarningThreshold: 30,
     longFrameThresholdMs: 50,
@@ -76,6 +77,7 @@ Sentry.init({
 Sentry.init({
   dsn: 'YOUR_DSN',
   tracesSampleRate: 0.2,
+  enableMinigameFrameRate: true,
   minigameFrameRateOptions: {
     jankLevels: {
       minor: 17,
@@ -99,7 +101,7 @@ Cocos、私有引擎、Debug ID 或特殊堆栈解析属于进阶场景，请看
 ## 验证清单
 
 1. 在真机主动发送测试错误，确认 Issues 中顶层 `platform=javascript`、`contexts.miniapp.platform` 与 release 正确。
-2. 将 `tracesSampleRate` 临时设为 `1.0`，完整启动并运行一段时间。
+2. 将 `tracesSampleRate` 临时设为 `1.0`，显式设 `enableMinigameFrameRate: true`，完整启动并运行一段时间。
 3. 退到后台，确认出现 `minigame.init_to_first_frame` 和 `minigame.framerate.summary`。
 4. 打开 summary span，检查是否包含 `fps.*` 与 `jank.*` 属性。
 5. 上传 Source Map 后再触发一次真机错误，确认堆栈能还原到源码。
