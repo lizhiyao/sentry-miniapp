@@ -96,6 +96,8 @@ yarn dev:miniapp
 3. 点击编译运行
 4. 进入首页和测试页观察效果
 
+真机上报前，核对这份工程实际使用的 AppID，并在对应小程序后台配置 `app.js` 中 DSN 的实际 request 合法域名；使用 tunnel 时配置 tunnel 域名。具体示例见[快速接入的域名检查](https://sentry-miniapp.pages.dev/guide/getting-started#_4-常见前置检查)。手机开启调试时可能跳过域名校验，验收应关闭调试并核对后台事件。
+
 ### 3. 调试建议
 
 - 修改 SDK 源码后，重新运行 `yarn build:miniapp`；持续调试时保持 `yarn dev:miniapp` 运行

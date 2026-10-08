@@ -11,7 +11,7 @@ Sentry.captureException(new Error('sentry test'));
 如果 Sentry Issues 里仍然看不到事件，按这个顺序排查：
 
 - **DSN / Project 是否可用**：确认 DSN 属于当前要看的 Sentry Project，且没有把测试事件发到其它环境或其它项目里。
-- **request 合法域名是否配置**：把 DSN 里的实际 host 加入小程序后台「request 合法域名」，例如 `o0.ingest.sentry.io`；自托管则填写你的 Sentry 服务域名。
+- **request 合法域名是否配置**：核对实际运行的 AppID 和实际上报地址，按[快速接入的域名检查](/guide/getting-started#_4-常见前置检查)填写完整域名；配置 `tunnel` 时检查 tunnel 地址。关闭手机调试和开发者工具的「不校验合法域名」后再验收。
 - **初始化位置是否太晚**：`Sentry.init` 必须在 `App()` 调用之前执行。放进 `App.onLaunch` 后，手动 `captureException` 仍可能可用，但启动阶段生命周期、Session、部分面包屑和冷启动耗时会降级。
 - **是否只调用了 `addBreadcrumb`**：面包屑不会单独上报，只会随下一次 error / message 事件一起发送（core 11 的 span 只携带属性，不再附面包屑）。验证接入时请用 `captureException` 或 `captureMessage`。
 - **采样是否过滤了事件**：确认 `sampleRate` 没有被设得太低；如果只验证性能 span，还要确认 `tracesSampleRate` 或 `tracesSampler`。
