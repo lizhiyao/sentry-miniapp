@@ -30,8 +30,11 @@ export class SessionIntegration implements Integration {
       ownedSession = undefined;
       if (!session) return;
       try {
-        closeSession(session);
-        client.captureSession(session);
+        // core 已发送 unhandled 等终态；Relay 按更新累加终态计数，不能在收尾重发。
+        if (session.status === 'ok') {
+          closeSession(session);
+          client.captureSession(session);
+        }
       } finally {
         const isolation = getIsolationScope();
         if (isolation.getSession() === session) isolation.setSession();

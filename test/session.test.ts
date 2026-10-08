@@ -76,13 +76,46 @@ describe('Session owner 与前台 episode', () => {
     app.onHide();
     expect(sessions().every((session) => session.sid === sid)).toBe(true);
     expect(
-      sessions().some((session) => session.errors === 1 && session.status === 'unhandled'),
-    ).toBe(true);
+      sessions().filter((session) => session.errors === 1 && session.status === 'unhandled'),
+    ).toHaveLength(1);
     expect(sessions().some((session) => session.status === 'crashed')).toBe(false);
     expect(getIsolationScope().getSession()).toBeUndefined();
     app.onShow();
     expect(sessions().at(-1)!.sid).not.toBe(sid);
   });
+
+  it.each(['hide', 'close', 'replace'] as const)(
+    '%s 不重复发送 core 已上报的 unhandled 会话',
+    async (ending) => {
+      const owner = start();
+      (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
+      app.onLaunch();
+      const sid = getIsolationScope().getSession()!.sid;
+      owner.captureEvent({
+        exception: {
+          values: [{ value: 'foreground failure', mechanism: { handled: false, type: 'onerror' } }],
+        },
+      });
+      await owner.flush(100);
+      expect(sessions().filter((session) => session.status === 'unhandled')).toHaveLength(1);
+      if (ending === 'hide') {
+        app.onHide();
+        app.onHide();
+      } else if (ending === 'close') {
+        await owner.close();
+        await owner.close();
+      } else {
+        start();
+        await owner.close();
+      }
+      expect(sessions().filter((session) => session.sid === sid)).toHaveLength(2);
+      expect(getIsolationScope().getSession()).toBeUndefined();
+      if (ending === 'hide') {
+        app.onShow();
+        expect(getIsolationScope().getSession()!.sid).not.toBe(sid);
+      }
+    },
+  );
 
   it('异步 S1 错误处理在 S2 开始后完成，不修改或结束 S2', async () => {
     const owner = start();
