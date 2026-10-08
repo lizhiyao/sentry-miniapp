@@ -52,9 +52,12 @@ Sentry.captureException(new Error('sentry test'));
 
 ## 4. 常见前置检查
 
-- **合法域名**：自托管 Sentry / 真机预览时，需把 Sentry 上报域名加入小程序后台「request 合法域名」白名单（开发者工具可临时勾选「不校验合法域名」绕过）。
+- **合法域名**：在实际运行的 AppID 所对应的小程序后台，把实际上报地址的协议、域名及端口（如有）加入「request 合法域名」。Sentry SaaS 与自托管部署都需要配置；默认取 DSN 的上报地址，配置 `tunnel` 时取 tunnel 地址。
+- **关闭调试后验收**：手机调试模式与开发者工具的「不校验合法域名」会跳过域名校验。验收时关闭这些选项，核对实际请求结果和后台事件；采集提示或 `flush` 完成不能代替后台接收证据。
 - **真机 vs 开发者工具**：微信开发者工具某些环境下的报错不会触发底层 `wx.onError`，建议在真机预览下测试。
 - **uni-app / Taro 框架**：组件内的错误可能被框架接住、不冒泡到 `wx.onError`，需接框架的错误处理。详见 [Taro 接入指南](/guide/taro)、[uni-app 接入指南](/guide/uniapp) 或 [常见问题](/guide/faq#component-errors)。
+
+例如，DSN 为 `https://public-key@o123.ingest.us.sentry.io/456` 时，填写 `https://o123.ingest.us.sentry.io`，保留 `.us` 等实际域名部分。Sentry 控制台的网址、DSN 中的 key 和项目路径都不填入域名配置。
 
 仍然没有数据时，按 [FAQ · 初始化后没有数据](/guide/faq#no-events) 的完整清单逐项排查。
 
