@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fmt, logger, withScope, type Envelope, type SerializedLogContainer } from '@sentry/core';
+import { logger, withScope, type Envelope, type SerializedLogContainer } from '@sentry/core';
 import { init } from '../src/sdk';
 import { MiniappClient } from '../src/client';
 import { installPolyfills } from '../src/polyfills';
@@ -51,18 +51,17 @@ describe('旧宿主 String 能力与真实 core 日志最终 payload', () => {
       withScope((scope) => {
         scope.setClient(client);
         scope.setAttribute('scope\ud800', 'value\udc00😀');
-        const template = Object.assign(['template\ud800 ', ''], { raw: ['template\ud800 ', ''] });
-        logger.info(fmt(template, 'param\udc00😀'));
+        logger.info(logger.fmt`template\ud800\n ${'param\udc00😀'}`);
         flushing = client!.flush();
       });
       await vi.advanceTimersByTimeAsync(1);
       expect(await flushing).toBe(true);
       const log = collectEnvelopePayloads<SerializedLogContainer>(envelopes, ['log'])[0]!.items[0]!;
-      expect(log.body).toBe('callback template� param�😀�');
+      expect(log.body).toBe('callback template�\n param�😀�');
       expect(log.attributes).toMatchObject({
         'scope�': { type: 'string', value: 'value�😀' },
         'callback�': { type: 'string', value: '�pair😀�' },
-        'sentry.message.template': { type: 'string', value: 'template� %s' },
+        'sentry.message.template': { type: 'string', value: 'template�\n %s' },
         'sentry.message.parameter.0': { type: 'string', value: 'param�😀' },
       });
     },
