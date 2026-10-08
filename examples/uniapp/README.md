@@ -13,12 +13,14 @@
 
 应用启动（`App.vue`）会生成 `launchId` 并开启启动链路 span；每个测试事件带唯一 `demo_trigger_id` 与 `fingerprint`，便于在 Sentry 后台按本次点击精确定位。
 
+跨定时器创建子 Span 时，示例通过 `withActiveSpan(parent, ...)` 显式关联父级，不依赖异步上下文自动传播。
+
 集成核心都在 [`src/utils/sentry.js`](./src/utils/sentry.js)。
 
 ## 运行
 
 ```bash
-# 在本目录下
+# 先在仓库根执行 yarn build，再到本目录
 npm install
 
 # 编译微信小程序（产出到 dist/dev/mp-weixin）
@@ -37,16 +39,22 @@ npm run build:mp-weixin
 
 微信开发者工具中还需把 Sentry 上报域名加入小程序后台「合法域名」（开发期可临时勾选「不校验合法域名」）。
 
-## 用本地源码而非已发布版
+## 验证当前仓库的 2.0 契约
 
-示例默认按 `package.json` 的 semver 范围安装已发布的 `sentry-miniapp`。
-若想验证仓库当前源码，先在仓库根执行 `yarn build`，再把本目录依赖改为：
+当前固定 uni-app 工具链的生产插件会覆盖普通 build.sourcemap。示例用 --sourcemap 和 Vite 公共 configResolved hook 保留 hidden map 与 sourcesContent；JS 在 dist/build/mp-weixin，map 在 dist/build/.sourcemap/mp-weixin。验证时合成上传目录，不把 map 发布进小程序包：
 
-```jsonc
-"sentry-miniapp": "file:../.."
+```bash
+mkdir -p sentry-upload
+cp -R dist/build/mp-weixin/. sentry-upload/
+cp -R dist/build/.sourcemap/mp-weixin/. sentry-upload/
+node ../../scripts/doctor-sourcemap.mjs --dist sentry-upload --release "$SENTRY_RELEASE" --strict
 ```
 
-重新 `npm install` 即可。
+doctor 验证上传前产物，不能替代微信二次编译后的真机 map 或目标后台还原。
+
+示例默认使用 `file:../..` 的仓库产物，避免新示例安装到旧的已发布 SDK。先在仓库根执行 `yarn build`，再进入示例目录安装依赖和构建。验证发布包时可在隔离副本中将依赖替换为同一次构建的 tarball；不要用旧 npm 版本证明当前源码兼容。
+
+2.0 仍在开发中，不表示已经发 npm/tag。要改为已发布版本时，先核对安装版本对应的 API 和[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ## 说明
 

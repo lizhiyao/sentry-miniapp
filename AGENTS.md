@@ -23,7 +23,7 @@ sentry-miniapp 是基于 `@sentry/core` 的跨端小程序 Sentry SDK，覆盖�
 - 改平台能力时，同时考虑微信、支付宝、字节跳动、钉钉、QQ、百度、快手。
 - 新增平台特有 API 前，先查现有 `src/crossPlatform.ts`、`src/types.ts` 和相关 integration / transport 的抽象方式。
 - 没有同等能力的平台要有明确回退：跳过、降级、特性检测或保守默认值，避免运行期直接报错。
-- 小游戏（微信 / 抖音小游戏）没有 `App()`/`Page()`/路由，但有平台 `wx.*` API；用 `crossPlatform.isMinigame()` 区分，依赖 App/Page 的能力须守卫 no-op，小游戏专属能力（冷启动、帧率）走 `MinigameIntegration` / `FrameRateIntegration`，默认仅在小游戏环境启用。
+- 小游戏（微信 / 抖音小游戏）没有 `App()`/`Page()`/路由；用 `crossPlatform.isMinigame()` 区分并检测实际平台 API，依赖 App/Page 的能力须守卫 no-op。2.0 的小游戏生命周期默认按宿主检测启用，首帧只测 SDK 安装至首次 rAF；FPS 默认关闭，使用 `enableMinigameFrameRate: true` 显式启用。公共集成使用 factories，不恢复旧 class 或伪造完整冷启动测量。
 - 测试应覆盖平台差异入口；窄改动至少补对应单测，影响 SDK 初始化、transport、集成插件或事件构建时扩大验证范围。
 
 ## sentry-miniapp 自带 skill 安装（跨 agent）

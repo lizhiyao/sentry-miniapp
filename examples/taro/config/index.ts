@@ -44,6 +44,7 @@ export default defineConfig<'webpack5'>(async (merge) => {
       },
       webpackChain(chain) {
         chain.resolve.plugin('tsconfig-paths').use(TsconfigPathsPlugin);
+        chain.devtool('hidden-source-map');
       },
       // 想上传 Source Map 到 Sentry 时，参考 https://sentry-miniapp.pages.dev/guide/sourcemap：
       // Taro 真机错误栈是合并后的 appservice.app.js，需要两层 map 串联，

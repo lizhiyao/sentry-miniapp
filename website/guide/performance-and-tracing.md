@@ -78,7 +78,7 @@ await Sentry.startSpan(
 );
 ```
 
-`startSpan` 会管理回调生命周期。只有确实需要跨越多个回调手动结束时，才使用 `startInactiveSpan`。
+`startSpan` 管理回调生命周期，但小程序 stack strategy 不隔离任意 await 并发；不要据此承诺异步回调中的所有请求仍属于原父 span。只有确需手动结束时使用 startInactiveSpan。手动 span 的 route／network 由业务在创建时显式提供，SDK 不保存全局动态快照；tracing 仅支持一个活动 init runtime。
 
 ## 串联小程序与服务端
 

@@ -31,7 +31,7 @@
       <view class="icon-box error">💥</view>
       <view class="action-content">
         <text class="action-name">JS 异常</text>
-        <text class="action-desc">触发一个未捕获的 JavaScript 错误</text>
+        <text class="action-desc">手动采集一个 JavaScript 错误</text>
       </view>
       <view class="action-btn">测试</view>
     </view>
@@ -41,7 +41,7 @@
       <view class="icon-box warning">⏱️</view>
       <view class="action-content">
         <text class="action-name">异步异常</text>
-        <text class="action-desc">在 Promise 或定时器中抛出错误</text>
+        <text class="action-desc">在定时器中手动采集错误</text>
       </view>
       <view class="action-btn">测试</view>
     </view>
@@ -75,7 +75,7 @@
       <view class="icon-box success">🌐</view>
       <view class="action-content">
         <text class="action-name">网络请求</text>
-        <text class="action-desc">发起一个 XHR 请求并监控耗时</text>
+        <text class="action-desc">发起 wx.request 请求并监控耗时</text>
       </view>
       <view class="action-btn">测试</view>
     </view>
@@ -85,7 +85,7 @@
       <view class="icon-box success">📊</view>
       <view class="action-content">
         <text class="action-name">网络性能追踪</text>
-        <text class="action-desc">生成 Transaction 记录请求性能</text>
+        <text class="action-desc">用父子 Span 记录模拟操作耗时</text>
       </view>
       <view class="action-btn">测试</view>
     </view>

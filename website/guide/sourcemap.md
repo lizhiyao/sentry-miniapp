@@ -72,7 +72,7 @@ Sentry.init({
 ## 第二步：安装和配置 sentry-cli
 
 ```bash
-npm install @sentry/cli --save-dev
+npm install @sentry/cli@3.6.2 --save-dev --save-exact
 ```
 
 本地可创建不入库的 `.sentryclirc`：
@@ -124,11 +124,13 @@ export default defineConfig({
 
 ### uni-app
 
-Vue CLI 项目可设置 `productionSourceMap: true` 和 `devtool: 'hidden-source-map'`；Vite 模式使用 `build.sourcemap: 'hidden'`。最终以实际小程序产物目录中同时出现 `.js` 和 `.map` 为准。
+Vue CLI 项目可设置 productionSourceMap 与 devtool；Vite／uni-app 的最终行为取决于插件。当前仓库示例固定的工具链会在生产配置阶段关闭 map，使用 --sourcemap 和公共 configResolved hook 保留 hidden map／sourcesContent。map 在 dist/build/.sourcemap/mp-weixin，与 dist/build/mp-weixin 的 JS 合成上传目录；参考[uni-app 示例](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。不能仅凭 build.sourcemap 配置存在宣称产物已生成。
 
 `hidden-source-map` 会生成独立 map，但不会在生产 JS 中留下可公开加载的 `sourceMappingURL`。上传完成后，不要把 `.map` 发布进小程序包。
 
 ## 第四步：上传 Source Map
+
+本页命令固定 sentry-cli 3.6.2。CLI 3 已移除 releases files／sourcemaps explain，使用 sourcemaps upload 和产品内 Unminify Code 排障，见[官方 3.0 迁移说明](https://github.com/getsentry/sentry-cli/releases/tag/3.0.0)。自建部署应分别核对 CLI 与 SDK 的后台要求，版本相同不代表一定兼容。
 
 使用与 SDK 完全一致的 release，并且**同时上传同一次构建的 `.js` 和 `.map`**：
 
@@ -136,7 +138,7 @@ Vue CLI 项目可设置 `productionSourceMap: true` 和 `devtool: 'hidden-source
 SENTRY_RELEASE="my-miniapp@1.0.0"
 
 npx sentry-cli releases new "$SENTRY_RELEASE"
-npx sentry-cli releases files "$SENTRY_RELEASE" upload-sourcemaps ./dist \
+npx sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./dist \
   --url-prefix "app:///" \
   --ext js \
   --ext map \
@@ -195,7 +197,7 @@ jobs:
       - name: Upload source maps
         run: |
           npx sentry-cli releases new "$SENTRY_RELEASE"
-          npx sentry-cli releases files "$SENTRY_RELEASE" upload-sourcemaps ./dist \
+          npx sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./dist \
             --url-prefix "app:///" \
             --ext js --ext map \
             --validate
@@ -213,9 +215,7 @@ jobs:
 
 ### 1. 检查已上传 artifact
 
-```bash
-npx sentry-cli releases files "my-miniapp@1.0.0" list
-```
+在 Sentry 项目的 Source Maps／artifact bundle 页面检查本次上传记录、文件名和 Debug ID。
 
 应能看到成对的文件：
 

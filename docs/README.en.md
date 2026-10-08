@@ -11,9 +11,11 @@
 
 [简体中文](../README.md) | English
 
+> Current master develops the 2.0 contract; this README and skill do not imply an npm release. Check the installed version before applying APIs and read the [2.0 migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0).
+
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 
-Mini program runtimes do not provide browser APIs like `window`, `fetch`, or `XMLHttpRequest`, so this SDK uses each platform's native mini program APIs for event delivery and automatic capture. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); for mini programs or mini games, use this SDK.
+Mini program runtimes may expose a window alias without DOM or browser request APIs, so this SDK uses native platform APIs for delivery and automatic capture. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); for mini programs or mini games, use this SDK.
 
 > **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western stack — think of them as a hybrid of PWAs and native apps, hosted within a platform's sandbox.
 
@@ -108,7 +110,7 @@ Sentry.setTag('page_module', 'checkout');
 // Breadcrumb
 Sentry.addBreadcrumb({ message: 'Tapped [Confirm Payment]', category: 'action', level: 'info' });
 
-// Sentry Logs (requires init({ enableLogs: true }))
+// Sentry Logs (2.0 collects explicit calls; filter with beforeSendLog)
 Sentry.logger.info('User completed payment', { orderId: 'order_123' });
 
 // Custom span
@@ -152,7 +154,7 @@ After the first event is working, pick the guide based on what you are doing nex
 - **Must I report manually in `onError`?** No. `Sentry.init` registers platform global error listeners automatically, as long as it runs before `App()`. If it runs too late, startup lifecycle, session, and some breadcrumbs are degraded.
 - **Are network requests included with errors?** Yes. By default the SDK records `url` (path only), `url.query`, `method`, status code and duration as breadcrumbs, both filtered through `dataCollection.urlQueryParams`. Request / response bodies are off by default; when you enable `traceNetworkBody`, bodies are sanitized key-by-key first (core's sensitive snippets plus this SDK's payment / ID-document snippets, extendable via the top-level `sensitiveKeys`) and then truncated to `maxRequestBodySize` (1 MB by default).
 
-  JSON and form body filtering is independent of the query switch. Disabling query collection cannot expose form secrets; duplicate form keys and unaffected encoding are preserved. Unsafe form key decoding blanks the collected body while retaining its original byte count. SDK URL names exclude query, fragment and plaintext credentials; page-not-found and minigame launch queries follow the client collection policy. Unknown plaintext bodies retain their existing 1.x behavior, so key filtering does not guarantee arbitrary body privacy.
+  JSON and form body filtering is independent of the query switch. Disabling query collection cannot expose form secrets; duplicate form keys and unaffected encoding are preserved. Unsafe form key decoding blanks the collected body while retaining its original byte count. SDK URL names exclude query, fragment and plaintext credentials; page-not-found and minigame launch queries follow the client collection policy. In 2.0, unknown plaintext/multipart/binary bodies are omitted and interaction dataset is not copied; manual capture data still belongs to the application.
 - **Are trace headers sent to every API by default?** No. Mini programs have no reliable same-origin baseline, so an empty `tracePropagationTargets` list injects nothing. Allowlist only backend origins you control.
 - **Why do uni-app / Taro component errors need extra wiring?** Frameworks may catch component errors before they reach the platform global `onError`. Use `app.config.errorHandler` / `Vue.config.errorHandler` for Vue, and an Error Boundary for Taro React.
 - **Will it send requests before privacy consent?** By default the SDK reports normally according to your config. If your app must avoid network requests before consent, enable `requireConsent` and call `Sentry.setConsent(true)` once the user grants consent.
