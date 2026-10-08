@@ -42,10 +42,14 @@ function expectDoctorStatus(result: DoctorResult, expected: number): void {
 
 async function runDoctor(args: string[]): Promise<DoctorResult> {
   try {
-    const { stdout, stderr } = await execFileAsync(process.execPath, [doctorScript, ...args, '--json'], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-    });
+    const { stdout, stderr } = await execFileAsync(
+      process.execPath,
+      [doctorScript, ...args, '--json'],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+      },
+    );
     return { status: 0, stdout: stdout.toString(), stderr: stderr.toString(), signal: null };
   } catch (error) {
     const err = error as {
@@ -92,10 +96,77 @@ describe.concurrent('doctor-sourcemap', () => {
       jsFiles: 1,
       mapFiles: 1,
       ignoredDeclarationMaps: 1,
+      artifactSamples: ['app:///app.js'],
     });
   });
 
-  it('warns but does not fail for hidden source maps without release', async ({ onTestFinished }) => {
+  it.for([false, true])(
+    'preserves nested upload paths with hidden maps: %s',
+    async (hidden, { onTestFinished }) => {
+      const dist = makeTempDir(onTestFinished);
+      const relativePaths = ['pages/first/index.js', 'pages/second/index.js'];
+      for (const relativePath of relativePaths) {
+        const file = join(dist, relativePath);
+        mkdirSync(resolve(file, '..'), { recursive: true });
+        writeFileSync(
+          file,
+          `console.log("ok");\n${hidden ? '' : '//# sourceMappingURL=index.js.map\n'}`,
+        );
+        writeJson(`${file}.map`, {
+          version: 3,
+          file: 'index.js',
+          sources: ['src/index.ts'],
+          sourcesContent: ['console.log("ok");'],
+          names: [],
+          mappings: 'AAAA',
+        });
+      }
+
+      const result = await runDoctor(['--dist', dist, '--release', 'miniapp@1.0.0', '--strict']);
+      expectDoctorStatus(result, 0);
+      const report = JSON.parse(result.stdout);
+      expect(report.summary.dist.artifactSamples).toEqual(
+        relativePaths.map((path) => `app:///${path}`),
+      );
+    },
+  );
+
+  it('derives custom-prefix artifacts from JS when the linked map lives elsewhere', async ({
+    onTestFinished,
+  }) => {
+    const dist = makeTempDir(onTestFinished);
+    mkdirSync(join(dist, 'pages/main'), { recursive: true });
+    mkdirSync(join(dist, 'maps'), { recursive: true });
+    writeFileSync(
+      join(dist, 'pages/main/index.js'),
+      'console.log("ok");\n//# sourceMappingURL=../../maps/index.js.map\n',
+    );
+    writeJson(join(dist, 'maps/index.js.map'), {
+      version: 3,
+      file: 'index.js',
+      sources: ['src/index.ts'],
+      sourcesContent: ['console.log("ok");'],
+      names: [],
+      mappings: 'AAAA',
+    });
+
+    const result = await runDoctor([
+      '--dist',
+      dist,
+      '--release',
+      'miniapp@1.0.0',
+      '--url-prefix',
+      'app:///bundles',
+      '--strict',
+    ]);
+    expectDoctorStatus(result, 0);
+    const report = JSON.parse(result.stdout);
+    expect(report.summary.dist.artifactSamples).toEqual(['app:///bundles/pages/main/index.js']);
+  });
+
+  it('warns but does not fail for hidden source maps without release', async ({
+    onTestFinished,
+  }) => {
     const dist = makeTempDir(onTestFinished);
     writeFileSync(join(dist, 'app.js'), 'console.log("ok");\n');
     writeJson(join(dist, 'app.js.map'), {

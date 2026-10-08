@@ -146,12 +146,8 @@ function normalizeUrlPrefix(urlPrefix) {
   return urlPrefix.endsWith('/') ? urlPrefix : `${urlPrefix}/`;
 }
 
-function toArtifactName(name, mapFile, root, urlPrefix) {
-  const rawName = name || relative(root, mapFile).replace(/\.map$/, '');
-  const normalized = normalizeName(rawName, []);
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(normalized)) {
-    return normalized;
-  }
+function toArtifactName(jsFile, root, urlPrefix) {
+  const normalized = normalizeName(relative(root, jsFile), []);
   return `${normalizeUrlPrefix(urlPrefix)}${normalized}`;
 }
 
@@ -190,13 +186,26 @@ function inspectDist(report, args) {
     );
   }
 
+  const artifactSamples = [];
   for (const jsFile of jsFiles) {
-    inspectJavaScriptFile(report, jsFile, root, mapFilesByRelativeJs);
+    const mapFile = inspectJavaScriptFile(report, jsFile, root, mapFilesByRelativeJs);
+    if (!mapFile) continue;
+    // map.file 常只有 basename，不能覆盖实际 JS 的上传目录，或合并同名页面路径。
+    const artifactName = toArtifactName(jsFile, root, args.urlPrefix);
+    artifactSamples.push(artifactName);
+    if (!artifactName.startsWith('app:///')) {
+      push(
+        report,
+        'warnings',
+        'unexpected_url_prefix',
+        'sentry-miniapp 默认把堆栈归一化为 app:///，上传 sourcemap 时建议使用 --url-prefix "app:///"。',
+        { jsFile, mapFile, artifactName },
+      );
+    }
   }
 
-  const artifactSamples = [];
   for (const mapFile of mapFiles) {
-    inspectMapFile(report, mapFile, root, args, artifactSamples);
+    inspectMapFile(report, mapFile);
   }
   report.summary.dist.artifactSamples = artifactSamples.slice(0, 5);
 }
@@ -226,7 +235,7 @@ function inspectJavaScriptFile(report, jsFile, root, mapFilesByRelativeJs) {
         },
       );
     }
-    return;
+    return siblingMap;
   }
 
   if (sourceMappingUrl.startsWith('data:')) {
@@ -248,10 +257,12 @@ function inspectJavaScriptFile(report, jsFile, root, mapFilesByRelativeJs) {
       jsFile,
       sourceMappingUrl,
     });
+    return;
   }
+  return mapPath;
 }
 
-function inspectMapFile(report, mapFile, root, args, artifactSamples) {
+function inspectMapFile(report, mapFile) {
   let raw;
   try {
     raw = readJsonFile(mapFile);
@@ -264,18 +275,6 @@ function inspectMapFile(report, mapFile, root, args, artifactSamples) {
   }
 
   inspectRawMap(report, raw, mapFile);
-
-  const artifactName = toArtifactName(raw.file, mapFile, root, args.urlPrefix);
-  artifactSamples.push(artifactName);
-  if (!artifactName.startsWith('app:///')) {
-    push(
-      report,
-      'warnings',
-      'unexpected_url_prefix',
-      'sentry-miniapp 默认把堆栈归一化为 app:///，上传 sourcemap 时建议使用 --url-prefix "app:///"。',
-      { mapFile, artifactName },
-    );
-  }
 
   // 普通 dist 中的 game.js.map 也可能只是 Cocos 的内层构建 map，不能仅凭文件名
   // 把它判定为微信线上外层 map。小游戏只在显式 --wechat 模式下检查两层映射。
