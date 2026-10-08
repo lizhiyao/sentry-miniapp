@@ -5148,8 +5148,8 @@ __metadata:
   linkType: hard
 
 "publint@npm:^0.3.24":
-  version: 0.3.24
-  resolution: "publint@npm:0.3.24"
+  version: 0.3.25
+  resolution: "publint@npm:0.3.25"
   dependencies:
     "@publint/pack": "npm:^0.1.7"
     package-manager-detector: "npm:^1.8.0"
@@ -5157,7 +5157,7 @@ __metadata:
     sade: "npm:^1.8.1"
   bin:
     publint: ./src/cli.js
-  checksum: 10c0/ad938ca375aa196845cd2705c49295662839fb991374c24d9acb85945177ebe73c95c8b82666858826b36a8dad943427a0ef0eb1f8b7eaa8abe4c8bc5f55781c
+  checksum: 10c0/b58e915978d90bce5e84295eb78b9393b58b11590f93603c03f96da5366a6474c05111c13b3aa68a0c33fa2e5215cecf15cfcb4026abadf7e01f5ec4cc82207e
   languageName: node
   linkType: hard
 
