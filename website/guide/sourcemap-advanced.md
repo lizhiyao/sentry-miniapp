@@ -36,7 +36,7 @@ npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
 | 事件中的表现 | 优先检查 |
 |--------------|----------|
 | `filename` 是分页文件，但显示压缩代码 | release、artifact 名称、JS/map 是否成对、sourcesContent |
-| `filename` 是 `app:///appservice.app.js` | 微信真机两层 Source Map |
+| `filename` 是 `app:///appservice.app.js` 或 `app:///app-service.js` | 微信真机两层 Source Map |
 | `filename` 是 `app:///game.js`，坐标无法用同版本 Cocos map 还原 | 微信小游戏 / Cocos Creator 两层映射排查 |
 | filename 使用 `chunks://`、`assets/` 或私有协议 | 平台路径与上传 artifact 结构 |
 | 事件有 `debug_meta` 但仍未解析 | Debug ID 是否注入到最终发布的 JS、对应 bundle 是否上传 |
@@ -48,7 +48,7 @@ npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
 
 尽量让 Webpack / Vite 完成转译和压缩，并关闭微信开发者工具中会再次改变 JS 行列号的编译选项。SDK 会剥离 `appservice/`、`app-service/` 和 `WAService/` 等虚拟前缀。
 
-真机可能把逻辑层合并为 `appservice.app.js`。这不是路径前缀问题，需按下一节处理。
+真机可能把逻辑层合并为 `appservice.app.js` 或 `app-service.js`。这不是路径前缀问题，需按下一节处理；上传名称以实际事件堆栈为准。
 
 ### 支付宝、字节、百度与其它平台
 
@@ -80,17 +80,17 @@ appservice.app.js
 ```
 
 - 只上传 Map A：能描述分页 JS 到源码，但匹配不到 `appservice.app.js`；
-- 只上传 Map B：能回到分页编译产物，但无法继续到 `.vue` / `.tsx`；
-- 要还原到源码，需要把 Map B 与 Map A 离线合成。
+- 如果 Map B 的 `sources` 仍指向分页编译产物，就需要与 Map A 离线合成，才能继续到 `.vue` / `.tsx`；
+- 如果 Map B 已包含原始源码及 `sourcesContent`，先用实际事件坐标验证映射，不必重复合成。微信编译结果可能已经保留上传前 JS 的内嵌映射。
 
-### 1. 获取两层 map
+### 1. 获取并检查最终 map
 
 - Map B：从微信“ We 分析 → 性能 / JS 报错 → 下载线上 Source Map”获取与体验版或线上版完全一致的 `appservice.app.js.map`；
-- Map A：在 Taro / uni-app 构建中开启 Source Map，保留所有分页构建 map。
+- Map A：在 Taro / uni-app 构建中开启 Source Map，保留所有分页构建 map；Map B 尚未映射到原始源码时，再用它们合成。
 
-开发预览的 map 不能替代线上版本，外层 map 必须与实际发布构建一致。
+开发预览的 map 不能替代线上版本，外层 map 必须与实际发布构建一致。使用 `miniprogram-ci getDevSourceMap` 下载开发版映射时，上传与下载必须使用同一 robot；它返回该 robot 最近上传版本的映射，不能拿另一个机器人或开发者工具上传的版本混用。命令参数见 [`miniprogram-ci` 文档](https://www.npmjs.com/package/miniprogram-ci)。
 
-### 2. 先检查能否匹配
+### 2. 需要合成时，先检查能否匹配
 
 ```bash
 npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
@@ -102,7 +102,7 @@ npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
 
 结果会列出 `matched`、`unmatched` 和 `ambiguous`。文件名对不齐时，按输出调整 `--strip` 或构建产物路径。
 
-### 3. 合成最终 map
+### 3. 需要合成时，生成最终 map
 
 合成工具临时需要 `source-map`，不会增加 SDK 运行时依赖：
 
@@ -118,7 +118,11 @@ npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
 
 ### 4. 上传并验证
 
-把合成 map 与对应的 `appservice.app.js` 按 `app:///appservice.app.js` 的名称上传。新触发一个真机错误，确认堆栈能一路还原到源码。
+把最终 map 与对应的运行 JS 成对上传，文件名以实际事件为准：例如 `app:///appservice.app.js` 或 `app:///app-service.js`。map 的 `file` 字段可能为空，不能只靠这个字段判断运行文件名。
+
+下载得到 `.map` 不代表已经具备完整上传条件。先检查同版本编译产物是否包含事件所指的运行 JS；`getCompiledResult` 导出的上传包可能仍是 `app.js`、`pages/*/*.js` 等分页文件，不能把其中任意文件改名为 `app-service.js` 来配对。缺少最终运行 JS 时，保留映射用于本地坐标验证，并将后台符号化登记为未验证；不要仅凭映射下载、CLI 上传成功或本地还原宣称后台验收通过。
+
+上传完成后新触发一个真机错误，核对 release、运行文件名与行列，再确认后台堆栈及源码上下文。
 
 合成精度取两份 map 中较低的一层；个别列号可能不精确。该方案属于 best-effort，匹配效果取决于框架、打包器和版本产生的 source 名称。
 
