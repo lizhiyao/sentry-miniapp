@@ -7,6 +7,11 @@ on:
       - '.github/workflows/framework-examples.yml'
       - 'examples/taro/**'
       - 'examples/uniapp/**'
+      - 'src/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'vite.config.*'
+      - 'scripts/internal/**'
   schedule:
     - cron: '0 3 * * 1'
 
@@ -27,9 +32,15 @@ jobs:
           - name: Taro
             directory: examples/taro
             script: build:weapp
+            source: src/pages/test/test.tsx
+            javascript: dist/pages/test/test.js
+            map: dist/pages/test/test.js.map
           - name: uni-app
             directory: examples/uniapp
             script: build:mp-weixin
+            source: src/pages/test/test.vue
+            javascript: dist/build/mp-weixin/pages/test/test.js
+            map: dist/build/.sourcemap/mp-weixin/pages/test/test.js.map
 
     steps:
       - uses: actions/checkout@v4
@@ -57,3 +68,10 @@ jobs:
       - name: Build example
         working-directory: ${{ matrix.directory }}
         run: npm run ${{ matrix.script }}
+
+      - name: Verify business exception source mappings
+        run: >-
+          node scripts/internal/check-framework-sourcemaps.mjs
+          "${{ matrix.directory }}/${{ matrix.source }}"
+          "${{ matrix.directory }}/${{ matrix.javascript }}"
+          "${{ matrix.directory }}/${{ matrix.map }}"

@@ -41,9 +41,12 @@ npm run build:mp-weixin
 
 ## 验证当前仓库的 2.0 契约
 
-当前固定 uni-app 工具链的生产插件会覆盖普通 build.sourcemap。示例用 --sourcemap 和 Vite 公共 configResolved hook 保留 hidden map 与 sourcesContent；JS 在 dist/build/mp-weixin，map 在 dist/build/.sourcemap/mp-weixin。验证时合成上传目录，不把 map 发布进小程序包：
+当前固定 uni-app 工具链的生产插件会覆盖普通 build.sourcemap。示例用 --sourcemap 和提前执行的 Vite 公共 configResolved hook，在 Vue 插件读取配置前保留 hidden map 与 sourcesContent；只在输出阶段打开 map 会丢失 `.vue` 业务映射。JS 在 dist/build/mp-weixin，map 在 dist/build/.sourcemap/mp-weixin。先验证实际业务异常位置，再合成上传目录，不把 map 发布进小程序包：
 
 ```bash
+node ../../scripts/internal/check-framework-sourcemaps.mjs \
+  src/pages/test/test.vue dist/build/mp-weixin/pages/test/test.js \
+  dist/build/.sourcemap/mp-weixin/pages/test/test.js.map
 mkdir -p sentry-upload
 cp -R dist/build/mp-weixin/. sentry-upload/
 cp -R dist/build/.sourcemap/mp-weixin/. sentry-upload/
@@ -58,4 +61,4 @@ doctor 验证上传前产物，不能替代微信二次编译后的真机 map �
 
 ## 说明
 
-本示例不加入每个 PR 的必跑 CI，避免重复下载完整 uni-app 工具链；仓库的 `Framework Examples` workflow 会在相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install 和真实构建。`node_modules/`、`dist/`、`unpackage/` 已在 `.gitignore` 中忽略。
+仓库的 `Framework Examples` workflow 会在 SDK 源码、依赖、构建脚本或相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install、真实构建和业务异常位置映射检查。`node_modules/`、`dist/`、`unpackage/` 已在 `.gitignore` 中忽略。
