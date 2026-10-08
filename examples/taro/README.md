@@ -62,14 +62,21 @@ npm run build:weapp
 
 示例 webpackChain 显式使用 hidden-source-map，生成上传前 JS／map。当前 Taro 工具链生成的 comp.js 无 map、taro.js.map 有少量缺失 sourcesContent，doctor 会告警；不能把完整构建成功写成所有框架文件可符号化。先核对应用页面与 SDK 栈的实际映射，保留框架限制和真机证据。
 
-若微信真机栈指向二次合并后的 `appservice.app.js`，分页 Source Map 不能直接解释该文件，需要对应的二次编译 map 与框架 map 串联。以实际 frame 和宿主产物为准，详见[文档站 · 跨端框架的两层 Source Map 串联](https://sentry-miniapp.pages.dev/guide/sourcemap#跨端框架的两层-source-map-串联)与 [`scripts/merge-sourcemap.mjs`](../../scripts/merge-sourcemap.mjs)。
+若微信真机栈指向二次合并后的 `appservice.app.js` 或 `app-service.js`，分页 Source Map 不能直接解释该文件。先检查微信最终 map 是否已映射到原始源码；尚未合成时，再与框架 map 串联。以实际 frame 和宿主产物为准，详见[Source Map 进阶与排障](https://sentry-miniapp.pages.dev/guide/sourcemap-advanced#微信真机的两层-source-map)与 [`scripts/merge-sourcemap.mjs`](../../scripts/merge-sourcemap.mjs)。
 
 ## 验证当前仓库的 2.0 契约
 
 示例默认使用 `file:../..` 的仓库产物，避免新示例安装到旧的已发布 SDK。先在仓库根执行 `yarn build`，再进入示例目录安装依赖和构建。验证发布包时可在隔离副本中将依赖替换为同一次构建的 tarball；不要用旧 npm 版本证明当前源码兼容。
 
+构建后检查业务异常在实际产物中的位置能否还原，不以 map 文件存在代替映射正确：
+
+```bash
+node ../../scripts/internal/check-framework-sourcemaps.mjs \
+  src/pages/test/test.tsx dist/pages/test/test.js dist/pages/test/test.js.map
+```
+
 2.0 仍在开发中，不表示已经发 npm/tag。要改为已发布版本时，先核对安装版本对应的 API 和[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ## 说明
 
-本示例不加入每个 PR 的必跑 CI，避免重复下载完整 Taro 工具链；仓库的 `Framework Examples` workflow 会在相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install 和真实构建。`node_modules/`、`dist/`、锁文件等已在 `.gitignore` 中忽略。
+仓库的 `Framework Examples` workflow 会在 SDK 源码、依赖、构建脚本或相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install、真实构建和业务异常位置映射检查。`node_modules/`、`dist/`、锁文件等已在 `.gitignore` 中忽略。
