@@ -222,12 +222,8 @@ Sentry.startInactiveSpan({
 ## 运行环境与自建 Sentry
 
 - 构建与测试环境要求 Node.js ≥ 20.19（与 core 11 的最低要求一致）。
-- core 11 要求自建 Sentry **26.4.2 及以上**。**不要**把 `traceLifecycle: 'static'` 当作旧版本的兼容
-  方案：实测在 static 下独立 HTTP span 仍按 `span/v2`（`content_type:
-  application/vnd.sentry.items.span.v2+json`）发送，切换只改变事务与发送时机，不会退回旧 envelope
-  格式。低于该版本请留在使用 core 10 的 sentry-miniapp 1.20.x，或先升级自建服务。
-- `traceLifecycle: 'static'` 只用于保留旧事务语义（`beforeSendTransaction` / `ignoreTransactions`
-  生效）；此模式下 `beforeSendSpan` 必须用 `withStaticSpan()` 包装，否则 core 会跳过该回调。
+- 固定 core 11.0.0 的[官方迁移说明](https://github.com/getsentry/sentry-javascript/blob/3e02c87cd51066b147ab37c5c33b44bfe69ae3cd/MIGRATION.md)要求自建 Sentry 26.4.2 及以上。升级后仍须在目标环境验收 span/v2 与其他遥测接收；2.0 不支持 static，不能用它作为旧后台的降级路径。
+- 删除项、数据采集与统计迁移见[升级到 2.0](/guide/migration-2.0)。
 
 ## 分布式追踪
 
@@ -268,10 +264,9 @@ Sentry.startInactiveSpan({
 | `ignoreErrors` | `Array<string｜RegExp>` | 空 | 消息/类型匹配的错误直接丢弃 |
 | `attachStacktrace` | `boolean` | `true` | 为没有堆栈的事件（`captureMessage`、非 Error 值的 `captureException`）自动附加堆栈。core 11 起默认由 `false` 改为 `true`；有无堆栈会影响 Sentry 分组，切换该开关会产生新 issue 分组 |
 | `beforeSend` | `function` | — | 事件发送前的钩子，可修改或返回 `null` 丢弃 |
-| `beforeSendTransaction` | `function` | — | **core 11 下失效**：默认 span 生命周期不再产出 transaction 事件，请改用 `beforeSendSpan` / `ignoreSpans`。仅在显式设置 `traceLifecycle: 'static'` 时生效 |
-| `beforeSendSpan` | `function` | — | Span 发送前的钩子，收到 `StreamedSpanJSON`（`name` / `is_segment` / `attributes`）。此处 `attributes` 的值是**原始值**（如 `'POST'`、`201`）；`{type, value}` 注解只在序列化后的 envelope 里才加上，按注解写法改值会静默失效。独立 segment span 也经过该钩子 |
+| `beforeSendSpan` | `function` | — | Span 发送前的钩子，收到 `StreamedSpanJSON`（`name` / `is_segment` / `attributes`）。attributes 是 core 的 RawAttributes，可为标量或带 value／unit 的包装；序列化后的 envelope 再带 type 注解。独立 segment span 也经过该钩子 |
 | `ignoreSpans` | `Array<string｜RegExp>` | 空 | 按 span 名丢弃 span，替代 core 10 的 `ignoreTransactions` |
-| `traceLifecycle` | `'static'｜'stream'` | `'stream'` | `@sentry/core` 11 的 span 生命周期，SDK 原样透传。`'stream'` 按 trace 分批发 span、无 transaction 事件；`'static'` 为 core 保留的旧事务模型（`beforeSendTransaction` / `ignoreTransactions` 仅在此模式下有效），core 计划在后续大版本移除 |
+| `traceLifecycle` | `'stream'` | `'stream'` | 2.0 唯一支持路径，复用 core 原生小批发送；JS 显式 static 报配置错误 |
 | `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |
 | `transportOptions` | `object` | 见下 | 内置上报通道选项：请求头、超时和 Sentry 网络并发上限 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |

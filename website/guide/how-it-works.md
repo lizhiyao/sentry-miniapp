@@ -6,7 +6,7 @@
 
 官方 Web SDK 依赖浏览器环境，而小程序**没有这些**：
 
-- 没有 `window` / `document` / DOM；
+- 没有可依赖的浏览器 DOM／`document`；部分宿主提供 `window` 别名，但它不代表浏览器能力；
 - 没有 `fetch` / `XMLHttpRequest`——网络只能走各平台自己的请求 API（如 `wx.request` / `my.httpRequest`）；
 - 是**双线程架构**（渲染层 + 逻辑层），错误监听、全局对象都和浏览器不一样。
 
@@ -24,12 +24,12 @@ sentry-miniapp（init + 默认集成）
   ├─ Source Map 归一化  把各平台虚拟路径重写为 app:///
   ├─ 性能 / 追踪        请求耗时记为 http.client span，注入 trace 头
   ├─ Logs              Sentry.logger.* 独立上报业务日志
-  ├─ 合规门禁          requireConsent 下同意前只写本地缓冲、不发网络
-  ├─ 离线缓存          发送失败写本地 Storage，恢复后重试
+  ├─ 同意门禁          requireConsent 下同意前不发网络，有界缓存可降级或丢弃
+  ├─ 离线缓存          官方 offline 管道 + 单目标 typed Storage，best-effort 重试
   └─ 平台 API 抹平层    wx / my / tt / dd / qq / swan / ks 差异统一
       │
       ▼
-@sentry/core（事件构建、采样、scope、transport 接口）
+@sentry/core（事件构建、采样／DSC、scope、span／Logs／metrics 批处理）
       │
       ▼
 自定义 transport（走平台 request/httpRequest 把 envelope 发到 Sentry）
@@ -61,7 +61,7 @@ sentry-miniapp（init + 默认集成）
 
 `Sentry.logger.*` 产生独立的 log envelope，用于业务日志查询、聚合和告警；`enableConsoleBreadcrumbs` 只会把 `console` 输出作为面包屑挂到下一次事件，两者用途不同。
 
-开启 `requireConsent` 后，SDK 仍会采集异常、面包屑、性能和日志，但在 `Sentry.setConsent(true)` 前不会发送任何 Sentry 网络请求，事件先进入本地缓冲；同意后再补发，并恢复正常上报。
+开启 `requireConsent` 后，SDK 仍会按配置采集遥测，但在 `Sentry.setConsent(true)` 前不会发送 Sentry 网络请求。有界缓存中的有效记录可在同意后补发；零容量、过期、存储故障或目标／不兼容策略变化可能丢弃记录。缺少 Storage 时可降级到内存，不能承诺跨进程保留。撤回同意后，排队请求不得开始；在途请求的取消取决于宿主能力。
 
 ### Source Map 路径归一化
 
@@ -69,20 +69,20 @@ sentry-miniapp（init + 默认集成）
 
 ### 弱网离线缓存
 
-小程序网络不稳定。发送失败的事件会写入本地 Storage，网络恢复后静默重试，避免丢数据（缓存条数 / 过期时间可配）。
+小程序网络不稳定。SDK 复用 core 的 offline 管道，在符合重试与缓存条件时写入单目标 Storage，恢复后尝试补发；HTTP 响应、限流、存储故障和关闭有各自处理边界，不是所有失败都会入库。缓存受容量与 TTL 限制，读取时先持久提交删除，再交给 transport，因此仍可能丢失，不承诺 durable ACK 或恰好一次。详见[可靠性与隐私](/guide/reliability-and-privacy)。
 
 ## 端到端数据流
 
 ```
 运行时发生错误
       ↓
-SDK 捕获 → RewriteFrames 归一化堆栈为 app:///
+SDK 平台错误适配 → core 构建事件、合并 scope
       ↓
-@sentry/core 构建事件、按 sampleRate 采样、过 beforeSend
+client／scope processors（含 RewriteFrames）→ normalize → beforeSend → session 更新／错误采样
       ↓
-自定义 transport 经平台 request/httpRequest 发 envelope（失败则进离线缓存）
+core envelope → 同意／生命周期门禁 → offline／宿主 transport（按缓存条件处理失败）
       ↓
-Sentry 收到 → 用 app:/// 前缀匹配 Source Map → 展示源码位置
+Sentry 收到 → 匹配实际 frame、同次构建的 JS／map 与 Debug ID 或 release → 展示源码位置
 ```
 
 ## 下一步

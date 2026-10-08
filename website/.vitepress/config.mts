@@ -74,6 +74,7 @@ export default defineConfig({
           text: '升级与迁移',
           collapsed: true,
           items: [
+            { text: '升级到 2.0', link: '/guide/migration-2.0' },
             { text: '从 1.18 及更早版本升级', link: '/guide/migration-1.19' },
           ],
         },

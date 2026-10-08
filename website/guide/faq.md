@@ -42,7 +42,7 @@ console.log(Sentry.getDiagnostics());
 
 ## `Sentry.logger.*` 和 console 面包屑有什么区别？
 
-`Sentry.logger.*` 会发送独立的 log envelope，适合业务日志查询、聚合、告警和跨事件分析；需要在初始化时开启 `enableLogs: true`。
+`Sentry.logger.*` 会发送独立的 log envelope，适合业务日志查询、聚合、告警和跨事件分析；2.0 按 logger 调用采集，不需要 enableLogs。
 
 `enableConsoleBreadcrumbs` 只会把 `console.log/warn/error` 记录成面包屑，随**下一次 error / message 事件**一起发送；如果后续没有事件，它不会单独出现在 Sentry。
 

@@ -51,7 +51,7 @@ Page({
       url,
       method: 'GET',
       success: (res) => {
-        span.setStatus('ok');
+        span.setStatus({ code: 1 });
         Sentry.addBreadcrumb({
           category: 'demo.api',
           message: `${name} success`,
@@ -65,7 +65,7 @@ Page({
         onSuccess(res);
       },
       fail: (err) => {
-        span.setStatus('internal_error');
+        span.setStatus({ code: 2, message: 'internal_error' });
         Sentry.withScope((scope) => {
           scope.setLevel('warning');
           scope.setTag('page', 'index');
@@ -91,7 +91,6 @@ Page({
     this.pageLoadSpan = Sentry.startInactiveSpan({
       name: 'index.page.load',
       op: 'ui.load',
-      forceTransaction: true,
       attributes: {
         'demo.page_visit_id': this.pageVisitId
       }
