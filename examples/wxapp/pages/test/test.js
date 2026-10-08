@@ -142,7 +142,7 @@ Page({
     const { error, eventId, eventMeta } = this.captureUniqueException('sync_exception', 'Sentry 测试异常');
 
     console.error(error);
-    this.showReportModal('异常已上报', {
+    this.showReportModal('异常已采集', {
       type: 'exception',
       message: error.message,
       eventId: eventId || '未知',
@@ -156,7 +156,7 @@ Page({
       const { error, eventId, eventMeta } = this.captureUniqueException('async_exception', 'Sentry 异步异常测试');
 
       console.error(error);
-      this.showReportModal('异常已上报', {
+      this.showReportModal('异常已采集', {
         type: 'exception',
         message: error.message,
         eventId: eventId || '未知',
@@ -169,7 +169,7 @@ Page({
   testMessage() {
     const { message, eventId, eventMeta } = this.captureUniqueMessage('message', '这是一条测试消息', 'info');
 
-    this.showReportModal('消息已上报', {
+    this.showReportModal('消息已采集', {
       type: 'message',
       message,
       level: 'info',
@@ -195,13 +195,13 @@ Page({
       url: 'https://api.github.com/zen',
       success: (res) => {
         console.log('Request success:', res.data);
-        span.setStatus('ok');
+        span.setStatus({ code: 1 });
         requestStatus = 'ok';
         responsePreview = typeof res.data === 'string' ? res.data.slice(0, 80) : JSON.stringify(res.data).slice(0, 80);
       },
       fail: (err) => {
         console.error('Request failed:', err);
-        span.setStatus('internal_error');
+        span.setStatus({ code: 2, message: 'internal_error' });
         requestStatus = 'error';
         requestError = err && err.errMsg ? err.errMsg : '请求失败';
       },
@@ -228,17 +228,17 @@ Page({
 
     setTimeout(() => {
       // 模拟子操作
-      const childSpan = Sentry.startInactiveSpan({
+      const childSpan = Sentry.withActiveSpan(span, () => Sentry.startInactiveSpan({
         name: 'GET /api/test',
-        op: 'http'
-      });
+        op: 'http.client'
+      }));
 
       setTimeout(() => {
         childSpan.end();
         span.end();
-        this.showReportModal('性能数据已上报', {
+        this.showReportModal('性能区间已结束', {
           type: 'performance',
-          transaction: 'network_test',
+          span: 'network_test',
           childSpan: 'GET /api/test',
           time: new Date().toLocaleString()
         });
@@ -263,7 +263,7 @@ Page({
             email: 'test@example.com',
             associatedEventId: eventId,
           });
-          this.showReportModal('反馈已提交', {
+          this.showReportModal('反馈已采集', {
             type: 'user_feedback',
             API: 'Sentry.captureFeedback()',
             relatedMessage: message,

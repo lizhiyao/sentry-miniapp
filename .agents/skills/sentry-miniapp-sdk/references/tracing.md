@@ -1,136 +1,46 @@
-# Performance Tracing — Mini Program SDK
+# Tracing in the 2.0 miniapp SDK
 
-Performance monitoring and distributed tracing for mini programs.
+Enable tracesSampleRate or tracesSampler for HTTP and business spans. Error sampleRate is separate. Core owns parent sampling, DSC, ignoreSpans and batching; never add a second Math.random or flush after every end.
 
-## Automatic Performance Monitoring
-
-The SDK includes a `PerformanceIntegration` that automatically collects:
-
-- **Navigation performance** — page load timing (FCP, LCP equivalents)
-- **Render performance** — page show/hide timing
-- **Resource loading** — asset loading times
-- **User timing** — custom performance marks
-
-Enable with `tracesSampleRate`:
-
-```javascript
+```js
 Sentry.init({
-  dsn: '...',
-  tracesSampleRate: 1.0, // 100% of transactions
+  dsn: 'YOUR_DSN',
+  tracesSampleRate: 0.2,
+  integrations: [Sentry.performanceIntegration({ enableResource: true })],
+  tracePropagationTargets: ['api.example.com'],
 });
 ```
 
-### Custom Performance Integration Options
+The Performance factory is opt-in. It only uses available observer capabilities and trustworthy timestamps; it does not simulate browser FCP/LCP, create a parent for a delivery batch or infer route from the current page at delivery. No observer or reliable timeOrigin means skip and diagnostics. Performance sampleRate/bufferSize/reportInterval/thresholds/enableMemory options are removed. FPS is separately opt-in with enableMinigameFrameRate: true.
 
-```javascript
-Sentry.init({
-  dsn: '...',
-  tracesSampleRate: 1.0,
-  integrations: [
-    Sentry.performanceIntegration({
-      enableNavigation: true,
-      enableRender: true,
-      enableResource: true,
-      enableUserTiming: true,
-      sampleRate: 1.0,
-      reportInterval: 30000, // Report every 30 seconds
-    }),
-  ],
-});
-```
+## Business spans and ownership
 
-## Custom Spans
-
-Track specific operations with manual spans:
-
-```javascript
-// Track an API request
+```js
 const span = Sentry.startInactiveSpan({
-  name: 'fetchUserProfile',
-  op: 'http.client',
+  name: 'checkout.submit',
+  op: 'ui.action',
+  attributes: { route: 'pages/checkout/index' },
 });
-
-wx.request({
-  url: 'https://api.example.com/user/profile',
-  success: (res) => {
-    span.setStatus('ok');
-  },
-  fail: (err) => {
-    span.setStatus('internal_error');
-  },
-  complete: () => {
-    span.end();
-  },
-});
+// End when the measured operation finishes.
+span.end();
 ```
 
-### Custom Performance Marks
+startSpan manages the callback lifetime; startSpanManual supplies span/end to the callback. withActiveSpan and owner scopes bind synchronous work. A callback returning a Promise does not create arbitrary cross-await context isolation on miniapp stack strategy. Only one init-managed active tracing client is supported. Manual spans must be created/ended while that client remains active; supply route/network at creation when required for sampling. The SDK does not retain a snapshot Map for all manual spans.
 
-```javascript
-// Mark start of an operation
-Sentry.addPerformanceMark('checkout-start');
+Automatic SDK operations supply dynamic dimensions before creation. Stable device/app attributes fill missing keys at preprocessing; explicit scope/span values and units win. Tags/extra remain error fields. beforeSendSpan receives RawAttributes (scalar or value/unit wrappers), modifies name/attributes and cannot return null; ignoreSpans drops spans. Stream-only removes static, transaction callbacks and measurements.
 
-// ... perform operation ...
+## HTTP propagation
 
-// Mark end
-Sentry.addPerformanceMark('checkout-end');
+Default host request instrumentation creates child spans under an active parent, otherwise native root/segment spans. enableStandaloneHttpSpans: false keeps child-only tracing without removing breadcrumbs. Do not add a duplicate manual http.client span around an automatically instrumented request.
 
-// Measure the interval
-Sentry.measurePerformance('checkout-flow', 'checkout-start', 'checkout-end');
-```
+Headers are injected only for explicitly matching tracePropagationTargets; an empty list injects none. Case-insensitive matching and g/y regex handling follow core. enableTracePropagation: false only stops propagation. propagateTraceparent: true is for a backend explicitly needing W3C/OTel headers; keep native sentry-trace/baggage otherwise. Unsampled decisions are still propagated.
 
-## Distributed Tracing
+Core SpanStreaming sends finite batches on its own timer/capacity thresholds; unfinished roots do not prevent children from being sent. Keep spanStreamingIntegration when replacing defaults. Hide/close/runtime replacement are explicit drain boundaries, not proof of server receipt.
 
-Inject `sentry-trace` and `baggage` headers only into explicitly allowlisted outgoing requests to link frontend and backend spans:
+## Session and performance interpretation
 
-```javascript
-Sentry.init({
-  dsn: '...',
-  enableTracePropagation: true, // default: true
-  tracePropagationTargets: ['api.example.com', /^https:\/\/api\./],
-});
-```
+Session tracks foreground episodes and reports JS unhandled errors as unhandled, not crashed. Do not claim host process crash detection or compare 1.x crash-free baselines without migrating status filters and denominators.
 
-- When `tracePropagationTargets` is empty (default), no business request receives trace headers
-- Only matching URLs receive trace headers; allowlist only API origins controlled by the application owner
-- Backend must have Sentry SDK with tracing enabled to complete the trace
-- Matching is case-insensitive (core 11 semantics): `'API.example.com'` matches
-  `https://api.example.com/...`, and `RegExp` targets are matched regardless of `g` / `y` flags
-- An outgoing request becomes an `http.client` child span when an active span exists; otherwise it is sent as a standalone segment span by default, without creating one root transaction per request
-- SDK-collected dimensions (`miniapp.platform`, `os.name`, `device.model`, `route`, `network.type`)
-  are attached per client to every span at processing time; existing attributes are never overwritten
-- Set `enableStandaloneHttpSpans: false` to keep only child request spans; network breadcrumbs remain enabled
+minigame.init_to_first_frame measures SDK installation to first rAF callback, not full cold start. Its duration attribute is minigame.init_to_first_frame_ms and context is initToFirstFrameMs. FPS/jank are opt-in and retain bounded numeric samples; custom thresholds are not Sentry standard slow/frozen frames.
 
-## Dynamic Sampling
-
-Use `tracesSampler` for per-page or per-operation sampling:
-
-```javascript
-Sentry.init({
-  dsn: '...',
-  tracesSampler: ({ name, inheritOrSampleWith }) => {
-    if (name.includes('pages/pay')) return 1;      // Payment: 100%
-    if (name.includes('pages/index')) return 0.5;   // Home: 50%
-    return inheritOrSampleWith(0.1);                 // Others: 10%
-  },
-});
-```
-
-> **Note:** `tracesSampler` takes priority over `tracesSampleRate`. When set, `tracesSampleRate` is ignored.
-
-## Session Tracking
-
-Automatic session lifecycle management for Sentry Release Health:
-
-```javascript
-Sentry.init({
-  dsn: '...',
-  enableAutoSessionTracking: true, // default: true
-});
-```
-
-This tracks:
-- Session start (app launch / `onShow`)
-- Session end (app hide / `onHide`)
-- Crash detection (error during session)
-- Data appears in Sentry → Releases → Health dashboard
+Verify actual envelopes, target backend span/v2 support and on-device freeze/restore separately. An HTTP call or successful flush is not an ingestion ACK.

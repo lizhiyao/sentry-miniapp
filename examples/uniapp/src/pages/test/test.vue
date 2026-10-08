@@ -75,7 +75,9 @@ function testUnhandledRejection() {
 function testPerformance() {
   const parent = Sentry.startInactiveSpan({ name: 'demo.task', op: 'task' });
   setTimeout(() => {
-    const child = Sentry.startInactiveSpan({ name: 'demo.subtask', op: 'http' });
+    const child = Sentry.withActiveSpan(parent, () =>
+      Sentry.startInactiveSpan({ name: 'demo.subtask', op: 'http' }),
+    );
     setTimeout(() => {
       child.end();
       parent.end();

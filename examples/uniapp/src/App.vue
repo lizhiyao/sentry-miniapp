@@ -28,7 +28,6 @@ onLaunch(() => {
   launchSpan = Sentry.startInactiveSpan({
     name: 'app.launch',
     op: 'app.start',
-    forceTransaction: true,
     attributes: { 'demo.launch_id': launchId },
   });
 });

@@ -1,12 +1,26 @@
 import { defineConfig } from 'vite';
 import uni from '@dcloudio/vite-plugin-uni';
 
-// uni-app(Vue3) 标准 Vite 配置。
-// sourcemap: 'hidden' —— 生成 .map 供上传 Sentry，但不在产物里写
-// //# sourceMappingURL 注释，避免线上暴露源码映射（见 https://sentry-miniapp.pages.dev/guide/sourcemap）。
+// 当前 uni-app 的小程序插件在生产 config 阶段会关闭 sourcemap。
+// 用 Vite 公共 configResolved hook 保留 hidden map，不伪造 HBuilderX console 能力。
+// --sourcemap 让 uni 插件将 map 移到 dist/build/.sourcemap/mp-weixin。
 export default defineConfig({
-  plugins: [uni()],
+  plugins: [
+    uni(),
+    {
+      name: 'sentry-example-sourcemap',
+      enforce: 'post',
+      configResolved(config) {
+        config.build.sourcemap = 'hidden';
+        const output = config.build.rollupOptions.output;
+        for (const entry of Array.isArray(output) ? output : [output]) {
+          if (entry) entry.sourcemapExcludeSources = false;
+        }
+      },
+    },
+  ],
   build: {
     sourcemap: 'hidden',
+    rollupOptions: { output: { sourcemapExcludeSources: false } },
   },
 });

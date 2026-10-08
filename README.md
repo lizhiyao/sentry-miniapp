@@ -11,6 +11,8 @@
 
 简体中文 | [English](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/README.en.md)
 
+> 当前 master 正在开发 2.0，本文与 skill 描述新契约，不表示 npm 已发布。使用 1.x 时先核对安装版本，再阅读[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
+
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
 > **📖 接入细节与生产配置**：[sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) —— 快速接入、框架指南、配置项、Source Map、FAQ、示例工程都在文档站。
@@ -104,7 +106,7 @@ Sentry.setTag('page_module', 'checkout');
 // 业务面包屑
 Sentry.addBreadcrumb({ message: '点击了[确认支付]', category: 'action', level: 'info' });
 
-// Sentry Logs（需 init({ enableLogs: true })）
+// Sentry Logs（2.0 按调用采集；beforeSendLog 可过滤）
 Sentry.logger.info('用户完成支付', { orderId: 'order_123' });
 
 // 自定义测速

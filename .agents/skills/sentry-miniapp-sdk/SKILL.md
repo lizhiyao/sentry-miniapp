@@ -2,8 +2,8 @@
 name: sentry-miniapp-sdk
 description: Full Sentry SDK setup for Mini Programs — error monitoring, tracing, offline cache, source maps. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou and cross-platform frameworks (Taro / uni-app).
 license: MIT
-category: sdk-setup
-disable-model-invocation: false
+metadata:
+  category: sdk-setup
 ---
 
 # Sentry Mini Program SDK Setup
@@ -17,7 +17,7 @@ Set up Sentry error monitoring, performance tracing, and offline caching in mini
 - User asks about Sentry support for WeChat/Alipay/ByteDance mini programs
 - User imports or references `sentry-miniapp` in their project
 
-> **Note:** SDK versions and APIs reflect the current sentry-miniapp docs. Always verify against the [sentry-miniapp README](https://github.com/lizhiyao/sentry-miniapp) before implementing.
+> This skill describes the developing 2.0 contract, not proof of an npm release. Check the installed SDK version before editing a consumer. For 1.x migration, read the repository website/guide/migration-2.0.md; do not apply removed APIs to 2.0.
 
 ---
 
@@ -79,7 +79,7 @@ Present this recommendation based on detection results:
 **Recommended (core coverage):**
 
 - ✅ **Error Monitoring** — always. Automatic capture of `onError`, `onUnhandledRejection`, `onPageNotFound`, `onMemoryWarning`
-- ✅ **Performance Tracing** — always. Navigation timing, render performance, resource loading, custom spans
+- ✅ **Performance Tracing** — when needed. HTTP and business spans; Performance observers and FPS are opt-in
 
 **Recommended for production:**
 
@@ -94,7 +94,7 @@ Present this recommendation based on detection results:
 | Feature | Recommend when... |
 |---------|-------------------|
 | Error Monitoring | **Always** — zero-config automatic exception capture |
-| Performance Tracing | **Always** — automatic page/network/render performance |
+| Performance Tracing | When measuring latency; HTTP tracing is built-in, observers are opt-in |
 | Source Map | **Production** — required to read minified stack traces |
 | Offline Cache | **Weak networks** — mobile users, rural areas |
 | Distributed Tracing | **API calls** — mini program talks to backend services |
@@ -193,20 +193,7 @@ Sentry.setContext('order', { orderId: '2024001', amount: 99.9 });
 
 ### Minigame (小游戏)
 
-WeChat / ByteDance **minigames** have no `App()` / `Page()` / routing, so the page-based integrations (PageBreadcrumbs, Session) cannot work there. The SDK detects minigames via `crossPlatform.isMinigame()` and switches to dedicated integrations — **enabled by default only in a minigame runtime**, and a safe no-op in a regular mini program:
-
-- **`MinigameIntegration`** (`enableMinigameLifecycle`) — reads the launch scene (`scene` / `path` / `query`) from `getLaunchOptionsSync()`, measures **cold-start time** (SDK init → first frame), and logs `onShow` / `onHide` foreground/background breadcrumbs.
-- **`FrameRateIntegration`** (`enableMinigameFrameRate`) — samples the global `requestAnimationFrame` to estimate **FPS and jank**. Mini programs use a two-thread model with no logic-layer `requestAnimationFrame`, so this safely no-ops there.
-
-No extra wiring is needed — `Sentry.init()` auto-enables these in a minigame. To force them on or off:
-
-```javascript
-Sentry.init({
-  dsn: '...',
-  enableMinigameLifecycle: true,
-  enableMinigameFrameRate: true,
-});
-```
+WeChat / ByteDance minigames have no App/Page model. The SDK uses available native lifecycle APIs for Session and foreground state. minigameIntegration() observes SDK setup to first rAF by default; this is not full cold start. FPS/jank loops default off: opt in with enableMinigameFrameRate: true. Missing rAF safely skips these measurements. Do not promise equivalent optional performance capabilities on all hosts.
 
 ### For Each Agreed Feature
 
@@ -249,10 +236,9 @@ Walk through features one at a time. Load the corresponding reference file:
 | `propagateTraceparent` | `boolean` | `false` | Also inject W3C `traceparent` for OpenTelemetry / W3C Trace Context compatible backends |
 | `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | Capture console.log/warn/error as breadcrumbs |
-| `enableLogs` | `boolean` | `false` | Enable Sentry Logs via `Sentry.logger.*` |
 | `traceNetworkBody` | `boolean` | `false` | Capture request/response body in network breadcrumbs; sanitized key-by-key first, then truncated |
 | `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | Byte cap per captured body (`small` = 1 KB, `medium` = 10 KB); `request_body_size` / `response_body_size` still report the full pre-truncation size |
-| `sensitiveKeys` | `Array<string>` | `[]` | **Additional** key snippets masked in bodies, page `onLoad` query and `dataset` (matched case-insensitively as substrings, on top of core's built-in list) |
+| `sensitiveKeys` | `Array<string>` | `[]` | **Additional** key snippets masked in bodies, page `onLoad` query and launch/page query (matched case-insensitively as substrings, on top of core's built-in list) |
 | `dataCollection` | `object` | see core 11 | Collection gates this SDK honors: `urlQueryParams` (URLs, `url.query`, page `onLoad` query) and `httpBodies` (body directions). `httpHeaders` / `cookies` have no effect — this SDK never captures headers or cookies |
 | `enableNavigationBreadcrumbs` | `boolean` | `true` | Page lifecycle (navigation) breadcrumbs |
 | `enableUserInteractionBreadcrumbs` | `boolean` | `true` | Tap / user-interaction breadcrumbs |
@@ -263,21 +249,18 @@ Walk through features one at a time. Load the corresponding reference file:
 | `transportOptions` | `object` | see below | Built-in transport safeguards and headers |
 | `defaultIntegrations` | `false\|Integration[]` | all built-in default integrations | Set `false` to disable every default integration; a custom array replaces the default base |
 | `integrations` | `Integration[]\|(defaults) => Integration[]` | — | An array appends to defaults (user instances win by name); a function receives defaults and returns the final list |
-| `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | Minigame cold-start + scene + show/hide breadcrumbs |
-| `enableMinigameFrameRate` | `boolean` | minigame `true` / miniprogram `false` | Minigame FPS / jank sampling (no-op in mini program) |
+| `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | SDK setup to first rAF + filtered launch context + show/hide breadcrumbs; not full cold start |
+| `enableMinigameFrameRate` | `boolean` | `false` | Opt-in FPS/jank; missing rAF skips collection |
 | `beforeSend` | `function` | — | Event processor for filtering/modifying events |
-| `beforeSendSpan` | `function` | — | Hook to modify spans before sending. Receives `StreamedSpanJSON` (`name`, `is_segment`, `attributes` with **raw** values); returning `null` is not allowed — drop spans with `ignoreSpans` |
+| `beforeSendSpan` | `function` | — | Hook to modify spans before sending. Receives `StreamedSpanJSON` (`name`, `is_segment`, `attributes` with RawAttributes (scalar or value/unit wrapper)); returning `null` is not allowed — drop spans with `ignoreSpans` |
 | `ignoreSpans` | `Array<string\|RegExp>` | — | Drop spans by name; replaces core 10's `ignoreTransactions` |
-| `traceLifecycle` | `'stream'\|'static'` | `'stream'` | Passed through untouched. `'stream'` sends span/v2 batches and emits no transaction events; `'static'` restores the legacy transaction model (and requires wrapping `beforeSendSpan` with `withStaticSpan()`) |
-| `beforeSendTransaction` | `function` | — | **Inert under the default `stream` lifecycle** (core emits no transaction events); only works with `traceLifecycle: 'static'`. Prefer `beforeSendSpan` / `ignoreSpans` |
+| `traceLifecycle` | `'stream'` | `'stream'` | Only supported path in 2.0; explicit static throws before runtime replacement |
 | `beforeSendLog` | `function` | — | Hook to filter/modify logs before sending |
 | `beforeBreadcrumb` | `function` | — | Hook to filter/modify breadcrumbs before they are attached |
 
-Self-hosted Sentry must be **26.4.2 or newer** for core 11 span streaming; switching to
-`traceLifecycle: 'static'` does **not** restore the old envelope format (standalone HTTP spans are
-still `application/vnd.sentry.items.span.v2+json`), so it is not a downgrade path for older servers.
+Core v11 requires a compatible span/v2 backend. Verify the target deployment; 2.0 does not support static or a legacy transaction downgrade path.
 
-The built-in transport defaults to `requestTimeout: 3000` and `maxConcurrentRequests: 2` so Sentry cannot occupy all mini program network slots when the service is unavailable. Additional envelopes wait in the bounded `@sentry/core` buffer. A timed-out request is aborted when the host returns an abortable request task, then handed to offline caching. Keep these defaults unless real-device testing shows a need to adjust them; `transportOptions.headers` remains available for custom envelope headers.
+The built-in transport defaults to `requestTimeout: 3000` and `maxConcurrentRequests: 2` so Sentry cannot occupy all mini program network slots when the service is unavailable. Host concurrency waiting and core promise-buffer overflow are separate limits. A timed-out request is aborted when the host returns an abortable request task, then handed to offline caching. Keep these defaults unless real-device testing shows a need to adjust them; `transportOptions.headers` remains available for custom envelope headers.
 
 ### Privacy Consent Gate
 
@@ -297,7 +280,7 @@ Sentry.setConsent(true);
 Sentry.setConsent(false);
 ```
 
-`requireConsent` implies local buffering even when `enableOfflineCache` is `false`; custom `transport` functions are wrapped by the consent gate too. The current store uses one storage key, so keep `consentCacheMaxBytes` near the default ~900KB unless the SDK adds sharded storage in a future version.
+`requireConsent` implies local buffering even when `enableOfflineCache` is `false`; custom `transport` functions are wrapped by the consent gate too. The whole encoded container is capped at 900 KiB. There is one active persistent target; DSN/tunnel or incompatible policy changes drop old data with diagnostics. Retrying does not renew TTL. Capacity changes only trim compatible records. A replacement client does not inherit consent. Cache is best-effort, not a durable ACK or no-loss guarantee.
 
 ### Platform Compatibility
 
@@ -310,7 +293,7 @@ Sentry.setConsent(false);
 | Session Tracking | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Source Map | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-> ✅ = supported through the SDK's cross-platform abstraction, not a per-host on-device certification. WeChat / Alipay / ByteDance are the most battle-tested; validate less common hosts (Kuaishou, DingTalk) in your own environment before relying on them in production.
+> ✅ = supported through the SDK's cross-platform abstraction, not a per-host on-device certification. Validate the target hosts and backend before production; capability fixtures are not device certification. Optional performance requires actual observer/timeOrigin/rAF capabilities.
 
 ---
 
@@ -372,3 +355,15 @@ ls -d ../*/package.json ../*/requirements.txt ../*/go.mod ../*/Gemfile 2>/dev/nu
 | Events lost on weak networks | Enable offline cache: `enableOfflineCache: true` (default) |
 | WeChat DevTools not triggering `onError` | Test on a real device; DevTools may not trigger all error handlers |
 | Stack trace paths don't match source maps | Ensure `--url-prefix "app:///"` when uploading; SDK normalizes paths to `app:///` automatically |
+
+## 2.0 ownership and data boundaries
+
+- Named factories only; Integrations reexports the same functions. Do not use public legacy classes, shared defaultIntegrations, showReportDialog or static callbacks. Keep SpanStreaming when replacing defaults.
+- One init-managed active tracing runtime; no arbitrary concurrent clients or cross-await scope isolation. SDK owner scopes are synchronous. init retires the old runtime without cancelling business HTTP.
+- Manual spans supply route/network attributes at creation if needed for sampling. Stable device/app defaults fill missing keys only; do not copy all tags/context into spans.
+- logger and metrics calls collect through core buffers. enableLogs is removed; beforeSendLog returning null suppresses logs. sendClientReports defaults true; failed reports do not enter offline disk.
+- Dataset and arbitrary User Timing detail are not automatically copied. Business breadcrumbs use explicit allowed fields. Unknown plaintext/multipart/binary bodies are omitted, not declared sanitized.
+- Explicit setUser can still enrich spans/logs/metrics when userInfo=false. Avoid setting fields or filter the corresponding telemetry callback if they must not be sent.
+- Session uses foreground episodes and unhandled for JS unhandled errors; do not claim crash detection. Rebuild Release Health status filters, denominators and alert baselines.
+- close(positive timeout) is one total budget; 0/undefined waits for drain. Sync hide flush can start request/storage only with idle slots and synchronous hooks. It is not proof of delivery after host freeze.
+- Validate final envelopes, then real host behavior and target backend ingestion separately. Error, span/v2, logs, metrics, session, client_report and symbolication require corresponding evidence; never equate HTTP initiation with backend receipt.
