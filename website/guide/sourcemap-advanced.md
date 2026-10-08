@@ -17,7 +17,7 @@ Doctor 会检查：
 - 构建目录是否同时存在运行时 `.js` 和 `.map`；
 - `sourceMappingURL` 是否断链，或是否为合理的 hidden source map；
 - map 是否为合法 JSON，是否包含 `sources`、`mappings` 和完整 `sourcesContent`；
-- 按 `--url-prefix` 推导的 artifact 是否符合默认 `app:///` 路径；
+- 按实际 JS 相对上传目录与 `--url-prefix` 推导的 artifact 是否符合默认 `app:///` 路径；不会用 map 的 `file` 字段覆盖目录结构；
 - 是否提供 release，并提醒与 `Sentry.init({ release })` 保持一致。
 
 CI 中建议开启严格模式：
