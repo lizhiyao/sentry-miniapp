@@ -222,7 +222,7 @@ Sentry.startInactiveSpan({
 ## 运行环境与自建 Sentry
 
 - 构建与测试环境要求 Node.js ≥ 20.19（与 core 11 的最低要求一致）。
-- 固定 core 11.0.0 的[官方迁移说明](https://github.com/getsentry/sentry-javascript/blob/3e02c87cd51066b147ab37c5c33b44bfe69ae3cd/MIGRATION.md)要求自建 Sentry 26.4.2 及以上。升级后仍须在目标环境验收 span/v2 与其他遥测接收；2.0 不支持 static，不能用它作为旧后台的降级路径。
+- core v11 的[官方迁移说明](https://github.com/getsentry/sentry-javascript/blob/3e02c87cd51066b147ab37c5c33b44bfe69ae3cd/MIGRATION.md)要求自建 Sentry 26.4.2 及以上。升级后仍须在目标环境验收 span/v2 与其他遥测接收；2.0 不支持 static，不能用它作为旧后台的降级路径。
 - 删除项、数据采集与统计迁移见[升级到 2.0](/guide/migration-2.0)。
 
 ## 分布式追踪

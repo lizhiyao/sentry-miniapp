@@ -112,6 +112,6 @@ Session 按前台 episode 管理，JS 未处理异常从 crashed 改为 unhandle
 
 ## 验收与后续 core 升级
 
-固定 core 11.0.0 验证当前契约；后续升级先检查 sampling／DSC、buffers、dataCollection 与集中 protected／internal 依赖的源码变化，再跑同一契约矩阵，不放宽 pin 来替代验证。`MiniappClient._processEvent` 通过 clone 固定采集时的 Session 引用，避免异步 processor 将旧错误计入新前台 episode；升级必须核对 core 对这些 scope 的读取与 Session 更新顺序，保留迟到错误回归。
+当前 core 版本在 `package.json` 中精确固定，并用 real-core 回归验证契约；后续升级先检查 sampling／DSC、buffers、dataCollection 与集中 protected／internal 依赖的源码变化，再跑同一契约矩阵，不放宽 pin 来替代验证。`MiniappClient._processEvent` 通过 clone 固定采集时的 Session 引用，避免异步 processor 将旧错误计入新前台 episode；升级必须核对 core 对这些 scope 的读取与 Session 更新顺序，保留迟到错误回归。
 
 上线前分别验证最终 envelopes、真实宿主和目标 Sentry 后台：span/v2、Logs、metrics、session、client_report 与符号化都要有对应版本和配置。mock／VM 不证明真机冻结或后台功能可用。JS 与 map 来自同一次构建，Debug ID 与实际 frame／artifact 匹配；参考 [Source Map 进阶](/guide/sourcemap-advanced)。
