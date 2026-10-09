@@ -195,7 +195,7 @@ Sentry.setContext('order', { orderId: '2024001', amount: 99.9 });
 
 WeChat / ByteDance minigames have no App/Page model. The SDK uses available native lifecycle APIs for Session and foreground state. minigameIntegration() observes SDK setup to first rAF by default; this is not full cold start. FPS/jank loops default off: opt in with enableMinigameFrameRate: true. Missing rAF safely skips these measurements. Do not promise equivalent optional performance capabilities on all hosts.
 
-Version check: 2.0.0-beta.4 and earlier 2.0 betas do not automatically send Sessions in minigames without App(). The native Session fix is not published yet; consumers on those versions must manage Sessions explicitly if required. For the corrected implementation, both show/hide listener registrations must succeed; otherwise automatic Session tracking is skipped with a lifecycle diagnostic.
+Version check: native Sessions in minigames without App() are supported from 2.0.0-beta.5. Consumers on 2.0.0-beta.4 and earlier 2.0 betas must manage Sessions explicitly if required. Both show/hide listener registrations must succeed; otherwise automatic Session tracking is skipped with a lifecycle diagnostic.
 
 ### For Each Agreed Feature
 
