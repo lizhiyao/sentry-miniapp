@@ -355,7 +355,9 @@ SDK finalizer 与资源 cleanup 分开，前者只在关闭的同步收尾窗口
 
 2.0 将 JS 未处理异常的 Session 状态从 `crashed` 改为 `unhandled`，不将可继续运行的异常当作宿主进程崩溃。Release Health 的统计与告警须重新建立基线，不能直接比较 1.x 的 crash-free 数据；没有真实原生崩溃证据时 SDK 不生成 `crashed`。
 
-自动 Session 随每次前台运行开始，在业务同步 `onHide` 之后结束。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
+自动 Session 随每次前台运行开始。可包装的小程序 App 路径在业务同步 `onHide` 之后结束会话。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
+
+小游戏依赖宿主 `onShow`／`onHide`；小程序无法包装 App 时，使用可用的 `onAppShow`／`onAppHide`。两项监听均注册成功后，在所有集成安装完成、`init()` 返回前建立首个会话；已观察到后台则等待下次 show。后续 show 不重复创建会话，hide 后再次 show 开始新会话。缺少或无法注册任一项监听时，跳过自动 Session；需要会话统计的项目可手动管理。SDK 与业务原生监听之间的执行顺序由宿主决定，业务处理器末尾显式 `Sentry.flush()` 才能覆盖随后产生的数据。
 
 默认 MiniappLifecycle 协调器独立于 Session、Page 与 FPS。可包装 App 时，业务同步 handler、SDK after 收尾和最后 flush 按阶段运行；Session 在协调器之后安装也不会越过最后 flush。小游戏使用原生 onShow/onHide；可检测到已注册 App 的 late init 使用原生 onAppShow/onAppHide（如有）。原生监听相对业务监听的顺序由宿主控制，业务 handler 末尾显式 flush 才能覆盖随后产生的数据。App 入口不可读、不可写或 setter 忽略包装时，改用可用的原生监听；冻结的 App 定义仍交给宿主注册，无法注入的 handler 不保证自动收尾，业务需显式 flush。没有监听能力时安全降级；没有 getApp 检测能力时，SDK 也无法可靠判断 App 是否已注册。
 

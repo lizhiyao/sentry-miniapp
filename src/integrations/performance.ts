@@ -1,5 +1,11 @@
 import { getClientEnvironment, setClientContext } from '../clientState';
-import { addBreadcrumb, getCurrentScope, startInactiveSpan, withScope } from '@sentry/core';
+import {
+  addBreadcrumb,
+  getCurrentScope,
+  getIsolationScope,
+  startInactiveSpan,
+  withScope,
+} from '@sentry/core';
 import type { Client, Integration, IntegrationFn, Scope, SpanAttributes } from '@sentry/core';
 import {
   getPerformanceManager,
@@ -45,7 +51,7 @@ class PerformanceController {
 
   public setup(client: Client): void {
     this._client = client;
-    this._owner = new OwnerToken(client);
+    this._owner = new OwnerToken(client, 'current');
     this._owner.run(() => this._setup());
   }
 
@@ -104,7 +110,7 @@ class PerformanceController {
 
   private _observe(entries: unknown): void {
     if (!this._isActiveClient()) return;
-    // mark 写入 delivery 的真实当前 scope，避免 withActiveSpan/owner scope 退出后丢失。
+    // mark 的 hook 保留 delivery 的 active span 与用户 scope 数据；会话使用当前 isolation episode。
     const deliveryScope = getCurrentScope();
     try {
       this._owner?.run(() => this._handleEntries(entries, deliveryScope));
@@ -172,7 +178,9 @@ class PerformanceController {
     const name = entry.name;
     if (typeof name !== 'string' || !this._isActiveClient()) return;
     if (type === 'mark') {
-      withScope(deliveryScope, () => {
+      const markScope = deliveryScope.clone();
+      markScope.setSession(getIsolationScope().getSession());
+      withScope(markScope, () => {
         addBreadcrumb({
           timestamp: times.start,
           message: `性能标记: ${name}`,

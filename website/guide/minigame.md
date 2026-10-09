@@ -32,10 +32,15 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 | 全局异常与 Promise rejection | 支持 | 支持 | 以宿主实际提供的监听 API 为准 |
 | 网络请求面包屑与 `http.client` span | 支持 | 支持 | 走 `wx.request` / `tt.request`，不依赖 PerformanceObserver |
 | 设备信息与离线缓存 | 支持 | 支持 | 依赖宿主系统信息与 Storage API |
+| 前台会话统计 | 支持 | 支持 | 默认开启，依赖可注册的 `onShow`／`onHide` |
 | SDK 初始化到首帧 | 支持 | 支持 | 上报 `minigame.init_to_first_frame` |
 | FPS 与卡顿 | 支持 | 支持 | 依赖全局 `requestAnimationFrame` |
 | 小程序导航 / 渲染 / 资源 PerformanceObserver | 不适用 | 不适用 | 小游戏通常只有 `performance.now()`，通用 Performance 默认不安装，显式安装时按实际能力跳过 |
 | 页面路由、点击面包屑 | 不适用 | 不适用 | 没有 Page 模型，自动跳过 |
+
+自动会话从 SDK 安装时的前台运行开始，退后台时结束，再次进入前台时创建新会话；若安装时已经观察到后台，则等待下次进入前台。缺少或无法注册任一 show／hide 监听时，跳过自动会话统计，可使用 [Session API](/guide/api#session-api) 手动管理。SDK 与业务原生监听的执行顺序由宿主决定，退后台处理器里产生的错误可能晚于会话结束；事件仍会按配置发送，但不会补计到已结束的会话。
+
+> 版本提示：`2.0.0-beta.4` 及更早的 2.0 beta 在没有 `App()` 的小游戏中不会自动发送 Session。原生会话支持将在后续 beta 发布；当前版本需要会话统计时，请使用 Session API 手动管理。
 
 ## 首帧等待时间与帧率数据在哪里看
 

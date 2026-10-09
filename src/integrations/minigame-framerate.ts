@@ -2,11 +2,12 @@ import { automaticSpanAttributes } from '../spanDimensions';
 import { setClientContext } from '../clientState';
 import { addBreadcrumb, startInactiveSpan } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
-import { sdk, now, epochNow } from '../crossPlatform';
+import { now, epochNow } from '../crossPlatform';
 import type { MinigameFrameRateOptions, MinigameJankLevels } from '../types';
 import { resolveNonNegativeInteger } from '../numericOptions';
 import { getClientLifetime } from '../lifecycle';
-import { OwnerToken, registerOwnerListener } from '../owner';
+import { OwnerToken } from '../owner';
+import { subscribeMiniappLifecycle } from '../appLifecycle';
 
 type FrameRateWindowStats = {
   fps: number;
@@ -122,11 +123,8 @@ export class MinigameFrameRateIntegration implements Integration {
   private _sessionJankByTier: Record<JankTierName, number> = { minor: 0, major: 0, severe: 0 };
   private _sessionWorstFrame: number = 0;
   private _fpsSamples: number[] = [];
-  private _showHandler: ((res: any) => void) | null = null;
-  private _hideHandler: (() => void) | null = null;
   private _client: Client | undefined;
   private _owner: OwnerToken | undefined;
-  private _sdk: ReturnType<typeof sdk> | undefined;
   private _raf: Function | undefined;
   private _cancelFrame: Function | undefined;
   private _frameRequest: { id?: unknown } | undefined;
@@ -154,10 +152,6 @@ export class MinigameFrameRateIntegration implements Integration {
       : this._options.longFrameThresholdMs;
   }
 
-  public setupOnce(): void {
-    // 全局 setupOnce 不持有 client 的资源。
-  }
-
   public setup(client: Client): void {
     if (this._clients.has(client)) return;
     const lifetime = getClientLifetime(client);
@@ -182,7 +176,7 @@ export class MinigameFrameRateIntegration implements Integration {
       detach?.();
       cleanup();
     });
-    const owner = new OwnerToken(client);
+    const owner = new OwnerToken(client, 'current');
     controller._owner = owner;
     owner.registerFinalizer(() => {
       controller._stopFrames();
@@ -202,34 +196,44 @@ export class MinigameFrameRateIntegration implements Integration {
       return;
     }
     this._restartOnResume();
-    if (!this._owner?.isActive()) return;
-    try {
-      this._sdk = sdk();
-    } catch (_error) {
-      return;
-    }
-    const host = this._sdk;
-    try {
-      if (this._owner?.isActive()) {
-        this._hideHandler = () =>
-          this._observe(() => {
-            this._stopFrames();
-            if (this._flushSummary()) this._flushPendingEvents();
-          });
-        registerOwnerListener(this._owner, host, 'onHide', 'offHide', this._hideHandler);
-      }
-    } catch (_error) {
-      /* 单项注册失败不阻断其余能力。 */
-    }
-    if (!this._owner?.isActive()) return;
-    try {
-      if (this._owner?.isActive()) {
-        this._showHandler = () => this._observe(() => this._restartOnResume());
-        registerOwnerListener(this._owner, host, 'onShow', 'offShow', this._showHandler);
-      }
-    } catch (_error) {
-      /* 已注册的资源仍由 cleanup 解除。 */
-    }
+    const owner = this._owner;
+    const client = this._client;
+    if (!owner?.isActive() || !client) return;
+    const lifecycle = subscribeMiniappLifecycle(client, {
+      onShow: () => this._observe(() => this._restartOnResume()),
+    });
+    owner.onRelease(lifecycle.stop);
+    if (!owner.isActive()) return;
+    if (lifecycle.mode === 'native' && !lifecycle.initialForeground) this._stopFrames();
+    let summaryPending = false;
+    owner.onRelease(
+      subscribeMiniappLifecycle(
+        client,
+        {
+          onHide: () =>
+            this._observe(() => {
+              this._stopFrames();
+              summaryPending = this._flushSummary();
+            }),
+        },
+        'after',
+      ).stop,
+    );
+    if (!owner.isActive()) return;
+    owner.onRelease(
+      subscribeMiniappLifecycle(
+        client,
+        {
+          onHide: () =>
+            this._observe(() => {
+              const pending = summaryPending;
+              summaryPending = false;
+              if (pending) this._flushPendingEvents();
+            }),
+        },
+        'flush',
+      ).stop,
+    );
   }
 
   private _observe(callback: () => void): void {
@@ -505,22 +509,6 @@ export class MinigameFrameRateIntegration implements Integration {
     this._stopFrames();
     this._raf = undefined;
     this._cancelFrame = undefined;
-    const host = this._sdk;
-    this._sdk = undefined;
-    const hide = this._hideHandler;
-    const show = this._showHandler;
-    this._hideHandler = null;
-    this._showHandler = null;
-    for (const [key, handler] of [
-      ['offHide', hide],
-      ['offShow', show],
-    ] as const) {
-      try {
-        if (handler && host && typeof host[key] === 'function') host[key](handler);
-      } catch (_error) {
-        /* 一个 off 失败仍继续释放其余资源。 */
-      }
-    }
     this._resetWindow();
     this._resetSession();
   }
