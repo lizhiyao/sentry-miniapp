@@ -65,7 +65,7 @@ export class NetworkBreadcrumbs implements Integration {
       sensitiveKeys?: string[];
       /** 请求 / 响应体上报的字节上限，与 core 的 `maxRequestBodySize` 同语义（small=1 KB、medium=10 KB、默认 1 MB） */
       maxRequestBodySize?: MaxBodySizeOption;
-      /** 不记录请求体的 URL 模式 */
+      /** 不记录请求／响应正文的 URL 正则模式；匹配不使用业务正则的 lastIndex。 */
       denyBodyUrls?: Array<string | RegExp>;
       /** 是否启用分布式追踪头注入（默认 true） */
       enableTracePropagation?: boolean;
@@ -81,7 +81,9 @@ export class NetworkBreadcrumbs implements Integration {
     this._sensitiveKeys = (options.sensitiveKeys || []).map((key) => key.toLowerCase());
     this._maxBodyBytes = resolveMaxBodyBytes(options.maxRequestBodySize);
     this._denyUrls = (options.denyBodyUrls || []).map((pattern) =>
-      typeof pattern === 'string' ? new RegExp(pattern) : pattern,
+      typeof pattern === 'string'
+        ? new RegExp(pattern)
+        : new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, '')),
     );
     this._enableTracePropagation = options.enableTracePropagation !== false;
     this._tracePropagationTargets = options.tracePropagationTargets || [];
@@ -269,7 +271,6 @@ export class NetworkBreadcrumbs implements Integration {
         try {
           const collected = collectBody(
             requestData,
-            client,
             maxBodyBytes,
             sensitiveKeys,
             bodyContentType(options.header) ?? bodyContentType(options.headers),
@@ -304,7 +305,7 @@ export class NetworkBreadcrumbs implements Integration {
         }
       };
       requestOptions.success = function (this: any, ...args: any[]) {
-        observe((ownerClient) => {
+        observe(() => {
           const res = args[0] || {};
           const statusCode = getResponseStatusCode(res);
           const duration = Date.now() - startTime;
@@ -320,7 +321,6 @@ export class NetworkBreadcrumbs implements Integration {
             try {
               const collected = collectBody(
                 res.data,
-                ownerClient,
                 maxBodyBytes,
                 sensitiveKeys,
                 bodyContentType(res.header) ?? bodyContentType(res.headers),

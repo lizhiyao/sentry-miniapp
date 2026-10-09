@@ -71,7 +71,7 @@ describe('dataCollection 适配层', () => {
 
   it('请求体先脱敏再截断，体积按截断前的完整字节数记', () => {
     const body = JSON.stringify({ accessToken: 'at-1', note: 'x'.repeat(400) });
-    const collected = collectBody(body, fakeClient(), 50);
+    const collected = collectBody(body, 50);
 
     expect(collected.byteLength).toBe(utf8ByteLength(body));
     expect(collected.body).toContain('[Filtered]');
@@ -82,11 +82,11 @@ describe('dataCollection 适配层', () => {
   });
 
   it('form-urlencoded 独立脱敏，非结构化体只记录大小', () => {
-    const form = collectBody('id=7&token=t-2&name=xiao', fakeClient(), 1000);
+    const form = collectBody('id=7&token=t-2&name=xiao', 1000);
     expect(form.body).toBe('id=7&token=[Filtered]&name=xiao');
 
     // 未知正文不能因 query 开关放行，也不把它当成键值数据宣称已脱敏。
-    const plain = collectBody('just a plain text', fakeClient({ urlQueryParams: false }), 1000);
+    const plain = collectBody('just a plain text', 1000);
     expect(plain).toEqual({ byteLength: 17 });
   });
 
@@ -102,30 +102,26 @@ describe('dataCollection 适配层', () => {
         throw new Error('must not serialize');
       },
     };
-    expect(collectBody(data, fakeClient(), 1000, [], 'multipart/form-data')).toEqual({});
-    expect(collectBody(new Date(), fakeClient(), 1000)).toEqual({});
-    expect(collectBody({ toJSON: () => undefined }, fakeClient(), 1000)).toEqual({});
+    expect(collectBody(data, 1000, [], 'multipart/form-data')).toEqual({});
+    expect(collectBody(new Date(), 1000)).toEqual({});
+    expect(collectBody({ toJSON: () => undefined }, 1000)).toEqual({});
   });
 
-  it.each([true, false, { allow: ['token', 'memberNo', 'card_number'] }])(
-    'form body 脱敏独立于 query 策略 %j，保留重复键和原编码',
-    (urlQueryParams) => {
-      const form = collectBody(
-        'id=7&id=8&access%54oken=canary-token&memberNo=canary-member&card_number=canary-card&name=xiao+ming',
-        fakeClient({ urlQueryParams }),
-        1000,
-        ['memberNo'],
-      );
-      expect(form.body).toBe(
-        'id=7&id=8&access%54oken=[Filtered]&memberNo=[Filtered]&card_number=[Filtered]&name=xiao+ming',
-      );
-      expect(form.body).not.toContain('canary');
-    },
-  );
+  it('form body 保留重复键和原编码，按正文策略过滤', () => {
+    const form = collectBody(
+      'id=7&id=8&access%54oken=canary-token&memberNo=canary-member&card_number=canary-card&name=xiao+ming',
+      1000,
+      ['memberNo'],
+    );
+    expect(form.body).toBe(
+      'id=7&id=8&access%54oken=[Filtered]&memberNo=[Filtered]&card_number=[Filtered]&name=xiao+ming',
+    );
+    expect(form.body).not.toContain('canary');
+  });
 
   it('form 键无法安全解码时省略正文，仍报告原始字节数', () => {
     const body = 'tok%FFen=canary-token&id=7';
-    expect(collectBody(body, fakeClient(), 1000)).toEqual({ byteLength: utf8ByteLength(body) });
+    expect(collectBody(body, 1000)).toEqual({ byteLength: utf8ByteLength(body) });
   });
 
   it('query 保留重复编码，只过滤值；坏键与原型键不能降级泄漏', () => {
@@ -163,13 +159,13 @@ describe('dataCollection 适配层', () => {
     expect(kv).toEqual({ cardNumber: '[Filtered]', id: '9' });
 
     // core 的 query 过滤不吃我们的追加名单，这里保持与 core 一致。
-    const url = collectBody('{"cardNumber":"6222"}', fakeClient(), 1000);
+    const url = collectBody('{"cardNumber":"6222"}', 1000);
     expect(url.body).toBe('{"cardNumber":"[Filtered]"}');
     expect(EXTRA_SENSITIVE_KEY_SNIPPETS).toContain('card_number');
   });
 
   it('sensitiveKeys 之类的追加片段按片段匹配，大小写不敏感', () => {
-    const collected = collectBody('{"memberNo":"m-1","name":"xiao"}', fakeClient(), 1000, [
+    const collected = collectBody('{"memberNo":"m-1","name":"xiao"}', 1000, [
       'memberNo',
     ]);
     assertDefined(collected.body);

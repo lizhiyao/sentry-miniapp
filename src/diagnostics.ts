@@ -227,7 +227,7 @@ function buildWarnings(diagnostics: MiniappDiagnostics): MiniappDiagnosticsWarni
   }
 
   // 替换掉 defaultIntegrations 会连带删掉 SpanStreaming，而它是在 stream 生命周期下发送
-  // 业务 trace、导航与帧率汇总的唯一出口——不装则这些 span 全静默留在内存里。
+  // 所有 span（包括无父 HTTP segment）的发送出口。
   if (
     (options.tracesSampleRate !== null || options.tracesSamplerConfigured) &&
     options.traceLifecycle === 'stream' &&
@@ -236,7 +236,7 @@ function buildWarnings(diagnostics: MiniappDiagnostics): MiniappDiagnosticsWarni
     warnings.push({
       code: 'span_streaming_missing',
       message:
-        '已开启 tracing，但集成列表里没有 SpanStreaming：业务 trace、导航与帧率汇总等非独立 span 不会被发送（仅独立 HTTP span 仍会直接发出）。通常是替换 defaultIntegrations 导致的，保留默认集成或手动加入 spanStreamingIntegration() 即可。',
+        '已开启 tracing，但集成列表里没有 SpanStreaming：业务 trace、无父 HTTP、导航与帧率汇总等 span 均不会被发送。通常是替换 defaultIntegrations 导致的，保留默认集成或手动加入 spanStreamingIntegration() 即可。',
     });
   }
 

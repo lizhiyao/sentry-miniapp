@@ -6,7 +6,9 @@
 
 2.0 beta 用于集成试用与反馈，包含 core v11、client 归属与生命周期、stream-only tracing、统一采集、单目标缓存与隐私同意重构。自动化契约测试、包入口与跨平台能力回退检查不能代替真实宿主验收。
 
-真实设备的前后台冻结／恢复、弱网与存储、隐私撤回矩阵，以及正式小程序业务产物的后台符号化尚未完成完整验收。目标 Sentry 部署需支持 span/v2；生产使用前分别核验后台遥测接收和业务产物符号化。后续 beta 仍可能调整 API 与行为；[#428](https://github.com/lizhiyao/sentry-miniapp/issues/428) 继续跟踪剩余验收，不因本次预发布关闭。
+[#428](https://github.com/lizhiyao/sentry-miniapp/issues/428) 已按重构与 beta 验收完成收尾：beta.2 有 spans／logs／metrics／session 的后台证据，beta.3 补验 client reports、flush／dispose 边界和微信 IDE 实际业务产物的后台符号化。未变遥测沿用 beta.2 证据，未宣称 beta.3 重跑全套后台测试。
+
+真实设备的前后台冻结／恢复、弱网、存储和隐私撤回矩阵由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪 beta 用户验证，当前保持待验证。目标 Sentry 部署需支持 span/v2；生产接入仍需核验自己的后台遥测与同构建业务产物符号化。后续 beta 仍可能调整 API 与行为。
 
 2.0 让 core 负责事件处理、采样／DSC、span／Logs／metrics 批处理与限流，miniapp 负责宿主采集、生命周期、受控网络与存储。删除的能力不再保留兼容入口。
 

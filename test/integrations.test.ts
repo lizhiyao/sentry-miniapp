@@ -38,8 +38,5 @@ describe('Integrations', () => {
       expect(integration.name).toBe('HttpContext');
     });
 
-    it('should setup HTTP request tracking', () => {
-      expect(() => integration.setupOnce()).not.toThrow();
-    });
   });
 });

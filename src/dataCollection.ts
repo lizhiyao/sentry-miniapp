@@ -155,7 +155,6 @@ export function collectUrl(
  */
 export function collectBody(
   data: unknown,
-  _client: Client | undefined,
   maxBytes: number,
   extraDenyTerms: string[] = [],
   contentType?: string,

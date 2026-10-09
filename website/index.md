@@ -28,7 +28,7 @@ features:
     details: 采集启动、渲染、资源和请求耗时，可通过 http.client span 与追踪头串联服务端调用链。
   - icon: 📡
     title: 面对弱网与隐私要求
-    details: 发送失败后写入本地缓存并自动重试；需要用户授权时，可在同意前采集但不发送网络请求。
+    details: 符合缓存条件的发送失败会进入有界本地缓存并尝试重放；需要用户授权时，可在同意前采集但不发送网络请求。
 ---
 
 <div class="sm-trust-strip" aria-label="项目支持范围与维护状态">
@@ -42,7 +42,7 @@ features:
   </span>
   <span>
     <strong>微信 / 抖音小游戏</strong>
-    <span>异常、冷启动、帧率与卡顿监控</span>
+    <span>异常、SDK 安装至首帧测量；帧率与卡顿可选</span>
   </span>
   <span>
     <strong>持续自动化验证</strong>
@@ -78,7 +78,7 @@ features:
     <a class="sm-card" data-tone="source" href="/guide/minigame">
       <span class="sm-kicker">Game</span>
       <h3>微信 / 抖音小游戏</h3>
-      <p>接入异常监控，并采集冷启动首帧、FPS 和卡顿汇总。</p>
+      <p>接入异常监控，测量 SDK 安装至首帧；按需开启 FPS 和卡顿汇总。</p>
       <span class="sm-link">查看小游戏指南</span>
     </a>
   </div>

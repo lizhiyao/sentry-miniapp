@@ -11,7 +11,7 @@
 
 简体中文 | [English](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/README.en.md)
 
-> 本文对应 2.0 beta 契约，试用请安装 `sentry-miniapp@next`；默认安装仍获取 1.x 稳定版。升级前阅读[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。真机生命周期、弱网／存储／撤回矩阵与正式小程序业务产物的后台符号化尚未完成完整验收，beta 用于集成试用和反馈。
+> 本文对应 2.0 beta 契约，试用请安装 `sentry-miniapp@next`；默认安装仍获取 1.x 稳定版。升级前阅读[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。beta.3 已通过微信 IDE 实际业务产物的后台符号化验收；真机生命周期、弱网／存储／撤回矩阵由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪用户验证。beta 用于集成试用和反馈，生产接入仍需核验自己的目标后台与同构建产物映射。
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 

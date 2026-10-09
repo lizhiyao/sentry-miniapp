@@ -17,7 +17,7 @@ Set up Sentry error monitoring, performance tracing, and offline caching in mini
 - User asks about Sentry support for WeChat/Alipay/ByteDance mini programs
 - User imports or references `sentry-miniapp` in their project
 
-> This skill describes the 2.0 beta contract. Install `sentry-miniapp@next` to try it; an unqualified install still selects stable 1.x. Check the installed SDK version before editing a consumer. Read website/guide/migration-2.0.md for breaking changes and incomplete real-device/application-symbolication acceptance; do not apply removed APIs to 2.0.
+> This skill describes the 2.0 beta contract. Install `sentry-miniapp@next` to try it; an unqualified install still selects stable 1.x. Check the installed SDK version before editing a consumer. Read website/guide/migration-2.0.md for breaking changes and version-scoped acceptance. Beta.3 passed backend symbolication for actual WeChat DevTools application artifacts; real-device validation remains pending in issue #457. Verify each consumer build and backend; do not apply removed APIs to 2.0.
 
 ---
 

@@ -155,7 +155,7 @@ export interface MiniappOptions extends Omit<
   /** 是否启用网络状态实时监控（默认 true） */
   enableNetworkStatusMonitoring?: boolean;
 
-  /** 是否启用小游戏生命周期监控（冷启动首帧耗时、启动场景、onShow/onHide 面包屑）。小游戏环境下默认启用，普通小程序默认关闭 */
+  /** 是否启用小游戏生命周期监控（SDK 安装至首个 rAF 的耗时、启动场景、onShow/onHide 面包屑）。小游戏环境下默认启用，普通小程序默认关闭；不测完整冷启动 */
   enableMinigameLifecycle?: boolean;
 
   /**

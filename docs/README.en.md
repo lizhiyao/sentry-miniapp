@@ -11,7 +11,7 @@
 
 [简体中文](../README.md) | English
 
-> This README describes the 2.0 beta contract. Install `sentry-miniapp@next` to try it; an unqualified install still selects the stable 1.x release. Read the [2.0 migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. Full acceptance of real-device lifecycle, weak-network/storage/consent-revocation scenarios and backend symbolication of production mini-program application artifacts remains incomplete. The beta is for integration testing and feedback.
+> This README describes the 2.0 beta contract. Install `sentry-miniapp@next` to try it; an unqualified install still selects the stable 1.x release. Read the [2.0 migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. Beta.3 passed backend symbolication for actual application artifacts from WeChat DevTools. Real-device lifecycle, weak-network, storage and consent-revocation validation is tracked in [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457). The beta is for integration testing and feedback; production integrations still need to verify their own backend and matching build artifacts.
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 

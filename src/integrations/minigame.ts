@@ -12,7 +12,7 @@ import type { MiniappOptions } from '../types';
  * Minigame Integration
  *
  * 面向「小游戏」运行时（微信小游戏 / 抖音小游戏等，无 App()/Page() 与页面路由）的
- * 生命周期与冷启动监控，弥补小程序专用的 PageBreadcrumbs / SessionIntegration 在
+ * 生命周期与 SDK 安装至首帧观测，弥补小程序专用的 PageBreadcrumbs / SessionIntegration 在
  * 小游戏中无法工作的空缺。能力：
  * - 读取 getLaunchOptionsSync() 记录启动场景（scene / path / query）上下文与面包屑；
  * - 测量「SDK 初始化 → 首帧」耗时（首个 requestAnimationFrame 回调，近似首帧渲染）；

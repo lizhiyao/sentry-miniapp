@@ -5,7 +5,6 @@ import { getClientEnvironment } from '../clientState';
 export class HttpContext implements Integration {
   public static id = 'HttpContext';
   public name = HttpContext.id;
-  public setupOnce(): void {}
   public processEvent(event: Event, _hint: EventHint, client: Client): Event {
     return getClientEnvironment(client).fillEvent(event);
   }

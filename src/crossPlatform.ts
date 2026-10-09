@@ -679,7 +679,7 @@ export const getPerformanceManager = (): PerformanceManager | null => {
 };
 
 /**
- * 时长时钟：用于**测量时长 / 间隔**（帧间隔、冷启动 delta 等），返回毫秒。
+ * 时长时钟：用于**测量时长 / 间隔**（帧间隔、SDK 安装至首帧等），返回毫秒。
  *
  * 刻意用 Date.now() 而非平台 Performance.now()：后者在小游戏里单位不可靠——同一份代码在
  * 微信开发者工具返回毫秒、真机返回微秒（见 issue #167），且官方文档并未明确单位，按平台写死

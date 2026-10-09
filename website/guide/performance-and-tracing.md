@@ -55,7 +55,7 @@ Sentry.init({
 | render 条目 | 实际渲染 operation，不猜测来自 `setData` |
 | 资源加载 | 定位大资源或慢资源 |
 | API 请求 | 包裹平台 `request`，作为 `http.client` span 查看请求耗时 |
-| 小游戏冷启动、FPS、jank | 作为小游戏专属 segment span，指标挂在 span 属性上 |
+| 小游戏 SDK 安装至首帧、可选 FPS／jank | 作为小游戏专属 segment span，指标挂在 span 属性上 |
 
 宿主没有 `createObserver` 时，显式性能集成会静默跳过导航、渲染和资源条目，不设置已启用标记，不保留原始条目，也不启动定时汇总。相对时间条目缺可信 `timeOrigin` 时不生成 span，诊断中报告缺失时间能力。observer 的交付批次不生成父 span，迟到条目不使用当前页面／网络或活跃 span 伪造关联。API 请求由网络集成直接包裹平台 `request` 采集，**不依赖 PerformanceObserver**。微信／抖音小游戏默认观察 SDK 初始化到首帧的近似 interval；FPS 与 jank 须显式配置 `enableMinigameFrameRate: true`，由小游戏专属集成采集；详见[小游戏接入与性能](/guide/minigame)。
 
@@ -150,6 +150,6 @@ Sentry.init({
 4. 确认第三方域名没有收到不必要的追踪头。
 5. 打印 `Sentry.getDiagnostics()`，检查采样率、传播开关和 warnings。
 
-没有 span 时，先确认性能采样已开启、默认 `NetworkBreadcrumbs` 集成没有被替换；自定义 `defaultIntegrations` 时务必保留 `spanStreamingIntegration()`（core 11 的 span 发送依赖它，漏装会让非独立 span 一条都发不出去），并检查 `enableStandaloneHttpSpans` 是否被关闭；本地 span 正常但服务端没有串联时，再检查 `tracePropagationTargets`、网关透传和后端 Sentry / OpenTelemetry 配置。
+没有 span 时，先确认性能采样已开启、默认 `NetworkBreadcrumbs` 集成没有被替换；自定义 `defaultIntegrations` 时务必保留 `spanStreamingIntegration()`（core 11 的 span 发送依赖它，漏装时无父 HTTP segment 和其它 span 均无法发送），并检查 `enableStandaloneHttpSpans` 是否被关闭；本地 span 正常但服务端没有串联时，再检查 `tracePropagationTargets`、网关透传和后端 Sentry / OpenTelemetry 配置。
 
 所有相关选项见[配置项参考 · 采样](/guide/configuration#采样)与[配置项参考 · 分布式追踪](/guide/configuration#分布式追踪)。
