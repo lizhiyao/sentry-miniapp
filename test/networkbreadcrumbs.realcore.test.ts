@@ -757,6 +757,122 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     },
   );
 
+  it.each([
+    { label: '未知纯文本', data: 'canary-plaintext-secret' },
+    { label: 'JSON 原始值', data: '"canary-primitive-secret"' },
+    { label: '混合正文', data: 'prefix text token=canary-mixed&ok=1' },
+    { label: 'form 混入无键段', data: 'id=1&canary-bare-secret' },
+    {
+      label: '声明纯文本的 JSON 外观',
+      data: '{"note":"canary-declared-plain-secret"}',
+      contentType: 'text/plain; charset=utf-8',
+    },
+    {
+      label: 'multipart',
+      data: '--boundary\r\nContent-Disposition: form-data; name="note"\r\n\r\ncanary-multipart-secret\r\n--boundary--',
+      contentType: 'multipart/form-data; boundary=boundary',
+    },
+    {
+      label: '声明 JSON 的 form 外观',
+      data: 'token=canary-wrong-json',
+      contentType: 'application/json',
+    },
+    {
+      label: 'binary 子视图',
+      data: new TextEncoder().encode('xcanary-binary-secretx').subarray(1, 21),
+    },
+    {
+      label: 'ArrayBuffer',
+      data: new TextEncoder().encode('canary-binary-buffer').buffer,
+    },
+  ])(
+    '未知或不支持的 $label 正文不进入最终 envelope，业务数据保持原样',
+    async ({ data, contentType }) => {
+      requestMock.mockImplementation((options) => {
+        options.success?.({ statusCode: 201, data, headers: { 'Content-Type': contentType } });
+        options.complete?.({ statusCode: 201 });
+        return { abort: vi.fn() };
+      });
+      init({
+        dsn: 'https://test@example.com/0',
+        traceNetworkBody: true,
+        defaultIntegrations: [new NetworkBreadcrumbs({ traceNetworkBody: true })],
+        enableOfflineCache: false,
+        transport: createCapturingTransport(captured),
+      });
+      const success = vi.fn();
+      g.tt.request({
+        url: 'https://api.example.com/body',
+        method: 'POST',
+        data,
+        header: { 'CONTENT-TYPE': contentType },
+        success,
+      });
+      captureException(new Error('unsupported body probe'));
+      await flush(2000);
+      const crumb = xhrBreadcrumbData(captured);
+      expect(crumb).not.toHaveProperty('request_body');
+      expect(crumb).not.toHaveProperty('response_body');
+      const size = typeof data === 'string' ? utf8ByteLength(data) : data.byteLength;
+      expect(crumb.request_body_size).toBe(size);
+      expect(crumb.response_body_size).toBe(size);
+      expect(JSON.stringify(captured)).not.toContain('canary');
+      expect(requestMock.mock.calls[0]?.[0].data).toBe(data);
+      expect(success.mock.calls[0]?.[0].data).toBe(data);
+    },
+  );
+
+  it.each([
+    {
+      contentType: 'Application/JSON; charset=utf-8',
+      data: '{"token":"canary","id":1}',
+      expected: '{"token":"[Filtered]","id":1}',
+    },
+    {
+      contentType: 'application/problem+json',
+      data: { token: 'canary', id: 1 },
+      expected: '{"token":"[Filtered]","id":1}',
+    },
+    {
+      contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
+      data: 'token=canary&id=1',
+      expected: 'token=[Filtered]&id=1',
+    },
+    {
+      contentType: 'application/x-www-form-urlencoded',
+      data: { token: 'canary', id: 1 },
+      expected: '{"token":"[Filtered]","id":1}',
+    },
+  ])(
+    'header/headers 两种宿主字段和 $contentType 保留支持格式的脱敏',
+    async ({ contentType, data, expected }) => {
+      requestMock.mockImplementation((options) => {
+        options.success?.({ statusCode: 201, data, header: { 'content-type': contentType } });
+        return { abort: vi.fn() };
+      });
+      init({
+        dsn: 'https://test@example.com/0',
+        enableOfflineCache: false,
+        defaultIntegrations: [new NetworkBreadcrumbs({ traceNetworkBody: true })],
+        transport: createCapturingTransport(captured),
+      });
+      g.tt.request({
+        url: 'https://api.example.com/typed-body',
+        method: 'POST',
+        data,
+        headers: { 'Content-Type': contentType },
+      });
+      captureException(new Error('supported body probe'));
+      await flush(2000);
+      const crumb = xhrBreadcrumbData(captured);
+      expect(crumb.request_body).toBe(expected);
+      expect(crumb.response_body).toBe(expected);
+      expect(crumb).not.toHaveProperty('headers');
+      expect(JSON.stringify(captured)).not.toContain('canary');
+      expect(requestMock.mock.calls[0]?.[0].data).toBe(data);
+    },
+  );
+
   it('面包屑按 core 口径拆成 url 与 url.query', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
@@ -802,18 +918,19 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       transport: createCapturingTransport(captured),
     });
 
+    const requestBody = JSON.stringify({ note: `${'a'.repeat(1000)}中文` });
     g.tt.request({
       url: 'https://api.example.com/v1/import',
       method: 'POST',
-      // 1000 个 ASCII + 2 个中文字符（各 3 字节）= 1006 字节，边界要按字节而不是字符数裁。
-      data: `${'a'.repeat(1000)}中文`,
+      // 用可识别的 JSON 正文验收截断，未知纯文本在 2.0 不采集。
+      data: requestBody,
     });
     await flush(2000);
     captureException(new Error('body size probe'));
     await flush(2000);
 
     const crumbData = xhrBreadcrumbData(captured);
-    expect(crumbData.request_body_size).toBe(1006);
+    expect(crumbData.request_body_size).toBe(utf8ByteLength(requestBody));
     const body = String(crumbData.request_body);
     expect(body.endsWith('...')).toBe(true);
     expect(utf8ByteLength(body)).toBe(1000);

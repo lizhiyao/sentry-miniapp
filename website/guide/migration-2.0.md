@@ -1,6 +1,6 @@
 # 升级到 2.0：core v11 与薄宿主适配
 
-本页对应 `2.0.0-beta.0` 起的 2.0 beta 契约。通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.1` 固定当前 beta；`latest` 仍保留 1.x 稳定版。beta.1 修复 beta.0 的 `lastEventId()` 未更新问题，并收敛 core 扩展边界。升级时先核对实际安装版本；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
+本页对应 `2.0.0-beta.0` 起的 2.0 beta 契约。通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.2` 固定当前 beta；`latest` 仍保留 1.x 稳定版。beta.1 修复 beta.0 的 `lastEventId()` 未更新问题；beta.2 修正前两个 beta 在显式开启 `traceNetworkBody` 时仍采集未知正文的缺口，按下述 2.0 策略省略。升级时先核对实际安装版本；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
 
 ## Beta 验收范围
 

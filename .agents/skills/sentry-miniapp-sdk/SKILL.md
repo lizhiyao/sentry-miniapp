@@ -236,7 +236,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `propagateTraceparent` | `boolean` | `false` | Also inject W3C `traceparent` for OpenTelemetry / W3C Trace Context compatible backends |
 | `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | Capture console.log/warn/error as breadcrumbs |
-| `traceNetworkBody` | `boolean` | `false` | Capture request/response body in network breadcrumbs; sanitized key-by-key first, then truncated |
+| `traceNetworkBody` | `boolean` | `false` | Capture recognized JSON object/array or form bodies; filter keys before truncation. Unsupported Content-Type, unknown text, multipart/binary and malformed form bodies are omitted |
 | `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | Byte cap per captured body (`small` = 1 KB, `medium` = 10 KB); `request_body_size` / `response_body_size` still report the full pre-truncation size |
 | `sensitiveKeys` | `Array<string>` | `[]` | **Additional** key snippets masked in bodies, page `onLoad` query and launch/page query (matched case-insensitively as substrings, on top of core's built-in list) |
 | `dataCollection` | `object` | see core 11 | Collection gates this SDK honors: `urlQueryParams` (URLs, `url.query`, page `onLoad` query) and `httpBodies` (body directions). `httpHeaders` / `cookies` have no effect — this SDK never captures headers or cookies |

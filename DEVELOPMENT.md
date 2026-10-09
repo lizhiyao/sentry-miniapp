@@ -90,6 +90,8 @@ Taro / uni-app 示例依赖较重，不加入每个 PR 的必跑任务。`.githu
 
 ### core 扩展边界与升级审查
 
+`coreCompat.ts` 是 `_INTERNAL_filterKeyValueData` 的唯一生产导入入口，直接重导出固定 core 的算法；不复制敏感名单或放行 fallback。键值／URL／JSON／form 的语义和最终 envelope canary 回归约束这项依赖。UTF-8 字节计数与无 TextEncoder 的编码也共用该模块，避免正文与缓存预算维护两套 Unicode 算法。
+
 事件准备、采样、processor／beforeSend、Session 状态算法与发送仍使用 core 实现。宿主 Debug ID 同步使用公开 `preprocessEvent` hook；公共 capture 入口只保存采集时的 scope／Session，原 isolation scope 保持 core 的可写身份。`postprocessEvent` 与 beforeSend 结果绑定使用 client 自有 WeakMap，不建立按 event ID 维护的长期索引，也不向遥测 payload 增加归属字段。
 
 `MiniappClient` 的 protected 依赖集中如下；它们不是任意 core 版本兼容的承诺。依赖升级 PR 必须检查候选 core 源码中的签名、调用顺序与实现差异，执行对应 real-core 用例，并在 PR 中记录结论；不能仅凭类型检查通过放宽依赖范围。

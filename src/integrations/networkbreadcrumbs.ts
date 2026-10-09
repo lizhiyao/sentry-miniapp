@@ -267,10 +267,16 @@ export class NetworkBreadcrumbs implements Integration {
 
       if (traceRequestBody && requestData && !shouldDenyBodyUrl(url)) {
         try {
-          const body = typeof requestData === 'string' ? requestData : JSON.stringify(requestData);
-          const collected = collectBody(body, client, maxBodyBytes, sensitiveKeys);
-          breadcrumbData['request_body'] = collected.body;
-          breadcrumbData['request_body_size'] = collected.byteLength;
+          const collected = collectBody(
+            requestData,
+            client,
+            maxBodyBytes,
+            sensitiveKeys,
+            bodyContentType(options.header) ?? bodyContentType(options.headers),
+          );
+          if (collected.body !== undefined) breadcrumbData['request_body'] = collected.body;
+          if (collected.byteLength !== undefined)
+            breadcrumbData['request_body_size'] = collected.byteLength;
         } catch (_e) {
           breadcrumbData['request_body'] = '[Cannot serialize request body]';
         }
@@ -312,10 +318,16 @@ export class NetworkBreadcrumbs implements Integration {
           if (!owner.isActive()) return;
           if (traceResponseBody && res.data && !shouldDenyBodyUrl(url)) {
             try {
-              const body = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
-              const collected = collectBody(body, ownerClient, maxBodyBytes, sensitiveKeys);
-              breadcrumbData['response_body'] = collected.body;
-              breadcrumbData['response_body_size'] = collected.byteLength;
+              const collected = collectBody(
+                res.data,
+                ownerClient,
+                maxBodyBytes,
+                sensitiveKeys,
+                bodyContentType(res.header) ?? bodyContentType(res.headers),
+              );
+              if (collected.body !== undefined) breadcrumbData['response_body'] = collected.body;
+              if (collected.byteLength !== undefined)
+                breadcrumbData['response_body_size'] = collected.byteLength;
             } catch (_error) {
               breadcrumbData['response_body'] = '[Cannot serialize response body]';
             }
@@ -591,6 +603,14 @@ function hasHeader(header: Record<string, any>, name: string): boolean {
 function findHeaderKey(header: Record<string, any>, name: string): string | undefined {
   const normalizedName = name.toLowerCase();
   return Object.keys(header).find((key) => key.toLowerCase() === normalizedName);
+}
+
+/** 只用于识别正文格式，不把请求/响应 headers 写入遥测。 */
+function bodyContentType(headers: unknown): string | undefined {
+  if (!isRecord(headers)) return undefined;
+  const key = findHeaderKey(headers, 'content-type');
+  const value: unknown = key === undefined ? undefined : headers[key];
+  return typeof value === 'string' ? value : undefined;
 }
 
 function mergeBaggageHeader(existingBaggage: unknown, sentryBaggage: string): string {

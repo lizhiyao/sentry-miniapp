@@ -1,14 +1,11 @@
-import {
-  _INTERNAL_filterKeyValueData as coreFilterKeyValueData,
-  getSanitizedUrlString,
-  parseUrl,
-  stripDataUrlContent,
-} from '@sentry/core';
+import { isPlainObject, getSanitizedUrlString, parseUrl, stripDataUrlContent } from '@sentry/core';
 import type { Client, CollectBehavior } from '@sentry/core';
 import { resolveNonNegativeInteger } from './numericOptions';
+import { filterKeyValueData as coreFilterKeyValueData, utf8ByteLength } from './coreCompat';
+export { utf8ByteLength } from './coreCompat';
 
 /**
- * core 11 的内置敏感片段（auth / token / secret / key / sid …，共 18 项）按大小写不敏感的
+ * core 11 的内置敏感片段（auth / token / secret / key / sid …）按大小写不敏感的
  * **片段**匹配键名。支付与证件类键不在其中，本 SDK 额外补齐；口径与内置名单一致，
  * 只作用于 SDK 自己采集的键值数据（请求 / 响应体、页面入参）。
  */
@@ -32,22 +29,6 @@ export function resolveMaxBodyBytes(option: MaxBodySizeOption | undefined): numb
   if (option === 'small') return 1000;
   if (option === 'medium') return 10_000;
   return resolveNonNegativeInteger(option, DEFAULT_MAX_BODY_BYTES) || DEFAULT_MAX_BODY_BYTES;
-}
-
-/**
- * UTF-8 字节长度。小程序不保证有 `TextEncoder`（部分宿主与小游戏缺失），
- * 这里按码点自己算，行为在各平台一致。
- */
-export function utf8ByteLength(value: string): number {
-  let bytes = 0;
-  for (const character of value) {
-    const codePoint = character.codePointAt(0) ?? 0;
-    if (codePoint < 0x80) bytes += 1;
-    else if (codePoint < 0x800) bytes += 2;
-    else if (codePoint < 0x10000) bytes += 3;
-    else bytes += 4;
-  }
-  return bytes;
 }
 
 /** 按字节上限截断并补 `...`，与 core 的截断标记一致；结果不超过 maxBytes。 */
@@ -168,37 +149,69 @@ export function collectUrl(
  * 采集请求 / 响应体：**先**对能解析成 JSON 的体做敏感键脱敏，再按字节上限截断。
  * 顺序反了会把截断后的半截 JSON 解析失败，敏感字段原样发出。
  * form-urlencoded 使用独立的 body 脱敏策略，保留重复键与非敏感字段原始编码；
- * 无法安全解码键名时省略正文。1.x 的未知纯文本采集行为暂时保留。
+ * 声明不支持的格式、未知纯文本、JSON 原始值、multipart/binary 或坏编码省略正文。
  * 体采不采由 `httpBodies` 管，不由 `urlQueryParams` 控制。
  * 体积按截断前的完整字节数上报，与 core 的 `request_body_size` 口径一致。
  */
 export function collectBody(
-  body: string,
+  data: unknown,
   _client: Client | undefined,
   maxBytes: number,
   extraDenyTerms: string[] = [],
-): { body: string; byteLength: number } {
+  contentType?: string,
+): { body?: string; byteLength?: number } {
+  // 保留真实 binary 视图的大小，但不把 bytes JSON 化后宣称已经按键脱敏。
+  if (
+    data &&
+    typeof data === 'object' &&
+    (Object.prototype.toString.call(data) === '[object ArrayBuffer]' ||
+      (typeof ArrayBuffer !== 'undefined' &&
+        typeof ArrayBuffer.isView === 'function' &&
+        ArrayBuffer.isView(data)))
+  ) {
+    return { byteLength: (data as ArrayBuffer | ArrayBufferView).byteLength };
+  }
+  const structured = isPlainObject(data) || Array.isArray(data);
+  if (typeof data !== 'string' && !structured) return {};
+  const mime = contentType?.split(';', 1)[0]?.trim().toLowerCase();
+  const jsonType = mime === 'application/json' || mime?.endsWith('+json');
+  const formType = mime === 'application/x-www-form-urlencoded';
+  const unsupported = Boolean(mime && !jsonType && !formType);
+  // 未知对象格式无法证明宿主的编码大小，不为了估算 size 调用其 JSON serializer。
+  if (unsupported && typeof data !== 'string') return {};
+  const body = typeof data === 'string' ? data : JSON.stringify(data);
+  if (typeof body !== 'string') return {};
   const byteLength = utf8ByteLength(body);
+  const omitted = { byteLength };
+  if (unsupported) return omitted;
   const denyTerms = sensitiveDenyTerms(extraDenyTerms);
-
-  let sanitized = body;
+  let sanitized: string;
   try {
     const parsed = JSON.parse(body);
-    if (parsed && typeof parsed === 'object') {
-      // 体本身由 httpBodies 门控；urlQueryParams=false 只该影响 query，
-      // 所以这里恒按内置名单 + 追加片段脱敏，不因 query 开关把整块放过。
-      sanitized = JSON.stringify(sanitizeCollectedData(parsed, true, denyTerms));
-    }
+    if (!parsed || typeof parsed !== 'object' || (formType && !structured)) return omitted;
+    // 体由 httpBodies 门控，与 query 无关；解析后的 object/array 经过 core 的键过滤。
+    sanitized = JSON.stringify(sanitizeCollectedData(parsed, true, denyTerms));
   } catch (_error) {
-    sanitized = filterFormBody(body, denyTerms);
+    if (jsonType || !isFormBody(body)) return omitted;
+    const filtered = filterEncodedPairs(body, true, denyTerms);
+    if (filtered === undefined) return omitted;
+    sanitized = filtered;
   }
 
   return { body: truncateToBytes(sanitized, maxBytes), byteLength };
 }
 
-function filterFormBody(body: string, denyTerms: string[]): string {
-  if (!body.includes('=')) return body;
-  return filterEncodedPairs(body, true, denyTerms) ?? '';
+function isFormBody(body: string): boolean {
+  const pairs = body.split('&').filter(Boolean);
+  return (
+    pairs.length > 0 &&
+    !/[\r\n]/.test(body) &&
+    pairs.every((pair) => {
+      const equals = pair.indexOf('=');
+      // 无 content-type 时也只接收可确认的 URL-encoded 键值结构，不把任意文本当 query。
+      return equals > 0 && /^[a-z0-9_.~*%+[\]-]+$/i.test(pair.slice(0, equals));
+    })
+  );
 }
 
 function filterEncodedPairs(
