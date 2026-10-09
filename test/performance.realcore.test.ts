@@ -14,7 +14,7 @@ import { init, getDiagnostics } from '../src/index';
 import { MiniappClient } from '../src/client';
 import { getClientEnvironment } from '../src/clientState';
 import { resetPlatformCache } from '../src/crossPlatform';
-import { performanceIntegration } from '../src/integrations/performance';
+import { PerformanceIntegration, performanceIntegration } from '../src/integrations/performance';
 import {
   collectEnvelopePayloads,
   collectSpans,
@@ -467,7 +467,7 @@ describe('Performance 的真实 core operation 与时间契约', () => {
   });
 
   it('配置对象 cleanup 幂等；旧 observer 不能再读条目或产生 span', () => {
-    const integration = performanceIntegration();
+    const integration = new PerformanceIntegration();
     const client = start({}, integration);
     integration.cleanup();
     integration.cleanup();
@@ -532,7 +532,7 @@ describe('Performance 的真实 core operation 与时间契约', () => {
     });
     // owner scope 在 setup 捕获，显式更新在安装集成前设置的属性才能属于这个 owner。
     const integration = performanceIntegration();
-    integration.setup(client);
+    integration.setup!(client);
     callback(navigation());
     expect(envelopes).toEqual([]);
     getCurrentScope().setAttribute('navigation.duration', undefined);

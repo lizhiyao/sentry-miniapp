@@ -8,8 +8,37 @@ import {
 } from '@sentry/core';
 
 const capturedSessionKey = Symbol('miniapp.capturedSession');
+const ownedSessionKey = Symbol('miniapp.ownedSession');
 type CapturedSession = { session: Session | undefined };
 type CaptureHint = EventHint & { [capturedSessionKey]?: CapturedSession };
+type SessionStrategy = 'capture' | 'current';
+type OwnershipMetadata = {
+  miniappSession?: { owner?: { [ownedSessionKey]: CapturedSession } | undefined };
+};
+
+/** Core 的两层 metadata merge 不复制 Symbol 键，holder 放在 merge 深度之外。 */
+export function setOwnedScopeSession(
+  scope: Scope,
+  session: Session | undefined,
+  strategy: SessionStrategy,
+): void {
+  scope.setSession(session);
+  scope.setSDKProcessingMetadata({
+    miniappSession: {
+      owner: strategy === 'capture' ? { [ownedSessionKey]: { session } } : undefined,
+    },
+  });
+}
+
+/** SDK 操作明确捕获的空会话不能回落；普通业务 Scope 仍沿用 Core 的查找次序。 */
+export function resolveScopeSession(
+  current: Scope,
+  isolation: Scope = getIsolationScope(),
+): Session | undefined {
+  const metadata = current.getScopeData().sdkProcessingMetadata as OwnershipMetadata;
+  const captured = metadata.miniappSession?.owner?.[ownedSessionKey];
+  return captured ? captured.session : (current.getSession() ?? isolation.getSession());
+}
 
 /** 只固定 Session 归属；isolation scope 的状态与副作用仍由 core 管理。 */
 export class SessionCapture {
@@ -20,7 +49,7 @@ export class SessionCapture {
     current: Scope = getCurrentScope(),
     isolation: Scope = getIsolationScope(),
   ): { hint: EventHint; scope: Scope } {
-    const session = current.getSession() ?? isolation.getSession();
+    const session = resolveScopeSession(current, isolation);
     const scope = current.clone();
     scope.setSession(session);
     const capturedHint: CaptureHint = { ...hint, [capturedSessionKey]: { session } };

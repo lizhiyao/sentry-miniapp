@@ -156,9 +156,14 @@ describe('长期 producer 使用当前 Session；调度任务保留原 Session�
     ).toMatchObject({ status: 'exited', errors: 1 });
   });
 
-  it.each(['navigation', 'mark'] as const)(
-    '动态 Performance %s 在旧 TryCatch timer 的 capture hook 内仍取 isolation B，空会话不恢复 A',
-    async (entryType) => {
+  it.each([
+    ['navigation', 'A'],
+    ['mark', 'A'],
+    ['navigation', 'none'],
+    ['mark', 'none'],
+  ] as const)(
+    '动态 Performance %s 在捕获 %s 的旧 timer hook 内仍取 isolation B，空会话不恢复 A',
+    async (entryType, captured) => {
       let timer!: () => void;
       const nativeSetTimeout = globalThis.setTimeout;
       vi.stubGlobal('setTimeout', (callback: () => void, delay?: number, ...args: unknown[]) => {
@@ -199,7 +204,7 @@ describe('长期 producer 使用当前 Session；调度任务保留原 Session�
           return breadcrumb;
         },
         beforeSend: (event) => {
-          if (event.exception?.values?.some((value) => value.value === 'timer scheduled in A')) {
+          if (event.exception?.values?.some((value) => value.value === 'timer scheduled before B')) {
             timerScope = getCurrentScope().getSession();
             deliverySpan = startInactiveSpan({
               name: 'actual observer delivery',
@@ -217,17 +222,18 @@ describe('长期 producer 使用当前 Session；调度任务保留原 Session�
       });
       const first = getIsolationScope().getSession()!;
       client.addIntegration(performanceIntegration({ enableUserTiming: true }));
+      if (captured === 'none') hides[0]!();
       setTimeout(() => {
-        throw new Error('timer scheduled in A');
+        throw new Error('timer scheduled before B');
       }, 100);
       const oldTimer = timer;
-      hides[0]!();
+      if (captured === 'A') hides[0]!();
       shows[0]!();
       const second = getIsolationScope().getSession()!;
-      expect(() => oldTimer()).toThrow('timer scheduled in A');
+      expect(() => oldTimer()).toThrow('timer scheduled before B');
       await drain(client);
       expect(sampled).toBe(true);
-      expect(timerScope).toBe(first);
+      expect(timerScope).toBe(captured === 'A' ? first : undefined);
       expect(observerScope).toBe(second);
       if (entryType === 'mark') expect(markSpan).toBe(deliverySpan);
       expect(first).toMatchObject({ status: 'exited', errors: 0 });
@@ -289,4 +295,95 @@ describe('长期 producer 使用当前 Session；调度任务保留原 Session�
     await drain(client);
     expect(second.errors).toBe(1);
   });
+
+  it.each(['timer', 'raf', 'request'] as const)(
+    '无 Session 时开始的 %s 观测不会回落到后来前台 B，最终 payload 不含归属引用',
+    async (operation) => {
+      let timer!: () => void;
+      const nativeSetTimeout = globalThis.setTimeout;
+      vi.stubGlobal('setTimeout', (callback: () => void, delay?: number, ...args: unknown[]) => {
+        if (delay === 101) {
+          timer = callback;
+          return 1;
+        }
+        return Reflect.apply(nativeSetTimeout, globalThis, [callback, delay, ...args]);
+      });
+      let request!: { success: (response: unknown) => void };
+      const task = { abort: () => {} };
+      host.request = (options: typeof request) => {
+        request = options;
+        return task;
+      };
+      let observedSession: Session | undefined;
+      const client = start({
+        defaultIntegrations: [
+          spanStreamingIntegration(),
+          sessionIntegration(),
+          tryCatchIntegration(),
+          networkBreadcrumbsIntegration(),
+          miniappLifecycleIntegration(),
+        ],
+        tracesSampleRate: 1,
+        beforeSend: (event) => {
+          observedSession = getCurrentScope().getSession();
+          return event;
+        },
+        beforeBreadcrumb: (breadcrumb) => {
+          if (breadcrumb.category === 'xhr') {
+            client.captureException(new Error('request started without a Session'));
+          }
+          return breadcrumb;
+        },
+      });
+      const first = getIsolationScope().getSession()!;
+      hides[0]!();
+      expect(getIsolationScope().getSession()).toBeUndefined();
+      const error = new Error('scheduled without a Session');
+      const callback = () => {
+        throw error;
+      };
+      if (operation === 'timer') setTimeout(callback, 101);
+      else if (operation === 'raf') requestAnimationFrame(callback);
+      else {
+        expect(
+          (host.request as (options: unknown) => unknown)({ url: 'https://business.example/data' }),
+        ).toBe(task);
+      }
+      shows[0]!();
+      const second = getIsolationScope().getSession()!;
+      expect(second.sid).not.toBe(first.sid);
+      if (operation === 'request') request.success({ statusCode: 200 });
+      else {
+        let thrown: unknown;
+        try {
+          if (operation === 'timer') timer();
+          else frame(20);
+        } catch (caught) {
+          thrown = caught;
+        }
+        expect(thrown).toBe(error);
+      }
+      await drain(client);
+      expect(observedSession).toBeUndefined();
+      expect(first).toMatchObject({ status: 'exited', errors: 0 });
+      expect(second).toMatchObject({ status: 'ok', errors: 0 });
+      expect(collectEnvelopePayloads<Event>(envelopes, ['event'])).toHaveLength(1);
+      hides[0]!();
+      expect(sessions().filter((session) => session.sid === second.sid).at(-1)).toMatchObject({
+        status: 'exited',
+        errors: 0,
+      });
+      const seen = new WeakSet<object>();
+      const inspect = (value: unknown): void => {
+        if (!value || typeof value !== 'object' || seen.has(value)) return;
+        seen.add(value);
+        expect(value).not.toBe(first);
+        expect(value).not.toBe(second);
+        expect(Reflect.ownKeys(value).some((key) => typeof key === 'symbol')).toBe(false);
+        expect('sdkProcessingMetadata' in value).toBe(false);
+        Object.values(value).forEach(inspect);
+      };
+      envelopes.forEach(inspect);
+    },
+  );
 });

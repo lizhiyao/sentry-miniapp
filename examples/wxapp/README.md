@@ -66,7 +66,7 @@
 
 - **Issues**：主要看错误和消息的聚合结果
 - **Events**：看原始事件明细
-- **Performance / Transactions**：看页面和请求性能数据
+- **Traces / Spans**：看请求和业务操作的耗时
 - **Breadcrumbs / Context / Tags**：看每次访问和请求附带的上下文信息
 
 首页里的 npm、GitHub、registry 请求本身不是“异常”，但它们会产生 Breadcrumb 和性能数据；失败时才会补充 warning 消息事件。

@@ -75,7 +75,7 @@ flowchart TD
 
 旧 runtime 退休后，新构造失败不会复活旧 runtime。根初始化可正常替换 client，但业务入口应尽早、通常在 `App()` 注册前初始化；晚初始化不能补回已发生的宿主注册和启动异常。
 
-集成的公共形式是 factory。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
+集成的公共形式是 factory，返回类型只承诺 Core `Integration`，不将内部 class 的清理方法作为公共 API。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
 
 默认装配显式包含 `spanStreamingIntegration()`：自定义 `Client` 不会自动获得其它官方宿主 SDK 的集成组合。移除它后，业务 span 和请求 span 都不会经默认 stream 管道发送。性能 Observer 和 FPS 属于可选宿主能力，不能成为基础 HTTP tracing 的前提。
 
@@ -92,6 +92,8 @@ flowchart TD
 宿主 Debug ID 同步挂在公开 `preprocessEvent` 上。默认环境 processor 只填缺失维度，保留用户字段和显式 `null`。自动环境信息属于 client，不写共享 isolation scope，以免初始化、路由或关闭串改其它业务上下文。
 
 SessionCapture 使用 hint 中的 Symbol 和 client 自有的事件 WeakMap 关联采集时引用；`postprocessEvent` 为 processors／normalization 的产物登记关联，`beforeSend` 返回替换对象时再次登记。`postprocessEvent` 本身是 void hook，不能用返回值替换事件。关联不向遥测 payload 增加 owner 字段，也不维护按 event ID 增长的索引。采集时没有 Session 也是有效结果，不能回落到处理完成时新建的会话。原 isolation scope 的身份与 `lastEventId()` 等 Core 副作用继续保留。
+
+SDK 的操作快照通过 Core 公开的 scope processing metadata 保存明确的会话选择，包括空引用；嵌套 `withScope()` 的克隆仍保留该选择。普通业务 scope 未携带 SDK 归属时继续使用 Core 的 current／isolation 查找次序。长期 producer 和 Performance mark 显式更新当前策略，不能继承外层旧操作的捕获意图；内部 metadata 不进入最终 envelope。
 
 Session 的错误状态沿用 Core 的首次 errored／unhandled 语义，`errors` 不是 SDK 每条异常累加的计数器。已经结束的会话不会被迟到的错误重新打开，旧终态不重发，也不把该错误补计到新会话；错误事件自身仍按配置处理。
 
@@ -168,6 +170,8 @@ dispose 能结束 SDK 等待，但不能强制取消用户 Promise 或任意自�
 
 系统信息按 API、字段独立读取，兼容分体 API 与旧接口；不修改宿主返回的冻结对象。某个 getter、可选 API 或字段失败，只省略／回退相关维度。网络 transport 安全探测 `request`，不可用时尝试 `httpRequest`；不同宿主的状态码、header、Storage 参数和二进制请求能力由适配层处理。
 
+平台解析返回真实宿主对象，不安装 request 别名，也不原地替换 Storage 方法或写入适配标记。支付宝／钉钉的对象式 Storage 参数只在 SDK store 的消费入口转换，保留原生业务方法的身份、receiver 与返回结构；不可写宿主仍可用于 transport 和存储，无法安装的自动函数观测独立跳过。
+
 新增宿主能力应先做实际 API 特性检测，并明确缺失时跳过、降级或拒绝的行为。平台列表不代表所有可选能力等价，详细差异由[平台能力文档](website/guide/platform-compatibility.md)维护。
 
 ### 采集、同意与持久化
@@ -209,6 +213,8 @@ SDK 自请求通过 [requestMarker.ts](src/transports/requestMarker.ts)识别，
 UTF-8 编码与字节预算共用 `coreCompat` 的标量转换，缺少 TextEncoder 时通过 Core 公开 singleton 注册编码回退；不修改 Core 私有队列或 hooks。client reports 使用 SDK 自有 Map 和公开 recorder／envelope 入口，不读写 `_outcomes` 或调用 `_flushOutcomes`；发送前交换批次，发送 hook 新增的 drop 留到下次 flush，见 [client-reports](test/client-reports.realcore.test.ts)。
 
 公开入口仍有需要验证的协议假设：`encodePolyfill` singleton 键、`_sentryDebugIds`／`_debugIds` 全局 map，以及 `getDefaultCurrentScope()` 对默认持久根的身份语义。升级时须同时检查缺编码器的线上字节、最终 `debug_meta` 和同步／异步临时 scope 的初始化回归，不能只登记 protected 方法。
+
+操作 Session 标记还依赖当前 Core 的 scope metadata 克隆、两层 merge 和最终 envelope 移除 `sdkProcessingMetadata` 的语义。holder 放在 merge 深度之外，不通过私有 scope 字段传播；升级 Core 时须重跑 [producer-session](test/producer-session.realcore.test.ts) 和 [client-capture](test/client-capture.realcore.test.ts) 的空会话、当前策略与最终 payload 回归。
 
 不以“零 protected”作为重构目标，也不恢复旧 class 集成、static transaction 管道或复制 Core buffer。评判替换实现的依据是：是否减少重复算法、能否保留可观察语义，以及是否缩小升级时需要复核的接缝。
 

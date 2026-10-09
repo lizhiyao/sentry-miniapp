@@ -48,7 +48,6 @@ export class ConsoleBreadcrumbs implements Integration {
 
   public setupOnce(): void {
     for (const level of this._levels) {
-      if (typeof console[level] !== 'function') continue;
       ensureFunctionInstrumentation(console, level);
     }
   }
@@ -58,7 +57,6 @@ export class ConsoleBreadcrumbs implements Integration {
     if (lifetime && !lifetime.canCollectAutomatic()) return;
     const cleanups: Array<() => void> = [];
     for (const level of this._levels) {
-      if (typeof console[level] !== 'function') continue;
       cleanups.push(
         addFunctionInstrumentationHandler(console, level, client, (original, thisArg, args) =>
           this._handleConsole(level, original, thisArg, args),
@@ -132,6 +130,6 @@ export class ConsoleBreadcrumbs implements Integration {
 /**
  * Console 面包屑集成工厂函数
  */
-export const consoleBreadcrumbsIntegration = (options?: ConsoleBreadcrumbsOptions) => {
+export const consoleBreadcrumbsIntegration = (options?: ConsoleBreadcrumbsOptions): Integration => {
   return new ConsoleBreadcrumbs(options);
 };

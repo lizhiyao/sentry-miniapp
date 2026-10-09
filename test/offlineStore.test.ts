@@ -10,7 +10,11 @@ import { utf8ByteLength } from '../src/coreCompat';
 import { appName, sdk } from '../src/crossPlatform';
 import { createEventEnvelope } from './support/envelopes';
 
-vi.mock('../src/crossPlatform', () => ({ sdk: vi.fn(), appName: vi.fn() }));
+vi.mock('../src/crossPlatform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/crossPlatform')>()),
+  sdk: vi.fn(),
+  appName: vi.fn(),
+}));
 const defaults: MiniappOfflineStoreOptions = {
   targetId: 'target-A',
   policyId: 'privacy-v2',

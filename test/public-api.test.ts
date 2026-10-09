@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as Sentry from '../src/index';
+import type { Integration } from '@sentry/core';
 import type { MiniappOptions } from '../src/types';
 import type { PerformanceIntegrationOptions } from '../src/integrations/performance';
 
@@ -114,5 +115,12 @@ describe('公开 API 出口', () => {
     expect(Sentry).not.toHaveProperty('defaultIntegrations');
     expect(Sentry).not.toHaveProperty('showReportDialog');
     expect(Sentry.MiniappClient.prototype).not.toHaveProperty('showReportDialog');
+  });
+
+  it('factory 声明只承诺 Core Integration，不透出内部控制器方法', () => {
+    expectTypeOf(Sentry.consoleBreadcrumbsIntegration).returns.toEqualTypeOf<Integration>();
+    expectTypeOf(Sentry.pageBreadcrumbsIntegration).returns.toEqualTypeOf<Integration>();
+    expectTypeOf(Sentry.performanceIntegration).returns.toEqualTypeOf<Integration>();
+    expectTypeOf(Sentry.minigameFrameRateIntegration).returns.toEqualTypeOf<Integration>();
   });
 });

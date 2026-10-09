@@ -166,13 +166,19 @@ export class GlobalHandlers implements Integration {
   private _listen(onName: string, offName: string, handler: Function): void {
     const source = this._sdk;
     const on = source?.[onName as keyof typeof source];
-    const off = source?.[offName as keyof typeof source];
     if (typeof on !== 'function' || !this._isActiveClient()) return;
     try {
       on.call(source, handler);
     } finally {
       // 宿主可能在注册中退休 client，且在 cleanup 返回后才保存 handler。
-      if (!this._isActiveClient() && typeof off === 'function') off.call(source, handler);
+      if (!this._isActiveClient()) {
+        try {
+          const off = source?.[offName as keyof typeof source];
+          if (typeof off === 'function') off.call(source, handler);
+        } catch (_error) {
+          /* 不可读或不可用的 off 不影响已失效的回调守卫。 */
+        }
+      }
     }
   }
 
@@ -243,7 +249,11 @@ export class GlobalHandlers implements Integration {
   }
 
   private _setup(): void {
-    Error.stackTraceLimit = 50;
+    try {
+      Error.stackTraceLimit = 50;
+    } catch (_error) {
+      /* 宿主不允许调整堆栈长度时，仍使用其原有堆栈并安装异常监听。 */
+    }
 
     const installers: Array<[boolean, () => void]> = [
       [this._options.onerror, () => this._installGlobalOnErrorHandler()],

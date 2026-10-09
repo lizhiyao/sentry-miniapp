@@ -320,6 +320,7 @@ export function fill(
     // 无法安全读取原值时不能建立可恢复的包装。
     return undefined;
   }
+  if (typeof original !== 'function') return undefined;
   const wrapped = replacementFactory(original);
 
   if (typeof wrapped === 'function') {

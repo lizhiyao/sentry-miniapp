@@ -6,10 +6,12 @@ import {
   getIsolationScope,
   lastEventId,
   makeSession,
+  startSession,
   type Envelope,
   type ErrorEvent,
 } from '@sentry/core';
 import { MiniappClient } from '../src/client';
+import { wrap } from '../src/sdk';
 import type { MiniappOptions } from '../src/types';
 import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
@@ -66,6 +68,49 @@ describe('公共 capture 入口与 core Session/Scope 契约', () => {
       collectEnvelopePayloads<ErrorEvent>(envelopes, ['event']).map((event) => event.message),
     ).toEqual(['nested', 'outer']);
   });
+
+  it('普通 Core scope 未设置 Session 时，公开 capture 仍回落 startSession 的 isolation 会话', async () => {
+    const client = make();
+    getCurrentScope().setSession();
+    const session = startSession({ release: 'capture@2.0' });
+    client.captureException(new Error('ordinary capture after startSession'));
+    await client.flush(100);
+    expect(session).toMatchObject({ status: 'ok', errors: 1 });
+    expect(collectEnvelopePayloads<ErrorEvent>(envelopes, ['event'])).toHaveLength(1);
+    expect(
+      collectEnvelopePayloads<{ sid: string; errors: number }>(envelopes, ['session']).at(-1),
+    ).toMatchObject({ sid: session.sid, errors: 1 });
+  });
+
+  it.each([true, false])(
+    '公开 wrap 固定调用前会话（已有 Session=%s），业务启动 B 后抛错不改记 B',
+    async (hasSession) => {
+      const client = make();
+      const previous = getCurrentScope().getClient();
+      getCurrentScope().setClient(client);
+      try {
+        if (hasSession) startSession();
+        const error = new Error('business changed Session before throwing');
+        const wrapped = wrap(() => {
+          startSession();
+          throw error;
+        });
+        let thrown: unknown;
+        try {
+          wrapped();
+        } catch (caught) {
+          thrown = caught;
+        }
+        expect(thrown).toBe(error);
+        const next = getIsolationScope().getSession()!;
+        await client.flush(100);
+        expect(next).toMatchObject({ status: 'ok', errors: 0 });
+        expect(collectEnvelopePayloads<ErrorEvent>(envelopes, ['event'])).toHaveLength(1);
+      } finally {
+        getCurrentScope().setClient(previous);
+      }
+    },
+  );
 
   it('显式 captured scopes 的 lastEventId 写回原 isolation，Session 使用显式 current scope', async () => {
     const client = make();
