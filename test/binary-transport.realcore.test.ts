@@ -32,6 +32,101 @@ function binary(bytes: Uint8Array): Envelope {
 }
 const options = { url: 'https://example.com/envelope/', recordDroppedEvent: () => {} };
 
+it.each(['unreadable', 'not a function'])(
+  'delivers a real event through the default DingTalk transport when request is %s',
+  async (capability) => {
+    host('dd');
+    const httpRequest = vi.fn(function (this: unknown, requestOptions: any) {
+      expect(this).toBe(hostSdk);
+      requestOptions.success({ status: 200, headers: {} });
+      return {};
+    });
+    const hostSdk = { httpRequest };
+    Object.defineProperty(
+      hostSdk,
+      'request',
+      capability === 'unreadable'
+        ? {
+            get() {
+              throw new Error('request API is inaccessible');
+            },
+          }
+        : { value: {} },
+    );
+    vi.stubGlobal('dd', hostSdk);
+    resetPlatformCache();
+    const client = init({
+      dsn: 'https://key@example.com/1',
+      release: 'dingtalk-request-fallback',
+      enableOfflineCache: false,
+    })!;
+    clients.push(client);
+    const eventId = client.captureException(new Error('DingTalk default transport fallback'));
+    await expect(client.flush(1000)).resolves.toBe(true);
+
+    expect(httpRequest).toHaveBeenCalledOnce();
+    const requestOptions = httpRequest.mock.calls[0]![0];
+    expect(requestOptions.method).toBe('POST');
+    const lines = (requestOptions.data as string).split('\n');
+    expect(JSON.parse(lines[1]!)).toMatchObject({ type: 'event' });
+    expect(JSON.parse(lines[2]!)).toMatchObject({
+      event_id: eventId,
+      release: 'dingtalk-request-fallback',
+      exception: { values: [{ value: 'DingTalk default transport fallback' }] },
+    });
+  },
+);
+
+it('rechecks disposal after a fallback httpRequest getter synchronously disposes the client', async () => {
+  const request = host('dd');
+  let sending = false;
+  vi.stubGlobal('dd', {
+    get request() {
+      throw new Error('request API is inaccessible');
+    },
+    get httpRequest() {
+      if (sending) client.dispose();
+      return request;
+    },
+  });
+  resetPlatformCache();
+  const client = init({
+    dsn: 'https://key@example.com/1',
+    enableOfflineCache: false,
+    defaultIntegrations: false,
+  })!;
+  clients.push(client);
+  sending = true;
+  await expect(
+    client.getTransport()!.send(createEventEnvelope('disposed-in-fallback-getter')),
+  ).resolves.toEqual({});
+  expect(request).not.toHaveBeenCalled();
+});
+
+it('rechecks consent after a fallback httpRequest getter synchronously revokes it', async () => {
+  const request = host('dd');
+  let granted = true;
+  vi.stubGlobal('dd', {
+    get request() {
+      throw new Error('request API is inaccessible');
+    },
+    get httpRequest() {
+      granted = false;
+      return request;
+    },
+  });
+  resetPlatformCache();
+  const transport = createMiniappTransport(
+    options,
+    () => true,
+    () => granted,
+  );
+  await expect(transport.send(createEventEnvelope('revoked-in-fallback-getter'))).rejects.toThrow(
+    'blocked by consent',
+  );
+  expect(request).not.toHaveBeenCalled();
+});
+
 it('request option construction failure settles and clears the SDK timeout before any host call', async () => {
   vi.useFakeTimers();
   try {

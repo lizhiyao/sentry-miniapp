@@ -2,7 +2,7 @@
  * Sentry 集成封装（Taro + React，微信小程序端）
  *
  * 本示例只演示小程序端集成，直接引入 sentry-miniapp。
- * 若 Taro 工程还要监控 H5 端，请按仓库根 README 的「uni-app / Taro」一节，
+ * 若 Taro 工程还要监控 H5 端，请参考 https://sentry-miniapp.pages.dev/guide/taro 的分端接入，
  * 用 `process.env.TARO_ENV === 'h5'` 判断分端引入 `@sentry/browser`。
  */
 import * as Sentry from 'sentry-miniapp';

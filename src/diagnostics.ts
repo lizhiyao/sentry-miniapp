@@ -28,6 +28,8 @@ const lifecycleMessages: Record<LifecycleWarningCode, string> = {
     '未安装或缺少可用 lifecycle 监听，业务须在 hide/show 边界显式管理 flush 与离线重放。',
   reentrant_init_unsupported:
     '同步遥测 hook 中的 init 已拒绝；请在 hook 返回后的独立控制流切换 client。',
+  init_scope_unsupported:
+    '临时 scope 内的 init 已拒绝且保留原 client；请退出 withScope，或等待活动异步 span 完成后再初始化。',
   invalid_close_timeout: '非法 close timeout 已回落为 2000ms 收尾预算。',
 };
 

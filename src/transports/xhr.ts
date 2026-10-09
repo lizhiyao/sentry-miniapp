@@ -188,7 +188,19 @@ export function createMiniappTransport(
 
         // Use the appropriate request method based on the platform
         const currentSdk = sdk();
-        const requestApi = currentSdk.request ?? currentSdk.httpRequest;
+        let requestApi: unknown;
+        try {
+          requestApi = currentSdk.request;
+        } catch (_error) {
+          /* An inaccessible optional API must not prevent the fallback. */
+        }
+        if (typeof requestApi !== 'function') {
+          try {
+            requestApi = currentSdk.httpRequest;
+          } catch (_error) {
+            /* The unavailable-method path below still settles this request. */
+          }
+        }
         if (stopped || !canSend()) {
           cancel();
         } else if (!hasConsent()) {

@@ -32,7 +32,7 @@
 - 为每次页面访问生成唯一 `pageVisitId`
 - 在 `onLoad`、`onReady`、`onShow`、`onUnload` 中记录生命周期 Breadcrumb
 - 通过 `setContext` 记录首页运行时上下文
-- 对 npm / GitHub / registry 请求统一加上自定义 Span
+- 由默认网络集成自动采集 npm / GitHub / registry 请求的 HTTP span
 - 请求成功时写入 Breadcrumb，请求失败时上报一条 warning 级别消息
 - 把 `pageVisitId` 展示在页面状态卡片中，方便和 Sentry 后台联动排查
 

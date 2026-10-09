@@ -106,12 +106,16 @@ export class NetworkBreadcrumbs implements Integration {
     const miniappSdk = sdk();
     const cleanups: Array<() => void> = [];
     for (const name of ['request', 'httpRequest'] as const) {
-      if (typeof miniappSdk[name] !== 'function') continue;
-      cleanups.push(
-        addFunctionInstrumentationHandler(miniappSdk, name, client, (original, thisArg, args) =>
-          this._invokeRequestWrapper(original, thisArg, args),
-        ),
-      );
+      try {
+        if (typeof miniappSdk[name] !== 'function') continue;
+        cleanups.push(
+          addFunctionInstrumentationHandler(miniappSdk, name, client, (original, thisArg, args) =>
+            this._invokeRequestWrapper(original, thisArg, args),
+          ),
+        );
+      } catch (_error) {
+        /* 一项宿主能力不可读不阻断其它网络入口或 SDK 初始化。 */
+      }
     }
     const cleanup = this._trackCleanup(cleanups);
     const detach = lifetime?.registerStop(cleanup);
@@ -132,9 +136,15 @@ export class NetworkBreadcrumbs implements Integration {
     miniappSdk: Partial<Record<'request' | 'httpRequest', unknown>>,
     name: 'request' | 'httpRequest',
   ): void {
-    if (typeof miniappSdk[name] !== 'function') return;
-    if (!ensureFunctionInstrumentation(miniappSdk, name)) {
-      console.warn(`[sentry-miniapp] 无法包装当前平台的 ${name} API，网络面包屑和请求追踪将不可用`);
+    try {
+      if (typeof miniappSdk[name] !== 'function') return;
+      if (!ensureFunctionInstrumentation(miniappSdk, name)) {
+        console.warn(
+          `[sentry-miniapp] 无法包装当前平台的 ${name} API，网络面包屑和请求追踪将不可用`,
+        );
+      }
+    } catch (_error) {
+      /* 不可读能力或诊断故障不阻断其它网络入口。 */
     }
   }
 
@@ -179,206 +189,229 @@ export class NetworkBreadcrumbs implements Integration {
     const enableStandaloneHttpSpans = this._enableStandaloneHttpSpans;
 
     return function (this: any, options: any): any {
-      if (!options || typeof options !== 'object') {
-        return originalRequest.call(this, options);
-      }
+      let preparedOptions = options;
+      let pendingOwner: OwnerToken | undefined;
+      let requestThrew: ((error: unknown) => void) | undefined;
+      const prepareObservation = (): void => {
+        if (!options || typeof options !== 'object') {
+          return;
+        }
 
-      // 内置 transport 会标记 options 及 header 身份，常见浅拷贝 wrapper 也无需依赖全局 URL。
-      if (isMarkedSentryRequest(options)) {
-        return originalRequest.call(this, options);
-      }
+        // 内置 transport 会标记 options 及 header 身份，常见浅拷贝 wrapper 也无需依赖全局 URL。
+        if (isMarkedSentryRequest(options)) {
+          return;
+        }
 
-      const url = normalizeUrl(options.url);
+        const url = normalizeUrl(options.url);
 
-      const client = getClient();
-      // 使用 core 的 DSN/tunnel 规则识别 SDK 自身 envelope，避免将同域业务请求误排除。
-      if (isSentryRequestUrl(url, client) || isSentryDsnRequestWithoutURL(url, client)) {
-        return originalRequest.call(this, options);
-      }
+        const client = getClient();
+        // 使用 core 的 DSN/tunnel 规则识别 SDK 自身 envelope，避免将同域业务请求误排除。
+        if (isSentryRequestUrl(url, client) || isSentryDsnRequestWithoutURL(url, client)) {
+          return;
+        }
 
-      if (!client) return originalRequest.call(this, options);
-      const owner = new OwnerToken(client);
-      if (!owner.isActive()) {
-        owner.release();
-        return originalRequest.call(this, options);
-      }
+        if (!client) return;
 
-      // 浅拷贝 options，后续回调包装与 header 注入不污染调用方对象。
-      const requestOptions = { ...options };
+        // 浅拷贝 options，后续回调包装与 header 注入不污染调用方对象。
+        const requestOptions = { ...options };
 
-      // 注入分布式追踪头
-      const method = normalizeMethod(options.method);
-      const requestData = options.data;
-      const startTime = Date.now();
-      // dataCollection.urlQueryParams 只管 SDK 自己采集的数据：span 与面包屑用过滤后的 URL，
-      // 而 Sentry 自身请求识别、追踪头注入和 body 黑名单仍按原始 URL 匹配。
-      const collectedUrl = collectUrl(url, client, sensitiveKeys);
-      let requestSpan: RequestSpan | null = null;
-      owner.run((activeClient) => {
-        requestSpan = startRequestSpan(
+        // 注入分布式追踪头
+        const method = normalizeMethod(options.method);
+        const requestData = options.data;
+        const startTime = Date.now();
+        // dataCollection.urlQueryParams 只管 SDK 自己采集的数据：span 与面包屑用过滤后的 URL，
+        // 而 Sentry 自身请求识别、追踪头注入和 body 黑名单仍按原始 URL 匹配。
+        const collectedUrl = collectUrl(url, client, sensitiveKeys);
+        const propagate = enableTracePropagation && shouldPropagateTrace(url);
+
+        // 面包屑的 url 只到 path（core 的 getSanitizedUrlString），query 单列成 url.query，
+        // 与 core 的 fetch 集成同构；span 侧仍用带过滤后 query 的 url.full。
+        const parsedUrl = parseUrl(collectedUrl);
+        const breadcrumbData: Record<string, any> = {
+          url: collectUrlName(collectedUrl),
           method,
-          collectedUrl,
-          enableStandaloneHttpSpans,
-          activeClient,
-        );
-      });
-      owner.onRelease(() => {
-        requestSpan = null;
-      });
-      if (!owner.isActive()) {
-        owner.release();
-        return originalRequest.call(this, options);
-      }
-      const finishSpanOnce = (finish: RequestSpanFinishOptions): void => {
-        const span = requestSpan;
-        requestSpan = null;
-        finishRequestSpan(span, finish);
-      };
-
-      owner.registerFinalizer((reason) =>
-        finishSpanOnce({
-          status: 'error',
-          errorMessage: reason,
-          collectionEndReason: reason,
-          durationMs: Date.now() - startTime,
-        }),
-      );
-      if (enableTracePropagation && shouldPropagateTrace(url)) {
-        owner.run(() => injectTraceHeaders(requestOptions, requestSpan, propagateTraceparent));
-      }
-
-      // 面包屑的 url 只到 path（core 的 getSanitizedUrlString），query 单列成 url.query，
-      // 与 core 的 fetch 集成同构；span 侧仍用带过滤后 query 的 url.full。
-      const parsedUrl = parseUrl(collectedUrl);
-      const breadcrumbData: Record<string, any> = {
-        url: collectUrlName(collectedUrl),
-        method,
-      };
-      const collectedQuery = getUrlQuery(parsedUrl.search);
-      if (collectedQuery) {
-        breadcrumbData['url.query'] = collectedQuery;
-      }
-
-      // dataCollection.httpBodies 约束 SDK 自采的数据体，判定方式与 core 自身集成一致；
-      // traceNetworkBody 仍是本 SDK 的显式 opt-in，两者都放行才记录。
-      const httpBodies = client?.getDataCollectionOptions?.().httpBodies;
-      const traceRequestBody =
-        traceNetworkBody && (httpBodies === undefined || httpBodies.includes('outgoingRequest'));
-      const traceResponseBody =
-        traceNetworkBody && (httpBodies === undefined || httpBodies.includes('outgoingResponse'));
-
-      if (traceRequestBody && requestData && !shouldDenyBodyUrl(url)) {
-        try {
-          const collected = collectBody(
-            requestData,
-            maxBodyBytes,
-            sensitiveKeys,
-            bodyContentType(options.header) ?? bodyContentType(options.headers),
-          );
-          if (collected.body !== undefined) breadcrumbData['request_body'] = collected.body;
-          if (collected.byteLength !== undefined)
-            breadcrumbData['request_body_size'] = collected.byteLength;
-        } catch (_e) {
-          breadcrumbData['request_body'] = '[Cannot serialize request body]';
+        };
+        const collectedQuery = getUrlQuery(parsedUrl.search);
+        if (collectedQuery) {
+          breadcrumbData['url.query'] = collectedQuery;
         }
-      }
 
-      const originalSuccess = options.success;
-      const originalFail = options.fail;
-      const originalComplete = options.complete;
+        // dataCollection.httpBodies 约束 SDK 自采的数据体，判定方式与 core 自身集成一致；
+        // traceNetworkBody 仍是本 SDK 的显式 opt-in，两者都放行才记录。
+        const httpBodies = client?.getDataCollectionOptions?.().httpBodies;
+        const traceRequestBody =
+          traceNetworkBody && (httpBodies === undefined || httpBodies.includes('outgoingRequest'));
+        const traceResponseBody =
+          traceNetworkBody && (httpBodies === undefined || httpBodies.includes('outgoingResponse'));
 
-      // SDK 观察只占同步 owner 范围；业务回调保持宿主的 this/参数/返回值/throw。
-      const observe = (callback: (ownerClient: Client) => void): void => {
-        try {
-          owner.run(callback);
-        } catch (_error) {
-          // 不可读响应等采集故障仍结束本操作，不留下等待退休的 span。
-          owner.run(() =>
-            finishSpanOnce({
-              status: 'error',
-              errorMessage: 'telemetry_error',
-              durationMs: Date.now() - startTime,
-            }),
-          );
-        } finally {
-          owner.release();
-        }
-      };
-      requestOptions.success = function (this: any, ...args: any[]) {
-        observe(() => {
-          const res = args[0] || {};
-          const statusCode = getResponseStatusCode(res);
-          const duration = Date.now() - startTime;
-          breadcrumbData['status_code'] = statusCode;
-          breadcrumbData['duration'] = duration;
-          finishSpanOnce({
-            statusCode,
-            status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
-            durationMs: duration,
-          });
-          if (!owner.isActive()) return;
-          if (traceResponseBody && res.data && !shouldDenyBodyUrl(url)) {
-            try {
-              const collected = collectBody(
-                res.data,
-                maxBodyBytes,
-                sensitiveKeys,
-                bodyContentType(res.header) ?? bodyContentType(res.headers),
-              );
-              if (collected.body !== undefined) breadcrumbData['response_body'] = collected.body;
-              if (collected.byteLength !== undefined)
-                breadcrumbData['response_body_size'] = collected.byteLength;
-            } catch (_error) {
-              breadcrumbData['response_body'] = '[Cannot serialize response body]';
-            }
+        if (traceRequestBody && requestData && !shouldDenyBodyUrl(url)) {
+          try {
+            const collected = collectBody(
+              requestData,
+              maxBodyBytes,
+              sensitiveKeys,
+              bodyContentType(options.header) ?? bodyContentType(options.headers),
+            );
+            if (collected.body !== undefined) breadcrumbData['request_body'] = collected.body;
+            if (collected.byteLength !== undefined)
+              breadcrumbData['request_body_size'] = collected.byteLength;
+          } catch (_e) {
+            breadcrumbData['request_body'] = '[Cannot serialize request body]';
           }
-          addBreadcrumb({
-            type: 'http',
-            category: 'xhr',
-            data: breadcrumbData,
-            level: isErrorStatusCode(statusCode) || duration > 3000 ? 'warning' : 'info',
-          });
-        });
-        if (typeof originalSuccess === 'function') return originalSuccess.apply(this, args);
-      };
+        }
 
-      requestOptions.fail = function (this: any, ...args: any[]) {
-        observe(() => {
-          const err = args[0] || {};
-          const duration = Date.now() - startTime;
-          const errorMessage = err.errMsg || err.errorMessage || 'Network request failed';
-          breadcrumbData['error'] = errorMessage;
-          breadcrumbData['duration'] = duration;
-          finishSpanOnce({ status: 'error', errorMessage, durationMs: duration });
-          if (!owner.isActive()) return;
-          addBreadcrumb({ type: 'http', category: 'xhr', data: breadcrumbData, level: 'error' });
-        });
-        if (typeof originalFail === 'function') return originalFail.apply(this, args);
-      };
+        const originalSuccess = options.success;
+        const originalFail = options.fail;
+        const originalComplete = options.complete;
 
-      requestOptions.complete = function (this: any, ...args: any[]) {
-        observe(() => {
-          const res = args[0] || {};
-          const statusCode = getResponseStatusCode(res);
-          finishSpanOnce({
-            statusCode,
-            status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
-            durationMs: Date.now() - startTime,
-          });
+        // 先完成可失败的观测读取，再创建 span；失败时宿主仍收到原 options。
+        const owner = new OwnerToken(client);
+        pendingOwner = owner;
+        if (!owner.isActive()) {
+          owner.release();
+          return;
+        }
+        let requestSpan: RequestSpan | null = null;
+        owner.run((activeClient) => {
+          requestSpan = startRequestSpan(
+            method,
+            collectedUrl,
+            enableStandaloneHttpSpans,
+            activeClient,
+          );
         });
-        if (typeof originalComplete === 'function') return originalComplete.apply(this, args);
-      };
-
-      try {
-        return originalRequest.call(this, requestOptions);
-      } catch (error) {
-        observe(() =>
+        owner.onRelease(() => {
+          requestSpan = null;
+        });
+        if (!owner.isActive()) {
+          owner.release();
+          return;
+        }
+        const finishSpanOnce = (finish: RequestSpanFinishOptions): void => {
+          const span = requestSpan;
+          requestSpan = null;
+          finishRequestSpan(span, finish);
+        };
+        owner.registerFinalizer((reason) =>
           finishSpanOnce({
             status: 'error',
-            errorMessage: error instanceof Error ? error.message : String(error),
+            errorMessage: reason,
+            collectionEndReason: reason,
             durationMs: Date.now() - startTime,
           }),
         );
+        if (propagate) {
+          owner.run(() => injectTraceHeaders(requestOptions, requestSpan, propagateTraceparent));
+        }
+
+        // SDK 观察只占同步 owner 范围；业务回调保持宿主的 this/参数/返回值/throw。
+        const observe = (callback: (ownerClient: Client) => void): void => {
+          try {
+            owner.run(callback);
+          } catch (_error) {
+            // 不可读响应等采集故障仍结束本操作，不留下等待退休的 span。
+            owner.run(() =>
+              finishSpanOnce({
+                status: 'error',
+                errorMessage: 'telemetry_error',
+                durationMs: Date.now() - startTime,
+              }),
+            );
+          } finally {
+            owner.release();
+          }
+        };
+        requestOptions.success = function (this: any, ...args: any[]) {
+          observe(() => {
+            const res = args[0] || {};
+            const statusCode = getResponseStatusCode(res);
+            const duration = Date.now() - startTime;
+            breadcrumbData['status_code'] = statusCode;
+            breadcrumbData['duration'] = duration;
+            finishSpanOnce({
+              statusCode,
+              status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
+              durationMs: duration,
+            });
+            if (!owner.isActive()) return;
+            if (traceResponseBody && res.data && !shouldDenyBodyUrl(url)) {
+              try {
+                const collected = collectBody(
+                  res.data,
+                  maxBodyBytes,
+                  sensitiveKeys,
+                  bodyContentType(res.header) ?? bodyContentType(res.headers),
+                );
+                if (collected.body !== undefined) breadcrumbData['response_body'] = collected.body;
+                if (collected.byteLength !== undefined)
+                  breadcrumbData['response_body_size'] = collected.byteLength;
+              } catch (_error) {
+                breadcrumbData['response_body'] = '[Cannot serialize response body]';
+              }
+            }
+            addBreadcrumb({
+              type: 'http',
+              category: 'xhr',
+              data: breadcrumbData,
+              level: isErrorStatusCode(statusCode) || duration > 3000 ? 'warning' : 'info',
+            });
+          });
+          if (typeof originalSuccess === 'function') return originalSuccess.apply(this, args);
+        };
+
+        requestOptions.fail = function (this: any, ...args: any[]) {
+          observe(() => {
+            const err = args[0] || {};
+            const duration = Date.now() - startTime;
+            const errorMessage = err.errMsg || err.errorMessage || 'Network request failed';
+            breadcrumbData['error'] = errorMessage;
+            breadcrumbData['duration'] = duration;
+            finishSpanOnce({ status: 'error', errorMessage, durationMs: duration });
+            if (!owner.isActive()) return;
+            addBreadcrumb({ type: 'http', category: 'xhr', data: breadcrumbData, level: 'error' });
+          });
+          if (typeof originalFail === 'function') return originalFail.apply(this, args);
+        };
+
+        requestOptions.complete = function (this: any, ...args: any[]) {
+          observe(() => {
+            const res = args[0] || {};
+            const statusCode = getResponseStatusCode(res);
+            finishSpanOnce({
+              statusCode,
+              status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
+              durationMs: Date.now() - startTime,
+            });
+          });
+          if (typeof originalComplete === 'function') return originalComplete.apply(this, args);
+        };
+
+        requestThrew = (error) =>
+          observe(() =>
+            finishSpanOnce({
+              status: 'error',
+              errorMessage: error instanceof Error ? error.message : String(error),
+              durationMs: Date.now() - startTime,
+            }),
+          );
+        preparedOptions = requestOptions;
+      };
+      try {
+        prepareObservation();
+      } catch (_error) {
+        pendingOwner?.release();
+        preparedOptions = options;
+        requestThrew = undefined;
+      }
+      // 宿主调用在降级边界之外，仅执行一次；业务异常不能触发请求重试。
+      try {
+        return originalRequest.call(this, preparedOptions);
+      } catch (error) {
+        try {
+          requestThrew?.(error);
+        } catch (_observationError) {
+          /* 保留原宿主异常。 */
+        }
         throw error;
       }
     };

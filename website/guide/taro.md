@@ -6,7 +6,7 @@ Taro 默认使用 **React**（也可通过 `framework` 配置切换到 Vue3 / Vu
 
 很多人第一反应是装官方的 `@sentry/browser` 或 `@sentry/react`，但**在小程序端跑不起来**：
 
-- 小程序没有浏览器的 `window` / `fetch` / `XMLHttpRequest`，官方 Web SDK 的传输层和全局错误钩子都依赖这些；
+- 小程序可能提供 `window` 别名，但通常缺少 DOM、浏览器 `fetch` 和 `XMLHttpRequest`；仅有别名不能满足官方 Web SDK 的运行条件；
 - 小程序是双线程架构、网络只能走平台请求 API（如微信 `wx.request`、支付宝 `my.httpRequest`），需要专门的 transport 与平台适配。
 
 `sentry-miniapp` 正是补齐这一层：自定义 transport（走各端 request/httpRequest）、小程序全局异常捕获、Source Map 路径归一化、网络面包屑等。**Taro 小程序端用 `sentry-miniapp`，H5 端才用 `@sentry/browser`**（见下文「分端接入」）。

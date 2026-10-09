@@ -2,7 +2,7 @@
  * Sentry 集成封装（uni-app 微信小程序端）
  *
  * 本示例只演示小程序端集成，因此直接引入 sentry-miniapp。
- * 若你的 uni-app 工程还要监控 H5 端，请按仓库 README 的「uni-app / Taro」一节，
+ * 若你的 uni-app 工程还要监控 H5 端，请参考 https://sentry-miniapp.pages.dev/guide/uniapp 的分端接入，
  * 用条件编译按端引入：
  *   // #ifdef H5
  *   import * as Sentry from '@sentry/browser';

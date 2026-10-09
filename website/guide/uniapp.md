@@ -4,7 +4,7 @@ uni-app 底层是 **Vue**。本页以 **uni-app（Vue3 + Vite）编译到微信�
 
 ## 为什么不能直接用 `@sentry/browser`
 
-小程序没有浏览器的 `window` / `fetch` / `XMLHttpRequest`，网络只能走平台请求 API（如微信 `wx.request`、支付宝 `my.httpRequest`），官方 Web SDK 的传输层与全局错误钩子都用不了。`sentry-miniapp` 补齐了这层（自定义 transport、小程序全局异常捕获、Source Map 归一化、网络面包屑）。**uni-app 小程序端用 `sentry-miniapp`，H5 端才用 `@sentry/browser`**（见「分端接入」）。
+小程序可能提供 `window` 别名，但通常缺少 DOM、浏览器 `fetch` 和 `XMLHttpRequest`，网络需走平台请求 API（如微信 `wx.request`、支付宝 `my.httpRequest`）。仅有别名不能满足官方 Web SDK 的运行条件。`sentry-miniapp` 提供平台 transport、全局异常捕获、Source Map 归一化和网络面包屑。**uni-app 小程序端用 `sentry-miniapp`，H5 端才用 `@sentry/browser`**（见「分端接入」）。
 
 ## 1. 安装
 
