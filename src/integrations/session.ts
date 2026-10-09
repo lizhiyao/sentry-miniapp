@@ -14,7 +14,6 @@ import { getClientLifetime } from '../lifecycle';
 export class SessionIntegration implements Integration {
   public static id: string = 'Session';
   public name: string = SessionIntegration.id;
-  private readonly _cleanups = new Set<() => void>();
   private readonly _clients = new WeakSet<Client>();
   private readonly _initialSessions = new WeakMap<Client, () => void>();
 
@@ -71,9 +70,7 @@ export class SessionIntegration implements Integration {
       if (session && getIsolationScope().getSession() === session) getIsolationScope().setSession();
       this._clients.delete(client);
       this._initialSessions.delete(client);
-      this._cleanups.delete(cleanup);
     };
-    this._cleanups.add(cleanup);
     detachFinalizer = lifetime?.registerFinalizer(end);
     const detach = lifetime?.registerStop(cleanup);
     client.registerCleanup(() => {
@@ -108,10 +105,6 @@ export class SessionIntegration implements Integration {
     const startInitialSession = this._initialSessions.get(client);
     this._initialSessions.delete(client);
     startInitialSession?.();
-  }
-
-  public cleanup(): void {
-    for (const cleanup of [...this._cleanups]) cleanup();
   }
 }
 
