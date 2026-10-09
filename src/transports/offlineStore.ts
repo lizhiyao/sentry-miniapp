@@ -1,5 +1,5 @@
 import type { Envelope, OfflineStore } from '@sentry/core';
-import { sdk } from '../crossPlatform';
+import { appName, sdk } from '../crossPlatform';
 import { utf8ByteLength } from '../coreCompat';
 import { withTelemetryCritical } from '../lifecycle';
 import { resolveNonNegativeInteger } from '../numericOptions';
@@ -44,6 +44,15 @@ export interface MiniappOfflineStoreOptions {
   onDrop?: (reason: DropReason, dropped: number) => void;
 }
 
+/**
+ * 支付宝单 key 额度为 200 KB；钉钉采用同样的保守预算，给宿主存储封装留余量。
+ * 协议解析仍保留 MAX_STORE_BYTES，读入旧容器后按当前宿主预算裁剪，而非变更身份。
+ */
+function storageByteBudget(): number {
+  const platform = appName();
+  return platform === 'alipay' || platform === 'dingtalk' ? 180 * 1024 : MAX_STORE_BYTES;
+}
+
 /** One active owner, one target container. Commit before handing data to core or notifying users. */
 export function createMiniappOfflineStore(
   options: MiniappOfflineStoreOptions,
@@ -55,7 +64,7 @@ export function createMiniappOfflineStore(
   const countLimit = resolveNonNegativeInteger(options.offlineCacheLimit, 30);
   const maxAge = resolveNonNegativeInteger(options.offlineCacheMaxAge, 86400000);
   const byteLimit = Math.min(
-    MAX_STORE_BYTES,
+    storageByteBudget(),
     resolveNonNegativeInteger(options.maxBytes, MAX_STORE_BYTES),
   );
   const codec = new OfflineRecordCodec(targetId);

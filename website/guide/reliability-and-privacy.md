@@ -44,7 +44,7 @@ Sentry.init({
 
 符合存储策略的失败 envelope 会写入 Storage；网络恢复或后续 flush 唤醒重放。记录保留原始时间，retry 不续 TTL；client_report 失败不落盘。写入失败有诊断，不冒称持久化成功。
 
-2.0 仅维护一个持久投递目标，整个容器最多 900 KiB（含元数据）。DSN／tunnel、旧 schema 或不兼容隐私／存储策略变化时丢弃并诊断；条数／字节／TTL 调整仅裁剪兼容记录。新 client 不继承旧 grant，退休 owner 不得回写覆盖新 store。binary 与子视图经 typed codec 保留。
+2.0 仅维护一个持久投递目标，离线重试与同意等待共用一个容器。SDK 将包含元数据的整个容器限制在支付宝／钉钉 180 KiB、其余平台 900 KiB 以内；这是 SDK 的保守预算，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。DSN／tunnel、旧 schema 或不兼容隐私／存储策略变化时丢弃并诊断；条数／字节／TTL 调整仅裁剪兼容记录。新 client 不继承旧 grant，退休 owner 不得回写覆盖新 store。binary 与子视图经 typed codec 保留。
 
 shift 必须先成功提交删除再交给 transport；提交失败不发送。提交成功后中断仍可能丢失，SDK 不承诺 durable ACK、恰好一次或绝不丢失。限流、容量淘汰、关闭及存储故障也属于 best-effort 边界。
 
@@ -88,7 +88,7 @@ Sentry.init({
   dsn: 'YOUR_DSN',
   requireConsent: true,
   consentCacheLimit: 100,
-  consentCacheMaxBytes: 900 * 1024,
+  consentCacheMaxBytes: 900 * 1024, // 配置上限；支付宝／钉钉实际最多 180 KiB
   consentCacheMaxAge: 24 * 60 * 60 * 1000,
   onConsentCacheDrop({ reason, dropped }) {
     console.warn('Sentry consent cache dropped', reason, dropped);
@@ -96,7 +96,7 @@ Sentry.init({
 });
 ```
 
-当前同意缓冲与弱网缓存使用同一个 Storage key。受部分小程序单 key 容量限制影响，编码后的整个容器最多 900 KiB；增加 consentCacheMaxBytes 不能突破此硬上限。
+当前同意缓冲与弱网缓存使用同一个 Storage key。`consentCacheMaxBytes` 默认是 921600 字节（900 KiB），实际取配置值与平台 SDK 预算中的较小值：支付宝／钉钉为 184320 字节（180 KiB），其余平台为 921600 字节（900 KiB）。增加配置不能突破平台预算；容器元数据也计入预算，能保留多少条事件还取决于单条数据大小。
 
 自定义 transport 且 requireConsent=false 时不自动套 SDK offline 层。required=true 时统一包装同意／offline 门，即使 enableOfflineCache=false；base factory 不应再叠第二层 offline，其私有队列需自管实际发送门。低层直接构造 MiniappClient 不获得持久 store／replay 权限，默认接入使用 init。
 

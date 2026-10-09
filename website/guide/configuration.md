@@ -24,12 +24,15 @@
 | `tracesSampler` | `function` | — | 动态采样回调，按页面 / 场景返回采样率。**设置后 `tracesSampleRate` 被忽略**（优先级更高） |
 
 ```js
-tracesSampler: ({ name, inheritOrSampleWith }) => {
-  if (name.includes('pages/pay')) return 1;   // 关键页全采
-  if (name.includes('pages/about')) return 0.1;
-  return inheritOrSampleWith(0.5);             // 其他默认 50%
+tracesSampler: ({ attributes, inheritOrSampleWith }) => {
+  const route = typeof attributes.route === 'string' ? attributes.route : '';
+  if (route.startsWith('pages/pay/')) return 1;   // 支付页面全采
+  if (route.startsWith('pages/about/')) return 0.1;
+  return inheritOrSampleWith(0.5);               // 其他默认 50%
 },
 ```
+
+自动 HTTP span 会携带请求开始时的 `route` 属性。手动创建业务根 span 时，需要自行提供该属性；请求子 span 沿用父级的采样决定。span 名表示请求或业务操作的名称，不能当作当前页面路径。
 
 > **关于 `http.client` span 名的基数**：API 请求的 span 名形如 `GET https://api.example.com/users/123`。SDK 已自动去掉 query/fragment 与 URL 内的账号密码，但**保留路径**——无法推断 REST 路由模板，强行参数化会误伤合法路径。若路径 id（`/users/123`、`/orders/abc`）导致 tracing 维度过高，可用 `beforeSendSpan` 统一改写 span 名（把数字 / UUID 段替换为 `:id`）。
 
@@ -151,7 +154,7 @@ SDK 的缓存条数、字节数、TTL 使用非负安全整数；负数、NaN、
 |------|------|------|------|
 | `requireConsent` | `boolean` | `false` | 开启后，用户同意隐私协议前 SDK 照常采集，但不发送任何网络请求 |
 | `consentCacheLimit` | `number` | `100` | 同意前缓冲最大事件数；满了保留最早的冷启动数据、丢弃最新事件 |
-| `consentCacheMaxBytes` | `number` | `921600` | 同意前缓冲最大字节数；受小程序单 key Storage 约 1MB 限制，默认约 900KB |
+| `consentCacheMaxBytes` | `number` | `921600`（900 KiB） | 同意前缓冲的配置字节上限；实际取配置值与当前平台 SDK 预算中的较小值，整个容器包含元数据。支付宝／钉钉预算为 180 KiB，其余平台为 900 KiB |
 | `consentCacheMaxAge` | `number` | `86400000` | 同意前缓冲过期时间（ms），默认 24 小时 |
 | `onConsentCacheDrop` | `function` | — | 同意缓冲因 `count` / `bytes` / `age` / `target_changed` / `policy_changed` / `migration_drop` 丢弃已知数量的事件时回调 `{ reason, dropped }` |
 
@@ -180,7 +183,7 @@ Sentry.setConsent(false);
 
 授权会同步调用 client.flush，排出 core span/log/metric 等缓冲，并通过独立 runtime handle 请求离线重放，不等待尚未完成的 beforeSend processing。默认 show 与网络从离线恢复也经过该恢复入口；撤回暂停重放，退休／关闭永久停止旧 owner 的重放权限。离线磁盘重放仍是 best-effort，flush 成功不表示磁盘排空或后台已接收。撤回会立即阻止默认 transport 新的实际请求，对在途 SDK 遥测请求 best-effort abort；已传输字节无法撤回，业务 HTTP 不受影响。未完成的排队/在途请求由唯一 core offline 层处理，缓存保留待重新同意，仍受容量与过期限制。自定义 transport 的私有队列由其自身控制，SDK 入口门禁不能强制撤销其中已接收的工作。
 
-`requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；如果传入自定义 `transport`，SDK 也会先用 consent 门禁包住它。2.0 的同意缓冲与弱网重试共用一个 `sentry_miniapp_offline_v2` 容器，记录包含版本、目标身份、原始创建时间和 typed payload；总 UTF-8 字节预算（含元数据）硬封顶 900KB。DSN（含 public key、project、path）或 tunnel 切换，以及不兼容的缓存隐私协议变化，会丢弃旧容器；容量、TTL、淘汰策略调整只裁剪记录。旧 `sentry_offline_store` 无可验证目标身份，直接删除，不恢复或刷新 TTL。SDK 只访问这两个缓存 key。
+`requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；如果传入自定义 `transport`，SDK 也会先用 consent 门禁包住它。2.0 的同意缓冲与弱网重试共用一个 `sentry_miniapp_offline_v2` 容器，记录包含版本、目标身份、原始创建时间和 typed payload。SDK 按实际运行平台限制整个容器的 UTF-8 字节数（含元数据）：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB；较小的 `consentCacheMaxBytes` 仍会进一步收窄。预算是 SDK 的保守存储策略，不是对宿主全部存储额度的承诺，依据见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。DSN（含 public key、project、path）或 tunnel 切换，以及不兼容的缓存隐私协议变化，会丢弃旧容器；容量、TTL、淘汰策略调整只裁剪记录。旧 `sentry_offline_store` 无可验证目标身份，直接删除，不恢复或刷新 TTL。SDK 只访问这两个缓存 key。
 
 重试沿用记录原始时间，不延长 TTL。删除提交失败时不向 core 交付记录，本实例停止消费磁盘并降级为有界内存；写入失败会拒绝 store 的 Promise，不能当作持久化成功。缺少同步 Storage API 时也使用有界内存，冷启动会丢失其中的数据。直接调用 `createMiniappOfflineStore` 必须提供 `targetId` 和版本化 `policyId`；返回值的 `getDiagnostics()` 以及 SDK `getDiagnostics().transport.offlineStore` 报告实际 storage 模式和失败代码，不返回原始缓存数据；`unknown` 表示尚未进行存储操作，`persistent` 表示同步存储通道可用，`memory` 表示本实例已回退为有界内存。模式不代表后台接收或 durable ACK。丢弃通知在成功提交后执行；未知格式无法可靠计数时只记诊断。
 
@@ -251,13 +254,13 @@ Sentry.startInactiveSpan({
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `enableMinigameLifecycle` | `boolean` | 小游戏 `true` / 小程序 `false` | 冷启动首帧耗时、启动场景、onShow/onHide 面包屑 |
+| `enableMinigameLifecycle` | `boolean` | 小游戏 `true` / 小程序 `false` | SDK 初始化到首次帧回调的等待时间、启动场景、onShow/onHide 面包屑；不包含完整冷启动 |
 | `enableMinigameFrameRate` | `boolean` | `false` | 帧率（FPS）/ 卡顿（jank）监控；小程序无全局 rAF，开启也安全 no-op |
 | `minigameFrameRateOptions` | `object` | 见下 | 帧率监控细调，仅 `enableMinigameFrameRate` 生效时使用 |
 
 `minigameFrameRateOptions` 子项：`fpsWarningThreshold`（默认 `30`）、`longFrameThresholdMs`（默认 `50`）、`reportInterval`（默认 `10000`）、`maxJankBreadcrumbsPerWindow`（默认 `3`）、`jankLevels`（可选，分级卡顿阈值）。使用方法与数据去向见[小游戏接入与性能](/guide/minigame)。
 
-`jankLevels` 为 `{ minor?, major?, severe? }`（毫秒，各档全可选）。提供后切换为**分级统计**：每帧卡顿按命中的最高档归类，面包屑带 `jankLevel`，会话汇总额外增发 `jank_minor_count` / `jank_major_count` / `jank_severe_count`（仅启用的档）。不提供时沿用 `longFrameThresholdMs` 单档，行为与历史完全一致；两者同时提供时 `jankLevels` 优先。
+`jankLevels` 为 `{ minor?, major?, severe? }`（毫秒，各档全可选）。提供后切换为**分级统计**：每帧卡顿按命中的最高档归类，面包屑带 `jankLevel`，会话汇总包含 `jank.minor` / `jank.major` / `jank.severe` 属性（仅启用的档），总次数为 `jank.count`。不提供时沿用 `longFrameThresholdMs` 单档；两者同时提供时 `jankLevels` 优先。
 
 ## 过滤与钩子
 
@@ -275,7 +278,7 @@ Sentry.startInactiveSpan({
 | `transportOptions` | `object` | 见下 | 内置上报通道选项：请求头、超时和 Sentry 网络并发上限 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |
 
-> `allowUrls` / `denyUrls` / `ignoreErrors` 由内置的 `EventFilters` 集成实现，`init` 时自动装配（若你在 `integrations` 里已自带 `EventFilters`，则由 core 去重、不重复追加。`InboundFilters` 已被 `@sentry/core` 11 移除）。
+> `allowUrls` / `denyUrls` / `ignoreErrors` 由默认的 `EventFilters` 集成实现。同名用户集成会覆盖默认实例；关闭或替换默认集合时，需要保留该集成，过滤选项才会生效。`InboundFilters` 已被 `@sentry/core` 11 移除。
 
 ```js
 Sentry.init({
@@ -320,7 +323,7 @@ Sentry.init({
 Sentry.init({
   dsn: 'YOUR_DSN',
   integrations: (defaults) =>
-    defaults.filter((integration) => integration.name !== 'PerformanceAPI'),
+    defaults.filter((integration) => integration.name !== 'NetworkStatus'),
 });
 
 // 关闭全部默认集成，只安装显式提供的集成
@@ -342,13 +345,15 @@ Sentry.init({
 
 `client.close(timeout)` 的正有限 timeout 是整个收尾的预算；`0` 或省略 timeout 表示等待排空，不套内部 2000ms 预算。负数、NaN、Infinity 使用 2000ms 安全预算。重复 close 共享同一 Promise。`dispose()` 是立即废弃：禁用采集与发送，排弃 core buffer，再解除资源；它不生成最后的 summary，也可以中断等待中的 close，使其返回 `false`。宿主恢复后，默认发送队列在实际出队时仍检查终态与绝对 deadline。
 
+调用 `close()` 后，client 停止接收新的业务异常、消息、事件和反馈；已经进入 core 处理队列的数据继续在收尾预算内排出，SDK 的同步收尾步骤仍可生成最后一份汇总。调用 `dispose()` 后，再次捕获不会执行事件处理器或 `beforeSend`。这些采集 API 仍可能返回事件 ID，但 ID 不代表事件已进入队列或上报成功。
+
 SDK finalizer 与资源 cleanup 分开，前者只在关闭的同步收尾窗口产生最后数据。关闭后日志／指标不会再执行用户采集 callback 或填入 buffer；callback 内关闭 client 后返回的日志／指标也被拒收。任意第三方 core hook 抛错可能中断 core 其余 listener，内部 buffer 清理只能 best-effort；SDK 仍完成终态和资源清理，不修改 core 私有 hooks/buffers。
 
 `close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。
 
 2.0 将 JS 未处理异常的 Session 状态从 `crashed` 改为 `unhandled`，不将可继续运行的异常当作宿主进程崩溃。Release Health 的统计与告警须重新建立基线，不能直接比较 1.x 的 crash-free 数据；没有真实原生崩溃证据时 SDK 不生成 `crashed`。
 
-自动 Session 按前台 episode 维护 client 自有引用，在业务同步 `onHide` 之后结束。正常会话收尾发送 `exited`；core 已上报 `unhandled` 等终态时，退后台、关闭或切换 client 只释放该会话引用，不重复发送终态，避免 Release Health 重复累计。异步事件处理使用采集时的 session；S1 结束后开始 S2，S1 的迟到错误不会修改或结束 S2。已结束 S1 是否补发更新遵循 core 原生语义，不能将迟到错误重新归到当前前台。手动 `startSession`／`captureSession`／`endSession` 直接沿用 core API 的发送语义，不能把反复发送终态更新当作幂等操作。
+自动 Session 随每次前台运行开始，在业务同步 `onHide` 之后结束。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
 
 默认 MiniappLifecycle 协调器独立于 Session、Page 与 FPS。可包装 App 时，业务同步 handler、SDK after 收尾和最后 flush 按阶段运行；Session 在协调器之后安装也不会越过最后 flush。小游戏使用原生 onShow/onHide；可检测到已注册 App 的 late init 使用原生 onAppShow/onAppHide（如有）。原生监听相对业务监听的顺序由宿主控制，业务 handler 末尾显式 flush 才能覆盖随后产生的数据。App 入口不可读、不可写或 setter 忽略包装时，改用可用的原生监听；冻结的 App 定义仍交给宿主注册，无法注入的 handler 不保证自动收尾，业务需显式 flush。没有监听能力时安全降级；没有 getApp 检测能力时，SDK 也无法可靠判断 App 是否已注册。
 

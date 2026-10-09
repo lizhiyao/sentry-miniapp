@@ -27,7 +27,7 @@
 - **排查上下文**：记录设备信息、页面生命周期、点击 / 触摸和网络请求面包屑，帮助还原用户出错前做了什么。
 - **性能与链路追踪**：开启 tracing 后，API 请求可作为 `http.client` span 串联后端链路；可选 Performance 集成基于宿主实际能力采集启动、页面渲染和资源加载耗时。
 - **Source Map 友好**：统一多平台虚拟堆栈路径为 `app:///`，配合 Source Map / Debug ID 还原源码位置；特殊运行时可用 `stackParser` 适配。
-- **弱网与合规场景**：上报失败会先进本地离线队列，网络恢复后自动重试；开启 `requireConsent` 后，事件只写入本地缓冲，不向 Sentry 发起请求，用户同意后再调用 `Sentry.setConsent(true)` 补发。
+- **弱网与合规场景**：符合缓存策略的发送失败会进入有界离线队列，网络恢复后尝试补发；开启 `requireConsent` 后，事件进入有界本地缓冲，不向 Sentry 发起请求，用户同意后再调用 `Sentry.setConsent(true)` 尝试补发。
 - **小游戏专属能力**：微信 / 抖音小游戏可测量 SDK 初始化到首次帧回调的等待时间；帧率与卡顿统计需手动开启，缺少平台能力时跳过。
 - **熟悉的 Sentry API**：支持 `captureException`、`setUser`、`addBreadcrumb`、`startSpan`、`captureFeedback`、`Sentry.logger.*` 等常用能力。
 

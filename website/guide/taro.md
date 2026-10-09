@@ -42,8 +42,8 @@ export default Sentry;
 在 `src/app.tsx` 顶部引入封装（引入即执行 `init`），确保先于业务请求、能捕获启动阶段异常：
 
 ```tsx
+import './utils/sentry'; // 保留初始化副作用，放在业务模块之前
 import type { PropsWithChildren } from 'react';
-import Sentry from './utils/sentry'; // 引入即执行 Sentry.init
 import SentryBoundary from './components/SentryBoundary';
 
 function App({ children }: PropsWithChildren) {

@@ -12,6 +12,7 @@ import {
   makeDsn,
   withScope,
   resolvedSyncPromise,
+  uuid4,
   stackParserFromStackParserOptions,
 } from '@sentry/core';
 import type {
@@ -427,6 +428,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   }
 
   public override captureException(exception: unknown, hint?: EventHint, scope?: Scope): string {
+    if (!this._lifetime.acceptsTelemetry()) return hint?.event_id ?? uuid4();
     const captured = this._sessionCapture.prepare(hint, scope);
     return super.captureException(exception, captured.hint, captured.scope);
   }
@@ -437,11 +439,13 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     hint?: EventHint,
     scope?: Scope,
   ): string {
+    if (!this._lifetime.acceptsTelemetry()) return hint?.event_id ?? uuid4();
     const captured = this._sessionCapture.prepare(hint, scope);
     return super.captureMessage(message, level, captured.hint, captured.scope);
   }
 
   public override captureEvent(event: Event, hint?: EventHint, scope?: Scope): string {
+    if (!this._lifetime.acceptsTelemetry()) return hint?.event_id ?? uuid4();
     const metadata = event.sdkProcessingMetadata;
     const captured = this._sessionCapture.prepare(
       hint,

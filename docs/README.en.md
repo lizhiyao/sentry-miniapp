@@ -31,7 +31,7 @@ Mini program runtimes may expose a window alias without DOM or browser request A
 - **Debugging context**: Records device info, page lifecycle, taps/touches, and network breadcrumbs to help reconstruct what happened before a user hit an error.
 - **Performance and tracing**: With tracing enabled, API requests can be reported as `http.client` spans for backend correlation. The optional Performance integration measures startup, page rendering, and resource timing when the host exposes the required capabilities.
 - **Source Map friendly stacks**: Normalizes platform-specific virtual stack paths to `app:///`, supports Source Maps / Debug IDs, and exposes `stackParser` for unusual runtimes.
-- **Weak-network and privacy flows**: Failed sends go into the local offline queue and retry when the network recovers; with `requireConsent`, events are buffered locally without sending to Sentry until `Sentry.setConsent(true)` is called.
+- **Weak-network and privacy flows**: Eligible failed sends enter a bounded offline queue for retry when the network recovers. With `requireConsent`, events enter a bounded local buffer without sending to Sentry; call `Sentry.setConsent(true)` after consent to attempt delivery of buffered events.
 - **Mini game support**: WeChat / Douyin mini games can measure SDK setup to the first rAF callback. FPS and jank collection requires explicit opt-in; measurements are skipped when the required host capabilities are absent.
 - **Familiar Sentry APIs**: `captureException`, `setUser`, `addBreadcrumb`, `startSpan`, `captureFeedback`, `Sentry.logger.*`, and more.
 

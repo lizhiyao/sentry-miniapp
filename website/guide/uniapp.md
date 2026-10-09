@@ -39,9 +39,9 @@ uni-app 底层是 Vue。**组件内**（`render` / 生命周期 / `watch` / 模�
 `src/main.js`（Vue3）：
 
 ```js
+import Sentry from './utils/sentry'; // 先初始化，再加载 App 和业务模块
 import { createSSRApp } from 'vue';
 import App from './App.vue';
-import Sentry from './utils/sentry'; // 引入即执行 Sentry.init（先于业务、能捕获启动异常）
 
 export function createApp() {
   const app = createSSRApp(App);

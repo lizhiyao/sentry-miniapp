@@ -7,10 +7,10 @@ import {
 import { OFFLINE_STORE_KEY, LEGACY_OFFLINE_STORE_KEY } from '../src/transports/offlineRecords';
 import { MAX_STORE_BYTES } from '../src/transports/envelopeCodec';
 import { utf8ByteLength } from '../src/coreCompat';
-import { sdk } from '../src/crossPlatform';
+import { appName, sdk } from '../src/crossPlatform';
 import { createEventEnvelope } from './support/envelopes';
 
-vi.mock('../src/crossPlatform', () => ({ sdk: vi.fn() }));
+vi.mock('../src/crossPlatform', () => ({ sdk: vi.fn(), appName: vi.fn() }));
 const defaults: MiniappOfflineStoreOptions = {
   targetId: 'target-A',
   policyId: 'privacy-v2',
@@ -58,6 +58,7 @@ beforeEach(() => {
     }),
   };
   vi.mocked(sdk).mockReturnValue(host);
+  vi.mocked(appName).mockReturnValue('wechat');
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -167,6 +168,120 @@ describe('single-target offline store', () => {
 });
 
 describe('capacity and commit boundaries', () => {
+  it.each(['my', 'dd'] as const)(
+    'crops before %s object-parameter storage exceeds its single-key limit',
+    async (platformGlobal) => {
+      const platform =
+        await vi.importActual<typeof import('../src/crossPlatform')>('../src/crossPlatform');
+      const stored = new Map<string, string>();
+      const set = vi.fn(({ key, data }: { key: string; data: string }) => {
+        if (utf8ByteLength(data) > 200 * 1024)
+          return { error: 14, errorMessage: 'Single key data length overrun' };
+        stored.set(key, data);
+        return { success: true };
+      });
+      vi.stubGlobal('wx', undefined);
+      vi.stubGlobal(platformGlobal, {
+        request: vi.fn(),
+        getStorageSync: ({ key }: { key: string }) => ({ data: stored.get(key) }),
+        setStorageSync: set,
+        removeStorageSync: ({ key }: { key: string }) => stored.delete(key),
+      });
+      platform.resetPlatformCache();
+      vi.mocked(sdk).mockImplementation(platform.sdk);
+      vi.mocked(appName).mockImplementation(platform.appName);
+      try {
+        const onDrop = vi.fn();
+        const cache = store({ onDrop });
+        for (const id of ['A', 'B', 'C']) {
+          const envelope: EventEnvelope = [
+            createEventEnvelope(id)[0],
+            [[{ type: 'event' }, { event_id: id, message: '中'.repeat(37_000) }]],
+          ];
+          await cache.push(envelope);
+          expect(utf8ByteLength(stored.get(OFFLINE_STORE_KEY)!)).toBeLessThanOrEqual(180 * 1024);
+        }
+        expect(await drain(cache)).toEqual(['C']);
+        expect(onDrop.mock.calls).toEqual([
+          ['bytes', 1],
+          ['bytes', 1],
+        ]);
+        expect(set.mock.calls.every(([input]) => typeof input.key === 'string')).toBe(true);
+        expect(cache.getDiagnostics()).toEqual({ mode: 'persistent', codes: [] });
+      } finally {
+        platform.resetPlatformCache();
+      }
+    },
+  );
+
+  it.each(['push', 'shift'] as const)(
+    'an Alipay error result cannot be mistaken for a committed %s',
+    async (operation) => {
+      const platform =
+        await vi.importActual<typeof import('../src/crossPlatform')>('../src/crossPlatform');
+      const stored = new Map<string, string>();
+      let writeFailed = false;
+      const set = vi.fn(({ key, data }: { key: string; data: string }) => {
+        if (writeFailed) return { error: 12, errorMessage: 'Storage total size limit reached' };
+        stored.set(key, data);
+        return { success: true };
+      });
+      vi.stubGlobal('wx', undefined);
+      vi.stubGlobal('my', {
+        request: vi.fn(),
+        getStorageSync: ({ key }: { key: string }) => ({ data: stored.get(key) }),
+        setStorageSync: set,
+        removeStorageSync: ({ key }: { key: string }) => stored.delete(key),
+      });
+      platform.resetPlatformCache();
+      vi.mocked(sdk).mockImplementation(platform.sdk);
+      vi.mocked(appName).mockImplementation(platform.appName);
+      try {
+        const cache = store();
+        await cache.push(createEventEnvelope('persisted'));
+        const original = stored.get(OFFLINE_STORE_KEY);
+        writeFailed = true;
+        if (operation === 'push') {
+          await expect(cache.push(createEventEnvelope('incoming'))).rejects.toThrow();
+          expect(await drain(cache)).toEqual(['incoming']);
+        } else {
+          expect(await cache.shift()).toBeUndefined();
+          expect(await cache.shift()).toBeUndefined();
+        }
+        expect(stored.get(OFFLINE_STORE_KEY)).toBe(original);
+        expect(cache.getDiagnostics()).toEqual({
+          mode: 'memory',
+          codes: ['storage_error', 'memory_only'],
+        });
+      } finally {
+        platform.resetPlatformCache();
+      }
+    },
+  );
+
+  it.each(['alipay', 'dingtalk'] as const)(
+    '%s drops a single oversized record instead of repeatedly attempting an over-budget write',
+    async (platform) => {
+      vi.mocked(appName).mockReturnValue(platform);
+      const onDrop = vi.fn();
+      const cache = store({ maxBytes: MAX_STORE_BYTES * 2, onDrop });
+      const envelope: EventEnvelope = [
+        createEventEnvelope('oversized')[0],
+        [[{ type: 'event' }, { event_id: 'oversized', message: 'x'.repeat(190 * 1024) }]],
+      ];
+      await cache.push(envelope);
+      await cache.unshift(envelope);
+      expect(storage[OFFLINE_STORE_KEY]).toBe('');
+      expect(onDrop.mock.calls).toEqual([
+        ['bytes', 1],
+        ['bytes', 1],
+      ]);
+      expect(cache.getDiagnostics()).toEqual({ mode: 'persistent', codes: [] });
+      await cache.push(createEventEnvelope('small'));
+      expect(await drain(cache)).toEqual(['small']);
+    },
+  );
+
   it('does not parse an oversized raw root again just to count migration drops', async () => {
     const raw = JSON.stringify({
       schemaVersion: 1,

@@ -77,6 +77,69 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it.each(['dispose', 'close'] as const)(
+    '%s 后新增事件不执行 processor 或 beforeSend',
+    async (stop) => {
+      const beforeSend = vi.fn((event) => event);
+      const processor = vi.fn((event) => event);
+      const client = make({ beforeSend });
+      client.addEventProcessor(processor);
+      if (stop === 'dispose') client.dispose();
+      else {
+        const closing = client.close();
+        await vi.advanceTimersByTimeAsync(5);
+        await closing;
+      }
+      const error = new Error('not captured by closed client');
+      expect(client.captureException(error, { event_id: 'closed-exception' })).toBe(
+        'closed-exception',
+      );
+      expect(client.captureMessage('closed message', 'info', { event_id: 'closed-message' })).toBe(
+        'closed-message',
+      );
+      expect(client.captureEvent({ message: 'closed event' }, { event_id: 'closed-event' })).toBe(
+        'closed-event',
+      );
+      expect(beforeSend).not.toHaveBeenCalled();
+      expect(processor).not.toHaveBeenCalled();
+      expect(envelopes).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+      // 拒收不应给 Error 写入 core 的“已捕获”标记，另一个有效 client 仍可捕获它。
+      const next = make();
+      next.captureException(error);
+      const flushed = next.flush();
+      await vi.advanceTimersByTimeAsync(5);
+      await flushed;
+      expect(envelopes).toHaveLength(1);
+    },
+  );
+
+  it('closing 拒绝新业务事件，同时排空已有异步事件和同步 finalizer', async () => {
+    let finish!: (event: any) => void;
+    const beforeSend = vi.fn((event) =>
+      event.message === 'pending'
+        ? new Promise<any>((resolve) => {
+            finish = resolve;
+          })
+        : event,
+    );
+    const client = make({ beforeSend });
+    client.captureMessage('pending');
+    client.registerFinalizer(() => client.captureMessage('finalizer'));
+    const closing = client.close(100);
+    client.captureException(new Error('too late'));
+    client.captureMessage('too late');
+    client.captureEvent({ message: 'too late' });
+    expect(beforeSend).toHaveBeenCalledTimes(2);
+    finish({ message: 'pending' });
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await closing).toBe(true);
+    expect(envelopes.flatMap((env) => env[1].map((item) => (item[1] as any).message))).toEqual([
+      'finalizer',
+      'pending',
+    ]);
+  });
+
   it('并发 close 返回同一个 Promise，finalizer/close/cleanup 仅一次且等待 cleanup', async () => {
     const client = make();
     const summary = vi.fn(() => owned(client, () => logger.info('summary')));

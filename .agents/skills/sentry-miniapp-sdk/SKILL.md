@@ -227,7 +227,7 @@ Walk through features one at a time. Load the corresponding reference file:
 | `offlineCacheMaxAge` | `number` | `86400000` | Drop cached events older than this (ms); default 24h |
 | `requireConsent` | `boolean` | `false` | Gate outbound Sentry network sends until `Sentry.setConsent(true)` |
 | `consentCacheLimit` | `number` | `100` | Max events buffered before consent; preserves oldest cold-start data |
-| `consentCacheMaxBytes` | `number` | `921600` | Max consent-buffer bytes; default ~900KB due miniapp single-key storage limits |
+| `consentCacheMaxBytes` | `number` | `921600` | Configured consent-buffer bytes; actual container budget is 180 KiB on Alipay/DingTalk and 900 KiB elsewhere |
 | `consentCacheMaxAge` | `number` | `86400000` | Drop consent-buffered events older than this (ms); default 24h |
 | `onConsentCacheDrop` | `function` | — | Called with `{ reason, dropped }` when consent buffer drops events |
 | `enableTracePropagation` | `boolean` | `true` | Inject distributed tracing headers (`sentry-trace`/`baggage`, plus optional `traceparent`) in outgoing requests |
@@ -280,7 +280,7 @@ Sentry.setConsent(true);
 Sentry.setConsent(false);
 ```
 
-`requireConsent` implies local buffering even when `enableOfflineCache` is `false`; custom `transport` functions are wrapped by the consent gate too. The whole encoded container is capped at 900 KiB. There is one active persistent target; DSN/tunnel or incompatible policy changes drop old data with diagnostics. Retrying does not renew TTL. Capacity changes only trim compatible records. A replacement client does not inherit consent. Cache is best-effort, not a durable ACK or no-loss guarantee.
+`requireConsent` implies local buffering even when `enableOfflineCache` is `false`; custom `transport` functions are wrapped by the consent gate too. The whole encoded container, including metadata, uses an SDK budget of 180 KiB on Alipay/DingTalk and 900 KiB on other supported runtimes; a lower configured byte limit still applies. These are SDK policy budgets, not guarantees of available host storage. There is one active persistent target; DSN/tunnel or incompatible policy changes drop old data with diagnostics. Retrying does not renew TTL. Capacity changes only trim compatible records. A replacement client does not inherit consent. Cache is best-effort, not a durable ACK or no-loss guarantee.
 
 ### Platform Compatibility
 

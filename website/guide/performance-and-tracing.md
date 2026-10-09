@@ -25,15 +25,18 @@ Sentry.init({
 ```js
 Sentry.init({
   dsn: 'YOUR_DSN',
-  tracesSampler: ({ name, inheritOrSampleWith }) => {
-    if (name.includes('pages/pay')) return 1;
-    if (name.includes('pages/about')) return 0.05;
+  tracesSampler: ({ attributes, inheritOrSampleWith }) => {
+    const route = typeof attributes.route === 'string' ? attributes.route : '';
+    if (route.startsWith('pages/pay/')) return 1;
+    if (route.startsWith('pages/about/')) return 0.05;
     return inheritOrSampleWith(0.2);
   },
 });
 ```
 
 设置 `tracesSampler` 后，它的优先级高于 `tracesSampleRate`。
+
+这里按 `attributes.route` 判断页面，而不是按请求名称判断。自动 HTTP span 会携带请求开始时的页面路径；手动业务根 span 需要自己传入 `route`。请求子 span 继承父级的采样决定，页面条件不会单独改变已有流程内某个请求的采样。
 
 ## 自动采集哪些性能数据
 

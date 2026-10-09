@@ -110,7 +110,7 @@ client reports 默认开启；需要关闭时显式设 false。报告通过同�
 
 2.0 只有一层官方 offline 管道和一个活动持久投递目标。旧格式、DSN／tunnel 目标或不兼容隐私／存储策略变化时丢弃并诊断，不能跨目标补发。count／bytes／TTL 调整仅裁剪，不整批删兼容数据；同目标新 client 不继承旧 grant。
 
-整个容器最多 900 KiB，包含记录与元数据。typed codec 保留 binary／子视图；retry 不刷新原 TTL。shift 必须持久提交删除后才交给 transport：提交失败不发送；退休 owner 在途失败不得覆盖新 owner store。缓存是 best-effort，不承诺 durable ACK、恰好一次或绝不丢失。
+SDK 按实际运行平台限制整个缓存容器，记录与元数据都计入：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB。`consentCacheMaxBytes` 默认仍为 900 KiB，较小的配置可进一步收窄，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。typed codec 保留 binary／子视图；retry 不刷新原 TTL。shift 必须持久提交删除后才交给 transport：提交失败不发送；退休 owner 在途失败不得覆盖新 owner store。缓存是 best-effort，不承诺 durable ACK、恰好一次或绝不丢失。
 
 `requireConsent: true` 保留同意前缓存含义，即使 enableOfflineCache=false；count／bytes=0 则不缓存，缺 Storage 可内存降级并诊断。撤回后排队请求不得启动，已经在途请求在宿主支持时 abort。第三方 transport 私有队列仍需自己的实际发送门。
 
@@ -122,7 +122,9 @@ client reports 默认开启；需要关闭时显式设 false。报告通过同�
 
 `close(正有限 timeout)` 使用总预算；0／undefined 等待排空。init 替换内部预算为 2000ms，不改变公共 close。hide 尝试同步排 buffer，只有空闲槽与同步 hooks 才能在返回前启动 request／storage；冻结后 timer 不执行，不能承诺全部送达。业务异步 hide 之后产生的数据需要显式 flush。
 
-Session 按前台 episode 管理，JS 未处理异常从 crashed 改为 unhandled，不证明宿主进程崩溃。迁移 Release Health 分母、status 过滤与告警，重新建立统计基线，不直接比较 1.x crash-free 曲线。旧 episode 的迟到错误不修改新 episode。
+`close()` 开始后不再接收新的业务 capture 调用；已经进入 core 处理队列的数据仍可继续排出，SDK 的同步收尾步骤可以生成最后一份汇总。`dispose()` 后再捕获不会执行事件处理器或 `beforeSend`，返回的事件 ID 也不代表成功上报。
+
+Session 按每次前台运行管理，JS 未处理异常从 crashed 改为 unhandled，不证明宿主进程崩溃。迁移 Release Health 分母、status 过滤与告警，重新建立统计基线，不直接比较 1.x crash-free 曲线。如果异步事件处理在原会话退出后才完成，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。
 
 ## 验收与后续 core 升级
 

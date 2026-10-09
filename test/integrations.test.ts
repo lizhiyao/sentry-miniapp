@@ -17,10 +17,6 @@ describe('Integrations', () => {
     it('should have correct name', () => {
       expect(integration.name).toBe('TryCatch');
     });
-
-    it('should wrap functions with error handling', () => {
-      expect(() => integration.setupOnce()).not.toThrow();
-    });
   });
 
   describe('HttpContext', () => {
@@ -29,7 +25,6 @@ describe('Integrations', () => {
     beforeEach(() => {
       integration = new HttpContext();
     });
-
     it('should create the functional integration', () => {
       expect(httpContextIntegration()).toBeInstanceOf(HttpContext);
     });
@@ -37,6 +32,5 @@ describe('Integrations', () => {
     it('should have correct name', () => {
       expect(integration.name).toBe('HttpContext');
     });
-
   });
 });

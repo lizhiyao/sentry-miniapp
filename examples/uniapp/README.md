@@ -2,7 +2,7 @@
 
 基于 **uni-app（Vue3 + Vite）** 的 `sentry-miniapp` 集成示例，演示在微信小程序端如何初始化 SDK、上报异常、追踪性能与采集用户反馈。
 
-> 本示例只演示**小程序端**。若要同时监控 H5 端，请参考仓库根 `README.md` 的「uni-app / Taro」一节，用条件编译按端引入 `@sentry/browser`。
+> 本示例只演示**小程序端**。若要同时监控 H5 端，请参考[官网 uni-app 分端接入](https://sentry-miniapp.pages.dev/guide/uniapp#_4-分端接入-同时要-h5)，用条件编译按端引入 `@sentry/browser`。
 
 ## 演示内容
 
@@ -57,7 +57,7 @@ doctor 验证上传前产物，不能替代微信二次编译后的真机 map �
 
 示例默认使用 `file:../..` 的仓库产物，避免新示例安装到旧的已发布 SDK。先在仓库根执行 `yarn build`，再进入示例目录安装依赖和构建。验证发布包时可在隔离副本中将依赖替换为同一次构建的 tarball；不要用旧 npm 版本证明当前源码兼容。
 
-2.0 仍在开发中，不表示已经发 npm/tag。要改为已发布版本时，先核对安装版本对应的 API 和[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
+2.0 已提供 beta 预发布；本示例仍使用仓库构建。改为发布包时，安装 `sentry-miniapp@next` 或固定所需 beta 版本，并核对其 API 与[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ## 说明
 

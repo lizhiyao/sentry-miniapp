@@ -13,7 +13,7 @@ export interface ConsentConfig {
   required: boolean;
   /** 同意前缓存的最大事件数。 */
   cacheLimit?: number | undefined;
-  /** 同意前缓存的最大字节数（受平台单 key Storage 上限约束，微信约 900KB）。 */
+  /** 同意前缓存的配置字节数；实际整容器按宿主预算裁剪，见 offlineStore。 */
   cacheMaxBytes?: number | undefined;
   /** 同意前缓存的过期时间（ms）。 */
   cacheMaxAge?: number | undefined;

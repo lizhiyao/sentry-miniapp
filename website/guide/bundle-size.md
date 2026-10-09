@@ -1,13 +1,13 @@
 # 主包体积优化（分包异步加载）
 
-小程序「主包体积」很宝贵（通常限制 2MB 以内）。`sentry-miniapp` 内置完整的 `@sentry/core` 引擎与多端适配，原始体积约 100KB。如果你很在意主包体积，可以把 SDK 放到分包并异步初始化；在支持跨分包异步加载的场景里，主包占用有机会降到 0。
+小程序「主包体积」很宝贵。`sentry-miniapp` 包含 `@sentry/core` 引擎与多端适配，实际占用随 SDK 版本、构建格式和打包方式变化，应以项目的最终产物和平台包体积分析为准；gzip 后的大小不能代替小程序包体积。如果你很在意主包体积，可以把 SDK 放到分包并异步初始化。
 
 ## 方案 A：微信原生分包异步化
 
 微信原生支持[分包异步化](https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/async.html)，可用 `require.async` 跨分包加载 SDK。
 
 1. 把 `sentry-miniapp` 的 npm 包或构建产物放进某个分包目录（如 `subpackageA`）。
-2. 在 `app.js` 顶部用 `require.async` 异步加载并初始化：
+2. 在 `app.js` 中用 `require.async` 异步加载并初始化：
 
 ```javascript
 // app.js
@@ -22,7 +22,7 @@ App({
 });
 ```
 
-这样 Sentry 的 ~100KB 会算入 `subpackageA` 分包，主包不再同步加载 SDK。
+确认生成的 SDK 文件被归入 `subpackageA` 后，它的体积会计入分包，主包不再同步加载 SDK。用开发者工具的包体积分析核对结果，避免打包器仍在主包保留副本。
 
 ## 方案 B：其他平台 / 跨端框架
 
@@ -35,5 +35,5 @@ App({
 - 真机预览验证：分包加载完成后主动 `captureException(new Error('sentry test'))`，确认能上报。
 
 ::: tip 权衡
-异步加载会让 SDK 晚于主包就绪，**启动最早期（分包加载完成前）的异常可能漏报**。若更看重「尽早捕获启动异常」，可接受把 SDK 放主包；两者按你的优先级取舍。
+异步加载会让 SDK 晚于主包就绪，**分包加载完成前的异常和请求无法自动补采**；初始化时 `App()` 已注册，首次 Session、启动面包屑等能力也可能缺失，详见[初始化时序](/guide/getting-started#_2-初始化)。需要完整的启动阶段监控时，把 SDK 同步放在主包并在 `App()` 前初始化。
 :::

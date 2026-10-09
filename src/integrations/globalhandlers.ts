@@ -116,11 +116,6 @@ export class GlobalHandlers implements Integration {
     };
   }
 
-  /**
-   * @inheritDoc
-   */
-  public setupOnce(): void {}
-
   /** 同一 integration 对象复用时，各 client 的宿主资源与去重窗口仍独立。 */
   public setup(client: Client): void {
     if (this._controllers.has(client)) return;

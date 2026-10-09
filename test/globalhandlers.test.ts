@@ -50,11 +50,6 @@ describe('GlobalHandlers', () => {
     expect(integration.name).toBe('GlobalHandlers');
   });
 
-  it('setupOnce 不注册有归属宿主资源', () => {
-    new GlobalHandlers().setupOnce();
-    expect(mockSdk.onError).not.toHaveBeenCalled();
-  });
-
   describe('setup(client)', () => {
     it('should register all handlers by default', () => {
       const integration = new GlobalHandlers();

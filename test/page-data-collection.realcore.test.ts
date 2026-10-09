@@ -101,6 +101,50 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
     expect(data.page).toBe('pages/detail/detail');
   });
 
+  it.each([true, false])(
+    '未定义生命周期的页面也采集页面流转，query 开关=%s',
+    async (queryEnabled) => {
+      const client = init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        enableAutoSessionTracking: false,
+        dataCollection: { urlQueryParams: queryEnabled },
+        transport: createCapturingTransport(captured),
+      })!;
+      const tap = vi.fn(() => 'business result');
+      const page = g.Page({ onTap: tap, data: { count: 0 } });
+      const receiver = { route: 'pages/without-handlers/index' };
+      for (const method of ['onLoad', 'onShow', 'onReady', 'onHide', 'onUnload']) {
+        // 宿主只调用定义中存在的生命周期；即使业务没有 handler，也应得到完整流转记录。
+        expect(page[method]?.call(receiver, { id: '42', token: 'page-canary' })).toBeUndefined();
+      }
+      const input = { type: 'tap' };
+      expect(page.onTap.call(receiver, input)).toBe('business result');
+      expect(tap).toHaveBeenCalledWith(input);
+      expect(tap.mock.contexts[0]).toBe(receiver);
+      expect(page.data).toEqual({ count: 0 });
+      client.captureMessage('page without callbacks');
+      await client.flush();
+      const event = collectEnvelopePayloads<Event>(captured, ['event'])[0]!;
+      const lifecycle = event.breadcrumbs!.filter((crumb) => crumb.category === 'page.lifecycle');
+      expect(lifecycle.map((crumb) => crumb.data?.action)).toEqual([
+        'onLoad',
+        'onShow',
+        'onReady',
+        'onHide',
+        'onUnload',
+      ]);
+      const load = lifecycle[0]!.data!;
+      expect(load.page).toBe(receiver.route);
+      if (queryEnabled) expect(load.query).toEqual({ id: '42', token: '[Filtered]' });
+      else expect(load).not.toHaveProperty('query');
+      expect(JSON.stringify(captured)).not.toContain('page-canary');
+      client.dispose();
+      const before = getCurrentScope().getScopeData().breadcrumbs.length;
+      page.onShow.call(receiver);
+      expect(getCurrentScope().getScopeData().breadcrumbs).toHaveLength(before);
+    },
+  );
+
   it('敏感键按片段匹配，accessToken / xApiKey / sid 都跑不掉', async () => {
     const data = await loadPage({
       accessToken: 'at-1',
