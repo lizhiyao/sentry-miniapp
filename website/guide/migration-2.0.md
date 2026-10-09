@@ -1,6 +1,12 @@
 # 升级到 2.0：core v11 与薄宿主适配
 
-本页对应开发中的 2.0 契约，不表示 npm 已发布。升级时先核对实际安装版本；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
+本页对应 `2.0.0-beta.0` 起的 2.0 beta 契约。通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.0` 固定首个 beta；`latest` 仍保留 1.x 稳定版。升级时先核对实际安装版本；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
+
+## Beta 验收范围
+
+2.0 beta 用于集成试用与反馈，包含 core v11、client 归属与生命周期、stream-only tracing、统一采集、单目标缓存与隐私同意重构。自动化契约测试、包入口与跨平台能力回退检查不能代替真实宿主验收。
+
+真实设备的前后台冻结／恢复、弱网与存储、隐私撤回矩阵，以及正式小程序业务产物的后台符号化尚未完成完整验收。目标 Sentry 部署需支持 span/v2；生产使用前分别核验后台遥测接收和业务产物符号化。后续 beta 仍可能调整 API 与行为；[#428](https://github.com/lizhiyao/sentry-miniapp/issues/428) 继续跟踪剩余验收，不因本次预发布关闭。
 
 2.0 让 core 负责事件处理、采样／DSC、span／Logs／metrics 批处理与限流，miniapp 负责宿主采集、生命周期、受控网络与存储。删除的能力不再保留兼容入口。
 

@@ -89,9 +89,11 @@ features:
 第一次接入只做两件事：尽早初始化，然后主动发送一个测试错误。确认 Sentry Issues 中能看到事件后，再继续配置生产环境能力。
 
 ```bash
-npm install sentry-miniapp --save
-# 或 yarn add sentry-miniapp
+npm install sentry-miniapp@next --save
+# 或 yarn add sentry-miniapp@next
 ```
+
+本页使用 2.0 beta；默认安装仍获取 1.x 稳定版。升级前阅读 [2.0 迁移说明](/guide/migration-2.0)中的破坏性变更与尚未完成的验收范围。
 
 ```js
 import * as Sentry from 'sentry-miniapp';

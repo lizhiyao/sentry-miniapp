@@ -9,7 +9,7 @@ uni-app 底层是 **Vue**。本页以 **uni-app（Vue3 + Vite）编译到微信�
 ## 1. 安装
 
 ```bash
-npm install sentry-miniapp --save
+npm install sentry-miniapp@next --save
 ```
 
 ## 2. 初始化封装
@@ -75,7 +75,7 @@ Vue.config.errorHandler = (err, vm, info) => {
 uni-app 用**条件编译**按端引入——小程序用 `sentry-miniapp`，H5 用官方 `@sentry/browser`：
 
 ```bash
-npm install sentry-miniapp @sentry/browser --save
+npm install sentry-miniapp@next @sentry/browser --save
 ```
 
 ```js

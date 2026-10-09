@@ -11,7 +11,7 @@
 
 [简体中文](../README.md) | English
 
-> Current master develops the 2.0 contract; this README and skill do not imply an npm release. Check the installed version before applying APIs and read the [2.0 migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0).
+> This README describes the 2.0 beta contract. Install `sentry-miniapp@next` to try it; an unqualified install still selects the stable 1.x release. Read the [2.0 migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. Full acceptance of real-device lifecycle, weak-network/storage/consent-revocation scenarios and backend symbolication of production mini-program application artifacts remains incomplete. The beta is for integration testing and feedback.
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 
@@ -29,10 +29,10 @@ Mini program runtimes may expose a window alias without DOM or browser request A
 
 - **Automatic error capture**: Captures global errors, Promise rejections, page errors, and memory warnings automatically, then sends them to Sentry Issues instead of leaving them only in user feedback.
 - **Debugging context**: Records device info, page lifecycle, taps/touches, and network breadcrumbs to help reconstruct what happened before a user hit an error.
-- **Performance and tracing**: Tracks startup, page rendering, resource loading, and API timing; with tracing enabled, requests can be reported as `http.client` spans for backend correlation.
+- **Performance and tracing**: With tracing enabled, API requests can be reported as `http.client` spans for backend correlation. The optional Performance integration measures startup, page rendering, and resource timing when the host exposes the required capabilities.
 - **Source Map friendly stacks**: Normalizes platform-specific virtual stack paths to `app:///`, supports Source Maps / Debug IDs, and exposes `stackParser` for unusual runtimes.
 - **Weak-network and privacy flows**: Failed sends go into the local offline queue and retry when the network recovers; with `requireConsent`, events are buffered locally without sending to Sentry until `Sentry.setConsent(true)` is called.
-- **Mini game support**: WeChat / Douyin mini games can report first frame, FPS, and jank to help diagnose slow startup and stutter. Mini games usually expose only `performance.now()`, so mini-program-only navigation, render, and resource observers are skipped automatically.
+- **Mini game support**: WeChat / Douyin mini games can measure SDK setup to the first rAF callback. FPS and jank collection requires explicit opt-in; measurements are skipped when the required host capabilities are absent.
 - **Familiar Sentry APIs**: `captureException`, `setUser`, `addBreadcrumb`, `startSpan`, `captureFeedback`, `Sentry.logger.*`, and more.
 
 ---
@@ -47,7 +47,7 @@ Before you start:
 Install:
 
 ```bash
-npm install sentry-miniapp
+npm install sentry-miniapp@next
 ```
 
 > Not using npm? Download the versioned `sentry-miniapp.umd.js` asset from [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases). To run the WeChat example from source, generate its local bundle with `yarn build:miniapp`.
