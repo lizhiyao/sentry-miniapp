@@ -82,6 +82,122 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     resetPlatformCache();
   });
 
+  it('request 能力不可读时默认集成仍观测 httpRequest，事件正常发送', async () => {
+    Object.defineProperty(g.tt, 'request', {
+      configurable: true,
+      get() {
+        throw new Error('request capability unavailable');
+      },
+    });
+    g.tt.httpRequest = requestMock;
+    const client = init({
+      dsn: 'https://test@example.com/1',
+      tracesSampleRate: 1,
+      transport: createCapturingTransport(captured),
+    })!;
+    const success = vi.fn();
+    g.tt.httpRequest({ url: 'https://api.example.com/fallback', success });
+    captureException(new Error('capability fallback probe'));
+    await client.flush();
+    expect(requestMock).toHaveBeenCalledOnce();
+    expect(success).toHaveBeenCalledOnce();
+    expect(collectSpans(captured)).toHaveLength(1);
+    expect(xhrBreadcrumbData(captured).status_code).toBe(201);
+  });
+
+  it.each(['getter', 'enumeration'] as const)(
+    'options 的无关 %s 不可读时直接透传宿主，不阻断业务或后续事件',
+    async (unreadable) => {
+      const client = init({
+        dsn: 'https://test@example.com/1',
+        tracesSampleRate: 1,
+        defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+        transport: createCapturingTransport(captured),
+      })!;
+      const task = { abort: vi.fn() };
+      const response = { statusCode: 200 };
+      const callbackReceiver = {};
+      const success = vi.fn(function (this: unknown, result: unknown) {
+        expect(this).toBe(callbackReceiver);
+        expect(result).toBe(response);
+        return 'business result';
+      });
+      const rawOptions = { url: 'https://api.example.com/preflight', success };
+      const options =
+        unreadable === 'getter'
+          ? Object.defineProperty(rawOptions, 'unrelatedMetadata', {
+              enumerable: true,
+              get() {
+                throw new Error('metadata unavailable');
+              },
+            })
+          : new Proxy(rawOptions, {
+              ownKeys() {
+                throw new Error('options cannot enumerate');
+              },
+            });
+      const requestReceiver = {};
+      requestMock.mockImplementation(function (this: unknown, received) {
+        expect(this).toBe(requestReceiver);
+        expect(received).toBe(options);
+        expect(received.success.call(callbackReceiver, response)).toBe('business result');
+        return task;
+      });
+      expect(g.tt.request.call(requestReceiver, options)).toBe(task);
+      expect(requestMock).toHaveBeenCalledOnce();
+      expect(success).toHaveBeenCalledOnce();
+      captureException(new Error('event after unreadable options'));
+      await client.close();
+      expect(collectSpans(captured)).toEqual([]);
+      expect(collectEnvelopePayloads<Event>(captured, ['event'])).toHaveLength(1);
+    },
+  );
+
+  it('准备观测失败后的原宿主异常不重试，保持同一业务异常', () => {
+    init({
+      dsn: 'https://test@example.com/1',
+      defaultIntegrations: [new NetworkBreadcrumbs()],
+      transport: createCapturingTransport(captured),
+    });
+    const options = Object.defineProperty({ url: 'https://api.example.com/host-error' }, 'meta', {
+      enumerable: true,
+      get() {
+        throw new Error('metadata unavailable');
+      },
+    });
+    const businessError = new Error('native request failure');
+    requestMock.mockImplementation(() => {
+      throw businessError;
+    });
+    expect(() => g.tt.request(options)).toThrow(businessError);
+    expect(requestMock).toHaveBeenCalledOnce();
+  });
+
+  it('追踪匹配准备失败也透传宿主，不留下关闭时才结束的请求 span', async () => {
+    const target = /api\.example\.com/;
+    Object.defineProperty(target, 'source', {
+      get() {
+        throw new Error('trace matcher cannot read');
+      },
+    });
+    const client = init({
+      dsn: 'https://test@example.com/1',
+      tracesSampleRate: 1,
+      defaultIntegrations: [
+        spanStreamingIntegration(),
+        new NetworkBreadcrumbs({ tracePropagationTargets: [target] }),
+      ],
+      transport: createCapturingTransport(captured),
+    })!;
+    const options = { url: 'https://api.example.com/matcher', success: vi.fn() };
+    g.tt.request(options);
+    expect(requestMock).toHaveBeenCalledOnce();
+    expect(requestMock.mock.calls[0]![0]).toBe(options);
+    expect(options.success).toHaveBeenCalledOnce();
+    await client.close();
+    expect(collectSpans(captured)).toEqual([]);
+  });
+
   it.each(['g', 'y', 'frozen-g'])(
     'denyBodyUrls %s 在请求、响应与重复请求中一致生效，不修改业务正则',
     async (mode) => {
@@ -143,7 +259,9 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     g.tt.request({ url: 'https://api.example.com/public' });
     await flush(2000);
     expect(collectSpans(captured)).toHaveLength(streaming ? 1 : 0);
-    const warning = getDiagnostics().warnings.find((item) => item.code === 'span_streaming_missing');
+    const warning = getDiagnostics().warnings.find(
+      (item) => item.code === 'span_streaming_missing',
+    );
     if (streaming) expect(warning).toBeUndefined();
     else {
       expect(warning).toBeDefined();

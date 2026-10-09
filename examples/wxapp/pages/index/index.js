@@ -41,17 +41,13 @@ Page({
   },
 
   trackRequest(name, url, onSuccess, onFail) {
-    const span = Sentry.startInactiveSpan({
-      name,
-      op: 'http.client'
-    });
+    // 请求性能由 SDK 自动采集，这里只补充业务面包屑和失败消息。
     const startedAt = Date.now();
 
     wx.request({
       url,
       method: 'GET',
       success: (res) => {
-        span.setStatus({ code: 1 });
         Sentry.addBreadcrumb({
           category: 'demo.api',
           message: `${name} success`,
@@ -65,7 +61,6 @@ Page({
         onSuccess(res);
       },
       fail: (err) => {
-        span.setStatus({ code: 2, message: 'internal_error' });
         Sentry.withScope((scope) => {
           scope.setLevel('warning');
           scope.setTag('page', 'index');
@@ -79,9 +74,6 @@ Page({
           return Sentry.captureMessage(`${name} 请求失败`);
         });
         onFail(err);
-      },
-      complete: () => {
-        span.end();
       }
     });
   },

@@ -12,11 +12,11 @@ import * as Sentry from 'sentry-miniapp';
 
 | API | 用途 |
 |-----|------|
-| `init(options)` | 初始化 SDK，返回当前 `MiniappClient`；不在支持的小程序运行时中返回 `undefined` |
-| `isEnabled()` | 判断当前 client 是否可发送事件 |
+| `init(options)` | 在小程序入口初始化并返回 `MiniappClient`；不支持的运行时、临时 scope 中或采集 hook 重入时返回 `undefined` |
+| `isEnabled()` | 判断 SDK 是否启用；不表示隐私授权已放行或后台已接收，授权状态用 `getConsent()` |
 | `getClient()` | 读取当前 client |
 | `flush(timeout?)` | 等待待发送事件完成，适合应用即将退出前 |
-| `close(timeout?)` | 停止新采集，尝试排出已有数据后关闭 client |
+| `close(timeout?)` | 停止 SDK 自动采集和异常、消息等 capture 入口，尝试排出已有数据后关闭 client |
 | `lastEventId()` | 获取最近一次捕获事件的 id |
 
 ```js

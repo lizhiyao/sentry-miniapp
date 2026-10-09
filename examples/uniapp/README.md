@@ -8,7 +8,7 @@
 
 | 页面 | 演示能力 |
 |------|----------|
-| **概览** (`pages/index`) | SDK 初始化状态、页面生命周期面包屑、`uni.request` 包 `http.client` span 的网络请求（成功打面包屑、失败自动上报） |
+| **概览** (`pages/index`) | SDK 初始化状态、页面生命周期面包屑、自动采集 `uni.request` 的 HTTP span（成功打面包屑、失败上报消息） |
 | **实验室** (`pages/test`) | `captureException`（同步/异步）、未处理 Promise 异常、`captureMessage`、`captureFeedback`、嵌套 span 性能追踪、`setUser` 设置/清除 |
 
 应用启动（`App.vue`）会生成 `launchId` 并开启启动链路 span；每个测试事件带唯一 `demo_trigger_id` 与 `fingerprint`，便于在 Sentry 后台按本次点击精确定位。

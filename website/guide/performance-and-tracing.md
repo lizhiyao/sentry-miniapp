@@ -125,12 +125,10 @@ Sentry.init({
 ```js
 Sentry.init({
   beforeSendSpan(span) {
-
-    // span 是 core 11 的 StreamedSpanJSON：名字在 span.name，attributes 的值是原始形态
-    // （{type, value} 注解只在序列化后的 envelope 里才加上）。
-
-    if (!span.is_segment) return span;
-    span.name = span.name.replace(/\/\d+(?=\/|$)/g, '/:id');
+    // 同时处理独立请求和业务流程内的请求子 span。
+    if (span.attributes['sentry.op'] === 'http.client') {
+      span.name = span.name.replace(/\/\d+(?=\/|$)/g, '/:id');
+    }
     return span;
   },
 });

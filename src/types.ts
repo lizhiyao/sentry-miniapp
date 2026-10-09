@@ -246,6 +246,7 @@ export interface MiniappDiagnosticsWarning {
     | 'late_init'
     | 'lifecycle_unavailable'
     | 'reentrant_init_unsupported'
+    | 'init_scope_unsupported'
     | 'invalid_close_timeout'
     | 'performance_clock_invalid'
     | 'performance_time_origin_missing'

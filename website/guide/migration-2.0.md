@@ -126,10 +126,8 @@ SDK 按实际运行平台限制整个缓存容器，记录与元数据都计入�
 
 Session 按每次前台运行管理，JS 未处理异常从 crashed 改为 unhandled，不证明宿主进程崩溃。迁移 Release Health 分母、status 过滤与告警，重新建立统计基线，不直接比较 1.x crash-free 曲线。如果异步事件处理在原会话退出后才完成，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。
 
-## 验收与后续 core 升级
+## 上线前验证
 
-当前 core 版本在 `package.json` 中精确固定，并用 real-core 回归验证契约；后续升级先检查 sampling／DSC、buffers、dataCollection 与集中 protected／internal 依赖的源码变化，再跑同一契约矩阵，不放宽 pin 来替代验证。
+上线前，按项目启用的功能，在目标小程序／小游戏和自己的 Sentry 项目中分别确认错误、性能、Logs、Metrics、会话统计与上报丢弃统计。开发者工具或本地测试通过，不能代替真机前后台恢复和后台实际接收结果。上传同一次构建的 JS 与 map，确认新错误能还原到业务源码；使用 Debug ID 时，还需核对事件与上传文件的 ID 一致。参考 [Source Map 进阶](/guide/sourcemap-advanced)。
 
-公共 capture 入口固定当前 scope 与 Session 归属，保留原 isolation scope 给 core 更新 `lastEventId()`。Session 引用仅在 hint 与 client 自有 WeakMap 中传递，不写入事件 payload；processor／`beforeSend` 替换事件时仍保持归属，采集时没有 Session 的错误也不会计入后来启动的前台 episode。Debug ID 宿主同步通过公开 `preprocessEvent` hook 执行，不覆写 `_prepareEvent`／`_processEvent`。仍保留两个窄 protected 适配：Session 更新时选择捕获的引用并委托 core，以及 dispose 后停止 processing 等待。它们的升级审查与回归要求见仓库 `DEVELOPMENT.md`。
-
-上线前分别验证最终 envelopes、真实宿主和目标 Sentry 后台：span/v2、Logs、metrics、session、client_report 与符号化都要有对应版本和配置。mock／VM 不证明真机冻结或后台功能可用。JS 与 map 来自同一次构建，Debug ID 与实际 frame／artifact 匹配；参考 [Source Map 进阶](/guide/sourcemap-advanced)。
+参与 SDK 开发或升级 core 依赖时，请阅读仓库的[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md#core-扩展边界与升级审查)。

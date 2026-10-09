@@ -36,10 +36,27 @@ Performance 的 `mark` 分支原本恢复 delivery scope，参数化同一旧 ti
 
 本轮验证使用真实 Core、受控宿主和本地构建产物，没有再次进行手机或目标 Sentry 后台验收。真实冻结、设备存储和业务原生监听顺序仍通过 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 收集用户证据。
 
+## beta.5 发布前的全面复审
+
+首轮修复合并到 `master 64a321d` 后，三路独立审查继续覆盖 Core 职责边界、运行时降级和用户文档。新增的确定问题在发布 tag 前处理：
+
+| 问题 | 真实复现或实现证据 | 取舍与修复 |
+| --- | --- | --- |
+| 临时 Core scope 中初始化丢失新 runtime | A 的异步 `startSpan` 尚未完成时，在 callback 外初始化 B；Promise 完成后 Core 默认 stack 恢复 A，顶层消息被已退休的 A 拒收，B 仍存活但不可达。同步 `withScope` 与首次初始化同样受影响 | 使用 Core 公开 `getDefaultCurrentScope` 判断持久绑定入口；临时 scope 的初始化在构造和退休前拒绝，返回 `undefined` 并诊断 `init_scope_unsupported`。退出上下文后正常根初始化、切换和 `initialScope` 保留；不复制 stack 或把新 client 写进旧操作 scope |
+| 不可读的 request API 阻断整个 SDK 初始化 | 平台 `request` getter 抛错，而 `httpRequest` 和自管 transport 可用；默认 NetworkBreadcrumbs 裸能力读取让 `init()` 抛错，连独立事件也无法采集 | 网络观测逐 API 安全探测，故障方法跳过，其余可用方法继续安装 |
+| 观测复制失败阻断原业务请求 | 业务 options 的无关枚举 getter 抛错；原宿主只读 URL 与回调可正常执行，SDK 复制却让请求和 success 回调都没有发生 | 观测准备失败透传原 options 与 receiver 给原宿主，只调用一次；宿主本身的异常不重试，已创建的观测资源须收尾 |
+| 可照搬的公开示例不符合实际语义 | `isEnabled()` 不检查 consent；请求名归一化跳过 child span；插件顶层 `urlPrefix` 不在现代插件类型中；两个示例重复手动创建自动请求的 HTTP segment | 分清启用与同意状态，归一化所有 HTTP span，移除无效插件选项，示例直接复用自动网络 span。迁移指南只保留用户行为和验收步骤，内部审查细节转入维护者入口 |
+
+本次取舍允许在根控制流中替换一个活动 runtime，不提供任意异步 context 中的初始化，也不支持自定义 async context strategy。scope 中的事件捕获和业务数据仍使用 Core；拒绝初始化不会退休原 client、执行新 transport 构造或应用 `initialScope`。
+
+架构复核继续保留两处窄 protected 适配：Core 在异步事件完成后优先使用当时 scope 的 Session，SDK 因而仅选择采集时引用再委托 Core 更新；Core 的无期限 processing 等待没有公开取消入口，SDK 按 Core tick 检查 dispose 终态。两者都有具体调用链与真实回归，删除后再复制 Core 算法并非改进。Page、Console、Network 的 `setupOnce` 有实际生产消费者，未按名称删 hook。
+
+关闭期间手动创建 span 的 Core 行为保留，用户需先停止业务 trace；SDK 自动 producer 与异常／消息／事件／反馈入口仍停止，最终发送受关闭状态和期限限制。非阻塞清理候选是 Session／TryCatch 内部仅供旧单测调用的 aggregate `cleanup()`；对应 lifetime 资源清理仍有生产消费者，未确认泄漏，后续须先迁移到公开 dispose 回归再逐项删除，不能整类删清理方法。
+
 ## 最终检查
 
 - lint 与严格源码／测试类型检查通过。
-- 完整 coverage：71 文件／1212 测试通过；statements 98.72%、branches 95.52%、functions 99.23%、lines 99.43%，原门槛全部通过，没有排除新增代码。
-- 新增 26 个原生 Session／生命周期、7 个长期观测与操作会话归属、12 个系统信息真实 Core 用例；移除的空 hook 存在断言由实际资源与最终数据回归取代。
+- 完整 coverage：72 文件／1226 测试通过；statements 98.72%、branches 95.53%、functions 99.23%、lines 99.44%，原门槛全部通过，没有排除新增代码。
+- 新增 26 个原生 Session／生命周期、7 个长期观测与操作会话归属、12 个系统信息、5 个初始化 scope 与 9 个网络降级真实 Core 用例；移除的空 hook 存在断言由实际资源与最终数据回归取代。观测准备中的无实际触发路径收尾分支已删除，没有为覆盖率制造私有状态测试。
 - CJS／ESM／UMD 与声明入口构建、publint、实际 tarball 消费检查通过：68 个导出、七平台各两种 URL 能力模式与类型入口。
 - 微信示例独立 bundle 的运行与本地符号化检查通过；用户文档站构建通过。两者都不代表完成新的目标后台或真机验收。

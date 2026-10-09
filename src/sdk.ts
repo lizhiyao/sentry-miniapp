@@ -2,6 +2,7 @@ import {
   captureFeedback as captureFeedbackCore,
   getClient,
   getCurrentScope,
+  getDefaultCurrentScope,
   getIsolationScope,
   getIntegrationsToSetup,
   initAndBind,
@@ -150,6 +151,18 @@ export function init(options: MiniappOptions = {}): MiniappClient | undefined {
 }
 
 function initialize(options: MiniappOptions): MiniappClient | undefined {
+  // core 的 fallback stack 会在临时 withScope / 异步 span 完成时弹出当前层。
+  // 只在公开的持久默认 scope 上绑定 runtime，避免新 client 随旧操作 scope 一同丢失。
+  const bindingScope = getCurrentScope();
+  if (bindingScope !== getDefaultCurrentScope()) {
+    const owner = bindingScope.getClient();
+    if (owner instanceof MiniappClient) {
+      getClientLifetime(owner)?.warnings.add('init_scope_unsupported');
+    } else {
+      console.warn('[sentry-miniapp] init requires the default scope, outside withScope/startSpan');
+    }
+    return undefined;
+  }
   assertStreamTracingOptions(options);
   if (!isMiniappEnvironment()) {
     console.warn('[sentry-miniapp] Not running in a supported miniapp environment');
@@ -182,7 +195,6 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
   };
   // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
   // init 专用的宽选项，已通过内部标记允许默认 transport；低层公开构造必须显式提供 transport。
-  const bindingScope = getCurrentScope();
   const previous = bindingScope.getClient();
   if (previous instanceof MiniappClient) void previous.retireRuntime().catch(() => {});
   markRuntimeConstruction(opts);

@@ -31,9 +31,8 @@ function refreshStatus() {
   status.visitId = pageVisitId;
 }
 
-// 把一次网络请求包进 span，并在成功/失败时打面包屑、失败时上报
+// 请求性能由 SDK 自动采集，这里只补充业务面包屑和失败消息。
 function trackRequest(item) {
-  const span = Sentry.startInactiveSpan({ name: item.name, op: 'http.client' });
   const startedAt = Date.now();
   item.state = 'loading';
 
@@ -41,7 +40,6 @@ function trackRequest(item) {
     url: item.url,
     method: 'GET',
     success: (res) => {
-      span.setStatus({ code: 1 });
       item.state = 'ok';
       item.detail = `HTTP ${res.statusCode} · ${Date.now() - startedAt}ms`;
       Sentry.addBreadcrumb({
@@ -52,7 +50,6 @@ function trackRequest(item) {
       });
     },
     fail: (err) => {
-      span.setStatus({ code: 2, message: 'internal_error' });
       item.state = 'fail';
       item.detail = (err && err.errMsg) || '请求失败';
       Sentry.withScope((scope) => {
@@ -62,9 +59,6 @@ function trackRequest(item) {
         scope.setContext('request_failure', { name: item.name, url: item.url, errMsg: item.detail, pageVisitId });
         Sentry.captureMessage(`${item.name} 请求失败`);
       });
-    },
-    complete: () => {
-      span.end();
     },
   });
 }

@@ -139,7 +139,7 @@ find ./dist -type f -name "*.map" -delete
 
 ## Build Tool Plugins (Alternative)
 
-Instead of manual sentry-cli commands, use build plugins:
+Instead of manual sentry-cli commands, use build plugins. Modern plugins inject Debug IDs and upload the matching JS/map artifacts; `urlPrefix` is not a top-level plugin option. Keep release-based path uploads on the CLI flow above.
 
 **Webpack (`@sentry/webpack-plugin`):**
 
@@ -151,7 +151,6 @@ chain.plugin('sentry').use(sentryWebpackPlugin, [{
   org: 'your-org',
   project: 'your-project',
   release: { name: process.env.SENTRY_RELEASE },
-  urlPrefix: 'app:///',
   sourcemaps: { filesToDeleteAfterUpload: ['**/*.map'] },
 }]);
 ```
@@ -159,6 +158,7 @@ chain.plugin('sentry').use(sentryWebpackPlugin, [{
 **Vite (`@sentry/vite-plugin`):**
 
 ```javascript
+import { defineConfig } from 'vite';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 
 export default defineConfig({
@@ -169,12 +169,13 @@ export default defineConfig({
       org: 'your-org',
       project: 'your-project',
       release: { name: process.env.SENTRY_RELEASE },
-      urlPrefix: 'app:///',
       sourcemaps: { filesToDeleteAfterUpload: ['**/*.map'] },
     }),
   ],
 });
 ```
+
+Build and deploy the same injected JS that produced the uploaded maps. Check a new event's `debug_meta` against the uploaded Debug IDs on the target mini program or game engine; plugin injection alone does not prove that the host preserves those IDs through its own compilation.
 
 ## Platform Notes
 
