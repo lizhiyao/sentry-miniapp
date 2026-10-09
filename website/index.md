@@ -42,7 +42,7 @@ features:
   </span>
   <span>
     <strong>微信 / 抖音小游戏</strong>
-    <span>异常、SDK 安装至首帧测量；帧率与卡顿可选</span>
+    <span>异常、首帧等待时间、可选帧率与卡顿统计</span>
   </span>
   <span>
     <strong>持续自动化验证</strong>
@@ -78,7 +78,7 @@ features:
     <a class="sm-card" data-tone="source" href="/guide/minigame">
       <span class="sm-kicker">Game</span>
       <h3>微信 / 抖音小游戏</h3>
-      <p>接入异常监控，测量 SDK 安装至首帧；按需开启 FPS 和卡顿汇总。</p>
+      <p>监控异常和初始化后的首帧等待时间，按需开启帧率与卡顿统计。</p>
       <span class="sm-link">查看小游戏指南</span>
     </a>
   </div>
@@ -93,7 +93,7 @@ npm install sentry-miniapp@next --save
 # 或 yarn add sentry-miniapp@next
 ```
 
-本页使用 2.0 beta；默认安装仍获取 1.x 稳定版。升级前阅读 [2.0 迁移说明](/guide/migration-2.0)中的破坏性变更与尚未完成的验收范围。
+本页使用 2.0 beta；默认安装仍获取 1.x 稳定版。升级前阅读 [2.0 迁移说明](/guide/migration-2.0)，了解需要修改的代码和试用时的检查步骤。
 
 ```js
 import * as Sentry from 'sentry-miniapp';

@@ -6,6 +6,8 @@
 
 本轮以生产入口、安装的真实 core 实现和最终 envelopes 为依据，检查 client／Session 接缝、owner／lifetime、默认集成、隐私 collector、transport／offline store、公开出口及中英文 README／官网／skill。运行测试使用可控宿主，未重新进行手机操作或目标后台遥测测试；沿用的后台结果按原 SDK 版本记录。文档修改与代码修复需经本 PR 合并，不能据此宣称已发布包或线上官网已经包含新修复。
 
+后台验收按版本记录：beta.2 提供 spans／logs／metrics／session 的后台证据；beta.3 补验 client reports、flush／dispose 边界及微信 IDE 实际业务产物的后台符号化。未变遥测沿用 beta.2 证据，不宣称 beta.3 重跑全套后台测试。此类证据沿用和内部接缝审查属于维护记录；官网与 README 只说明用户可用能力、迁移步骤、限制和检查方法。
+
 ## 实际发现与修复
 
 | 发现 | 触发和影响 | 修正与验证 |

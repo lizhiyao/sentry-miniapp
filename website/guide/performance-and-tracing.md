@@ -55,9 +55,12 @@ Sentry.init({
 | render 条目 | 实际渲染 operation，不猜测来自 `setData` |
 | 资源加载 | 定位大资源或慢资源 |
 | API 请求 | 包裹平台 `request`，作为 `http.client` span 查看请求耗时 |
-| 小游戏 SDK 安装至首帧、可选 FPS／jank | 作为小游戏专属 segment span，指标挂在 span 属性上 |
+| 小游戏首帧等待时间 | 测量 SDK 初始化到首次帧回调的耗时，帮助观察初始化阶段的等待时间 |
+| 小游戏帧率与卡顿（需手动开启） | 查看平均帧率和卡顿次数，帮助定位运行不流畅的问题 |
 
-宿主没有 `createObserver` 时，显式性能集成会静默跳过导航、渲染和资源条目，不设置已启用标记，不保留原始条目，也不启动定时汇总。相对时间条目缺可信 `timeOrigin` 时不生成 span，诊断中报告缺失时间能力。observer 的交付批次不生成父 span，迟到条目不使用当前页面／网络或活跃 span 伪造关联。API 请求由网络集成直接包裹平台 `request` 采集，**不依赖 PerformanceObserver**。微信／抖音小游戏默认观察 SDK 初始化到首帧的近似 interval；FPS 与 jank 须显式配置 `enableMinigameFrameRate: true`，由小游戏专属集成采集；详见[小游戏接入与性能](/guide/minigame)。
+平台未提供 `createObserver` 或可靠的性能时间戳时，SDK 会跳过无法测量的导航、渲染和资源数据。可通过 `Sentry.getDiagnostics()` 查看缺失的能力。API 请求耗时由网络集成采集，**不依赖 PerformanceObserver**。
+
+微信／抖音小游戏默认测量 SDK 初始化到首次帧回调的等待时间。这段时间不包含 SDK 初始化前的启动过程，也不代表画面已完成呈现，因此不能当作完整冷启动耗时。帧率（FPS）和卡顿统计默认关闭，配置 `enableMinigameFrameRate: true` 后开启；数据查看方式见[小游戏接入与性能](/guide/minigame)。
 
 微信的 `wx.reportPerformance()` 属于小程序后台的自定义测速能力，不是 Sentry 性能监控的一部分；如需使用，请先在微信后台配置指标，再由业务代码主动调用。
 

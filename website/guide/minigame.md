@@ -37,11 +37,11 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 | 小程序导航 / 渲染 / 资源 PerformanceObserver | 不适用 | 不适用 | 小游戏通常只有 `performance.now()`，通用 Performance 默认不安装，显式安装时按实际能力跳过 |
 | 页面路由、点击面包屑 | 不适用 | 不适用 | 没有 Page 模型，自动跳过 |
 
-## 冷启动与帧率数据在哪里看
+## 首帧等待时间与帧率数据在哪里看
 
 开启 `tracesSampleRate` 或 `tracesSampler`，并显式启用需要的 FPS 能力后：
 
-- SDK 初始化到首帧的近似 interval（不等于完整冷启动）作为独立的 `minigame.init_to_first_frame` segment span 上报，耗时写在 `minigame.init_to_first_frame_ms` 属性；
+- 在 Sentry 性能页面查找 `minigame.init_to_first_frame`，查看 `minigame.init_to_first_frame_ms` 耗时。它测量 SDK 初始化到首次 `requestAnimationFrame` 回调的等待时间，不包含初始化前的启动过程，也不代表画面已完成呈现；
 - FPS 与卡顿在退后台或会话结束时汇总为 `minigame.framerate.summary`；
 - 汇总包含 `fps.avg`、`fps.p95`、`fps.min`、`frames.total` 与 `jank.count` 属性（分级时另有 `jank.minor` / `jank.major` / `jank.severe`），不会每个采样窗口都发送事件。
 

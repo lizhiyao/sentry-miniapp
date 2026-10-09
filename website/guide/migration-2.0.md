@@ -1,16 +1,20 @@
-# 升级到 2.0：core v11 与薄宿主适配
+# 从 1.x 升级到 2.0
 
-本页对应 `2.0.0-beta.0` 起的 2.0 beta 契约。通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.3` 固定当前 beta；`latest` 仍保留 1.x 稳定版。beta.1 修复 beta.0 的 `lastEventId()` 未更新问题；beta.2 修正前两个 beta 在显式开启 `traceNetworkBody` 时仍采集未知正文的缺口，按下述 2.0 策略省略。beta.3 将 client reports 改为公开 recorder／envelope API，并修复自定义 transport 忽略 timeout 时，dispose 不能结束等待中 flush 的问题。升级时先核对实际安装版本；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
+2.0 使用 `@sentry/core v11`，部分 API 和默认行为与 1.x 不同。本页说明需要修改的代码和配置；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
 
-## Beta 验收范围
+通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.3` 固定版本。默认安装仍获取 1.x 稳定版。升级前先确认实际安装版本。
 
-2.0 beta 用于集成试用与反馈，包含 core v11、client 归属与生命周期、stream-only tracing、统一采集、单目标缓存与隐私同意重构。自动化契约测试、包入口与跨平台能力回退检查不能代替真实宿主验收。
+已使用早期 beta 的项目也应更新：beta.1 修复 `lastEventId()` 未更新的问题；beta.2 起，开启正文采集也会省略无法识别格式的正文；beta.3 修复自定义 transport 忽略超时时，`dispose()` 无法结束正在等待的 `flush()` 的问题。
 
-[#428](https://github.com/lizhiyao/sentry-miniapp/issues/428) 已按重构与 beta 验收完成收尾：beta.2 有 spans／logs／metrics／session 的后台证据，beta.3 补验 client reports、flush／dispose 边界和微信 IDE 实际业务产物的后台符号化。未变遥测沿用 beta.2 证据，未宣称 beta.3 重跑全套后台测试。
+## 试用前需要确认
 
-真实设备的前后台冻结／恢复、弱网、存储和隐私撤回矩阵由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪 beta 用户验证，当前保持待验证。目标 Sentry 部署需支持 span/v2；生产接入仍需核验自己的后台遥测与同构建业务产物符号化。后续 beta 仍可能调整 API 与行为。
+2.0 仍处于 beta 阶段，API 和行为可能继续调整。不同平台的真机验证尚在进行，建议先在测试项目中接入，并检查：
 
-2.0 让 core 负责事件处理、采样／DSC、span／Logs／metrics 批处理与限流，miniapp 负责宿主采集、生命周期、受控网络与存储。删除的能力不再保留兼容入口。
+- 在目标设备上测试切到后台再返回、断网后恢复，以及用户撤回隐私授权后的行为。
+- 触发一次业务错误，确认 Sentry 能收到，并显示正确的源码文件和行号。上传的 JS 与 Source Map 必须来自运行中的同一版本构建，见 [Source Map 指南](/guide/sourcemap)。
+- 使用性能监控时，确认 Sentry 服务支持 `span/v2`（2.0 使用的性能数据格式），并能显示请求和业务操作的耗时。
+
+遇到问题可按 [beta 真机反馈说明](https://github.com/lizhiyao/sentry-miniapp/issues/457) 提供平台、版本、复现步骤和事件 ID。
 
 ## 公共 API 与集成
 

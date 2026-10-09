@@ -57,13 +57,13 @@ sentry-miniapp（init + 默认集成）
 
 业务代码仍应在启动阶段只初始化一次；上述隔离用于保证重入和清理安全，不是鼓励为同一个小程序长期维护多个并行 client。
 
-2.0 的正式 tracing 范围是一个由 `init` 管理的活动 runtime；SDK 的 owner scope 只覆盖同步观察，不模拟跨 `await` 隔离。替换 client 时先退休旧 owner、同步收尾其 span，再绑定新 client；业务请求和回调继续执行，旧请求的迟到回调不向新 client 写遥测。手动 span 的 route／network 等动态属性由业务在创建时提供，SDK 只补稳定设备／应用字段。
+性能追踪仅支持一个当前使用的 client。小程序的异步上下文能力有限：多个任务并行跨越 `await` 时，不能保证各自的请求仍关联到原来的父 span。需要页面或网络类型等属性时，在创建业务 span 时显式传入；SDK 会补充设备和应用版本等稳定信息。
 
-### 与 core 的维护边界
+### 数据处理与发送
 
-事件准备、scope 合并、采样／DSC、span／Logs／metrics 缓冲及 envelope 格式复用固定版本的 core。小程序不维护第二套采样、批处理或私有事件处理管道；所有 span，包括无父 HTTP segment，都依赖 `SpanStreaming` 发送。
+SDK 采集小程序数据后，由 `@sentry/core` 处理事件、采样和批量发送。错误事件的 processors／`beforeSend`、日志的 `beforeSendLog` 等钩子可在发送前修改或丢弃数据，见[配置项参考](/guide/configuration)。
 
-仍需宿主适配的窄接缝是捕获时 Session 的选择、JS 未处理异常的 `unhandled` 状态，以及 `dispose` 可取消的 processing 等待；键过滤内部入口集中在 `coreCompat`。这些接缝有真实 core 回归用例和源码差异审查要求，后续升级须逐项核对，不能凭类型兼容放宽 core 版本范围。维护细节见仓库 [DEVELOPMENT.md](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md#core-扩展边界与升级审查)。
+性能数据由默认的 `SpanStreaming` 集成批量发送。自定义 `defaultIntegrations` 时需保留 `spanStreamingIntegration()`，否则请求和业务操作的性能数据都无法发送；`Sentry.getDiagnostics()` 会提示缺失的集成。
 
 ### Logs 与合规门禁
 
