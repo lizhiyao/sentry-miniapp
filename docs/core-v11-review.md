@@ -1,4 +1,4 @@
-# core v11 升级收尾复核（2026-10-09）
+# core v11 升级收尾复核（2026-10-09 至 2026-10-10）
 
 ## 结论与证据边界
 
@@ -62,6 +62,16 @@ Session 的迟到异步错误是保留的统计边界：前台会话已结束时
 - 保留有意义的 factories namespace、owner 清理和可选性能能力；删减以职责和引用为依据，不以行数作为目标。
 - 源码以 noUnusedLocals／noUnusedParameters 再查一遍，无未引用局部或参数；不将公共导出误当成死代码删除。
 
+## 开发工具链依赖复查
+
+官方 npm audit 对当前生产依赖未报告安全告警；发布包生产依赖只有 `@sentry/core 11.4.0`。包含开发依赖的根锁文件则确认 7 条安全公告（2 critical／3 high／2 moderate），涉及 VitePress 的 Vue SSR、glob 展开的 brace-expansion，以及发布工具的 Handlebars，不能将它们误归为示例旧锁文件。
+
+公告对应[Vue SSR 属性名验证](https://github.com/advisories/GHSA-g2v6-rqmx-r4w6)、[brace-expansion 拒绝服务](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr)、[Handlebars AST 输入](https://github.com/advisories/GHSA-8r5x-fm3f-whwj)与[模板原型访问](https://github.com/advisories/GHSA-p8wg-vrv2-v86f)。当前构建输入和模板受仓库控制，未发现这些公告要求的不可信输入入口；仍应定向更新到修补版本，而非仅凭目前利用条件不匹配忽略告警。
+
+已定向更新根锁文件：Vue 与其同版本包 3.5.35→3.5.42、brace-expansion 5.0.9→5.0.12、Handlebars 4.7.9→4.7.10。Vue 新声明要求 Babel parser／types 7.29.8，新增并存锁记录，其他链的 7.29.7 保留；PostCSS 等其他实际锁定版本不变。未修改 package.json 的依赖范围或 core pin。隔离环境启用安装脚本后 `yarn install --immutable` 通过；`yarn npm audit --recursive --all --no-deprecations` 及限制到 production 的查询均未报告安全公告。排除弃用提示仅为区分维护提示与安全公告，不代表旧发布工具链的维护成本已经消失；新旧 peer 检查未满足项相同。
+
+GitHub 推送时提示默认分支 23 条告警，本轮没有与其 alert ID 逐条对账。npm audit 的结果只覆盖审计时当前锁文件与数据库；不能宣称所有 GitHub 告警或未知依赖风险已经清零。
+
 ## 交付与剩余范围
 
 本 PR 保留 beta.3 包版本，不移动已发布 tag，不把本轮改动称为已发布。合并后应通过正常 release PR 发布下一 beta，试用者才能获得这些修复。真机冻结／恢复、弱网、存储、同意／撤回及平台覆盖继续在 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 收集证据；稳定版前复核，缺失项保持待验证。
@@ -74,5 +84,7 @@ Session 的迟到异步错误是保留的统计边界：前台会话已结束时
 - `yarn run build`：CJS／ESM／UMD／类型入口和七平台 × 两种 URL 能力模式消费通过。
 - `yarn run build:miniapp`：独立微信 bundle、无 Node／DOM 依赖及本地符号化检查通过。
 - `yarn run docs:build` 与 `git diff --check` 通过。
+
+定向修补开发工具链锁文件后，再次运行 lint、typecheck、完整 coverage、发布包消费、微信 bundle／映射及官网构建，结果仍通过。
 
 PR CI 另验证 Node 20／22／24 及 Taro／uni-app；结果以对应 PR run 为准。本轮没有证明所有未知 bug 都已消失；有效改进是把具体漏测组合变成失败复现和持续回归，同时使对外文档与实际支持、版本及证据一致。
