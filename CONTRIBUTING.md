@@ -4,6 +4,8 @@ Thank you for your interest in contributing to `sentry-miniapp`!
 
 ## Getting Started
 
+For module responsibilities, Core boundaries, and lifecycle constraints, read **[ARCHITECTURE.md](./ARCHITECTURE.md)** (Chinese).
+
 For development setup, commands, project structure, and debugging workflow, see **[DEVELOPMENT.md](./DEVELOPMENT.md)**.
 
 Quick start:

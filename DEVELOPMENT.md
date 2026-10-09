@@ -2,6 +2,8 @@
 
 本文档介绍如何在开发过程中构建、测试和调试 `sentry-miniapp` SDK。
 
+理解模块职责、数据流、生命周期约束和 Core 扩展取舍，请先阅读 [架构文档](ARCHITECTURE.md)。
+
 ## 🚀 快速开始
 
 ### 0. 环境要求
@@ -62,9 +64,9 @@ yarn install
 sentry-miniapp/
 ├── src/                          # 核心源码目录
 │   ├── index.ts                  # SDK 主入口
-│   ├── client.ts                 # 核心 Client 实现
-│   ├── integrations/             # 各类集成模块（如 Performance, Router 等）
-│   └── transports/               # 数据传输层（XHR, 离线缓存）
+│   ├── client.ts                 # Core Client 与宿主资源边界适配
+│   ├── integrations/             # 宿主异常、请求、页面、会话和性能采集
+│   └── transports/               # 宿主请求、同意门与离线存储适配
 ├── test/                         # 单元测试（Vitest）
 ├── examples/wxapp/               # 用于调试的微信小程序示例
 │   ├── lib/                      # [自动生成] SDK 构建产物目录
@@ -94,23 +96,7 @@ sentry-miniapp/
 
 beta.4 发布后的小游戏 Session、系统信息降级和离线交错复核见 [发布后专项审查](docs/core-v11-postrelease-review.md)。
 
-`coreCompat.ts` 是 `_INTERNAL_filterKeyValueData` 的唯一生产导入入口，直接重导出固定 core 的算法；不复制敏感名单或放行 fallback。键值／URL／JSON／form 的语义和最终 envelope canary 回归约束这项依赖。UTF-8 字节计数与无 TextEncoder 的编码也共用该模块，避免正文与缓存预算维护两套 Unicode 算法。
-
-事件准备、采样、processor／beforeSend、Session 状态算法与发送仍使用 core 实现。宿主 Debug ID 同步使用公开 `preprocessEvent` hook；公共 capture 入口只保存采集时的 scope／Session，原 isolation scope 保持 core 的可写身份。`postprocessEvent` 与 beforeSend 结果绑定使用 client 自有 WeakMap，不建立按 event ID 维护的长期索引，也不向遥测 payload 增加归属字段。
-
-`MiniappClient` 的 protected 依赖集中如下；它们不是任意 core 版本兼容的承诺。依赖升级 PR 必须检查候选 core 源码中的签名、调用顺序与实现差异，执行对应 real-core 用例，并在 PR 中记录结论；不能仅凭类型检查通过放宽依赖范围。
-
-| 接缝 | 保留原因 | 升级时必须验证 |
-| --- | --- | --- |
-| `_updateSessionFromEvent` | 选择捕获时的 Session 后调用 super，不复制 core 的错误判断／状态算法 | async processor／beforeSend 替换事件、无旧 Session、显式 scope、重入与并发；`test/client-capture.realcore.test.ts` 和 `test/session.test.ts` |
-| `_isClientDoneProcessing` | core 没有公开取消 processing 等待的接口；有限 core tick 之间检查 dispose | 无期限 flush／close、永不完成的 processor、预算与 timer 清理；`test/client-lifecycle.realcore.test.ts` |
-| `_unhandledSessionStatus` 字段 | core 为浏览器类宿主提供的状态配置，JS 错误不表示进程崩溃 | unhandled 状态、自动终态只发送一次；`test/session.realcore.test.ts` 和 `test/session.test.ts` |
-
-client reports 使用公开 `recordDroppedEvent` 入口累计，公开 `createClientReportEnvelope` 组装，再通过 `sendEnvelope` 进入同一 transport；不再调用 `_flushOutcomes` 或读写 core 的 `_outcomes`。报告排放由宿主同意／生命周期控制，发送前交换批次，发送 hook 新产生的 drop 留待下一次 flush。升级验证真实采样／processor／transport drop、构造期 recorder、tunnel、无 DSN、同意撤回和失败不落盘；见 `test/client-reports.realcore.test.ts`。
-
-公开 flush 每次只调用一次 core flush，dispose 同步结束所有 SDK flush 等待，即使自定义 transport 忽略 timeout；迟到完成不能改变已经返回的结果。保留有限 processing tick，是因为 Promise.race 本身不能取消 core 的无限 timer，而反复调用公开 flush 会重复触发业务 hooks。不要用 Session 占位对象、篡改 Scope 方法或重写 core pipeline 来追求零 protected：当前公开 API 无法表达“采集时无 Session，不回落到后来的 Session”，窄 Session 选择器仍委托 core 的状态算法。
-
-同时保留 `lastEventId()` 更新原 scope、processor 中可见 ID、drop／重入顺序、Debug ID 最终 `debug_meta` 与完整包消费检查。若 core 提供满足上述语义的公开接口，优先移除对应 protected 适配。
+当前职责边界、Core 接缝、保留原因与升级验证统一见 [架构文档的 Core 演进章节](ARCHITECTURE.md#7-core-的受控接缝与演进条件)。涉及这些边界的改动，应先核对候选 Core 实现，再执行文档所列真实 Core 和发布包回归；不能仅凭类型检查通过放宽依赖范围。
 
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 

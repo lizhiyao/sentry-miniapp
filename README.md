@@ -141,7 +141,7 @@ Sentry.setConsent(true);
 | 看可运行示例 | [示例工程](https://sentry-miniapp.pages.dev/guide/examples) |
 | 排查没有事件、自动捕获、追踪或隐私同意问题 | [常见问题](https://sentry-miniapp.pages.dev/guide/faq) |
 | 查看版本历史与每次发布内容 | [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) |
-| 参与开发或贡献 | [开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [贡献指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
+| 参与开发或贡献 | [架构文档](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md) / [开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [贡献指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
 
 ---
 
