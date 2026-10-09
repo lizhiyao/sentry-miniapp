@@ -120,6 +120,8 @@ Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业
 
 宿主重新赋值后可迁移包装状态；旧 wrapper 留在第三方链内部时透明转发，防止重复分发。API 不可读或不可写时跳过该观测点。请求观测准备失败透传原 options，宿主原调用的异常保留且不重试。
 
+Session／TryCatch 的资源清理由每个 client 的 lifetime stop 与公开 `registerCleanup()` 配对持有，不另设跨 client 的聚合清理入口或 Set。相应回归通过公开 `dispose()` 验证重复关闭、wrapper 恢复和迟到观测失效；内部清理闭包仍负责订阅与 owner 的实际释放。
+
 ### App 与小游戏的不同路径
 
 普通小程序的共享 `App()` 包装保证：`before` → 业务同步 handler → `finally` 中的 `after` → `flush`。各阶段使用同一订阅快照，业务 handler 内安装的新 client 不接收旧事件的后半段；用户返回值和异常保留。这个次序不等待业务 handler 返回的 Promise。

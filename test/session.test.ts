@@ -161,12 +161,13 @@ describe('Session owner 与前台 episode', () => {
     ).toBe(true);
   });
 
-  it('替换时同步结束 A 的 session，A cleanup 不删除 B 或业务手动 session', async () => {
-    const first = start();
+  it('同对象复用替换时同步结束 A 的 session，A cleanup 不删除 B 或业务手动 session', async () => {
+    const integration = new SessionIntegration();
+    const first = start(integration);
     (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
     app.onLaunch();
     const sid = sessions()[0]!.sid;
-    const second = start();
+    const second = start(integration);
     expect(sessions().some((session) => session.sid === sid && session.status === 'exited')).toBe(
       true,
     );
@@ -180,14 +181,15 @@ describe('Session owner 与前台 episode', () => {
     second.dispose();
     expect(getIsolationScope().getSession()).toBe(manual);
   });
-  it('手动 cleanup 幂等，已注册 App 的迟到事件不重新开始 session', () => {
-    const integration = new SessionIntegration();
-    start(integration);
+  it('公开 dispose 幂等并恢复 App，已注册 App 的迟到事件不重新开始 session', () => {
+    const original = (globalThis as { App?: unknown }).App;
+    const owner = start();
     (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
     app.onLaunch();
     expect(sessions()).toHaveLength(1);
-    integration.cleanup();
-    integration.cleanup();
+    owner.dispose();
+    owner.dispose();
+    expect((globalThis as { App?: unknown }).App).toBe(original);
     app.onHide();
     app.onShow();
     expect(sessions()).toHaveLength(1);

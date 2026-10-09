@@ -8,7 +8,6 @@ import { OwnerToken } from '../owner';
 export class TryCatch implements Integration {
   public static id = 'TryCatch';
   public name = TryCatch.id;
-  private readonly _cleanups = new Set<() => void>();
   private readonly _clients = new WeakSet<Client>();
 
   public setup(client: Client): void {
@@ -97,18 +96,12 @@ export class TryCatch implements Integration {
         }
       }
       this._clients.delete(client);
-      this._cleanups.delete(cleanup);
     };
-    this._cleanups.add(cleanup);
     const detachStop = lifetime?.registerStop(cleanup);
     client.registerCleanup(() => {
       detachStop?.();
       cleanup();
     });
-  }
-
-  public cleanup(): void {
-    for (const cleanup of [...this._cleanups]) cleanup();
   }
 }
 

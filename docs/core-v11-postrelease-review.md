@@ -60,3 +60,13 @@ Performance 的 `mark` 分支原本恢复 delivery scope，参数化同一旧 ti
 - 新增 26 个原生 Session／生命周期、7 个长期观测与操作会话归属、12 个系统信息、5 个初始化 scope 与 9 个网络降级真实 Core 用例；移除的空 hook 存在断言由实际资源与最终数据回归取代。观测准备中的无实际触发路径收尾分支已删除，没有为覆盖率制造私有状态测试。
 - CJS／ESM／UMD 与声明入口构建、publint、实际 tarball 消费检查通过：68 个导出、七平台各两种 URL 能力模式与类型入口。
 - 微信示例独立 bundle 的运行与本地符号化检查通过；用户文档站构建通过。两者都不代表完成新的目标后台或真机验收。
+
+## beta.5 发布后的内部清理
+
+上述非阻塞候选按调用方逐项收尾：Session／TryCatch 的聚合 `cleanup()` 只有旧单测直接调用，Core 集成契约与生产路径不调用这两个入口。删除聚合方法和对应 Set，保留每个 client 的实际 cleanup 闭包、lifetime stop／finalizer、公开 `registerCleanup()` 与 owner 释放，不按方法名称批量删除其它集成的清理。
+
+原有用例迁到公开 `client.dispose()`，观察重复关闭后的宿主 wrapper 恢复、已注册 App 的迟到事件不再建立 Session、已调度业务任务仍运行并保留原异常且不新增遥测。同一 Session 集成对象跨 A／B 复用的替换回归继续保护 B 和业务手动会话。验证对象是实际 Core 的事件／Session envelope 与宿主函数身份，不以私有 Set 断言代替资源行为。
+
+这是 beta.5 之后的源码清理；已发布版本的验收基线与上文历史证据仍按各自 tag 理解。
+
+本轮 lint、严格类型检查、完整覆盖率与 SDK／文档站构建通过：72 文件／1226 测试；statements 98.72%、branches 95.53%、functions 99.23%、lines 99.43%，原门槛不变。原异常对象身份的强化断言另经对应 13 个 TryCatch 用例验证。

@@ -77,23 +77,36 @@ describe('TryCatch 调度 owner（真实 core）', () => {
     vi.unstubAllGlobals();
   });
 
-  it('setup 包装和 cleanup 恢复，factory 使用同一实现', () => {
+  it('setup 包装和公开 dispose 幂等恢复，迟到业务保留原异常且不再捕获', () => {
     const integration = tryCatchIntegration() as TryCatch;
     expect(integration.name).toBe('TryCatch');
     expect(globalThis.setTimeout).toBe(schedule);
     const owner = start(envelopes, integration);
     integration.setup(owner);
     expect(globalThis.setTimeout).not.toBe(schedule);
-    const id = timer(() => {
-      throw new Error('after manual cleanup');
+    const error = new Error('after dispose');
+    const business = vi.fn(() => {
+      throw error;
     });
-    integration.cleanup();
-    expect(() => run(id)).toThrow('after manual cleanup');
-    expect(events()).toEqual([]);
+    const id = timer(business);
+    owner.dispose();
     owner.dispose();
     expect(globalThis.setTimeout).toBe(schedule);
+    expect(globalThis.setInterval).toBe(schedule);
+    expect(globalThis.clearTimeout).toBe(cancel);
     expect(globalThis.clearInterval).toBe(cancel);
     expect(globalThis.requestAnimationFrame).toBe(frameSchedule);
+    expect(globalThis.cancelAnimationFrame).toBe(cancel);
+    let caught: unknown;
+    try {
+      run(id);
+    } catch (thrown) {
+      caught = thrown;
+    }
+    expect(caught).toBe(error);
+    expect(business).toHaveBeenCalledOnce();
+    expect(cancel).not.toHaveBeenCalled();
+    expect(events()).toEqual([]);
   });
 
   it('同 fn 多次调度各自捕获 owner，A 迟到业务异常不进入 B', () => {
