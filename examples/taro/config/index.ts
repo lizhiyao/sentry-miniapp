@@ -46,9 +46,9 @@ export default defineConfig<'webpack5'>(async (merge) => {
         chain.resolve.plugin('tsconfig-paths').use(TsconfigPathsPlugin);
         chain.devtool('hidden-source-map');
       },
-      // 想上传 Source Map 到 Sentry 时，参考 https://sentry-miniapp.pages.dev/guide/sourcemap：
-      // Taro 真机错误栈是合并后的 appservice.app.js，需要两层 map 串联，
-      // 详见该文档「跨端框架的两层 Source Map 串联」一节与 scripts/merge-sourcemap.mjs。
+      // 微信最终合并脚本的映射，参考 https://sentry-miniapp.pages.dev/guide/sourcemap-advanced：
+      // 真机错误栈指向 appservice.app.js 时，检查同版本最终 map 是否已包含原始源码，
+      // 再决定是否需要与 Taro 构建 map 合成；详见「微信真机的两层 Source Map」。
     },
     h5: {
       publicPath: '/',

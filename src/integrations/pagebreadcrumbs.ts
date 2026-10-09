@@ -227,9 +227,7 @@ export class PageBreadcrumbs implements Integration {
 
   public setupOnce(): void {
     const globalObject = globalThis as Record<PropertyKey, unknown>;
-    if (typeof globalObject['Page'] === 'function') {
-      ensureFunctionInstrumentation(globalObject, 'Page');
-    }
+    ensureFunctionInstrumentation(globalObject, 'Page');
   }
 
   public setup(client: Client): void {
@@ -260,10 +258,7 @@ export class PageBreadcrumbs implements Integration {
     this._subscribeNavigation(client, subscriber, canContinue, adopt);
     if (!canContinue()) return;
     const globalObject = globalThis as Record<PropertyKey, unknown>;
-    const page = globalObject['Page'];
-    if (typeof page === 'function' && canContinue()) {
-      adopt(addFunctionInstrumentationHandler(globalObject, 'Page', client, invokePage));
-    }
+    adopt(addFunctionInstrumentationHandler(globalObject, 'Page', client, invokePage));
   }
 
   public cleanup(): void {
@@ -382,5 +377,5 @@ export class PageBreadcrumbs implements Integration {
   }
 }
 
-export const pageBreadcrumbsIntegration = (options?: PageBreadcrumbsOptions) =>
+export const pageBreadcrumbsIntegration = (options?: PageBreadcrumbsOptions): Integration =>
   new PageBreadcrumbs(options);

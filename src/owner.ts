@@ -1,6 +1,7 @@
 import { getClient, getCurrentScope, getIsolationScope, withScope } from '@sentry/core';
 import type { Client, Scope } from '@sentry/core';
 import { getClientLifetime, withTelemetryCritical, type ClientLifetime } from './lifecycle';
+import { resolveScopeSession, setOwnedScopeSession } from './sessionCapture';
 
 /** 调度任务固定采集时会话；长期 producer 执行时使用当前 isolation episode。 */
 export class OwnerToken {
@@ -18,10 +19,10 @@ export class OwnerToken {
     this._client = client;
     this._scope = getCurrentScope().clone();
     this._scope.setClient(client);
-    this._scope.setSession(
-      sessionStrategy === 'current'
-        ? undefined
-        : (this._scope.getSession() ?? getIsolationScope().getSession()),
+    setOwnedScopeSession(
+      this._scope,
+      sessionStrategy === 'current' ? undefined : resolveScopeSession(this._scope),
+      sessionStrategy,
     );
     this._lifetime = lifetime;
     const stop = this._lifetime?.registerStop(() => this.release());
@@ -47,7 +48,9 @@ export class OwnerToken {
     const captured = this._scope;
     if (!client || !captured) return undefined;
     const scope = this._sessionStrategy === 'current' ? captured.clone() : captured;
-    if (this._sessionStrategy === 'current') scope.setSession(getIsolationScope().getSession());
+    if (this._sessionStrategy === 'current') {
+      setOwnedScopeSession(scope, getIsolationScope().getSession(), 'current');
+    }
     let result!: T;
     withScope(scope, () => {
       result = withTelemetryCritical(() => callback(client));

@@ -1,6 +1,6 @@
 # 配置项参考
 
-`Sentry.init({ ... })` 支持的全部选项。通常只需 `dsn` + `release` 即可上手（见[快速接入](/guide/getting-started)），下面按参数类别列出类型、默认值和行为。
+`Sentry.init({ ... })` 的常用选项与小程序扩展选项。通常只需 `dsn` + `release` 即可上手（见[快速接入](/guide/getting-started)），下面按参数类别列出类型、默认值和行为。
 
 如果你还在判断“为什么需要这个选项”，先看对应的[异常、日志与上下文](/guide/errors-and-context)、[性能与链路追踪](/guide/performance-and-tracing)、[可靠上报与隐私同意](/guide/reliability-and-privacy)或[小游戏](/guide/minigame)指南。
 
@@ -122,7 +122,7 @@ console.log(diagnostics.warnings);
 |------|------|
 | `platform` | 当前检测到的平台、是否小程序环境、是否小游戏 |
 | `client` | 是否已初始化、当前 client 是否为 `MiniappClient` |
-| `options` | `release`、`environment`、采样、Source Map、Logs、consent、trace header 等配置摘要 |
+| `options` | `release`、`environment`、采样、Source Map、consent、trace header 等配置摘要 |
 | `transport` | 是否自定义 transport、离线缓存与 consent 门禁状态，以及内置上报超时 / 网络并发上限 |
 | `integrations` | 已装配的 integration 名称列表 |
 | `warnings` | SDK 识别出的潜在接入问题，如缺 `release`、tracing 未开启、consent 正在阻断上报 |
@@ -353,28 +353,22 @@ Sentry.init({
 
 反馈的两个 SDK 入口也在关闭开始后停止执行 `beforeSendFeedback`。Session 更新在排空期间继续处理，以保留已有事件的错误统计和同步收尾；`dispose()` 或关闭完成后，`client.captureSession(session)` 不再执行发送回调或修改传入的 Session。
 
-SDK finalizer 与资源 cleanup 分开，前者只在关闭的同步收尾窗口产生最后数据。关闭后日志／指标不会再执行用户采集 callback 或填入 buffer；callback 内关闭 client 后返回的日志／指标也被拒收。任意第三方 core hook 抛错可能中断 core 其余 listener，内部 buffer 清理只能 best-effort；SDK 仍完成终态和资源清理，不修改 core 私有 hooks/buffers。
+关闭后日志／指标不再执行用户采集回调或进入发送队列。在采集回调中关闭 client 后返回的数据也不会发送。
 
 `close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。
 
 2.0 将 JS 未处理异常的 Session 状态从 `crashed` 改为 `unhandled`，不将可继续运行的异常当作宿主进程崩溃。Release Health 的统计与告警须重新建立基线，不能直接比较 1.x 的 crash-free 数据；没有真实原生崩溃证据时 SDK 不生成 `crashed`。
 
-自动 Session 随每次前台运行开始。可包装的小程序 App 路径在业务同步 `onHide` 之后结束会话。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
+自动 Session 随每次前台运行开始。可包装的小程序 App 路径在业务同步 `onHide` 之后结束会话。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。SDK 自动捕获的定时器／业务 rAF 同步异常按调度时的会话统计；开始时没有活动会话，也不会计入随后开始的会话。网络请求的业务回调中手动捕获的异常，以及宿主随后独立报告的全局异常，仍使用捕获当时的活动会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
 
-小游戏依赖宿主 `onShow`／`onHide`；小程序无法包装 App 时，使用可用的 `onAppShow`／`onAppHide`。两项监听均注册成功后，在所有集成安装完成、`init()` 返回前建立首个会话；已观察到后台则等待下次 show。后续 show 不重复创建会话，hide 后再次 show 开始新会话。缺少或无法注册任一项监听时，跳过自动 Session；需要会话统计的项目可手动管理。SDK 与业务原生监听之间的执行顺序由宿主决定，业务处理器末尾显式 `Sentry.flush()` 才能覆盖随后产生的数据。
+小游戏依赖宿主 `onShow`／`onHide`；小程序无法包装 App 时，使用可用的 `onAppShow`／`onAppHide`。两项监听均注册成功后自动管理前台会话；缺少或无法注册任一项监听时，跳过自动 Session，需要会话统计的项目可手动管理。SDK 与业务原生监听之间的执行顺序由宿主决定，业务处理器末尾应显式调用 `Sentry.flush()`，排出该处理器中产生的数据。
 
-默认 MiniappLifecycle 协调器独立于 Session、Page 与 FPS。可包装 App 时，业务同步 handler、SDK after 收尾和最后 flush 按阶段运行；Session 在协调器之后安装也不会越过最后 flush。小游戏使用原生 onShow/onHide；可检测到已注册 App 的 late init 使用原生 onAppShow/onAppHide（如有）。原生监听相对业务监听的顺序由宿主控制，业务 handler 末尾显式 flush 才能覆盖随后产生的数据。App 入口不可读、不可写或 setter 忽略包装时，改用可用的原生监听；冻结的 App 定义仍交给宿主注册，无法注入的 handler 不保证自动收尾，业务需显式 flush。没有监听能力时安全降级；没有 getApp 检测能力时，SDK 也无法可靠判断 App 是否已注册。
+SDK 可以包装 App 时，会在业务同步 `onHide` 执行后收尾并 flush；不会等待该处理器返回的 Promise。业务在 `await` 后才产生数据时，需自行调用 `Sentry.flush()`。App 已注册、入口无法包装或 App 定义被冻结时，自动收尾取决于宿主原生监听是否可用；无法监听时，业务应显式管理 hide/show 边界。缺少 `getApp` 时，SDK 无法可靠判断 App 是否已注册，因此应始终在 `App()` 前初始化。
 
-默认 transport 的终态 shutdown 会清掉等待队列、尝试 abort SDK 在途请求并一次结算；abort 抛错、同步 fail 或迟到 success/fail 都不能重复结算。第三方 transport 的私有队列与取消能力由其实现负责。core 自己创建的单次 drain timeout 可能在关闭后空执行一次，SDK 不改写其私有 timer。
+关闭完成或调用 `dispose()` 后，默认 transport 会清空等待队列，并在宿主提供能力时尝试取消在途请求。第三方 transport 的私有队列与取消能力由其实现负责。
 
 `getDiagnostics().warnings` 可查询 `late_init`、`lifecycle_unavailable`、`reentrant_init_unsupported`、`init_scope_unsupported` 和 `invalid_close_timeout`。这些诊断只保留有界的状态代码，不发送事件；禁用默认集成时，生命周期与 hide/show 边界由业务显式管理。
 
-TryCatch 的 timer/rAF 捕获按每次调度绑定到活动 `init` client。同一函数多次调度不会复用首个 owner；one-shot 完成、对应 clear/cancel 或 client 退休后释放采集状态。退休不取消业务 interval/rAF，迟到业务回调仍保留 `this`、参数、返回值和原异常，但不再由旧 SDK 回调捕获到新 client。回调返回 Promise 时保持原 Promise 身份，不捕获其异步 rejection，也不提供跨 await 的 scope 隔离；宿主独立发出的全局未处理异常遵循当前 runtime 的捕获边界。
+定时器和业务 rAF 回调的自动异常捕获归属于调度时的 client；切换 client 后，旧回调不会通过原来的包装器上报到新 client。关闭 SDK 不会取消业务定时器。TryCatch 只捕获回调同步抛出的异常；回调返回 Promise 后的 rejection 依赖宿主全局异常监听，不保证跨 `await` 的 scope 隔离。
 
-GlobalHandlers 的宿主监听按 client 安装，重复使用同一 integration 对象时也保持独立去重窗口。运行实例退休即退订并释放 client；缺少 off API 的旧监听仅保留失效回调，迟到参数不会被读取。注册或解除某个监听失败不阻断其他能力，低层直接构造的 MiniappClient 不自动注册这些监听。宿主随后独立发出的全局异常仍按当前活动 runtime 捕获，不承诺恢复已丢失的旧异步来源。
-
-NetworkStatus 的初始查询与变化监听属于安装它的 client。运行实例退休后，旧查询和无 off API 的监听不会读取迟到参数；已经观察到实时变化后，迟到初始查询不能覆盖网络状态。恢复联网时同步发起 flush，异步失败由 SDK 接住；这不代表磁盘重放已完成。
-
-小游戏首帧与 FPS 的 SDK rAF 同样按 client 管理。FPS 退后台停止自己的帧循环，回前台重建基线，重复 show 不丢弃有效窗口；缺 cancel API 时旧帧以请求身份失效。close 的同步 finalizer 最多产生一次最后汇总，dispose 和资源 cleanup 只释放状态、不产生汇总。注册或解除某项监听失败不阻断其余资源释放，业务自身的 rAF 不由这些集成取消。
-
-Performance 的 observer 按 client 独立维护，复用 integration 配置对象不会把旧 observer 转给新 client；2.0 没有通用报告定时器、原始条目缓冲或周期汇总。运行实例退休时同步释放 observer，迟到 entry 不再读取。Page、Console、HTTP 与生命周期协调器也在退休时同步退订；低层直接构造并手动绑定 client 不会启动这些自动 producer。SDK 的 breadcrumb 格式化或不可写 Page 定义失败不阻断原业务 API、回调或 console。
+需要了解资源释放、生命周期监听和发送队列的实现时，可阅读仓库的[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)；开发与验证命令见[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)。

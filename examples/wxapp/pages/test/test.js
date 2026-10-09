@@ -182,10 +182,7 @@ Page({
   // --- 性能与网络测试 ---
 
   testRequest() {
-    const span = Sentry.startInactiveSpan({
-      name: 'testRequest',
-      op: 'http.client'
-    });
+    // HTTP span 由默认网络集成自动采集。
     const startTime = Date.now();
     let requestStatus = 'pending';
     let responsePreview = '';
@@ -195,18 +192,15 @@ Page({
       url: 'https://api.github.com/zen',
       success: (res) => {
         console.log('Request success:', res.data);
-        span.setStatus({ code: 1 });
         requestStatus = 'ok';
         responsePreview = typeof res.data === 'string' ? res.data.slice(0, 80) : JSON.stringify(res.data).slice(0, 80);
       },
       fail: (err) => {
         console.error('Request failed:', err);
-        span.setStatus({ code: 2, message: 'internal_error' });
         requestStatus = 'error';
         requestError = err && err.errMsg ? err.errMsg : '请求失败';
       },
       complete: () => {
-        span.end();
         const durationMs = Date.now() - startTime;
         this.showReportModal('请求监控完成', {
           type: 'http',

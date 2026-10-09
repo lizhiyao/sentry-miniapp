@@ -17,6 +17,7 @@ import { automaticSpanAttributes, setClientSpanDimension } from '../spanDimensio
 import { collectUrlName } from '../dataCollection';
 import { getClientLifetime } from '../lifecycle';
 import { OwnerToken } from '../owner';
+import { setOwnedScopeSession } from '../sessionCapture';
 
 const EPOCH_TIMESTAMP_THRESHOLD = 100_000_000_000;
 const MAX_ENTRY_AGE = 30 * 24 * 60 * 60 * 1000;
@@ -179,7 +180,7 @@ class PerformanceController {
     if (typeof name !== 'string' || !this._isActiveClient()) return;
     if (type === 'mark') {
       const markScope = deliveryScope.clone();
-      markScope.setSession(getIsolationScope().getSession());
+      setOwnedScopeSession(markScope, getIsolationScope().getSession(), 'current');
       withScope(markScope, () => {
         addBreadcrumb({
           timestamp: times.start,
@@ -324,6 +325,5 @@ export class PerformanceIntegration implements Integration {
   }
 }
 
-export const performanceIntegration = ((
-  options?: PerformanceIntegrationOptions,
-): PerformanceIntegration => new PerformanceIntegration(options)) satisfies IntegrationFn;
+export const performanceIntegration = ((options?: PerformanceIntegrationOptions): Integration =>
+  new PerformanceIntegration(options)) satisfies IntegrationFn;

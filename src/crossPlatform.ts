@@ -277,7 +277,7 @@ export const detectPlatform = (): DetectedPlatform | null => {
   if (inferredPlatforms.size === 1) {
     const [inferredPlatform] = inferredPlatforms;
     // 宿主证据只用于选择同名候选对象，不能把 A 平台 SDK 与 B 平台名称拼在一起；
-    // getSDK() 后续会按 name 执行支付宝/钉钉等平台适配，二者错配会破坏请求和 Storage。
+    // Storage 消费入口会按 name 选择参数适配，二者错配会破坏请求和存储归属。
     return candidates.find((item) => item.name === inferredPlatform) ?? candidates[0] ?? null;
   }
 
@@ -299,6 +299,29 @@ function assertStorageSuccess(result: unknown, allowMissing = false): void {
   const error = (result as { error?: unknown }).error;
   if (typeof error === 'number' && error !== 0 && !(allowMissing && error === 11))
     throw new Error(`Miniapp Storage operation failed (${error})`);
+}
+
+export type MiniappStorageApiName = 'getStorageSync' | 'setStorageSync' | 'removeStorageSync';
+
+/** 只在 SDK 存储消费入口归一化；不改写宿主方法、返回结构或安装可写标记。 */
+export function getStorageApi(
+  source: Record<string, unknown>,
+  name: MiniappStorageApiName,
+): Function | undefined {
+  const method = source[name];
+  if (typeof method !== 'function') return undefined;
+  const detected = resolvePlatform();
+  if (
+    !detected ||
+    (detected.sdk as unknown) !== source ||
+    (detected.name !== 'alipay' && detected.name !== 'dingtalk')
+  )
+    return method;
+  return function (key: string, data?: unknown) {
+    const result = method.call(source, name === 'setStorageSync' ? { key, data } : { key });
+    assertStorageSuccess(result, name === 'getStorageSync');
+    return name === 'getStorageSync' ? (result ? result.data : null) : undefined;
+  };
 }
 
 const getSDK = (): SDK => {
@@ -325,52 +348,8 @@ const getSDK = (): SDK => {
     };
   }
 
-  const currentSdk = detected.sdk;
-
-  // 支付宝小程序的网络请求 API 是 my.httpRequest
-  if (detected.name === 'alipay' && !currentSdk.request && currentSdk.httpRequest) {
-    currentSdk.request = currentSdk.httpRequest;
-  }
-
-  // 支付宝和钉钉的 Storage API 参数是对象形式，这里做一层抹平包装。
-  // 必须幂等：getSDK() 会被 sdk()（缓存）与 computeSystemInfo()（每次重算时）分别调用，
-  // 二者作用在同一个全局 SDK 对象上。若重复包装，内层会收到嵌套的 { key: { key } }，
-  // 读写全部失效——直接表现为离线缓存读不出、断网事件永不补发。用标记守卫只包一次。
-  const adaptable = currentSdk as SDK & { __sentryStorageAdapted?: boolean };
-  if (
-    (detected.name === 'alipay' || detected.name === 'dingtalk') &&
-    !adaptable.__sentryStorageAdapted
-  ) {
-    if (currentSdk.getStorageSync) {
-      const originalGet = currentSdk.getStorageSync;
-      currentSdk.getStorageSync = function (this: unknown, ...args: unknown[]) {
-        const key = args[0];
-        if (typeof key !== 'string') return originalGet.apply(this, args);
-        const res = originalGet.call(currentSdk, { key });
-        assertStorageSuccess(res, true);
-        return res ? res.data : null;
-      };
-    }
-    if (currentSdk.setStorageSync) {
-      const originalSet = currentSdk.setStorageSync;
-      currentSdk.setStorageSync = function (this: unknown, ...args: unknown[]) {
-        const key = args[0];
-        if (typeof key !== 'string') return originalSet.apply(this, args);
-        assertStorageSuccess(originalSet.call(currentSdk, { key, data: args[1] }));
-      };
-    }
-    if (currentSdk.removeStorageSync) {
-      const originalRemove = currentSdk.removeStorageSync;
-      currentSdk.removeStorageSync = function (this: unknown, ...args: unknown[]) {
-        const key = args[0];
-        if (typeof key !== 'string') return originalRemove.apply(this, args);
-        assertStorageSuccess(originalRemove.call(currentSdk, { key }));
-      };
-    }
-    adaptable.__sentryStorageAdapted = true;
-  }
-
-  return currentSdk;
+  // 返回真实宿主；request/httpRequest 特性检测和 Storage 归一化由消费入口分别处理。
+  return detected.sdk;
 };
 
 /**

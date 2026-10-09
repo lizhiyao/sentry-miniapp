@@ -13,7 +13,12 @@ import {
 import * as Sentry from '../src/index';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
-import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+import {
+  collectEnvelopePayloads,
+  collectSpans,
+  createCapturingTransport,
+  spanAttribute,
+} from './support/envelopes';
 
 describe('仓库示例的真实 init／生命周期契约', () => {
   let owner: Sentry.MiniappClient | undefined;
@@ -107,41 +112,47 @@ describe('仓库示例的真实 init／生命周期契约', () => {
   });
 
   it.each(['success', 'failure'] as const)(
-    '微信测试页请求 %s 使用 core v11 的 Span 状态',
+    '微信测试页请求 %s 只产生一个自动 HTTP span 并保留业务结果',
     async (outcome) => {
-      const spans: Span[] = [];
       const facade = createFacade();
-      facade.init({ tracesSampleRate: 1, integrations: [] });
-      const page = loadTestPage(
-        {
-          ...facade,
-          startInactiveSpan: (options: Parameters<typeof Sentry.startInactiveSpan>[0]) => {
-            const span = Sentry.startInactiveSpan(options);
-            spans.push(span);
-            return span;
-          },
-        },
-        {
-          showModal: vi.fn(),
-          request: (options: {
-            success: (response: { data: string }) => void;
-            fail: (error: { errMsg: string }) => void;
-            complete: () => void;
-          }) => {
-            if (outcome === 'success') options.success({ data: 'synthetic response' });
-            else options.fail({ errMsg: 'synthetic network failure' });
-            options.complete();
-          },
-        },
-      );
+      const host = {
+        getSystemInfoSync: () => ({ platform: 'ios' }),
+        showModal: vi.fn(),
+        request: vi.fn((options: {
+          url: string;
+          success: (response: { data: string; statusCode: number }) => void;
+          fail: (error: { errMsg: string }) => void;
+          complete: () => void;
+        }) => {
+          if (outcome === 'success') options.success({ data: 'synthetic response', statusCode: 200 });
+          else options.fail({ errMsg: 'synthetic network failure' });
+          options.complete();
+        }),
+      };
+      vi.stubGlobal('wx', host);
+      resetPlatformCache();
+      facade.init({ tracesSampleRate: 1 });
+      const page = loadTestPage(facade, host);
       page.testRequest?.();
-      expect(spans).toHaveLength(1);
-      expect(spanToJSON(spans[0]!).status).toBe(outcome === 'success' ? 'ok' : 'error');
-      expect(spanToJSON(spans[0]!).end_timestamp).toBeDefined();
-      if (outcome === 'failure') {
-        expect(spanToJSON(spans[0]!).attributes['sentry.status.message']).toBe('internal_error');
-      }
       await owner?.flush(2000);
+      const spans = collectSpans(envelopes);
+      expect(spans).toHaveLength(1);
+      expect(spans[0]!.status).toBe(outcome === 'success' ? 'ok' : 'error');
+      expect(spans[0]!.name).toBe('GET https://api.github.com/zen');
+      expect(spans[0]!.is_segment).toBe(true);
+      expect(spanAttribute(spans[0]!, 'sentry.op')).toBe('http.client');
+      expect(spanAttribute(spans[0]!, 'sentry.origin')).toBe('auto.http.miniapp');
+      if (outcome === 'failure') {
+        expect(spanAttribute(spans[0]!, 'error.message')).toBe('synthetic network failure');
+      }
+      expect(host.showModal).toHaveBeenCalledOnce();
+      expect(host.showModal.mock.calls[0]![0]).toMatchObject({ title: '请求监控完成' });
+      expect(host.showModal.mock.calls[0]![0].content).toContain(
+        `status: ${outcome === 'success' ? 'ok' : 'error'}`,
+      );
+      expect(host.showModal.mock.calls[0]![0].content).toContain(
+        outcome === 'success' ? 'synthetic response' : 'synthetic network failure',
+      );
     },
   );
 

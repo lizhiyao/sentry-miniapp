@@ -231,10 +231,8 @@ Sentry.init({
 仍无法定位时，提交 Issue 时附 SDK 版本、平台、框架、事件 filename、release、Doctor JSON 输出和脱敏后的 `Sentry.getDiagnostics()`。
 
 
-### 2.0 的构建与事件匹配验证
+### 构建与事件匹配验证
 
-`yarn run build:miniapp` 使用真实 bundle 触发 SDK 的配置校验错误，通过捕获型 transport 核对归一化的 `frames.filename`，并用相邻 Source Map 将实际行列号映射回源码。该门禁不发网络，也不证明微信二次编译后或 Sentry 后台已符号化。
+上传的 JS 和 map 必须与实际部署的构建一致。使用 Debug ID 注入时，将注入后的 JS 与对应 map 成对上传、部署，再核对新事件的 `debug_meta` 与已上传的 Debug ID；仅修改 map 的 ID 无法证明部署产物匹配。上传路径应与事件归一化后的 `filename` 一致。
 
-如在产物副本上执行 `sentry-cli sourcemaps inject <目录>`，可随后运行 `node scripts/internal/check-miniapp-bundle.mjs <bundle.js>`。检查还会核对 map 的 `debugId`、事件 `debug_meta.images[].debug_id` 与 `code_file`，以及注入到独立 `window` carrier 后的桥接。此步骤应在上传和部署前执行；注入后的 JS 与 map 必须成对上传／部署。不要仅修改 map 的 ID 或用未注入的旧 JS 证明新产物正确。
-
-本 SDK 沿用 core 以 `filename` 生成 `debug_meta` 的能力，不强制补 `abs_path`。上传路径必须与归一化后的文件名一致；真实微信 `appservice.app.js`／`game.js` 仍按上文的两层 Source Map 流程验证，不能用本地 VM 代替真机或后台结果。
+微信 `appservice.app.js`／`game.js` 的两层映射仍需按上文流程，在目标端触发新事件并确认后台还原结果。本地映射检查不能替代这一步。SDK 仓库自身的构建检查见[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)，映射职责见[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。

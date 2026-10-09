@@ -181,12 +181,7 @@ Build and deploy the same injected JS that produced the uploaded maps. Check a n
 
 ### WeChat Mini Program
 
-**Must disable** WeChat DevTools built-in compilation:
-- ES6 to ES5 → OFF
-- Code Minification → OFF
-- Style Auto-Complete → OFF
-
-Let your build tool (Webpack/Vite) handle these. DevTools' built-in transforms break source map line/column alignment.
+Prefer doing JavaScript transpilation and minification in Webpack/Vite, then disable DevTools' ES6-to-ES5 and JavaScript minification to avoid another transform. If DevTools still transforms or merges JavaScript, retain its final JS/map from the same uploaded version and compose that outer map with the build maps when needed. Uploading only pre-transform maps cannot certify the final stack positions. CSS style auto-completion does not affect JavaScript source map alignment.
 
 ## Verification
 
@@ -207,6 +202,6 @@ Then trigger a test error — Sentry should display the original source code in 
 | Minified code still shown | Check `release` matches exactly between `Sentry.init()` and `sentry-cli` |
 | File paths don't match | Verify `--url-prefix "app:///"` and `enableSourceMap: true` (default) |
 | Upload timeout | Increase timeout in `.sentryclirc`: `[http]` → `timeout = 120` |
-| WeChat DevTools line numbers off | Disable DevTools' ES6/minification features |
+| WeChat DevTools line numbers off | Disable extra JavaScript transforms, or obtain and compose the same-version final JS/map |
 
 CLI examples pin @sentry/cli 3.6.2. CLI 3 removed releases files and sourcemaps explain; use sourcemaps upload and the event Unminify Code flow ([official migration](https://github.com/getsentry/sentry-cli/releases/tag/3.0.0)). If using Debug IDs, inject before both upload and deployment, and deploy the same injected JS/map pair. Do not inject only an upload copy and assume runtime debug_meta matches. Local mappings do not certify platform recompilation or backend symbolication.

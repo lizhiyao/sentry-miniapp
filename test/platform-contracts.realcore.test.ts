@@ -9,7 +9,7 @@ import {
 } from '@sentry/core';
 
 import { _resetAppLifecycle } from '../src/appLifecycle';
-import { resetPlatformCache, sdk } from '../src/crossPlatform';
+import { resetPlatformCache, sdk, getStorageApi } from '../src/crossPlatform';
 import { spanAttribute } from './support/envelopes';
 import { init } from '../src/index';
 
@@ -260,10 +260,14 @@ describe.each(PLATFORM_CONTRACTS)(
       expect(host[requestMethod]).not.toBe(originalRequest);
 
       const platformSdk = sdk();
-      platformSdk.setStorageSync?.('contract-key', `${platform}-value`);
-      expect(platformSdk.getStorageSync?.('contract-key')).toBe(`${platform}-value`);
-      platformSdk.removeStorageSync?.('contract-key');
-      expect(platformSdk.getStorageSync?.('contract-key')).toBeUndefined();
+      const source = platformSdk as unknown as Record<string, unknown>;
+      const set = getStorageApi(source, 'setStorageSync')!;
+      const get = getStorageApi(source, 'getStorageSync')!;
+      const remove = getStorageApi(source, 'removeStorageSync')!;
+      set.call(source, 'contract-key', `${platform}-value`);
+      expect(get.call(source, 'contract-key')).toBe(`${platform}-value`);
+      remove.call(source, 'contract-key');
+      expect(get.call(source, 'contract-key')).toBeUndefined();
 
       const success = vi.fn();
       const complete = vi.fn();

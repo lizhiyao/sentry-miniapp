@@ -19,6 +19,7 @@ Taro 默认是 **React**，不是 Vue。React 不像 Vue 那样静默吞掉组�
 
 ```tsx
 class SentryBoundary extends Component {
+  state = { hasError: false };
   static getDerivedStateFromError() {
     return { hasError: true };
   }

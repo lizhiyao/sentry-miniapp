@@ -707,9 +707,9 @@ describe('CrossPlatform', () => {
     });
   });
 
-  describe('Storage API wrapping for Alipay/DingTalk', () => {
+  describe('Storage 消费入口适配 Alipay/DingTalk', () => {
     it.each(['my', 'dd'])(
-      'SDK 安装后 %s 原生对象参数、receiver 和返回结构保持不变',
+      'SDK 安装后 %s 原生对象参数、方法身份、receiver 和返回结构保持不变',
       async (name) => {
         const getResult = { data: 'stored' };
         const writeResult = {};
@@ -718,23 +718,29 @@ describe('CrossPlatform', () => {
         const remove = vi.fn(() => writeResult);
         const host = { getStorageSync: read, setStorageSync: write, removeStorageSync: remove };
         (global as any)[name] = host;
-        const { sdk } = await import('../src/crossPlatform');
-        const adapted = sdk();
+        const { sdk, getStorageApi } = await import('../src/crossPlatform');
+        const actual = sdk();
+        expect(actual).toBe(host);
+        expect(actual.getStorageSync).toBe(read);
+        expect(actual.setStorageSync).toBe(write);
+        expect(actual.removeStorageSync).toBe(remove);
+        expect(host).not.toHaveProperty('__sentryStorageAdapted');
         const receiver = {};
         const native = { key: 'business', data: 'payload' };
-        expect(adapted.getStorageSync!.call(receiver, native)).toBe(getResult);
-        expect(adapted.setStorageSync!.call(receiver, native)).toBe(writeResult);
-        expect(adapted.removeStorageSync!.call(receiver, native)).toBe(writeResult);
+        expect(actual.getStorageSync!.call(receiver, native)).toBe(getResult);
+        expect(actual.setStorageSync!.call(receiver, native)).toBe(writeResult);
+        expect(actual.removeStorageSync!.call(receiver, native)).toBe(writeResult);
         for (const api of [read, write, remove]) {
           expect(api).toHaveBeenCalledWith(native);
           expect(api.mock.contexts[0]).toBe(receiver);
         }
-        expect(adapted.getStorageSync!('sdk')).toBe('stored');
-        adapted.setStorageSync!('sdk', 'value');
-        adapted.removeStorageSync!('sdk');
+        expect(getStorageApi(host, 'getStorageSync')!('sdk')).toBe('stored');
+        getStorageApi(host, 'setStorageSync')!('sdk', 'value');
+        getStorageApi(host, 'removeStorageSync')!('sdk');
         expect(read).toHaveBeenLastCalledWith({ key: 'sdk' });
         expect(write).toHaveBeenLastCalledWith({ key: 'sdk', data: 'value' });
         expect(remove).toHaveBeenLastCalledWith({ key: 'sdk' });
+        for (const api of [read, write, remove]) expect(api.mock.contexts[1]).toBe(host);
       },
     );
 
@@ -743,102 +749,49 @@ describe('CrossPlatform', () => {
       async (name) => {
         let result: { error?: number; data?: string } = { error: 12 };
         const native = vi.fn(() => result);
-        (global as any)[name] = {
+        const host = {
           getStorageSync: native,
           setStorageSync: native,
           removeStorageSync: native,
         };
-        const { sdk } = await import('../src/crossPlatform');
-        const adapted = sdk();
-        expect(() => adapted.getStorageSync!('sdk')).toThrow();
-        expect(() => adapted.setStorageSync!('sdk', 'value')).toThrow();
-        expect(() => adapted.removeStorageSync!('sdk')).toThrow();
-        expect(adapted.getStorageSync!({ key: 'business' })).toBe(result);
-        expect(adapted.setStorageSync!({ key: 'business', data: 'value' })).toBe(result);
-        expect(adapted.removeStorageSync!({ key: 'business' })).toBe(result);
+        (global as any)[name] = host;
+        const { sdk, getStorageApi } = await import('../src/crossPlatform');
+        const actual = sdk();
+        const read = getStorageApi(host, 'getStorageSync')!;
+        const write = getStorageApi(host, 'setStorageSync')!;
+        const remove = getStorageApi(host, 'removeStorageSync')!;
+        expect(() => read('sdk')).toThrow();
+        expect(() => write('sdk', 'value')).toThrow();
+        expect(() => remove('sdk')).toThrow();
+        expect(actual.getStorageSync!({ key: 'business' })).toBe(result);
+        expect(actual.setStorageSync!({ key: 'business', data: 'value' })).toBe(result);
+        expect(actual.removeStorageSync!({ key: 'business' })).toBe(result);
         result = { error: 11 };
-        expect(adapted.getStorageSync!('missing')).toBeUndefined();
-        expect(() => adapted.setStorageSync!('sdk', 'value')).toThrow();
+        expect(read('missing')).toBeUndefined();
+        expect(() => write('sdk', 'value')).toThrow();
         result = { error: 0, data: 'ok' };
-        expect(adapted.getStorageSync!('sdk')).toBe('ok');
-        expect(() => adapted.setStorageSync!('sdk', 'value')).not.toThrow();
+        expect(read('sdk')).toBe('ok');
+        expect(() => write('sdk', 'value')).not.toThrow();
       },
     );
 
-    it('should wrap getStorageSync for Alipay (my)', async () => {
-      const originalGet = vi.fn().mockImplementation((opts: any) => {
-        return { data: `value_for_${opts.key}` };
-      });
+    it('存储能力缺失时只返回不可用 API，保留其它原生方法', async () => {
       const originalSet = vi.fn();
-      const originalRemove = vi.fn();
-      (global as any).my = {
-        request: vi.fn(),
-        getStorageSync: originalGet,
-        setStorageSync: originalSet,
-        removeStorageSync: originalRemove,
-      };
-
-      const { sdk } = await import('../src/crossPlatform');
-      const s = sdk();
-
-      // getStorageSync should be wrapped to accept string key
-      const result = s.getStorageSync!('test_key');
-      expect(result).toBe('value_for_test_key');
-    });
-
-    it('should wrap setStorageSync for Alipay (my)', async () => {
-      const originalSet = vi.fn();
-      (global as any).my = {
-        request: vi.fn(),
-        setStorageSync: originalSet,
-      };
-
-      const { sdk } = await import('../src/crossPlatform');
-      const s = sdk();
-
-      s.setStorageSync!('test_key', 'test_value');
+      const request = vi.fn();
+      const host = { httpRequest: request, setStorageSync: originalSet };
+      (global as any).my = host;
+      const { sdk, getStorageApi } = await import('../src/crossPlatform');
+      expect(sdk()).toBe(host);
+      expect(sdk().httpRequest).toBe(request);
+      expect(host).not.toHaveProperty('request');
+      expect(getStorageApi(host, 'getStorageSync')).toBeUndefined();
+      getStorageApi(host, 'setStorageSync')!('test_key', 'test_value');
       expect(originalSet).toHaveBeenCalledWith({ key: 'test_key', data: 'test_value' });
     });
 
-    it('should wrap removeStorageSync for Alipay (my)', async () => {
-      const originalRemove = vi.fn();
-      (global as any).my = {
-        request: vi.fn(),
-        removeStorageSync: originalRemove,
-      };
-
-      const { sdk } = await import('../src/crossPlatform');
-      const s = sdk();
-
-      s.removeStorageSync!('test_key');
-      expect(originalRemove).toHaveBeenCalledWith({ key: 'test_key' });
-    });
-
-    it('should wrap storage APIs for DingTalk (dd)', async () => {
-      const originalGet = vi.fn().mockImplementation((opts: any) => {
-        return { data: `dd_value_for_${opts.key}` };
-      });
-      const originalSet = vi.fn();
-      (global as any).dd = {
-        httpRequest: vi.fn(),
-        getStorageSync: originalGet,
-        setStorageSync: originalSet,
-      };
-
-      const { sdk } = await import('../src/crossPlatform');
-      const s = sdk();
-
-      const result = s.getStorageSync!('dd_key');
-      expect(result).toBe('dd_value_for_dd_key');
-
-      s.setStorageSync!('dd_key', 'dd_value');
-      expect(originalSet).toHaveBeenCalledWith({ key: 'dd_key', data: 'dd_value' });
-    });
-
-    it('包装幂等：sdk() 与 getSystemInfo() 都触发 getSDK，storage 不被二次包装', async () => {
-      // 用内存 store 模拟支付宝对象参数式存储，验证 round-trip
+    it('重复获取 sdk、系统信息和 Storage adapter 不改宿主，也不会嵌套包装', async () => {
       const store: Record<string, any> = {};
-      (global as any).my = {
+      const host = {
         request: vi.fn(),
         getSystemInfoSync: vi.fn(() => ({ brand: 'X', version: '1' })),
         getStorageSync: vi.fn((opts: any) =>
@@ -848,17 +801,19 @@ describe('CrossPlatform', () => {
           store[opts.key] = opts.data;
         }),
       };
-
-      const { sdk, getSystemInfo } = await import('../src/crossPlatform');
-
-      // 两条路径都会调用 getSDK()：sdk() 缓存一次；getSystemInfo()→computeSystemInfo 再调一次。
-      // 修复前第二次会在同一个 my 上二次包装 storage，内层收到嵌套 { key: { key } } 致读写错位。
-      const s = sdk();
+      (global as any).my = host;
+      const originalGet = host.getStorageSync;
+      const originalSet = host.setStorageSync;
+      const { sdk, getSystemInfo, getStorageApi } = await import('../src/crossPlatform');
+      expect(sdk()).toBe(host);
       getSystemInfo();
-
-      s.setStorageSync!('sentry_offline_store', '[1,2,3]');
-      expect(store['sentry_offline_store']).toBe('[1,2,3]'); // 写未嵌套
-      expect(s.getStorageSync!('sentry_offline_store')).toBe('[1,2,3]'); // 读拿得出
+      expect(sdk()).toBe(host);
+      getStorageApi(host, 'setStorageSync')!('sentry_offline_store', '[1,2,3]');
+      expect(store['sentry_offline_store']).toBe('[1,2,3]');
+      expect(getStorageApi(host, 'getStorageSync')!('sentry_offline_store')).toBe('[1,2,3]');
+      expect(host.getStorageSync).toBe(originalGet);
+      expect(host.setStorageSync).toBe(originalSet);
+      expect(getStorageApi(host, 'getStorageSync')!('missing')).toBeNull();
     });
   });
 });

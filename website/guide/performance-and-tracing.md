@@ -61,7 +61,7 @@ Sentry.init({
 | 小游戏首帧等待时间 | 测量 SDK 初始化到首次帧回调的耗时，帮助观察初始化阶段的等待时间 |
 | 小游戏帧率与卡顿（需手动开启） | 查看平均帧率和卡顿次数，帮助定位运行不流畅的问题 |
 
-平台未提供 `createObserver` 或可靠的性能时间戳时，SDK 会跳过无法测量的导航、渲染和资源数据。可通过 `Sentry.getDiagnostics()` 查看缺失的能力。API 请求耗时由网络集成采集，**不依赖 PerformanceObserver**。
+平台未提供 `createObserver` 或可靠的性能时间戳时，SDK 会跳过无法测量的导航、渲染和资源数据。排查时可调用 `Sentry.getPerformanceManager()`，检查返回对象的 `createObserver` 和 `timeOrigin`。API 请求耗时由网络集成采集，**不依赖 PerformanceObserver**。
 
 微信／抖音小游戏默认测量 SDK 初始化到首次帧回调的等待时间。这段时间不包含 SDK 初始化前的启动过程，也不代表画面已完成呈现，因此不能当作完整冷启动耗时。帧率（FPS）和卡顿统计默认关闭，配置 `enableMinigameFrameRate: true` 后开启；数据查看方式见[小游戏接入与性能](/guide/minigame)。
 

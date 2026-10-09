@@ -3,7 +3,6 @@ import {
   getClient,
   getCurrentScope,
   getDefaultCurrentScope,
-  getIsolationScope,
   getIntegrationsToSetup,
   initAndBind,
   stackParserFromStackParserOptions,
@@ -14,6 +13,7 @@ import {
 } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
+import { resolveScopeSession, setOwnedScopeSession } from './sessionCapture';
 import { miniappLifecycleIntegration } from './integrations/lifecycle';
 export { getDiagnostics } from './diagnostics';
 
@@ -228,7 +228,7 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
 export function wrap<T extends (...args: any[]) => any>(fn: T): T {
   return function (this: any, ...args: Parameters<T>) {
     const captured = getCurrentScope().clone();
-    captured.setSession(captured.getSession() ?? getIsolationScope().getSession());
+    setOwnedScopeSession(captured, resolveScopeSession(captured), 'capture');
     try {
       // 业务执行不持有 SDK fork；原 Promise 身份和业务 init 的绑定均保留。
       return fn.apply(this, args);

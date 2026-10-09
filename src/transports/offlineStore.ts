@@ -1,5 +1,5 @@
 import type { Envelope, OfflineStore } from '@sentry/core';
-import { appName, sdk } from '../crossPlatform';
+import { appName, sdk, getStorageApi, type MiniappStorageApiName } from '../crossPlatform';
 import { utf8ByteLength } from '../coreCompat';
 import { withTelemetryCritical } from '../lifecycle';
 import { resolveNonNegativeInteger } from '../numericOptions';
@@ -85,9 +85,9 @@ export function createMiniappOfflineStore(
     active();
     return source;
   }
-  function api(source: Record<string, unknown>, name: string): Function | undefined {
+  function api(source: Record<string, unknown>, name: MiniappStorageApiName): Function | undefined {
     active();
-    const method = source[name];
+    const method = getStorageApi(source, name);
     active();
     return typeof method === 'function' ? method : undefined;
   }
