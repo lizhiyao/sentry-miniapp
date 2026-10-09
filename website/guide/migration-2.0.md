@@ -1,6 +1,6 @@
 # 升级到 2.0：core v11 与薄宿主适配
 
-本页对应 `2.0.0-beta.0` 起的 2.0 beta 契约。通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.0` 固定首个 beta；`latest` 仍保留 1.x 稳定版。升级时先核对实际安装版本；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
+本页对应 `2.0.0-beta.0` 起的 2.0 beta 契约。通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.1` 固定当前 beta；`latest` 仍保留 1.x 稳定版。beta.1 修复 beta.0 的 `lastEventId()` 未更新问题，并收敛 core 扩展边界。升级时先核对实际安装版本；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
 
 ## Beta 验收范围
 
@@ -118,6 +118,8 @@ Session 按前台 episode 管理，JS 未处理异常从 crashed 改为 unhandle
 
 ## 验收与后续 core 升级
 
-当前 core 版本在 `package.json` 中精确固定，并用 real-core 回归验证契约；后续升级先检查 sampling／DSC、buffers、dataCollection 与集中 protected／internal 依赖的源码变化，再跑同一契约矩阵，不放宽 pin 来替代验证。`MiniappClient._processEvent` 通过 clone 固定采集时的 Session 引用，避免异步 processor 将旧错误计入新前台 episode；升级必须核对 core 对这些 scope 的读取与 Session 更新顺序，保留迟到错误回归。
+当前 core 版本在 `package.json` 中精确固定，并用 real-core 回归验证契约；后续升级先检查 sampling／DSC、buffers、dataCollection 与集中 protected／internal 依赖的源码变化，再跑同一契约矩阵，不放宽 pin 来替代验证。
+
+公共 capture 入口固定当前 scope 与 Session 归属，保留原 isolation scope 给 core 更新 `lastEventId()`。Session 引用仅在 hint 与 client 自有 WeakMap 中传递，不写入事件 payload；processor／`beforeSend` 替换事件时仍保持归属，采集时没有 Session 的错误也不会计入后来启动的前台 episode。Debug ID 宿主同步通过公开 `preprocessEvent` hook 执行，不覆写 `_prepareEvent`／`_processEvent`。仍保留两个窄 protected 适配：Session 更新时选择捕获的引用并委托 core，以及 dispose 后停止 processing 等待。它们的升级审查与回归要求见仓库 `DEVELOPMENT.md`。
 
 上线前分别验证最终 envelopes、真实宿主和目标 Sentry 后台：span/v2、Logs、metrics、session、client_report 与符号化都要有对应版本和配置。mock／VM 不证明真机冻结或后台功能可用。JS 与 map 来自同一次构建，Debug ID 与实际 frame／artifact 匹配；参考 [Source Map 进阶](/guide/sourcemap-advanced)。
