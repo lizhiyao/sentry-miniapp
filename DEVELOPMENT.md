@@ -88,6 +88,21 @@ sentry-miniapp/
 
 Taro / uni-app 示例依赖较重，不加入每个 PR 的必跑任务。`.github/workflows/framework-examples.yml` 会在相关示例或 workflow 发生变化的 PR、每周定时任务及手动触发时构建当前 SDK tarball，覆盖示例声明的发布版依赖后执行真实微信小程序构建，用于发现框架工具链和 SDK 入口的兼容性漂移。
 
+### core 扩展边界与升级审查
+
+事件准备、采样、processor／beforeSend、Session 状态算法与发送仍使用 core 实现。宿主 Debug ID 同步使用公开 `preprocessEvent` hook；公共 capture 入口只保存采集时的 scope／Session，原 isolation scope 保持 core 的可写身份。`postprocessEvent` 与 beforeSend 结果绑定使用 client 自有 WeakMap，不建立按 event ID 维护的长期索引，也不向遥测 payload 增加归属字段。
+
+`MiniappClient` 的 protected 依赖集中如下；它们不是任意 core 版本兼容的承诺。依赖升级 PR 必须检查候选 core 源码中的签名、调用顺序与实现差异，执行对应 real-core 用例，并在 PR 中记录结论；不能仅凭类型检查通过放宽依赖范围。
+
+| 接缝 | 保留原因 | 升级时必须验证 |
+| --- | --- | --- |
+| `_updateSessionFromEvent` | 选择捕获时的 Session 后调用 super，不复制 core 的错误判断／状态算法 | async processor／beforeSend 替换事件、无旧 Session、显式 scope、重入与并发；`test/client-capture.realcore.test.ts` 和 `test/session.test.ts` |
+| `_isClientDoneProcessing` | core 没有公开取消 processing 等待的接口；有限 core tick 之间检查 dispose | 无期限 flush／close、永不完成的 processor、预算与 timer 清理；`test/client-lifecycle.realcore.test.ts` |
+| `_unhandledSessionStatus` 字段 | core 为浏览器类宿主提供的状态配置，JS 错误不表示进程崩溃 | unhandled 状态、自动终态只发送一次；`test/session.realcore.test.ts` 和 `test/session.test.ts` |
+| `_flushOutcomes()` 调用 | 用 core 的 client-report 组装与发送，SDK 仅控制同意／生命周期入口 | 无 DSN、同意／撤回、失败不落盘、异步 drop；`test/client-reports.realcore.test.ts` |
+
+同时保留 `lastEventId()` 更新原 scope、processor 中可见 ID、drop／重入顺序、Debug ID 最终 `debug_meta` 与完整包消费检查。若 core 提供满足上述语义的公开接口，优先移除对应 protected 适配。
+
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 
 ```bash

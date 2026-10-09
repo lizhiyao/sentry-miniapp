@@ -293,6 +293,18 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('dispose 同样中断单独 flush 的无期限 processing 等待', async () => {
+    const client = make();
+    client.addEventProcessor(() => new Promise(() => {}));
+    client.captureMessage('never finished');
+    const draining = client.flush();
+    await vi.advanceTimersByTimeAsync(10);
+    client.dispose();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await draining).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('第三方 flush/close hook 抛错仍清理 SDK 资源，关闭后不调用 finalizer', async () => {
     const client = make();
     const cleanup = vi.fn();

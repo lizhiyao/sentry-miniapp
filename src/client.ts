@@ -5,6 +5,8 @@ import {
   eventFromMessage as eventFromMessageCore,
   eventFromUnknownInput,
   getCurrentScope,
+  isPlainObject,
+  isThenable,
   makeDsn,
   withScope,
   resolvedSyncPromise,
@@ -17,6 +19,7 @@ import type {
   EventHint,
   ParameterizedString,
   SeverityLevel,
+  Session,
   Transport,
 } from '@sentry/core';
 
@@ -42,6 +45,7 @@ import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
 import { miniappStackParser } from './stacktrace';
 import { registerClientSpanDimensions } from './spanDimensions';
+import { SessionCapture } from './sessionCapture';
 
 /** 在任何宿主安装或替换旧 runtime 前校验；低层构造同样遵守唯一 tracing 契约。 */
 export function assertStreamTracingOptions(options: MiniappOptions): void {
@@ -125,6 +129,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   private readonly _revokeTransport: () => void;
   private readonly _transportRuntime: TransportRuntimeHandle | undefined;
   private readonly _offlineStore: MiniappOfflineStore | undefined;
+  private readonly _sessionCapture: SessionCapture;
   private _closePromise: Promise<boolean> | undefined;
   private _stopClose: (() => void) | undefined;
   private _hookDepth = 0;
@@ -170,6 +175,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     ensureEnvelopeEncoding();
     const environment = new EnvironmentState(options);
     const lifetime = new ClientLifetime();
+    const sessionCapture = new SessionCapture();
     const dsn = options.dsn ? makeDsn(options.dsn) : undefined;
     const storeIdentity = {
       targetId: dsn ? offlineTargetId(dsn, options.tunnel) : 'no-dsn',
@@ -181,6 +187,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     let offlineStore: MiniappOfflineStore | undefined;
     const tracesSampler = options.tracesSampler;
     const beforeSendSpan = options.beforeSendSpan;
+    const beforeSend = options.beforeSend;
     const guardTransport = (transport: Transport): Transport => ({
       send: (envelope) => (lifetime.canSend() ? transport.send(envelope) : resolvedSyncPromise({})),
       flush: (timeout) => transport.flush(timeout),
@@ -232,6 +239,13 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       miniappPlatform,
       // 2.0 按 core 调用即采集；关闭前后都守住用户回调边界。
       sendClientReports: options.sendClientReports ?? true,
+      beforeSend: (event, hint) => {
+        const result = beforeSend ? beforeSend(event, hint) : event;
+        // 每次 callback 结果独立绑定，业务复用同一对象也不能串 Session；非法结果仍由 core 验证。
+        const bind = (processed: typeof event | null): typeof event | null =>
+          sessionCapture.bind(isPlainObject(processed) ? { ...processed } : processed, hint);
+        return isThenable(result) ? resolvedSyncPromise(result).then(bind) : bind(result);
+      },
       beforeSendLog: (log) => {
         if (!lifetime.acceptsTelemetry()) return null;
         const result = options.beforeSendLog ? options.beforeSendLog(log) : log;
@@ -354,9 +368,20 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     this._revokeTransport = revokeTransport;
     this._transportRuntime = transportRuntime;
     this._offlineStore = offlineStore;
+    this._sessionCapture = sessionCapture;
     lifetime.registerStop(() => transportRuntime?.stopReplay());
     registerClientLifetime(this, lifetime);
     registerClientEnvironment(this, environment);
+    this.on('preprocessEvent', () => {
+      try {
+        syncDebugIdsToCoreGlobal();
+      } catch (error) {
+        if (this.getOptions().debug) console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
+      }
+    });
+    this.on('postprocessEvent', (event, hint) => {
+      sessionCapture.bind(event, hint);
+    });
     this.addEventProcessor((event) => environment.fillEvent(event));
 
     if (usesCustomTransport) {
@@ -393,33 +418,41 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     );
   }
 
-  /** 固定采集时的 session 引用；异步 processor 不能把 S1 的错误计入新 S2。 */
-  protected override _processEvent(
-    event: Event,
-    hint: EventHint,
-    currentScope: Scope,
-    isolationScope: Scope,
-  ): PromiseLike<Event> {
-    const capturedCurrent = currentScope.clone();
-    const capturedIsolation = isolationScope.clone();
-    capturedCurrent.setSession(currentScope.getSession() ?? isolationScope.getSession());
-    return super._processEvent(event, hint, capturedCurrent, capturedIsolation);
+  public override captureException(exception: unknown, hint?: EventHint, scope?: Scope): string {
+    const captured = this._sessionCapture.prepare(hint, scope);
+    return super.captureException(exception, captured.hint, captured.scope);
   }
 
-  protected override _prepareEvent(
-    event: Event,
-    hint: EventHint,
-    currentScope: Scope,
-    isolationScope: Scope,
-  ): PromiseLike<Event | null> {
-    try {
-      syncDebugIdsToCoreGlobal();
-    } catch (error) {
-      if (this.getOptions().debug) {
-        console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
-      }
+  public override captureMessage(
+    message: ParameterizedString | string,
+    level?: SeverityLevel,
+    hint?: EventHint,
+    scope?: Scope,
+  ): string {
+    const captured = this._sessionCapture.prepare(hint, scope);
+    return super.captureMessage(message, level, captured.hint, captured.scope);
+  }
+
+  public override captureEvent(event: Event, hint?: EventHint, scope?: Scope): string {
+    const metadata = event.sdkProcessingMetadata;
+    const captured = this._sessionCapture.prepare(
+      hint,
+      metadata?.capturedSpanScope ?? scope,
+      metadata?.capturedSpanIsolationScope,
+    );
+    if (metadata?.capturedSpanScope) {
+      event = {
+        ...event,
+        sdkProcessingMetadata: { ...metadata, capturedSpanScope: captured.scope },
+      };
     }
-    return super._prepareEvent(event, hint, currentScope, isolationScope);
+    return super.captureEvent(event, captured.hint, captured.scope);
+  }
+
+  /** 只选择捕获时的 Session；是否更新、状态和发送时机继续由 core 决定。 */
+  protected override _updateSessionFromEvent(session: Session, event: Event): void {
+    const captured = this._sessionCapture.sessionFor(event, session);
+    if (captured) super._updateSessionFromEvent(captured, event);
   }
 
   /** 顶层 API 只路由当前实例；实例 API 永远修改自己的 consent。 */
