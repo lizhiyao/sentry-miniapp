@@ -91,10 +91,10 @@ describe('client reports 的真实 core flush 与隐私契约', () => {
     noDsn.recordDroppedEvent('sample_rate', 'error', 4);
     await drain(noDsn);
     expect(envelopes).toEqual([]);
-    // 仅观察 protected 调用边界；不读取或改写 core 私有 _outcomes。
-    const flushOutcomes = vi.spyOn(noDsn as any, '_flushOutcomes');
+    const beforeEnvelope = vi.fn();
+    noDsn.on('beforeEnvelope', beforeEnvelope);
     await drain(noDsn);
-    expect(flushOutcomes).not.toHaveBeenCalled();
+    expect(beforeEnvelope).not.toHaveBeenCalled();
     const next = start();
     await drain(next);
     expect(envelopes).toEqual([]);
@@ -126,9 +126,10 @@ describe('client reports 的真实 core flush 与隐私契约', () => {
     expect(await closed).toBe(true);
     expect(reports()).toHaveLength(1);
     client.recordDroppedEvent('network_error', 'error');
-    const flushOutcomes = vi.spyOn(client as any, '_flushOutcomes');
+    const beforeEnvelope = vi.fn();
+    client.on('beforeEnvelope', beforeEnvelope);
     expect(await client.flush()).toBe(false);
-    expect(flushOutcomes).not.toHaveBeenCalled();
+    expect(beforeEnvelope).not.toHaveBeenCalled();
     expect(reports()).toHaveLength(1);
   });
   it('实际 sampleRate 丢弃默认形成报告，而不是只接受手工计数', async () => {
@@ -163,6 +164,31 @@ describe('client reports 的真实 core flush 与隐私契约', () => {
     expect(reports()[0]!.discarded_events).toEqual([
       { reason: 'event_processor', category: 'error', quantity: 1 },
     ]);
+  });
+
+  it('transport 构造期间的 drop 不丢失；不同 reason/category 独立累加，tunnel 保留 DSN', async () => {
+    const client = start({
+      tunnel: 'https://tunnel.example.com/sentry',
+      transport: (
+        options: Parameters<NonNullable<import('../src/types').MiniappOptions['transport']>>[0],
+      ) => {
+        options.recordDroppedEvent('network_error', 'error', 2);
+        return createCapturingTransport(envelopes)();
+      },
+    });
+    client.recordDroppedEvent('network_error', 'error', 3);
+    client.recordDroppedEvent('network_error', 'span', 4);
+    client.recordDroppedEvent('sample_rate', 'error', 5);
+    await drain(client);
+    expect(reports()[0]!.discarded_events).toEqual([
+      { reason: 'network_error', category: 'error', quantity: 5 },
+      { reason: 'network_error', category: 'span', quantity: 4 },
+      { reason: 'sample_rate', category: 'error', quantity: 5 },
+    ]);
+    const report = envelopes.find((envelope) => envelope[1][0]?.[0].type === 'client_report')!;
+    expect(report[0].dsn).toBe('https://key@example.com/1');
+    await drain(client);
+    expect(reports()).toHaveLength(1);
   });
 
   it('同一 core offline 管道中报告失败不落盘，正常事件失败仍落盘', async () => {

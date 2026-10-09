@@ -2,6 +2,8 @@ import {
   Client,
   Scope,
   captureFeedback as captureFeedbackCore,
+  createClientReportEnvelope,
+  dsnToString,
   eventFromMessage as eventFromMessageCore,
   eventFromUnknownInput,
   getCurrentScope,
@@ -15,6 +17,9 @@ import {
 import type {
   BaseTransportOptions,
   ClientOptions,
+  DataCategory,
+  EventDropReason,
+  Outcome,
   Event,
   EventHint,
   ParameterizedString,
@@ -130,6 +135,9 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   private readonly _transportRuntime: TransportRuntimeHandle | undefined;
   private readonly _offlineStore: MiniappOfflineStore | undefined;
   private readonly _sessionCapture: SessionCapture;
+  // core 构造 transport 时即可调用 recorder；懒初始化且不在 super 返回后覆盖早期计数。
+  declare private _clientReportOutcomes: Map<string, Outcome> | undefined;
+  private readonly _pendingFlushStops = new Set<() => void>();
   private _closePromise: Promise<boolean> | undefined;
   private _stopClose: (() => void) | undefined;
   private _hookDepth = 0;
@@ -492,6 +500,41 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     return this.close(2000);
   }
 
+  /** 宿主控制报告排放；core 通过公开 recorder 提交所有 drop，格式由 core 组装。 */
+  public override recordDroppedEvent(
+    reason: EventDropReason,
+    category: DataCategory,
+    count = 1,
+  ): void {
+    if (!this.getOptions().sendClientReports || this._lifetime?.state === 'closed') return;
+    const key = `${reason}:${category}`;
+    const outcomes = (this._clientReportOutcomes ??= new Map());
+    const previous = outcomes.get(key);
+    outcomes.set(key, {
+      reason,
+      category,
+      quantity: (previous?.quantity ?? 0) + count,
+    });
+  }
+
+  private _sendClientReport(): void {
+    const dsn = this.getDsn();
+    if (
+      !dsn ||
+      !this.getOptions().sendClientReports ||
+      !this._consent.isGranted() ||
+      !this._lifetime.canSend() ||
+      !this._clientReportOutcomes?.size
+    )
+      return;
+    const outcomes = [...this._clientReportOutcomes.values()];
+    // 发送 hook 的新 drop 属于下一批；失败报告仍由现有 transport 策略处理。
+    this._clientReportOutcomes = new Map();
+    void this.sendEnvelope(
+      createClientReportEnvelope(outcomes, this.getOptions().tunnel ? dsnToString(dsn) : undefined),
+    );
+  }
+
   /** 原生无期限 processing poll 在 dispose 后仍会循环；每个 core tick 间检查宿主终态。 */
   protected override async _isClientDoneProcessing(timeout?: number): Promise<boolean> {
     let ticked = 0;
@@ -503,26 +546,32 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   }
 
   public override flush(timeout?: number): PromiseLike<boolean> {
+    if (this._lifetime.state === 'closed') return Promise.resolve(false);
     let flushed!: PromiseLike<boolean>;
     try {
       withScope((scope) => {
         scope.setClient(this);
         // core 的 flush 同步排 buffer；outcomes 随后入同一 transport，再等待原 flush。
         flushed = super.flush(timeout);
-        if (
-          this.getDsn() &&
-          this.getOptions().sendClientReports &&
-          this._consent.isGranted() &&
-          this._lifetime.canSend()
-        ) {
-          this._flushOutcomes();
-        }
+        this._sendClientReport();
       });
     } finally {
       // 授权/show/reconnect 都经过此入口；不等 processing drain 才唤醒磁盘重放。
       this._transportRuntime?.requestReplay();
     }
-    return flushed;
+    return new Promise<boolean>((resolve, reject) => {
+      const stop = (): void => resolve(false);
+      this._pendingFlushStops.add(stop);
+      void Promise.resolve(flushed)
+        .then(resolve, reject)
+        .finally(() => {
+          this._pendingFlushStops.delete(stop);
+        });
+      if (this._lifetime.state === 'closed') {
+        this._pendingFlushStops.delete(stop);
+        stop();
+      }
+    });
   }
 
   public getOfflineStoreDiagnostics(): OfflineStoreDiagnostics | null {
@@ -533,6 +582,9 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   public override dispose(): void {
     if (this._lifetime.state === 'closed') return;
     this._lifetime.finish();
+    this._clientReportOutcomes?.clear();
+    for (const stop of this._pendingFlushStops) stop();
+    this._pendingFlushStops.clear();
     this.getOptions().enabled = false;
     this._transportRuntime?.shutdown();
     this._shutdownTransport();

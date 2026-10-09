@@ -85,7 +85,7 @@ Sentry.logger.info('checkout completed', { channel: 'miniapp' });
 Sentry.metrics.count('checkout.completed', 1);
 ```
 
-client reports 默认开启；需要关闭时显式设 false。报告通过同一 transport 发送，未同意／无 DSN 不清 outcomes，报告失败不入离线磁盘。flush 后异步产生的新 drop 留待下一次 flush。
+client reports 默认开启；需要关闭时显式设 false。报告通过同一 transport 发送，未同意／无 DSN 不清 outcomes，报告失败不入离线磁盘。flush 后异步产生的新 drop 留待下一次 flush。报告通过公开 recorder／envelope API 实现，不依赖 core 的内部 outcomes 容器。
 
 `dataCollection.userInfo: false` 不删除业务显式 `setUser` 的所有传播。core 的 span／Logs／metrics enrichment 可读取显式 scope user；需要避免发送时，不设置这些字段或在对应 callback 处理。
 
@@ -111,6 +111,8 @@ client reports 默认开启；需要关闭时显式设 false。报告通过同�
 直接构造 MiniappClient 是低层 event／feedback 用法，必须提供 transport 和显式 scope；不接管自动 runtime、持久 store 或并行 tracing。默认应用接入迁到 init。
 
 ## 关闭与 Session 统计
+
+`dispose()` 会中断本 SDK 所有等待中的 `flush()`，返回 false；即使自定义 transport 忽略 timeout，迟到结果也不会覆盖该返回值。每次 flush 只触发一次 core flush hook。
 
 `close(正有限 timeout)` 使用总预算；0／undefined 等待排空。init 替换内部预算为 2000ms，不改变公共 close。hide 尝试同步排 buffer，只有空闲槽与同步 hooks 才能在返回前启动 request／storage；冻结后 timer 不执行，不能承诺全部送达。业务异步 hide 之后产生的数据需要显式 flush。
 

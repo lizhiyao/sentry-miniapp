@@ -101,7 +101,10 @@ Taro / uni-app 示例依赖较重，不加入每个 PR 的必跑任务。`.githu
 | `_updateSessionFromEvent` | 选择捕获时的 Session 后调用 super，不复制 core 的错误判断／状态算法 | async processor／beforeSend 替换事件、无旧 Session、显式 scope、重入与并发；`test/client-capture.realcore.test.ts` 和 `test/session.test.ts` |
 | `_isClientDoneProcessing` | core 没有公开取消 processing 等待的接口；有限 core tick 之间检查 dispose | 无期限 flush／close、永不完成的 processor、预算与 timer 清理；`test/client-lifecycle.realcore.test.ts` |
 | `_unhandledSessionStatus` 字段 | core 为浏览器类宿主提供的状态配置，JS 错误不表示进程崩溃 | unhandled 状态、自动终态只发送一次；`test/session.realcore.test.ts` 和 `test/session.test.ts` |
-| `_flushOutcomes()` 调用 | 用 core 的 client-report 组装与发送，SDK 仅控制同意／生命周期入口 | 无 DSN、同意／撤回、失败不落盘、异步 drop；`test/client-reports.realcore.test.ts` |
+
+client reports 使用公开 `recordDroppedEvent` 入口累计，公开 `createClientReportEnvelope` 组装，再通过 `sendEnvelope` 进入同一 transport；不再调用 `_flushOutcomes` 或读写 core 的 `_outcomes`。报告排放由宿主同意／生命周期控制，发送前交换批次，发送 hook 新产生的 drop 留待下一次 flush。升级验证真实采样／processor／transport drop、构造期 recorder、tunnel、无 DSN、同意撤回和失败不落盘；见 `test/client-reports.realcore.test.ts`。
+
+公开 flush 每次只调用一次 core flush，dispose 同步结束所有 SDK flush 等待，即使自定义 transport 忽略 timeout；迟到完成不能改变已经返回的结果。保留有限 processing tick，是因为 Promise.race 本身不能取消 core 的无限 timer，而反复调用公开 flush 会重复触发业务 hooks。不要用 Session 占位对象、篡改 Scope 方法或重写 core pipeline 来追求零 protected：当前公开 API 无法表达“采集时无 Session，不回落到后来的 Session”，窄 Session 选择器仍委托 core 的状态算法。
 
 同时保留 `lastEventId()` 更新原 scope、processor 中可见 ID、drop／重入顺序、Debug ID 最终 `debug_meta` 与完整包消费检查。若 core 提供满足上述语义的公开接口，优先移除对应 protected 适配。
 
