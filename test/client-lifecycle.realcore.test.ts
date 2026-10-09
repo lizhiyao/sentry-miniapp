@@ -305,6 +305,31 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('单次公开 flush 不重复 hook，dispose 中断忽略 timeout 的自定义 transport', async () => {
+    let complete!: (value: boolean) => void;
+    const client = make({
+      transport: () => ({
+        send: () => Promise.resolve({}),
+        flush: () =>
+          new Promise<boolean>((resolve) => {
+            complete = resolve;
+          }),
+      }),
+    });
+    const flushHook = vi.fn();
+    client.on('flush', flushHook);
+    const first = client.flush();
+    const second = client.flush();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(flushHook).toHaveBeenCalledTimes(2);
+    client.dispose();
+    expect(await first).toBe(false);
+    expect(await second).toBe(false);
+    complete(true);
+    await Promise.resolve();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('第三方 flush/close hook 抛错仍清理 SDK 资源，关闭后不调用 finalizer', async () => {
     const client = make();
     const cleanup = vi.fn();
