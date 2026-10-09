@@ -17,7 +17,7 @@ Set up Sentry error monitoring, performance tracing, and offline caching in mini
 - User asks about Sentry support for WeChat/Alipay/ByteDance mini programs
 - User imports or references `sentry-miniapp` in their project
 
-> This skill describes the developing 2.0 contract, not proof of an npm release. Check the installed SDK version before editing a consumer. For 1.x migration, read the repository website/guide/migration-2.0.md; do not apply removed APIs to 2.0.
+> This skill describes the 2.0 beta contract. Install `sentry-miniapp@next` to try it; an unqualified install still selects stable 1.x. Check the installed SDK version before editing a consumer. Read website/guide/migration-2.0.md for breaking changes and incomplete real-device/application-symbolication acceptance; do not apply removed APIs to 2.0.
 
 ---
 
@@ -108,10 +108,10 @@ Present this recommendation based on detection results:
 
 ```bash
 # npm
-npm install sentry-miniapp
+npm install sentry-miniapp@next
 
 # yarn
-yarn add sentry-miniapp
+yarn add sentry-miniapp@next
 ```
 
 ### Step 2: Initialize

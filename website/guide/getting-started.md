@@ -1,6 +1,6 @@
 # 快速接入
 
-本页对应开发中的 2.0 契约，不表示 npm 已发布。先核对安装版本，1.x 用户参考[2.0 迁移说明](/guide/migration-2.0)；仓库示例默认使用当前构建产物。
+本页对应 2.0 beta 契约，试用安装 `sentry-miniapp@next`，默认安装仍获取 1.x 稳定版。升级前阅读[2.0 迁移说明](/guide/migration-2.0)中的破坏性变更和 beta 验收范围；仓库示例默认使用当前构建产物。
 
 `sentry-miniapp` 是基于 [`@sentry/core`](https://github.com/getsentry/sentry-javascript) 的跨端小程序 Sentry SDK，覆盖微信、支付宝、字节跳动、钉钉、QQ、百度、快手，并兼容 Taro / uni-app。
 
@@ -9,8 +9,8 @@
 ## 1. 安装
 
 ```bash
-npm install sentry-miniapp --save
-# 或 yarn add sentry-miniapp
+npm install sentry-miniapp@next --save
+# 或 yarn add sentry-miniapp@next
 ```
 
 ## 2. 初始化
