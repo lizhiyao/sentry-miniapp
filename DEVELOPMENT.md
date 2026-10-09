@@ -92,6 +92,8 @@ sentry-miniapp/
 
 本次职责取舍、失败复现及文档一致性复核见 [core v11 收尾审查](docs/core-v11-review.md)；真机用户验证由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 单独跟踪。
 
+beta.4 发布后的小游戏 Session、系统信息降级和离线交错复核见 [发布后专项审查](docs/core-v11-postrelease-review.md)。
+
 `coreCompat.ts` 是 `_INTERNAL_filterKeyValueData` 的唯一生产导入入口，直接重导出固定 core 的算法；不复制敏感名单或放行 fallback。键值／URL／JSON／form 的语义和最终 envelope canary 回归约束这项依赖。UTF-8 字节计数与无 TextEncoder 的编码也共用该模块，避免正文与缓存预算维护两套 Unicode 算法。
 
 事件准备、采样、processor／beforeSend、Session 状态算法与发送仍使用 core 实现。宿主 Debug ID 同步使用公开 `preprocessEvent` hook；公共 capture 入口只保存采集时的 scope／Session，原 isolation scope 保持 core 的可写身份。`postprocessEvent` 与 beforeSend 结果绑定使用 client 自有 WeakMap，不建立按 event ID 维护的长期索引，也不向遥测 payload 增加归属字段。

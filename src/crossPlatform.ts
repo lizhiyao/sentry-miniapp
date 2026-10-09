@@ -9,8 +9,6 @@ interface SDK {
   httpRequest?: Function; // 针对钉钉小程序
   getSystemInfoSync?: Function; // 已弃用，保留兼容性
   canIUse?: Function; // 检查API是否可用
-  getSystemSetting?: Function; // 新 API
-  getAppAuthorizeSetting?: Function; // 新 API
   getDeviceInfo?: Function; // 新 API
   getWindowInfo?: Function; // 新 API
   getAppBaseInfo?: Function; // 新 API
@@ -181,6 +179,35 @@ const callPlatformInfo = (platformSdk: SDK, method: keyof SDK): Record<string, a
     return null;
   }
 };
+
+/** 快照只包含可读字段，不修改宿主对象，也不让一个 getter 丢弃其它设备维度。 */
+function mergePlatformInfo(target: Record<string, any>, source: Record<string, any>): void {
+  // 环境消费者使用的维度可由代理对象或非枚举字段暴露；枚举失败仍尝试这些可读字段。
+  const keys = new Set([
+    'brand',
+    'model',
+    'system',
+    'platform',
+    'version',
+    'SDKVersion',
+    'language',
+    'screenWidth',
+    'screenHeight',
+  ]);
+  try {
+    for (const key of Object.keys(source)) keys.add(key);
+  } catch (_error) {
+    /* 一项宿主结果不可枚举不阻断其他 API 和旧 API 回退。 */
+  }
+  for (const key of keys) {
+    try {
+      const value = source[key];
+      if (value !== undefined) target[key] = value;
+    } catch (_error) {
+      /* 不可读字段单独省略。 */
+    }
+  }
+}
 
 const inferPlatformFromAppId = (appId: unknown): AppName | null => {
   if (typeof appId !== 'string') return null;
@@ -363,41 +390,12 @@ const computeSystemInfo = (): SystemInfo | null => {
     const result: any = {};
     let hasNewApi = false;
 
-    // 1. 基础信息
-    if (currentSdk.getAppBaseInfo) {
-      const baseInfo = currentSdk.getAppBaseInfo();
-      Object.assign(result, baseInfo);
+    // 只读取环境快照实际使用的 API。单项不可用不丢弃其它信息，也不阻断旧 API 回退。
+    for (const method of ['getAppBaseInfo', 'getWindowInfo', 'getDeviceInfo'] as const) {
+      const info = callPlatformInfo(currentSdk, method);
+      if (!info) continue;
+      mergePlatformInfo(result, info);
       hasNewApi = true;
-    }
-
-    // 2. 窗口信息
-    if (currentSdk.getWindowInfo) {
-      const windowInfo = currentSdk.getWindowInfo();
-      Object.assign(result, windowInfo);
-      hasNewApi = true;
-    }
-
-    // 3. 设备信息
-    if (currentSdk.getDeviceInfo) {
-      const deviceInfo = currentSdk.getDeviceInfo();
-      Object.assign(result, deviceInfo);
-      hasNewApi = true;
-    }
-
-    // 4. 授权设置 (需要转换类型)
-    if (currentSdk.getAppAuthorizeSetting) {
-      const authSetting = currentSdk.getAppAuthorizeSetting();
-      result.albumAuthorized = authSetting.albumAuthorized === 'authorized';
-      result.cameraAuthorized = authSetting.cameraAuthorized === 'authorized';
-      result.locationAuthorized = authSetting.locationAuthorized === 'authorized';
-      result.microphoneAuthorized = authSetting.microphoneAuthorized === 'authorized';
-      result.notificationAuthorized = authSetting.notificationAuthorized === 'authorized';
-    }
-
-    // 5. 系统设置
-    if (currentSdk.getSystemSetting) {
-      const sysSetting = currentSdk.getSystemSetting();
-      Object.assign(result, sysSetting);
     }
 
     // 新 API 须至少返回一个核心设备身份字段（brand/model/system）才采纳。部分非微信端
@@ -409,13 +407,16 @@ const computeSystemInfo = (): SystemInfo | null => {
     }
 
     // 兜底使用旧的 API（已弃用但保持兼容性）
-    if (currentSdk.getSystemInfoSync) {
-      const syncInfo = currentSdk.getSystemInfoSync();
+    const syncInfo = callPlatformInfo(currentSdk, 'getSystemInfoSync');
+    if (syncInfo) {
       // 支付宝小程序等平台，版本信息可能叫 version 而不是 SDKVersion
-      if (!syncInfo.SDKVersion && syncInfo.version) {
-        syncInfo.SDKVersion = syncInfo.version;
+      // 归一化只修改 SDK 快照，不能写宿主共享或只读的返回对象。
+      const snapshot: Record<string, any> = {};
+      mergePlatformInfo(snapshot, syncInfo);
+      if (!snapshot['SDKVersion'] && snapshot['version']) {
+        snapshot['SDKVersion'] = snapshot['version'];
       }
-      return syncInfo as SystemInfo;
+      return snapshot as SystemInfo;
     }
 
     // 新 API 仅拿到部分信息、又无旧 API 兜底：部分结果仍好过 null。

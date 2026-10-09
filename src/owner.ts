@@ -2,21 +2,27 @@ import { getClient, getCurrentScope, getIsolationScope, withScope } from '@sentr
 import type { Client, Scope } from '@sentry/core';
 import { getClientLifetime, withTelemetryCritical, type ClientLifetime } from './lifecycle';
 
-/** 自动操作的单次归属；退休后只剩小 token，不持有旧 client/scope。 */
+/** 调度任务固定采集时会话；长期 producer 执行时使用当前 isolation episode。 */
 export class OwnerToken {
   private _client: Client | undefined;
   private _scope: Scope | undefined;
   private _lifetime: ClientLifetime | undefined;
   private readonly _detach = new Set<() => void>();
   private readonly _releaseCallbacks = new Set<() => void>();
+  private readonly _sessionStrategy: 'capture' | 'current';
 
-  public constructor(client: Client) {
+  public constructor(client: Client, sessionStrategy: 'capture' | 'current' = 'capture') {
+    this._sessionStrategy = sessionStrategy;
     const lifetime = getClientLifetime(client);
     if (lifetime && !lifetime.canCollectAutomatic()) return;
     this._client = client;
     this._scope = getCurrentScope().clone();
     this._scope.setClient(client);
-    this._scope.setSession(this._scope.getSession() ?? getIsolationScope().getSession());
+    this._scope.setSession(
+      sessionStrategy === 'current'
+        ? undefined
+        : (this._scope.getSession() ?? getIsolationScope().getSession()),
+    );
     this._lifetime = lifetime;
     const stop = this._lifetime?.registerStop(() => this.release());
     if (stop && this._client) this._detach.add(stop);
@@ -40,8 +46,10 @@ export class OwnerToken {
     const client = this._client;
     const captured = this._scope;
     if (!client || !captured) return undefined;
+    const scope = this._sessionStrategy === 'current' ? captured.clone() : captured;
+    if (this._sessionStrategy === 'current') scope.setSession(getIsolationScope().getSession());
     let result!: T;
-    withScope(captured, () => {
+    withScope(scope, () => {
       result = withTelemetryCritical(() => callback(client));
     });
     return result;
@@ -77,25 +85,5 @@ export class OwnerToken {
         /* 释放仍继续。 */
       }
     }
-  }
-}
-
-/** 同步退休可能早于宿主实际保存监听；注册返回时再解除迟到资源。 */
-export function registerOwnerListener(
-  owner: OwnerToken | undefined,
-  host: object,
-  onName: string,
-  offName: string,
-  handler: Function,
-): void {
-  if (!owner?.isActive()) return;
-  const source = host as Record<string, unknown>;
-  const on = source[onName];
-  const off = source[offName];
-  if (typeof on !== 'function' || !owner.isActive()) return;
-  try {
-    on.call(host, handler);
-  } finally {
-    if (!owner.isActive() && typeof off === 'function') off.call(host, handler);
   }
 }

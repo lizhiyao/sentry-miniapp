@@ -62,7 +62,7 @@ describe('MinigameFrameRateIntegration', () => {
 
     expect(integration).toBeInstanceOf(MinigameFrameRateIntegration);
     expect(integration.name).toBe('MinigameFrameRate');
-    expect(integration.setupOnce).toEqual(expect.any(Function));
+    expect(integration.setup).toEqual(expect.any(Function));
   });
 
   it('inactive client 不累计帧、不响应生命周期，也不在 cleanup 上报旧汇总', () => {

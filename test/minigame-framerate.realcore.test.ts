@@ -85,7 +85,7 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
       transport: createCapturingTransport(captured),
     } as any);
 
-    // setupOnce 已在 init 内执行：rAF loop 与 onHide 都应已注册。
+    // setup(client) 已在 init 内执行：rAF loop 与 onHide 都应已注册。
     expect(rafCallback).not.toBeNull();
     expect(hideHandlers.size).toBeGreaterThan(0);
 

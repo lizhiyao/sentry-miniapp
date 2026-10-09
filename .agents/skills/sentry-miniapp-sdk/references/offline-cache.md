@@ -11,7 +11,7 @@ Sentry.init({
 });
 ```
 
-The container is capped at 900 KiB including metadata. Typed records preserve binary payloads and subviews; retry retains original capture time/TTL. Default eviction prioritizes errors and then older records; consent preserve-oldest may reject new data when full. Storage faults are observable, never described as durable success.
+The whole encoded container, including metadata, uses an SDK budget of 180 KiB on Alipay/DingTalk and 900 KiB on other supported runtimes; a lower configured byte limit still applies. These are SDK policy budgets, not guarantees of available host storage. Typed records preserve binary payloads and subviews; retry retains original capture time/TTL. Default eviction prioritizes errors and then older records; consent preserve-oldest may reject new data when full. Storage faults are observable, never described as durable success.
 
 DSN/tunnel target, old schema or incompatible privacy/storage policy changes drop incompatible data with diagnostics; count/bytes/TTL/eviction adjustments only trim compatible data. A replacement runtime may consume compatible stored records but does not inherit grant. Retired owners cannot write back an in-flight failure over the new owner's store.
 

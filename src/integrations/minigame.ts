@@ -4,7 +4,8 @@ import { addBreadcrumb, startInactiveSpan } from '@sentry/core';
 import type { Client, Integration, IntegrationFn } from '@sentry/core';
 import { sdk, now, epochNow } from '../crossPlatform';
 import { getClientLifetime } from '../lifecycle';
-import { OwnerToken, registerOwnerListener } from '../owner';
+import { OwnerToken } from '../owner';
+import { subscribeMiniappLifecycle } from '../appLifecycle';
 import { collectKeyValueData, collectUrlName } from '../dataCollection';
 import type { MiniappOptions } from '../types';
 
@@ -12,8 +13,7 @@ import type { MiniappOptions } from '../types';
  * Minigame Integration
  *
  * 面向「小游戏」运行时（微信小游戏 / 抖音小游戏等，无 App()/Page() 与页面路由）的
- * 生命周期与 SDK 安装至首帧观测，弥补小程序专用的 PageBreadcrumbs / SessionIntegration 在
- * 小游戏中无法工作的空缺。能力：
+ * 生命周期与 SDK 安装至首帧观测，补充没有页面与路由的小游戏观测能力。能力：
  * - 读取 getLaunchOptionsSync() 记录启动场景（scene / path / query）上下文与面包屑；
  * - 测量「SDK 初始化 → 首帧」耗时（首个 requestAnimationFrame 回调，近似首帧渲染）；
  * - 监听 onShow / onHide 记录前后台切换面包屑（携带场景值）。
@@ -26,8 +26,6 @@ export class MinigameIntegration implements Integration {
   // 两者目前同为墙钟毫秒，但保留语义区分：前者只做差值，后者用于 Sentry 时间戳。
   private _initTs = 0;
   private _initEpoch = 0;
-  private _showHandler: ((res: any) => void) | null = null;
-  private _hideHandler: (() => void) | null = null;
   private _coldStartReported: boolean = false;
   private _client: Client | undefined;
   private _owner: OwnerToken | undefined;
@@ -45,10 +43,6 @@ export class MinigameIntegration implements Integration {
     query?: unknown;
     initToFirstFrameMs?: number;
   } = { runtime: 'minigame' };
-
-  public setupOnce(): void {
-    // 启动参数必须在 client 配置可用后采集。
-  }
 
   public setup(client: Client): void {
     if (this._clients.has(client)) return;
@@ -71,7 +65,7 @@ export class MinigameIntegration implements Integration {
       detach?.();
       cleanup();
     });
-    controller._owner = new OwnerToken(client);
+    controller._owner = new OwnerToken(client, 'current');
     controller._sdk = sdk();
     controller._owner.run(() => controller._setup());
   }
@@ -114,41 +108,29 @@ export class MinigameIntegration implements Integration {
     } catch (_error) {
       /* rAF 注册失败不阻断生命周期监听。 */
     }
-    if (!this._owner?.isActive()) return;
-
-    // 注册失败逐项隔离，缺 off 的平台仍由 token 失效保证不采集。
-    try {
-      if (this._owner?.isActive()) {
-        this._showHandler = (res: any) =>
-          this._observe(() => {
-            addBreadcrumb({
-              category: 'minigame.lifecycle',
-              message: '小游戏 onShow（进入前台）',
-              level: 'info',
-              data: { scene: res && res.scene },
-            });
+    const owner = this._owner;
+    const client = this._client;
+    if (!owner?.isActive() || !client) return;
+    const lifecycle = subscribeMiniappLifecycle(client, {
+      onShow: (res) =>
+        this._observe(() => {
+          addBreadcrumb({
+            category: 'minigame.lifecycle',
+            message: '小游戏 onShow（进入前台）',
+            level: 'info',
+            data: { scene: (res as { scene?: unknown } | undefined)?.scene },
           });
-        registerOwnerListener(this._owner, miniappSdk, 'onShow', 'offShow', this._showHandler);
-      }
-    } catch (_error) {
-      /* 单项能力不可用不阻断 hide。 */
-    }
-    if (!this._owner?.isActive()) return;
-    try {
-      if (this._owner?.isActive()) {
-        this._hideHandler = () =>
-          this._observe(() => {
-            addBreadcrumb({
-              category: 'minigame.lifecycle',
-              message: '小游戏 onHide（退到后台）',
-              level: 'info',
-            });
+        }),
+      onHide: () =>
+        this._observe(() => {
+          addBreadcrumb({
+            category: 'minigame.lifecycle',
+            message: '小游戏 onHide（退到后台）',
+            level: 'info',
           });
-        registerOwnerListener(this._owner, miniappSdk, 'onHide', 'offHide', this._hideHandler);
-      }
-    } catch (_error) {
-      /* 注册后抛错的句柄仍由 cleanup 处理。 */
-    }
+        }),
+    });
+    owner.onRelease(lifecycle.stop);
   }
 
   private _observe(callback: () => void): void {
@@ -239,7 +221,6 @@ export class MinigameIntegration implements Integration {
     this._owner = undefined;
     this._client = undefined;
     owner?.release();
-    const source = this._sdk;
     this._sdk = undefined;
     const frame = this._frameId;
     this._frameId = undefined;
@@ -250,20 +231,6 @@ export class MinigameIntegration implements Integration {
     } catch (_error) {
       /* 取消失败仍已失效。 */
     }
-    for (const [name, handler] of [
-      ['offShow', this._showHandler],
-      ['offHide', this._hideHandler],
-    ] as const) {
-      if (!handler) continue;
-      try {
-        const remove = source?.[name];
-        if (typeof remove === 'function') remove.call(source, handler);
-      } catch (_error) {
-        /* 每个 off 独立容错。 */
-      }
-    }
-    this._showHandler = null;
-    this._hideHandler = null;
   }
 }
 

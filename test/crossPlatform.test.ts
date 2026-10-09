@@ -376,17 +376,10 @@ describe('CrossPlatform', () => {
         version: '8.0.5',
         SDKVersion: '2.19.4',
       };
-      const mockSystemSetting = {
-        bluetoothEnabled: true,
-        locationEnabled: true,
-        wifiEnabled: true,
-      };
-
       (global as any).wx = {
         getDeviceInfo: vi.fn().mockReturnValue(mockDeviceInfo),
         getWindowInfo: vi.fn().mockReturnValue(mockWindowInfo),
         getAppBaseInfo: vi.fn().mockReturnValue(mockAppBaseInfo),
-        getSystemSetting: vi.fn().mockReturnValue(mockSystemSetting),
       };
 
       const { getSystemInfo } = await import('../src/crossPlatform');
@@ -403,9 +396,6 @@ describe('CrossPlatform', () => {
         language: 'zh_CN',
         version: '8.0.5',
         SDKVersion: '2.19.4',
-        bluetoothEnabled: true,
-        locationEnabled: true,
-        wifiEnabled: true,
       });
     });
 

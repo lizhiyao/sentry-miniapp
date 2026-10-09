@@ -83,7 +83,9 @@ SDK 不会假设每个平台、每个基础库版本都提供完整监听集合�
 
 ## 系统与设备信息
 
-SDK 优先读取平台较新的分体 API，例如 `getAppBaseInfo`、`getWindowInfo` 和 `getDeviceInfo`。如果这些方法不存在，或者组合结果缺少 brand、model、system 等核心字段，则回退到 `getSystemInfoSync`。读取过程中发生异常时，本次设备信息会留空；空结果不会被缓存，后续事件会再次尝试读取。
+SDK 优先读取平台较新的分体 API，例如 `getAppBaseInfo`、`getWindowInfo` 和 `getDeviceInfo`。单项方法不存在或调用失败时，仍读取其它可用方法；组合结果缺少 brand、model、system 等核心字段时，再尝试 `getSystemInfoSync`。不可读的字段单独省略，宿主返回对象不会被修改。SDK 不读取没有遥测用途的授权设置和蓝牙、Wi-Fi 等系统开关。
+
+默认环境信息在初始化时生成快照。完全无法获取信息时，对应字段留空；这个空结果不会缓存，重新初始化时会再次尝试读取。
 
 不同平台的返回字段不完整时，事件仍会正常发送，只是对应的 device、OS 或 app context 可能缺少部分字段。支付宝、钉钉等平台返回的 `version` 会在需要时兼容映射为基础库版本字段。
 
