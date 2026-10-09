@@ -7,11 +7,14 @@ import {
   withScope,
   startInactiveSpan,
   spanStreamingIntegration,
+  makeSession,
+  Scope,
+  type ErrorEvent,
   type Envelope,
 } from '@sentry/core';
 import { createMiniappTransport } from '../src/transports/xhr';
 import { MiniappClient } from '../src/client';
-import { init, wrap } from '../src/sdk';
+import { init, wrap, captureFeedback } from '../src/sdk';
 import { getDiagnostics } from '../src/diagnostics';
 import type { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -137,6 +140,95 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(envelopes.flatMap((env) => env[1].map((item) => (item[1] as any).message))).toEqual([
       'finalizer',
       'pending',
+    ]);
+  });
+
+  it.each(['dispose', 'close'] as const)(
+    '%s 后反馈和 Session 捕获不触发 hook 或修改 init',
+    async (stop) => {
+      const client = make();
+      const feedbackHook = vi.fn();
+      const sessionHook = vi.fn();
+      const envelopeHook = vi.fn();
+      client.on('beforeSendFeedback', feedbackHook);
+      client.on('beforeSendSession', sessionHook);
+      client.on('beforeEnvelope', envelopeHook);
+      if (stop === 'dispose') client.dispose();
+      else {
+        const closing = client.close();
+        await vi.advanceTimersByTimeAsync(5);
+        await closing;
+      }
+      expect(client.captureFeedback({ message: 'direct closed feedback' })).toMatch(
+        /^[a-f0-9]{32}$/,
+      );
+      expect(
+        owned(client, () => captureFeedback({ message: 'top-level closed feedback' })),
+      ).toMatch(/^[a-f0-9]{32}$/);
+      const session = makeSession({ release: 'test-release' });
+      const before = session.toJSON();
+      client.captureSession(session);
+      expect(session.toJSON()).toEqual(before);
+      expect(feedbackHook).not.toHaveBeenCalled();
+      expect(sessionHook).not.toHaveBeenCalled();
+      expect(envelopeHook).not.toHaveBeenCalled();
+      expect(envelopes).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it('closing 拒收新反馈，允许同步 finalizer 反馈和 Session、已有异步事件的 Session 更新', async () => {
+    let finish!: () => void;
+    const client = make({
+      beforeSend: (event) =>
+        new Promise<ErrorEvent>((resolve) => {
+          finish = () => resolve(event);
+        }),
+    });
+    const scope = new Scope();
+    scope.setClient(client);
+    const session = makeSession({ release: 'test-release' });
+    scope.setSession(session);
+    client.captureEvent(
+      {
+        exception: {
+          values: [
+            {
+              type: 'Error',
+              value: 'pending error',
+              mechanism: { type: 'onerror', handled: false },
+            },
+          ],
+        },
+      },
+      {},
+      scope,
+    );
+    const feedbackHook = vi.fn();
+    client.on('beforeSendFeedback', feedbackHook);
+    const finalSession = makeSession({ release: 'test-release' });
+    client.registerFinalizer(() => {
+      client.captureSession(finalSession);
+      client.captureFeedback({ message: 'final direct feedback' });
+      owned(client, () => captureFeedback({ message: 'final top-level feedback' }));
+    });
+    const closing = client.close(100);
+    client.captureFeedback({ message: 'too late' });
+    owned(client, () => captureFeedback({ message: 'too late' }));
+    expect(feedbackHook).toHaveBeenCalledTimes(2);
+    finish();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await closing).toBe(true);
+    expect(session.errors).toBe(1);
+    expect(session.status).toBe('unhandled');
+    expect(session.init).toBe(false);
+    expect(finalSession.init).toBe(false);
+    expect(envelopes.flatMap((env) => env[1].map((item) => item[0].type))).toEqual([
+      'session',
+      'feedback',
+      'feedback',
+      'session',
+      'event',
     ]);
   });
 

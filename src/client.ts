@@ -461,6 +461,12 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     return super.captureEvent(event, captured.hint, captured.scope);
   }
 
+  public override captureSession(session: Session): void {
+    // closing 仍需接收 core 在途事件的 Session 更新与同步收尾。
+    if (this._lifetime.state === 'closed') return;
+    super.captureSession(session);
+  }
+
   /** 只选择捕获时的 Session；是否更新、状态和发送时机继续由 core 决定。 */
   protected override _updateSessionFromEvent(session: Session, event: Event): void {
     const captured = this._sessionCapture.sessionFor(event, session);
@@ -678,6 +684,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
    * @returns Event ID
    */
   public captureFeedback(params: SendFeedbackParams): string {
+    if (!this._lifetime.acceptsTelemetry()) return uuid4();
     const scope = getCurrentScope().clone();
     scope.setClient(this);
     return captureFeedbackCore(params, {}, scope);

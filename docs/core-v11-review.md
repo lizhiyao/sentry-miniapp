@@ -37,6 +37,8 @@
 
 Session 的迟到异步错误是保留的统计边界：前台会话已结束时，错误事件仍按配置发送，但 core 不重开终态会话，也不会把错误计入新会话。受控 Promise 回归明确旧会话仅 ok→exited、错误数不补改、事件仍发送，新会话不受污染。官网说明对 Release Health 的影响，不为补计数复制 core 状态算法。
 
+beta.4 发布前的独立 bundle 检查又复现关闭后反馈／Session 捕获仍执行 hook、Session 的 init／environment 被修改，虽然最终发送为零。补齐两个 SDK 反馈入口的采集窗口守卫，公开 captureSession 仅在 closed 时返回；closing 中保留 core 的在途 Session 更新和同步 finalizer。真实 core 回归覆盖关闭／废弃后的零 hook 与对象不变、closing 新反馈拒收，以及 finalizer 反馈／Session 和异步错误的 Session 更新。未增加 protected 接缝或复制 core 算法。
+
 ## 架构取舍复核
 
 | 边界 | 当前实现与维护选择 |
@@ -79,7 +81,7 @@ GitHub 推送时提示默认分支 23 条告警，本轮没有与其 alert ID �
 本轮本地 Node 24.21.0／Yarn 4.16.0 的最终检查：
 
 - `yarn run lint`、`yarn run typecheck`、源码 `noUnusedLocals`／`noUnusedParameters` 通过。
-- `yarn run test:coverage --maxWorkers=2`：68 文件／1164 测试通过；statements 98.73%、branches 95.46%、functions 99.37%、lines 99.43%，门槛未放宽。
+- `yarn run test:coverage --maxWorkers=2`：68 文件／1167 测试通过；statements 98.73%、branches 95.47%、functions 99.38%、lines 99.43%，门槛未放宽。
 - client-lifecycle／page-data-collection／transport／crossPlatform／offlineStore／session／reinit 的随机顺序验证：7 文件／198 测试，seed 428，通过；前一轮 network／client-state 86 测试也已通过。
 - `yarn run build`：CJS／ESM／UMD／类型入口和七平台 × 两种 URL 能力模式消费通过。
 - `yarn run build:miniapp`：独立微信 bundle、无 Node／DOM 依赖及本地符号化检查通过。
