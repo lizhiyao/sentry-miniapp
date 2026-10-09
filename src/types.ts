@@ -24,7 +24,7 @@ export interface MinigameJankLevels {
   severe?: number;
 }
 
-/** 小游戏帧率/卡顿监控（MinigameFrameRateIntegration）的细调选项。 */
+/** 小游戏帧率／卡顿监控的细调选项。 */
 export interface MinigameFrameRateOptions {
   /** FPS 低于该值时，周期上报标记为 warning。默认 30。 */
   fpsWarningThreshold?: number;
@@ -37,7 +37,7 @@ export interface MinigameFrameRateOptions {
   /**
    * 分级卡顿阈值（ms）。提供后切换为分级统计：每帧按命中的最高档计入，
    * `minigame.jank` 面包屑带 `jankLevel`，summary 对启用的档增发
-   * `jank_minor_count` / `jank_major_count` / `jank_severe_count`。
+   * `jank.minor` / `jank.major` / `jank.severe` 属性。
    * 不提供则沿用 `longFrameThresholdMs` 单档，行为与历史完全一致；
    * 同时提供 `longFrameThresholdMs` 与 `jankLevels` 时，`jankLevels` 优先（老参数忽略）。
    */
@@ -123,8 +123,8 @@ export interface MiniappOptions extends Omit<
   consentCacheLimit?: number;
 
   /**
-   * 同意前缓存的最大字节数（默认约 900KB）。受平台单 key Storage 上限约束
-   * （微信等约 1MB），故实际封顶 ~900KB，超出按淘汰策略丢弃。
+   * 同意前缓存的最大字节数（默认 900 KiB）。实际容器（含元数据）仍受 SDK 的
+   * 平台预算约束：支付宝／钉钉 180 KiB，其余 900 KiB，超出按淘汰策略丢弃。
    */
   consentCacheMaxBytes?: number;
 
@@ -155,7 +155,7 @@ export interface MiniappOptions extends Omit<
   /** 是否启用网络状态实时监控（默认 true） */
   enableNetworkStatusMonitoring?: boolean;
 
-  /** 是否启用小游戏生命周期监控（冷启动首帧耗时、启动场景、onShow/onHide 面包屑）。小游戏环境下默认启用，普通小程序默认关闭 */
+  /** 是否启用小游戏生命周期监控（SDK 安装至首个 rAF 的耗时、启动场景、onShow/onHide 面包屑）。小游戏环境下默认启用，普通小程序默认关闭；不测完整冷启动 */
   enableMinigameLifecycle?: boolean;
 
   /**

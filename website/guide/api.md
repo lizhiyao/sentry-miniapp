@@ -16,7 +16,7 @@ import * as Sentry from 'sentry-miniapp';
 | `isEnabled()` | 判断当前 client 是否可发送事件 |
 | `getClient()` | 读取当前 client |
 | `flush(timeout?)` | 等待待发送事件完成，适合应用即将退出前 |
-| `close(timeout?)` | flush 后关闭 client |
+| `close(timeout?)` | 停止新采集，尝试排出已有数据后关闭 client |
 | `lastEventId()` | 获取最近一次捕获事件的 id |
 
 ```js
@@ -26,6 +26,8 @@ Sentry.init({
   environment: 'production',
 });
 ```
+
+`close()` 开始后不再接收新的业务 capture 调用；`dispose()` 会立即废弃 client。关闭后采集 API 仍可能返回事件 ID，但不会因此恢复采集或证明上报成功。完整收尾与超时行为见[client 关闭与切换契约](/guide/configuration#_2-0-的-client-关闭与切换契约)。
 
 ## 捕获事件
 
@@ -192,5 +194,7 @@ Sentry.init({
 ## Session API
 
 SDK 默认启用自动 Session Tracking，大多数项目不需要手动管理。确实需要时仍可使用 `startSession`、`endSession`、`captureSession`，以及底层的 `makeSession`、`updateSession`、`closeSession`。
+
+错误事件可能经过异步处理。如果处理完成时原会话已经退出，错误事件仍按配置发送，但不会补改已退出会话的错误统计，也不会算进后来开始的新会话。
 
 不确定某个 API 是否适合当前问题时，先从[能力指南](/guide/errors-and-context)按任务选择，避免为了调用 API 而关闭默认自动能力。

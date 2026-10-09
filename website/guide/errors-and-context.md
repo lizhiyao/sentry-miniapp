@@ -65,7 +65,11 @@ Sentry.setContext('order', {
 
 ### 面包屑
 
-SDK 默认记录页面生命周期、点击 / 触摸和网络请求摘要。业务关键动作可以手动补充：
+SDK 默认记录页面生命周期、点击 / 触摸和网络请求摘要。
+
+页面生命周期的采集不要求业务先定义 `onLoad`、`onShow`、`onHide`、`onReady` 或 `onUnload`；默认页面集成会补齐用于记录的处理器，业务已有处理器仍照常执行。
+
+业务关键动作可以手动补充：
 
 ```js
 Sentry.addBreadcrumb({

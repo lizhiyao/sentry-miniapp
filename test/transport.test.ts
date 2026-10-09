@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   createMiniappTransport,
+  shutdownMiniappTransport,
   DEFAULT_TRANSPORT_MAX_CONCURRENT_REQUESTS,
   DEFAULT_TRANSPORT_REQUEST_TIMEOUT,
 } from '../src/transports/xhr';
@@ -15,6 +16,63 @@ describe('Transport', () => {
   });
 
   describe('createMiniappTransport', () => {
+    it.each(['statusCode', 'header', 'errMsg'])(
+      'unreadable host %s rejects once, releases the slot, and lets flush finish',
+      async (field) => {
+        vi.useFakeTimers();
+        const requests: any[] = [];
+        const mockRequest = vi.fn((options) => {
+          requests.push(options);
+          return { abort: vi.fn() };
+        });
+        (global as any).wx = { request: mockRequest };
+        resetPlatformCache();
+        const transport = createMiniappTransport({
+          url: 'https://sentry.io/api/123/envelope/',
+          recordDroppedEvent: vi.fn(),
+          requestTimeout: 10,
+          maxConcurrentRequests: 1,
+        });
+        const envelope: Envelope = [
+          { event_id: 'host-probe', sent_at: '2022-01-01T00:00:00.000Z' },
+          [[{ type: 'event' }, { message: 'host response probe' }]],
+        ];
+        try {
+          let result: unknown;
+          let complete = false;
+          void Promise.resolve(transport.send(envelope)).then(
+            () => {
+              complete = true;
+            },
+            (error) => {
+              result = error;
+              complete = true;
+            },
+          );
+          const next = Promise.resolve(transport.send(envelope));
+          const payload = Object.defineProperty({ statusCode: 200 }, field, {
+            get: () => {
+              throw new Error('unreadable host field');
+            },
+          });
+          const invoke = () =>
+            field === 'errMsg' ? requests[0].fail(payload) : requests[0].success(payload);
+          expect(invoke).not.toThrow();
+          await vi.advanceTimersByTimeAsync(0);
+          expect(complete).toBe(true);
+          expect(result).toBeInstanceOf(Error);
+          expect(mockRequest).toHaveBeenCalledTimes(2);
+          requests[1].success({ statusCode: 200 });
+          expect((await next).statusCode).toBe(200);
+          expect(await transport.flush(10)).toBe(true);
+          expect(vi.getTimerCount()).toBe(0);
+        } finally {
+          shutdownMiniappTransport(transport);
+          vi.useRealTimers();
+        }
+      },
+    );
+
     it('should create transport that makes successful HTTP request', async () => {
       const mockRequest = vi.fn().mockImplementation((options) => {
         (options as any).success({
@@ -481,22 +539,21 @@ describe('Transport', () => {
       });
       // Set a fresh platform object, then import a fresh module graph after resetModules().
       (global as any).wx = { request: mockRequest };
-      const { createMiniappTransport: createFreshMiniappTransport } = await import(
-        '../src/transports'
-      );
+      const { createMiniappTransport: createFreshMiniappTransport } =
+        await import('../src/transports');
 
       const transport = createFreshMiniappTransport({
-          url: 'https://sentry.io/api/123/store/',
-          recordDroppedEvent: vi.fn(),
-          headers: {
-            'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
-            'X-Custom-Header': 'value',
-          },
+        url: 'https://sentry.io/api/123/store/',
+        recordDroppedEvent: vi.fn(),
+        headers: {
+          'Content-Type': 'application/x-sentry-envelope; charset=utf-8',
+          'X-Custom-Header': 'value',
+        },
       });
 
       const envelope = [
-          { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
-          [[{ type: 'event' }, { message: 'test message', event_id: 'test-id' }]],
+        { event_id: 'test-id', sent_at: '2022-01-01T00:00:00.000Z' },
+        [[{ type: 'event' }, { message: 'test message', event_id: 'test-id' }]],
       ];
 
       const response = await transport.send(envelope as any);

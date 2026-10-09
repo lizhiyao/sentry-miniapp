@@ -705,9 +705,9 @@ describe('CrossPlatform', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       try {
-        expect(
-          resolveMiniappPlatform({ miniappPlatform: 'javascript', platform: 'qq' }),
-        ).toBe('wechat');
+        expect(resolveMiniappPlatform({ miniappPlatform: 'javascript', platform: 'qq' })).toBe(
+          'wechat',
+        );
         expect(warnSpy).toHaveBeenCalledWith(
           expect.stringContaining('无效的 miniappPlatform=javascript'),
         );
@@ -718,6 +718,63 @@ describe('CrossPlatform', () => {
   });
 
   describe('Storage API wrapping for Alipay/DingTalk', () => {
+    it.each(['my', 'dd'])(
+      'SDK 安装后 %s 原生对象参数、receiver 和返回结构保持不变',
+      async (name) => {
+        const getResult = { data: 'stored' };
+        const writeResult = {};
+        const read = vi.fn(() => getResult);
+        const write = vi.fn(() => writeResult);
+        const remove = vi.fn(() => writeResult);
+        const host = { getStorageSync: read, setStorageSync: write, removeStorageSync: remove };
+        (global as any)[name] = host;
+        const { sdk } = await import('../src/crossPlatform');
+        const adapted = sdk();
+        const receiver = {};
+        const native = { key: 'business', data: 'payload' };
+        expect(adapted.getStorageSync!.call(receiver, native)).toBe(getResult);
+        expect(adapted.setStorageSync!.call(receiver, native)).toBe(writeResult);
+        expect(adapted.removeStorageSync!.call(receiver, native)).toBe(writeResult);
+        for (const api of [read, write, remove]) {
+          expect(api).toHaveBeenCalledWith(native);
+          expect(api.mock.contexts[0]).toBe(receiver);
+        }
+        expect(adapted.getStorageSync!('sdk')).toBe('stored');
+        adapted.setStorageSync!('sdk', 'value');
+        adapted.removeStorageSync!('sdk');
+        expect(read).toHaveBeenLastCalledWith({ key: 'sdk' });
+        expect(write).toHaveBeenLastCalledWith({ key: 'sdk', data: 'value' });
+        expect(remove).toHaveBeenLastCalledWith({ key: 'sdk' });
+      },
+    );
+
+    it.each(['my', 'dd'])(
+      '%s 失败返回只在 SDK key-value 调用中转为异常，缺失 key 正常返回空',
+      async (name) => {
+        let result: { error?: number; data?: string } = { error: 12 };
+        const native = vi.fn(() => result);
+        (global as any)[name] = {
+          getStorageSync: native,
+          setStorageSync: native,
+          removeStorageSync: native,
+        };
+        const { sdk } = await import('../src/crossPlatform');
+        const adapted = sdk();
+        expect(() => adapted.getStorageSync!('sdk')).toThrow();
+        expect(() => adapted.setStorageSync!('sdk', 'value')).toThrow();
+        expect(() => adapted.removeStorageSync!('sdk')).toThrow();
+        expect(adapted.getStorageSync!({ key: 'business' })).toBe(result);
+        expect(adapted.setStorageSync!({ key: 'business', data: 'value' })).toBe(result);
+        expect(adapted.removeStorageSync!({ key: 'business' })).toBe(result);
+        result = { error: 11 };
+        expect(adapted.getStorageSync!('missing')).toBeUndefined();
+        expect(() => adapted.setStorageSync!('sdk', 'value')).toThrow();
+        result = { error: 0, data: 'ok' };
+        expect(adapted.getStorageSync!('sdk')).toBe('ok');
+        expect(() => adapted.setStorageSync!('sdk', 'value')).not.toThrow();
+      },
+    );
+
     it('should wrap getStorageSync for Alipay (my)', async () => {
       const originalGet = vi.fn().mockImplementation((opts: any) => {
         return { data: `value_for_${opts.key}` };

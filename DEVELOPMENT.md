@@ -77,18 +77,20 @@ sentry-miniapp/
 
 ## 🧪 测试和质量保证
 
-项目包含完善的测试覆盖率（700+ 个测试用例）：
+测试数量及覆盖率以当前 CI 结果为准，验证分为：
 
 - **单元测试 (`yarn test`，Vitest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
-- **真实 core 集成测试 (`test/*.realcore.test.ts`)**：不 mock `@sentry/core`，验证事件、transaction、session 最终进入 envelope 的形态。自定义 transport 与 envelope 解析统一复用 `test/support/`。
+- **真实 core 集成测试 (`test/*.realcore.test.ts`)**：不 mock `@sentry/core`，验证事件、span/v2、logs、metrics、session 与 client reports 的最终 envelope。自定义 transport 与 envelope 解析统一复用 `test/support/`。
 - **发布包消费测试 (`yarn build`)**：把当前 npm tarball 解包到隔离目录，验证 CJS / ESM / UMD 与类型入口；七个平台还会分别在全局 `URL` 缺失和残缺时安装会复制请求参数的外层 wrapper，断言一次业务请求只能产生一次 Sentry envelope，防止 SDK 自请求递归。
 - **测试类型检查 (`yarn typecheck`)**：源码使用 `tsconfig.json`，测试使用 `tsconfig.test.json`；测试保留严格函数签名检查，仅放宽动态 fixture 的索引访问规则。
 
 测试必须执行 `src/` 或仓库脚本中的生产逻辑；不要只调用测试文件里临时创建的 mock、示例重试函数或常量再断言自身行为。时间相关逻辑优先使用 Vitest fake timers，避免真实等待拖慢 CI。
 
-Taro / uni-app 示例依赖较重，不加入每个 PR 的必跑任务。`.github/workflows/framework-examples.yml` 会在相关示例或 workflow 发生变化的 PR、每周定时任务及手动触发时构建当前 SDK tarball，覆盖示例声明的发布版依赖后执行真实微信小程序构建，用于发现框架工具链和 SDK 入口的兼容性漂移。
+`.github/workflows/framework-examples.yml` 在 SDK 源码、依赖、构建脚本、相关示例或 workflow 变化的 PR，以及每周定时和手动触发时，构建当前 SDK tarball，覆盖示例声明的发布版依赖后执行 Taro／uni-app 的真实微信小程序构建，并检查业务异常的原始源码内容和双向映射。无关改动不触发重型框架构建。
 
 ### core 扩展边界与升级审查
+
+本次职责取舍、失败复现及文档一致性复核见 [core v11 收尾审查](docs/core-v11-review.md)；真机用户验证由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 单独跟踪。
 
 `coreCompat.ts` 是 `_INTERNAL_filterKeyValueData` 的唯一生产导入入口，直接重导出固定 core 的算法；不复制敏感名单或放行 fallback。键值／URL／JSON／form 的语义和最终 envelope canary 回归约束这项依赖。UTF-8 字节计数与无 TextEncoder 的编码也共用该模块，避免正文与缓存预算维护两套 Unicode 算法。
 

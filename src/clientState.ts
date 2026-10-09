@@ -28,7 +28,6 @@ export class EnvironmentState {
   public readonly contexts: Record<string, Context> = {};
   public readonly tags: Record<string, string | number | boolean> = {};
   public readonly spanAttributes: SpanAttributes = {};
-  public readonly hostPlatform: string | undefined;
   public route: string | undefined;
 
   public constructor(options: {
@@ -48,7 +47,7 @@ export class EnvironmentState {
 
     const info = getSystemInfo();
     const account = getAccountInfo();
-    this.hostPlatform = present(readHostField(info, 'platform'));
+    const hostPlatform = present(readHostField(info, 'platform'));
     const system = present(readHostField(info, 'system'));
     const os = system?.match(/^(iOS|Android|HarmonyOS)(?:\s+(.+))?$/i);
     const osName = os?.[1];
@@ -84,7 +83,7 @@ export class EnvironmentState {
         model,
         screen_resolution: screenResolution,
         language: present(readHostField(info, 'language')),
-        platform: this.hostPlatform,
+        platform: hostPlatform,
         system,
         version: hostVersion,
       }),
@@ -98,16 +97,12 @@ export class EnvironmentState {
         'device.model': model,
         'os.name': osName,
         'os.version': osVersion,
-        'os.type': this.hostPlatform?.toLowerCase(),
+        'os.type': hostPlatform?.toLowerCase(),
         'miniapp.host_version': hostVersion,
         'miniapp.host_sdk_version': hostSdkVersion,
         'app.app_version': appVersion,
       }),
     );
-  }
-
-  public setTag(name: string, value: string | number | boolean): void {
-    this.tags[name] = value;
   }
 
   public setContext(name: string, context: Context): void {

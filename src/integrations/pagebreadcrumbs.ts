@@ -147,7 +147,11 @@ function instrumentPageOptions(pageOptions: unknown): void {
 
   for (const method of PAGE_LIFECYCLE_METHODS) {
     const original = options[method];
-    if (typeof original !== 'function' || original.__sentryPageCallbackWrapper) continue;
+    if (
+      (original !== undefined && typeof original !== 'function') ||
+      original?.__sentryPageCallbackWrapper
+    )
+      continue;
     const wrapped = function (this: any, ...args: any[]): any {
       const active = getActivePageEntry();
       if (active) {
@@ -159,7 +163,7 @@ function instrumentPageOptions(pageOptions: unknown): void {
           /* 保留原业务回调。 */
         }
       }
-      return original.apply(this, args);
+      if (typeof original === 'function') return original.apply(this, args);
     };
     Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
     options[method] = wrapped;

@@ -2,7 +2,7 @@
 
 基于 **Taro 4（React + TypeScript，webpack5）** 的 `sentry-miniapp` 集成示例，演示在微信小程序端如何初始化 SDK、上报异常、追踪性能、采集网络面包屑，并用 **React 错误边界** 捕获组件渲染错误。
 
-> 本示例只演示**小程序端**（`weapp`）。Taro 默认用 React；若你的 Taro 工程用 Vue，集成方式与 [`examples/uniapp`](../uniapp) 一致（`app.config.errorHandler`）。要同时监控 H5 端，请参考仓库根 `README.md` 的「uni-app / Taro」一节，用 `process.env.TARO_ENV === 'h5'` 按端引入 `@sentry/browser`。
+> 本示例只演示**小程序端**（`weapp`）。Taro 默认用 React；若你的 Taro 工程用 Vue，组件错误处理参照 [`examples/uniapp`](../uniapp) 的 `app.config.errorHandler`。要同时监控 H5 端，请参考[官网 Taro 分端接入](https://sentry-miniapp.pages.dev/guide/taro#_5-分端接入-同时要-h5)，用 `process.env.TARO_ENV === 'h5'` 按端引入 `@sentry/browser`。
 
 ## 演示内容
 
@@ -32,7 +32,7 @@ class SentryBoundary extends Component {
 // 用它包住根组件：<SentryBoundary>{children}</SentryBoundary>
 ```
 
-> 错误边界只能捕获**渲染期**错误；事件回调 / `setTimeout` / 异步里的错误捕获不到——那些直接 `try/catch` 后 `Sentry.captureException`，或交给 SDK 的全局 / TryCatch 集成。这与 uni-app(Vue) 的 `app.config.errorHandler` 是同一思路的两个框架版本（见仓库根 README「常见问题」第 5 条）。
+> 错误边界只能捕获**渲染期**错误；事件回调 / `setTimeout` / 异步里的错误捕获不到——那些直接 `try/catch` 后 `Sentry.captureException`，或交给 SDK 的全局 / TryCatch 集成。更多说明见[官网组件错误排查](https://sentry-miniapp.pages.dev/guide/faq#component-errors)。
 
 ## 运行
 
@@ -75,7 +75,7 @@ node ../../scripts/internal/check-framework-sourcemaps.mjs \
   src/pages/test/test.tsx dist/pages/test/test.js dist/pages/test/test.js.map
 ```
 
-2.0 仍在开发中，不表示已经发 npm/tag。要改为已发布版本时，先核对安装版本对应的 API 和[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
+2.0 已提供 beta 预发布；本示例仍使用仓库构建。改为发布包时，安装 `sentry-miniapp@next` 或固定所需 beta 版本，并核对其 API 与[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ## 说明
 

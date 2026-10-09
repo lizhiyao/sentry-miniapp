@@ -266,6 +266,14 @@ const resolvePlatform = (): DetectedPlatform | null => {
   return _detectedPlatform;
 };
 
+/** 对象参数 Storage 的同步失败以 error 返回；仅 SDK 的归一化调用转为异常。 */
+function assertStorageSuccess(result: unknown, allowMissing = false): void {
+  if (!result || typeof result !== 'object') return;
+  const error = (result as { error?: unknown }).error;
+  if (typeof error === 'number' && error !== 0 && !(allowMissing && error === 11))
+    throw new Error(`Miniapp Storage operation failed (${error})`);
+}
+
 const getSDK = (): SDK => {
   const detected = resolvePlatform();
 
@@ -308,21 +316,28 @@ const getSDK = (): SDK => {
   ) {
     if (currentSdk.getStorageSync) {
       const originalGet = currentSdk.getStorageSync;
-      currentSdk.getStorageSync = (key: string) => {
+      currentSdk.getStorageSync = function (this: unknown, ...args: unknown[]) {
+        const key = args[0];
+        if (typeof key !== 'string') return originalGet.apply(this, args);
         const res = originalGet.call(currentSdk, { key });
+        assertStorageSuccess(res, true);
         return res ? res.data : null;
       };
     }
     if (currentSdk.setStorageSync) {
       const originalSet = currentSdk.setStorageSync;
-      currentSdk.setStorageSync = (key: string, data: any) => {
-        originalSet.call(currentSdk, { key, data });
+      currentSdk.setStorageSync = function (this: unknown, ...args: unknown[]) {
+        const key = args[0];
+        if (typeof key !== 'string') return originalSet.apply(this, args);
+        assertStorageSuccess(originalSet.call(currentSdk, { key, data: args[1] }));
       };
     }
     if (currentSdk.removeStorageSync) {
       const originalRemove = currentSdk.removeStorageSync;
-      currentSdk.removeStorageSync = (key: string) => {
-        originalRemove.call(currentSdk, { key });
+      currentSdk.removeStorageSync = function (this: unknown, ...args: unknown[]) {
+        const key = args[0];
+        if (typeof key !== 'string') return originalRemove.apply(this, args);
+        assertStorageSuccess(originalRemove.call(currentSdk, { key }));
       };
     }
     adaptable.__sentryStorageAdapted = true;
@@ -679,7 +694,7 @@ export const getPerformanceManager = (): PerformanceManager | null => {
 };
 
 /**
- * 时长时钟：用于**测量时长 / 间隔**（帧间隔、冷启动 delta 等），返回毫秒。
+ * 时长时钟：用于**测量时长 / 间隔**（帧间隔、SDK 安装至首帧等），返回毫秒。
  *
  * 刻意用 Date.now() 而非平台 Performance.now()：后者在小游戏里单位不可靠——同一份代码在
  * 微信开发者工具返回毫秒、真机返回微秒（见 issue #167），且官方文档并未明确单位，按平台写死

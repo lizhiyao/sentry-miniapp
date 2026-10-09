@@ -17,8 +17,6 @@ export class SessionIntegration implements Integration {
   private readonly _cleanups = new Set<() => void>();
   private readonly _clients = new WeakSet<Client>();
 
-  public setupOnce(): void {}
-
   public setup(client: Client): void {
     const lifetime = getClientLifetime(client);
     if ((lifetime && !lifetime.canCollectAutomatic()) || this._clients.has(client)) return;

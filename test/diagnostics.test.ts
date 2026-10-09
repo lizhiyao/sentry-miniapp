@@ -248,7 +248,7 @@ describe('getDiagnostics', () => {
   });
 
   it('替换 defaultIntegrations 漏掉 SpanStreaming 时给出可自检警告', () => {
-    // stream 生命周期下 SpanStreaming 是非独立 span 的唯一发送出口；用户换掉默认集成就会静默丢数据。
+    // stream 生命周期下所有 span 的发送都需要 SpanStreaming。
     init({
       dsn: 'https://public@example.ingest.sentry.io/123',
       release: 'miniapp@1.0.0',

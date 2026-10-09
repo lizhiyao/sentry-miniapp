@@ -48,10 +48,9 @@ describe('Session owner 与前台 episode', () => {
     _resetAppLifecycle();
   });
 
-  it('setupOnce 不启动宿主资源，setup 配对清理 App wrapper', () => {
+  it('setup 配对清理 App wrapper，factory 创建不启动宿主资源', () => {
     const integration = new SessionIntegration();
     const original = (globalThis as { App?: unknown }).App;
-    integration.setupOnce();
     expect((globalThis as { App?: unknown }).App).toBe(original);
     const owner = start(integration);
     expect((globalThis as { App?: unknown }).App).not.toBe(original);
@@ -117,7 +116,7 @@ describe('Session owner 与前台 episode', () => {
     },
   );
 
-  it('异步 S1 错误处理在 S2 开始后完成，不修改或结束 S2', async () => {
+  it('异步 S1 错误在 S2 开始后完成，保留 S1 终态且不污染 S2', async () => {
     const owner = start();
     (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
     app.onLaunch();
@@ -133,11 +132,25 @@ describe('Session owner 与前台 episode', () => {
       exception: { values: [{ value: 'late S1', mechanism: { handled: false, type: 'onerror' } }] },
     });
     app.onHide();
+    expect(s1.status).toBe('exited');
+    expect(s1.errors).toBe(0);
     app.onShow();
     const s2 = getIsolationScope().getSession()!;
     expect(s2.sid).not.toBe(s1.sid);
     resume();
     await owner.flush(100);
+    // core 不重开已结束的会话；迟到错误仍发送，但不追加旧会话终态更新。
+    expect(s1.status).toBe('exited');
+    expect(s1.errors).toBe(0);
+    expect(
+      sessions()
+        .filter((session) => session.sid === s1.sid)
+        .map(({ status, errors }) => ({ status, errors })),
+    ).toEqual([
+      { status: 'ok', errors: 0 },
+      { status: 'exited', errors: 0 },
+    ]);
+    expect(collectEnvelopePayloads(envelopes, ['event'])).toHaveLength(1);
     expect(getIsolationScope().getSession()).toBe(s2);
     expect(s2.status).toBe('ok');
     expect(s2.errors).toBe(0);

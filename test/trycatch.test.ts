@@ -77,10 +77,9 @@ describe('TryCatch 调度 owner（真实 core）', () => {
     vi.unstubAllGlobals();
   });
 
-  it('setupOnce 不启动资源；setup 包装和 cleanup 恢复，factory 使用同一实现', () => {
+  it('setup 包装和 cleanup 恢复，factory 使用同一实现', () => {
     const integration = tryCatchIntegration() as TryCatch;
     expect(integration.name).toBe('TryCatch');
-    integration.setupOnce();
     expect(globalThis.setTimeout).toBe(schedule);
     const owner = start(envelopes, integration);
     integration.setup(owner);

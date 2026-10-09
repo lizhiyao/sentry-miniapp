@@ -241,7 +241,6 @@ describe('client 自有环境与真实 core 事件管道', () => {
   it('显式 HttpContext 集成沿用 client 快照，关闭系统采集仍保留用户值', () => {
     const owner = client(false);
     const integration = new HttpContext();
-    integration.setupOnce();
     expect(
       integration.processEvent({ contexts: { os: { name: 'BusinessOS' } } }, {}, owner).contexts
         ?.os,

@@ -63,10 +63,14 @@ export function normalizeMaxConcurrentRequests(maxConcurrentRequests: number | u
 }
 
 function networkError(error: any): Error {
-  const message =
-    typeof error === 'string'
-      ? error
-      : error?.errMsg || error?.errorMessage || error?.message || 'Unknown error';
+  let message = 'Unknown error';
+  try {
+    const detail =
+      typeof error === 'string' ? error : error?.errMsg || error?.errorMessage || error?.message;
+    if (typeof detail === 'string' && detail) message = detail;
+  } catch (_error) {
+    /* 宿主错误对象可能不可读；错误正规化不能再次抛错。 */
+  }
   return new Error(`Network request failed: ${message}`);
 }
 
@@ -109,7 +113,12 @@ export function createMiniappTransport(
         settled = true;
         clearTimeout(timeoutTimer);
         cancellations.delete(cancel);
-        callback();
+        try {
+          callback();
+        } catch (error) {
+          // 已关闭超时与取消入口，响应读取失败也必须完成 Promise 并释放网络槽位。
+          reject(networkError(error));
+        }
       };
 
       const timeoutTimer = setTimeout(() => {

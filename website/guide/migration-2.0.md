@@ -1,14 +1,20 @@
-# 升级到 2.0：core v11 与薄宿主适配
+# 从 1.x 升级到 2.0
 
-本页对应 `2.0.0-beta.0` 起的 2.0 beta 契约。通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.3` 固定当前 beta；`latest` 仍保留 1.x 稳定版。beta.1 修复 beta.0 的 `lastEventId()` 未更新问题；beta.2 修正前两个 beta 在显式开启 `traceNetworkBody` 时仍采集未知正文的缺口，按下述 2.0 策略省略。beta.3 将 client reports 改为公开 recorder／envelope API，并修复自定义 transport 忽略 timeout 时，dispose 不能结束等待中 flush 的问题。升级时先核对实际安装版本；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
+2.0 使用 `@sentry/core v11`，部分 API 和默认行为与 1.x 不同。本页说明需要修改的代码和配置；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
 
-## Beta 验收范围
+通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.3` 固定版本。默认安装仍获取 1.x 稳定版。升级前先确认实际安装版本。
 
-2.0 beta 用于集成试用与反馈，包含 core v11、client 归属与生命周期、stream-only tracing、统一采集、单目标缓存与隐私同意重构。自动化契约测试、包入口与跨平台能力回退检查不能代替真实宿主验收。
+已使用早期 beta 的项目也应更新：beta.1 修复 `lastEventId()` 未更新的问题；beta.2 起，开启正文采集也会省略无法识别格式的正文；beta.3 修复自定义 transport 忽略超时时，`dispose()` 无法结束正在等待的 `flush()` 的问题。
 
-真实设备的前后台冻结／恢复、弱网与存储、隐私撤回矩阵，以及正式小程序业务产物的后台符号化尚未完成完整验收。目标 Sentry 部署需支持 span/v2；生产使用前分别核验后台遥测接收和业务产物符号化。后续 beta 仍可能调整 API 与行为；[#428](https://github.com/lizhiyao/sentry-miniapp/issues/428) 继续跟踪剩余验收，不因本次预发布关闭。
+## 试用前需要确认
 
-2.0 让 core 负责事件处理、采样／DSC、span／Logs／metrics 批处理与限流，miniapp 负责宿主采集、生命周期、受控网络与存储。删除的能力不再保留兼容入口。
+2.0 仍处于 beta 阶段，API 和行为可能继续调整。不同平台的真机验证尚在进行，建议先在测试项目中接入，并检查：
+
+- 在目标设备上测试切到后台再返回、断网后恢复，以及用户撤回隐私授权后的行为。
+- 触发一次业务错误，确认 Sentry 能收到，并显示正确的源码文件和行号。上传的 JS 与 Source Map 必须来自运行中的同一版本构建，见 [Source Map 指南](/guide/sourcemap)。
+- 使用性能监控时，确认 Sentry 服务支持 `span/v2`（2.0 使用的性能数据格式），并能显示请求和业务操作的耗时。
+
+遇到问题可按 [beta 真机反馈说明](https://github.com/lizhiyao/sentry-miniapp/issues/457) 提供平台、版本、复现步骤和事件 ID。
 
 ## 公共 API 与集成
 
@@ -104,7 +110,7 @@ client reports 默认开启；需要关闭时显式设 false。报告通过同�
 
 2.0 只有一层官方 offline 管道和一个活动持久投递目标。旧格式、DSN／tunnel 目标或不兼容隐私／存储策略变化时丢弃并诊断，不能跨目标补发。count／bytes／TTL 调整仅裁剪，不整批删兼容数据；同目标新 client 不继承旧 grant。
 
-整个容器最多 900 KiB，包含记录与元数据。typed codec 保留 binary／子视图；retry 不刷新原 TTL。shift 必须持久提交删除后才交给 transport：提交失败不发送；退休 owner 在途失败不得覆盖新 owner store。缓存是 best-effort，不承诺 durable ACK、恰好一次或绝不丢失。
+SDK 按实际运行平台限制整个缓存容器，记录与元数据都计入：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB。`consentCacheMaxBytes` 默认仍为 900 KiB，较小的配置可进一步收窄，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。typed codec 保留 binary／子视图；retry 不刷新原 TTL。shift 必须持久提交删除后才交给 transport：提交失败不发送；退休 owner 在途失败不得覆盖新 owner store。缓存是 best-effort，不承诺 durable ACK、恰好一次或绝不丢失。
 
 `requireConsent: true` 保留同意前缓存含义，即使 enableOfflineCache=false；count／bytes=0 则不缓存，缺 Storage 可内存降级并诊断。撤回后排队请求不得启动，已经在途请求在宿主支持时 abort。第三方 transport 私有队列仍需自己的实际发送门。
 
@@ -116,7 +122,9 @@ client reports 默认开启；需要关闭时显式设 false。报告通过同�
 
 `close(正有限 timeout)` 使用总预算；0／undefined 等待排空。init 替换内部预算为 2000ms，不改变公共 close。hide 尝试同步排 buffer，只有空闲槽与同步 hooks 才能在返回前启动 request／storage；冻结后 timer 不执行，不能承诺全部送达。业务异步 hide 之后产生的数据需要显式 flush。
 
-Session 按前台 episode 管理，JS 未处理异常从 crashed 改为 unhandled，不证明宿主进程崩溃。迁移 Release Health 分母、status 过滤与告警，重新建立统计基线，不直接比较 1.x crash-free 曲线。旧 episode 的迟到错误不修改新 episode。
+`close()` 开始后不再接收新的业务 capture 调用；已经进入 core 处理队列的数据仍可继续排出，SDK 的同步收尾步骤可以生成最后一份汇总。`dispose()` 后再捕获不会执行事件处理器或 `beforeSend`，返回的事件 ID 也不代表成功上报。
+
+Session 按每次前台运行管理，JS 未处理异常从 crashed 改为 unhandled，不证明宿主进程崩溃。迁移 Release Health 分母、status 过滤与告警，重新建立统计基线，不直接比较 1.x crash-free 曲线。如果异步事件处理在原会话退出后才完成，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。
 
 ## 验收与后续 core 升级
 

@@ -1,9 +1,8 @@
+// 在创建应用实例前导入 Sentry 封装，确保 Sentry.init 尽早执行、
+// 早于 App 和业务模块加载。集成细节见 ./utils/sentry.js。
+import Sentry from './utils/sentry';
 import { createSSRApp } from 'vue';
 import App from './App.vue';
-
-// 在创建应用实例前导入 Sentry 封装，确保 Sentry.init 尽早执行、
-// 能捕获到应用启动阶段的异常。集成细节见 ./utils/sentry.js。
-import Sentry from './utils/sentry';
 
 export function createApp() {
   const app = createSSRApp(App);
@@ -12,7 +11,7 @@ export function createApp() {
   // 抛出的错误会被 Vue 自己的错误处理接住、只打印 console，不会冒泡到 wx.onError，
   // SDK 默认捕获不到——这是「sampleRate 设了 1 却只偶尔上报一条」的常见根因。
   // 把 Vue 的 errorHandler 接到 Sentry，组件内错误才会上报。
-  // Vue2（uni-app 旧版）改用 Vue.config.errorHandler，写法见 README「常见问题」。
+  // Vue2（uni-app 旧版）改用 Vue.config.errorHandler，写法见官网 uni-app 接入指南。
   app.config.errorHandler = (err, instance, info) => {
     Sentry.captureException(err, { extra: { lifecycleHook: info } });
     console.error(err); // 保留本地打印，方便开发期排查

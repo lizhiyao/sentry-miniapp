@@ -11,7 +11,7 @@
 
 [简体中文](../README.md) | English
 
-> This README describes the 2.0 beta contract. Install `sentry-miniapp@next` to try it; an unqualified install still selects the stable 1.x release. Read the [2.0 migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. Full acceptance of real-device lifecycle, weak-network/storage/consent-revocation scenarios and backend symbolication of production mini-program application artifacts remains incomplete. The beta is for integration testing and feedback.
+> This README covers the 2.0 beta. Install `sentry-miniapp@next` to try it; an unqualified install still selects the stable 1.x release. Read the [2.0 migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. Device testing across platforms is still in progress. Start with a test project and check data delivery, original source locations in errors, and consent behavior. Report problems through the [beta feedback issue](https://github.com/lizhiyao/sentry-miniapp/issues/457).
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 
@@ -31,7 +31,7 @@ Mini program runtimes may expose a window alias without DOM or browser request A
 - **Debugging context**: Records device info, page lifecycle, taps/touches, and network breadcrumbs to help reconstruct what happened before a user hit an error.
 - **Performance and tracing**: With tracing enabled, API requests can be reported as `http.client` spans for backend correlation. The optional Performance integration measures startup, page rendering, and resource timing when the host exposes the required capabilities.
 - **Source Map friendly stacks**: Normalizes platform-specific virtual stack paths to `app:///`, supports Source Maps / Debug IDs, and exposes `stackParser` for unusual runtimes.
-- **Weak-network and privacy flows**: Failed sends go into the local offline queue and retry when the network recovers; with `requireConsent`, events are buffered locally without sending to Sentry until `Sentry.setConsent(true)` is called.
+- **Weak-network and privacy flows**: Eligible failed sends enter a bounded offline queue for retry when the network recovers. With `requireConsent`, events enter a bounded local buffer without sending to Sentry; call `Sentry.setConsent(true)` after consent to attempt delivery of buffered events.
 - **Mini game support**: WeChat / Douyin mini games can measure SDK setup to the first rAF callback. FPS and jank collection requires explicit opt-in; measurements are skipped when the required host capabilities are absent.
 - **Familiar Sentry APIs**: `captureException`, `setUser`, `addBreadcrumb`, `startSpan`, `captureFeedback`, `Sentry.logger.*`, and more.
 

@@ -57,6 +57,14 @@ sentry-miniapp（init + 默认集成）
 
 业务代码仍应在启动阶段只初始化一次；上述隔离用于保证重入和清理安全，不是鼓励为同一个小程序长期维护多个并行 client。
 
+性能追踪仅支持一个当前使用的 client。小程序的异步上下文能力有限：多个任务并行跨越 `await` 时，不能保证各自的请求仍关联到原来的父 span。需要页面或网络类型等属性时，在创建业务 span 时显式传入；SDK 会补充设备和应用版本等稳定信息。
+
+### 数据处理与发送
+
+SDK 采集小程序数据后，由 `@sentry/core` 处理事件、采样和批量发送。错误事件的 processors／`beforeSend`、日志的 `beforeSendLog` 等钩子可在发送前修改或丢弃数据，见[配置项参考](/guide/configuration)。
+
+性能数据由默认的 `SpanStreaming` 集成批量发送。自定义 `defaultIntegrations` 时需保留 `spanStreamingIntegration()`，否则请求和业务操作的性能数据都无法发送；`Sentry.getDiagnostics()` 会提示缺失的集成。
+
 ### Logs 与合规门禁
 
 `Sentry.logger.*` 产生独立的 log envelope，用于业务日志查询、聚合和告警；`enableConsoleBreadcrumbs` 只会把 `console` 输出作为面包屑挂到下一次事件，两者用途不同。

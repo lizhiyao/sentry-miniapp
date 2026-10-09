@@ -11,7 +11,7 @@ import {
   type Event,
   type StreamedSpanJSON,
 } from '@sentry/core';
-import { init } from '../src/index';
+import { getDiagnostics, init } from '../src/index';
 import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
 import { MiniappClient } from '../src/client';
 import { resetPlatformCache } from '../src/crossPlatform';
@@ -80,6 +80,76 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     g.wx = savedWx;
     g.URL = savedURL;
     resetPlatformCache();
+  });
+
+  it.each(['g', 'y', 'frozen-g'])(
+    'denyBodyUrls %s 在请求、响应与重复请求中一致生效，不修改业务正则',
+    async (mode) => {
+      const pattern = new RegExp('^https://api\\.example\\.com/private', mode === 'y' ? 'y' : 'g');
+      pattern.lastIndex = 7;
+      if (mode === 'frozen-g') Object.freeze(pattern);
+      init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        defaultIntegrations: [
+          new NetworkBreadcrumbs({ traceNetworkBody: true, denyBodyUrls: [pattern] }),
+        ],
+        transport: createCapturingTransport(captured),
+      });
+      requestMock.mockImplementation((options) => {
+        options.success?.({ statusCode: 200, data: { customer: 'response-canary' } });
+        return { abort: vi.fn() };
+      });
+      const success = vi.fn();
+      for (let attempt = 0; attempt < 3; attempt++) {
+        g.tt.request({
+          url: 'https://api.example.com/private',
+          data: { customer: 'request-canary' },
+          success,
+        });
+      }
+      captureException(new Error('denied body probe'));
+      await flush(2000);
+      const event = collectEnvelopePayloads<Event>(captured, ['event'])[0]!;
+      const crumbs = event.breadcrumbs!.filter((crumb) => crumb.category === 'xhr');
+      expect(crumbs).toHaveLength(3);
+      for (const crumb of crumbs) {
+        expect(crumb.data).not.toHaveProperty('request_body');
+        expect(crumb.data).not.toHaveProperty('response_body');
+      }
+      expect(JSON.stringify(captured)).not.toContain('canary');
+      expect(pattern.lastIndex).toBe(7);
+      expect(success).toHaveBeenCalledTimes(3);
+      expect(requestMock.mock.calls[0]![0].data).toEqual({ customer: 'request-canary' });
+      // 排除规则不能把其它 URL 的合法正文采集也禁用。
+      g.tt.request({ url: 'https://api.example.com/public', data: { customer: 'allowed' } });
+      captureException(new Error('allowed body probe'));
+      await flush(2000);
+      const events = collectEnvelopePayloads<Event>(captured, ['event']);
+      const allowed = events[events.length - 1]!.breadcrumbs!;
+      expect(allowed[allowed.length - 1]!.data!.request_body).toBe('{"customer":"allowed"}');
+    },
+  );
+
+  it.each([false, true])('无父 HTTP span 也依赖 SpanStreaming（安装=%s）', async (streaming) => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      tracesSampleRate: 1,
+      defaultIntegrations: [
+        new NetworkBreadcrumbs(),
+        ...(streaming ? [spanStreamingIntegration()] : []),
+      ],
+      transport: createCapturingTransport(captured),
+    });
+    g.tt.request({ url: 'https://api.example.com/public' });
+    await flush(2000);
+    expect(collectSpans(captured)).toHaveLength(streaming ? 1 : 0);
+    const warning = getDiagnostics().warnings.find((item) => item.code === 'span_streaming_missing');
+    if (streaming) expect(warning).toBeUndefined();
+    else {
+      expect(warning).toBeDefined();
+      expect(warning!.message).toContain('无父 HTTP');
+      expect(warning!.message).not.toContain('仍会直接发出');
+    }
   });
 
   it('A 在途请求退休时同步结束在 A；迟到回调保持业务语义，不读响应或写 B', async () => {

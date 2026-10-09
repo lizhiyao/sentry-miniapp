@@ -56,7 +56,13 @@ Sentry.init({
 
 离线缓存和隐私同意前缓冲依赖平台 Storage。微信风格平台通常使用 `setStorageSync(key, value)`；支付宝和钉钉使用 `{ key, data }` 对象参数，并通过 `{ data }` 返回读取结果。
 
-SDK 会在支付宝和钉钉运行时做一次幂等包装，把它们转换成统一的 key-value 调用。上层离线缓存、`requireConsent` 和恢复补发逻辑无需区分平台。
+SDK 在支付宝和钉钉上只归一化内部缓存的 key-value 调用。业务原有的对象参数调用仍保留宿主返回值和调用时的 `this`，不需要改写业务 Storage 用法。
+
+平台的单 key 容量不相同：[支付宝 `my.setStorageSync` 官方文档](https://github.com/AlipayDocs/open-docs/blob/main/mini/api/%E5%9F%BA%E7%A1%80API/%E7%BC%93%E5%AD%98/my.setStorageSync.md)列出的单 key 上限是 200 KB。SDK 为缓存记录和元数据留出余量，对支付宝采用 180 KiB 的整容器预算；钉钉采用同样的保守 SDK 预算，其余支持平台采用 900 KiB。`consentCacheMaxBytes` 默认仍是 900 KiB，实际按配置值与平台预算中的较小值执行。
+
+支付宝同步缓存 API 也可能返回 `{ error, errorMessage }` 表示失败，而没有抛出异常。SDK 会识别这类失败并降级缓存；写入或删除失败时，不会把数据记为已经持久化或已经移除。可通过 `Sentry.getDiagnostics()` 检查实际存储状态和故障诊断。
+
+这些数字是 SDK 的缓存策略，不等同于各宿主的全部存储额度，也不保证存储写入一定成功。调整预算仅裁剪仍兼容的缓存记录，不会把容量变化视为更换投递目标。
 
 如果某个平台没有提供所需 Storage API，SDK 不会因此阻断初始化，但依赖本地持久化的能力会降级。可以打印 `Sentry.getDiagnostics()`，检查 transport、离线缓存和 consent 状态。
 

@@ -86,8 +86,8 @@ function percentile95(samples: number[], fallback: number): number {
  * tracesSampleRate 控制——不每窗口发事件，配额友好。
  *
  * 可选 `jankLevels` 把卡顿按 minor/major/severe 三档分级：每帧按命中的最高档归类，
- * 面包屑带 `jankLevel`，summary 对启用的档增发 `jank_{minor,major,severe}_count`
- * （`jank_count` 仍为总数）。不配置时沿用单档 longFrameThresholdMs，行为不变。
+ * 面包屑带 `jankLevel`，summary 对启用的档增发 `jank.minor` / `jank.major` / `jank.severe`
+ * （`jank.count` 仍为总数）。不配置时沿用单档 longFrameThresholdMs，行为不变。
  *
  * 仅适用于小游戏：小游戏有绑定真实渲染帧的全局 requestAnimationFrame；小程序为
  * 双线程架构、逻辑层无全局 requestAnimationFrame，缺失时安全降级（不工作）。
