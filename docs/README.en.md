@@ -144,7 +144,7 @@ After the first event is working, pick the guide based on what you are doing nex
 | Reduce main-package size | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 | See runnable examples | [Examples](https://sentry-miniapp.pages.dev/guide/examples) |
 | Check version history and release notes | [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) |
-| Contribute to the project | [Development Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [Contributing Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
+| Contribute to the project | [Architecture (Chinese)](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md) / [Development Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [Contributing Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
 
 ---
 
