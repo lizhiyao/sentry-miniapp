@@ -197,4 +197,6 @@ SDK 默认启用自动 Session Tracking，大多数项目不需要手动管理�
 
 错误事件可能经过异步处理。如果处理完成时原会话已经退出，错误事件仍按配置发送，但不会补改已退出会话的错误统计，也不会算进后来开始的新会话。
 
+`close()` 排空期间，Session 更新继续按 core 语义处理；`dispose()` 或关闭完成后，`client.captureSession(session)` 不再执行发送回调或修改传入的 Session。手动 `startSession`／`endSession` 仍用于显式管理会话状态。
+
 不确定某个 API 是否适合当前问题时，先从[能力指南](/guide/errors-and-context)按任务选择，避免为了调用 API 而关闭默认自动能力。

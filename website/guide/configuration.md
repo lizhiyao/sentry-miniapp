@@ -347,6 +347,8 @@ Sentry.init({
 
 调用 `close()` 后，client 停止接收新的业务异常、消息、事件和反馈；已经进入 core 处理队列的数据继续在收尾预算内排出，SDK 的同步收尾步骤仍可生成最后一份汇总。调用 `dispose()` 后，再次捕获不会执行事件处理器或 `beforeSend`。这些采集 API 仍可能返回事件 ID，但 ID 不代表事件已进入队列或上报成功。
 
+反馈的两个 SDK 入口也在关闭开始后停止执行 `beforeSendFeedback`。Session 更新在排空期间继续处理，以保留已有事件的错误统计和同步收尾；`dispose()` 或关闭完成后，`client.captureSession(session)` 不再执行发送回调或修改传入的 Session。
+
 SDK finalizer 与资源 cleanup 分开，前者只在关闭的同步收尾窗口产生最后数据。关闭后日志／指标不会再执行用户采集 callback 或填入 buffer；callback 内关闭 client 后返回的日志／指标也被拒收。任意第三方 core hook 抛错可能中断 core 其余 listener，内部 buffer 清理只能 best-effort；SDK 仍完成终态和资源清理，不修改 core 私有 hooks/buffers。
 
 `close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。

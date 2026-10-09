@@ -9,6 +9,7 @@ import {
   withScope,
   eventFiltersIntegration,
   spanStreamingIntegration,
+  uuid4,
 } from '@sentry/core';
 import type { Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
@@ -267,5 +268,7 @@ export function getConsent(): boolean {
  * @returns Event ID
  */
 export function captureFeedback(params: SendFeedbackParams): string {
+  const client = getClient();
+  if (client && getClientLifetime(client)?.acceptsTelemetry() === false) return uuid4();
   return captureFeedbackCore(params);
 }
