@@ -1,5 +1,8 @@
 import { getGlobalSingleton } from '@sentry/core';
 
+// 固定版本的内部依赖仅从此处进入；过滤语义继续由 core 实现，不复制名单或算法。
+export { _INTERNAL_filterKeyValueData as filterKeyValueData } from '@sentry/core';
+
 function scalarAt(input: string, index: number): number {
   const first = input.charCodeAt(index);
   if (first >= 0xd800 && first <= 0xdbff) {

@@ -68,7 +68,9 @@ Sentry.init({
 
 > 页面入参与 URL query 受 `dataCollection.urlQueryParams` 控制：`false` 时整块不采（面包屑里不出现 `query` / `url.query`），`{ deny: [...] }` / `{ allow: [...] }` 按名单收窄。
 
-JSON 与 form 正文脱敏独立于 query 策略，关闭 query 不会放过正文中的敏感值。form 键无法安全解码时正文置空，原始字节数仍记录；getter 等宿主数据读取失败时省略对应键值采集。1.x 仍保留未知纯文本正文的原有采集行为，不能将敏感键过滤视为任意正文的隐私保证。
+2.0 仅采集可识别的 JSON object／array 或 form 正文，先按键脱敏再截断；此策略独立于 query 开关。请求／响应的 `header` 与 `headers` 中，大小写不敏感的 Content-Type 仅用于判断格式，不写入遥测。已声明的纯文本、multipart 等不支持格式，以及无法识别的正文、JSON 原始值、坏 form 编码和 binary 均省略 `request_body`／`response_body`。缺少 Content-Type 时只接受可确认的 JSON／URL-encoded 键值结构。
+
+大小可确认时仍记录 `*_body_size`：字符串按 UTF-8 字节数，ArrayBuffer／typed array 按实际视图 byteLength；JSON 对象按序列化后、过滤与截断前的大小。这是 SDK 可观察表示的大小，不是宿主最终 wire bytes；未知对象编码不猜测大小。1.x 的纯文本采集行为不延续到 2.0，敏感键过滤也不是任意正文的隐私保证。
 
 SDK 自动产生的 HTTP、navigation/resource URL 名称去掉 query、fragment，并过滤明文 userinfo；HTTP `url.full` 可保留经过过滤的 query。User Timing 的业务名称不按 URL 处理。缺原生 `URLSearchParams` 的宿主使用 form 编码 polyfill，坏百分号不会抛错，非法 UTF-8 与孤立 surrogate 使用替换字符；SDK 自采 query 遇到不能安全解码的键时直接省略 query。
 
@@ -360,4 +362,4 @@ NetworkStatus 的初始查询与变化监听属于安装它的 client。运行�
 
 小游戏首帧与 FPS 的 SDK rAF 同样按 client 管理。FPS 退后台停止自己的帧循环，回前台重建基线，重复 show 不丢弃有效窗口；缺 cancel API 时旧帧以请求身份失效。close 的同步 finalizer 最多产生一次最后汇总，dispose 和资源 cleanup 只释放状态、不产生汇总。注册或解除某项监听失败不阻断其余资源释放，业务自身的 rAF 不由这些集成取消。
 
-Performance 的 observer、报告定时器和缓冲状态按 client 独立维护，复用 integration 配置对象不会把旧 observer 转给新 client。运行实例退休时同步释放这些资源，迟到 entry 不再读取；close 的 finalizer 提交最后汇总，dispose/cleanup 丢弃缓冲。Page、Console、HTTP 与生命周期协调器也在退休时同步退订；低层直接构造并手动绑定 client 不会启动这些自动 producer。SDK 的 breadcrumb 格式化或不可写 Page 定义失败不阻断原业务 API、回调或 console。
+Performance 的 observer 按 client 独立维护，复用 integration 配置对象不会把旧 observer 转给新 client；2.0 没有通用报告定时器、原始条目缓冲或周期汇总。运行实例退休时同步释放 observer，迟到 entry 不再读取。Page、Console、HTTP 与生命周期协调器也在退休时同步退订；低层直接构造并手动绑定 client 不会启动这些自动 producer。SDK 的 breadcrumb 格式化或不可写 Page 定义失败不阻断原业务 API、回调或 console。

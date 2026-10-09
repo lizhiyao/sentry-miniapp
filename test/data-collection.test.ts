@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { _INTERNAL_filterKeyValueData } from '@sentry/core';
+import { assertDefined } from './support/envelopes';
 import {
   EXTRA_SENSITIVE_KEY_SNIPPETS,
   collectBody,
@@ -17,8 +17,19 @@ function fakeClient(dataCollection: Record<string, unknown> = {}): any {
 }
 
 describe('dataCollection 适配层', () => {
-  it('core 的内部脱敏工具仍在导出面上（升级 core 时这里先响，别让隐私静默降级）', () => {
-    expect(typeof _INTERNAL_filterKeyValueData).toBe('function');
+  it('core 内置片段与追加片段过滤真实采集值，非敏感字段仍保留', () => {
+    expect(
+      collectKeyValueData(
+        { AccessToken: 'secret', SID: 'session', memberNo: 'member', label: 'visible' },
+        fakeClient(),
+        ['memberNo'],
+      ),
+    ).toEqual({
+      AccessToken: '[Filtered]',
+      SID: '[Filtered]',
+      memberNo: '[Filtered]',
+      label: 'visible',
+    });
   });
 
   it('maxRequestBodySize 与 core 各家 SDK 的档位一致', () => {
@@ -38,6 +49,7 @@ describe('dataCollection 适配层', () => {
     expect(utf8ByteLength('abc')).toBe(3);
     expect(utf8ByteLength('中文')).toBe(6);
     expect(utf8ByteLength('🙂')).toBe(4);
+    expect(utf8ByteLength('\ud800x\udc00')).toBe(7);
   });
 
   it('截断按字节且不劈开多字节字符', () => {
@@ -63,24 +75,36 @@ describe('dataCollection 适配层', () => {
 
     expect(collected.byteLength).toBe(utf8ByteLength(body));
     expect(collected.body).toContain('[Filtered]');
+    assertDefined(collected.body);
     // 截断发生在脱敏之后，半截 JSON 也不能把敏感值带出去。
     expect(collected.body).not.toContain('at-1');
     expect(utf8ByteLength(collected.body)).toBeLessThanOrEqual(50);
   });
 
-  it('form-urlencoded 与非结构化体按 core 的 query 语义脱敏', () => {
+  it('form-urlencoded 独立脱敏，非结构化体只记录大小', () => {
     const form = collectBody('id=7&token=t-2&name=xiao', fakeClient(), 1000);
     expect(form.body).toBe('id=7&token=[Filtered]&name=xiao');
 
-    // 没有 key=value 结构的正文原样保留，urlQueryParams=false 也不该把体清空。
+    // 未知正文不能因 query 开关放行，也不把它当成键值数据宣称已脱敏。
     const plain = collectBody('just a plain text', fakeClient({ urlQueryParams: false }), 1000);
-    expect(plain.body).toBe('just a plain text');
+    expect(plain).toEqual({ byteLength: 17 });
   });
 
   it('数组结构保持数组，不塌成对象', () => {
     const sanitized = sanitizeCollectedData([{ token: 't' }, { id: 1 }], true) as unknown[];
     expect(Array.isArray(sanitized)).toBe(true);
     expect(sanitized).toEqual([{ token: '[Filtered]' }, { id: 1 }]);
+  });
+
+  it('未知格式对象不调用 JSON serializer 或伪造编码大小', () => {
+    const data = {
+      toJSON: () => {
+        throw new Error('must not serialize');
+      },
+    };
+    expect(collectBody(data, fakeClient(), 1000, [], 'multipart/form-data')).toEqual({});
+    expect(collectBody(new Date(), fakeClient(), 1000)).toEqual({});
+    expect(collectBody({ toJSON: () => undefined }, fakeClient(), 1000)).toEqual({});
   });
 
   it.each([true, false, { allow: ['token', 'memberNo', 'card_number'] }])(
@@ -101,23 +125,37 @@ describe('dataCollection 适配层', () => {
 
   it('form 键无法安全解码时省略正文，仍报告原始字节数', () => {
     const body = 'tok%FFen=canary-token&id=7';
-    expect(collectBody(body, fakeClient(), 1000)).toEqual({ body: '', byteLength: utf8ByteLength(body) });
+    expect(collectBody(body, fakeClient(), 1000)).toEqual({ byteLength: utf8ByteLength(body) });
   });
 
   it('query 保留重复编码，只过滤值；坏键与原型键不能降级泄漏', () => {
-    expect(collectQueryString('id=1&id=2&access%54oken=secret&memberNo=m', fakeClient(), ['memberNo']))
-      .toBe('id=1&id=2&access%54oken=[Filtered]&memberNo=[Filtered]');
+    expect(
+      collectQueryString('id=1&id=2&access%54oken=secret&memberNo=m', fakeClient(), ['memberNo']),
+    ).toBe('id=1&id=2&access%54oken=[Filtered]&memberNo=[Filtered]');
     expect(collectQueryString('tok%FFen=secret', fakeClient())).toBeUndefined();
-    expect(collectQueryString('__proto__=secret', fakeClient(), ['proto'])).toBe('__proto__=[Filtered]');
-    expect(collectUrl('https://user:secret@example.com/path?tok%FFen=secret#fragment', fakeClient()))
-      .toBe('https://[filtered]:[filtered]@example.com/path');
-    expect(collectUrl('javascript:alert(secret)?token=secret#fragment', fakeClient()))
-      .toBe('javascript:[Filtered]');
+    expect(collectQueryString('__proto__=secret', fakeClient(), ['proto'])).toBe(
+      '__proto__=[Filtered]',
+    );
+    expect(
+      collectUrl('https://user:secret@example.com/path?tok%FFen=secret#fragment', fakeClient()),
+    ).toBe('https://[filtered]:[filtered]@example.com/path');
+    expect(collectUrl('javascript:alert(secret)?token=secret#fragment', fakeClient())).toBe(
+      'javascript:[Filtered]',
+    );
     expect(collectUrl(undefined as any, fakeClient())).toBe('');
   });
 
   it('无法读取宿主 getter 时省略采集，不影响业务', () => {
-    expect(collectKeyValueData({ get id() { throw new Error('host getter'); } }, fakeClient())).toBeUndefined();
+    expect(
+      collectKeyValueData(
+        {
+          get id() {
+            throw new Error('host getter');
+          },
+        },
+        fakeClient(),
+      ),
+    ).toBeUndefined();
   });
 
   it('本 SDK 补齐的支付与证件片段只在键值数据里生效', () => {
@@ -131,28 +169,32 @@ describe('dataCollection 适配层', () => {
   });
 
   it('sensitiveKeys 之类的追加片段按片段匹配，大小写不敏感', () => {
-    const collected = collectBody(
-      '{"memberNo":"m-1","name":"xiao"}',
-      fakeClient(),
-      1000,
-      ['memberNo'],
-    );
+    const collected = collectBody('{"memberNo":"m-1","name":"xiao"}', fakeClient(), 1000, [
+      'memberNo',
+    ]);
+    assertDefined(collected.body);
     expect(JSON.parse(collected.body)).toEqual({ memberNo: '[Filtered]', name: 'xiao' });
   });
 
   it('urlQueryParams=false 时整块键值数据不采', () => {
     expect(collectKeyValueData({ id: '9' }, fakeClient({ urlQueryParams: false }))).toBeUndefined();
-    expect(
-      collectKeyValueData({ id: '9' }, { getOptions: () => ({}) } as any),
-    ).toMatchObject({ id: '9' });
+    expect(collectKeyValueData({ id: '9' }, { getOptions: () => ({}) } as any)).toMatchObject({
+      id: '9',
+    });
   });
 
   it('deny 与 allow 走 core 的 CollectBehavior 语义', () => {
     expect(
-      collectKeyValueData({ phone: '138', id: '9' }, fakeClient({ urlQueryParams: { deny: ['phone'] } })),
+      collectKeyValueData(
+        { phone: '138', id: '9' },
+        fakeClient({ urlQueryParams: { deny: ['phone'] } }),
+      ),
     ).toEqual({ phone: '[Filtered]', id: '9' });
     expect(
-      collectKeyValueData({ phone: '138', id: '9' }, fakeClient({ urlQueryParams: { allow: ['id'] } })),
+      collectKeyValueData(
+        { phone: '138', id: '9' },
+        fakeClient({ urlQueryParams: { allow: ['id'] } }),
+      ),
     ).toEqual({ phone: '[Filtered]', id: '9' });
   });
 

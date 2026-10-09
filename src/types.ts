@@ -83,7 +83,7 @@ export interface MiniappOptions extends Omit<
   /** Whether to enable automatic source map path rewrite */
   enableSourceMap?: boolean;
 
-  /** Whether to capture and record request and response body in network breadcrumbs */
+  /** Capture recognized JSON/form bodies only; unknown text, multipart and binary bodies are omitted. */
   traceNetworkBody?: boolean;
 
   /**
