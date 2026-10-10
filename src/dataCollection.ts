@@ -1,4 +1,10 @@
-import { isPlainObject, getSanitizedUrlString, parseUrl, stripDataUrlContent } from '@sentry/core';
+import {
+  isPlainObject,
+  getSanitizedUrlString,
+  parseUrl,
+  stripDataUrlContent,
+  stripUrlQueryAndFragment,
+} from '@sentry/core';
 import type { Client, CollectBehavior } from '@sentry/core';
 import { resolveNonNegativeInteger } from './numericOptions';
 import { filterKeyValueData as coreFilterKeyValueData, utf8ByteLength } from './coreCompat';
@@ -112,8 +118,14 @@ export function collectKeyValueData(
 /** SDK 自动产生的 URL 名称不含 query、fragment 或明文 userinfo。 */
 export function collectUrlName(url: string): string {
   if (typeof url !== 'string') return '';
-  const parsed = parseUrl(url);
-  if (parsed.protocol === 'data') return stripDataUrlContent(url, false);
+  return sanitizedUrlName(url, parseUrl(url));
+}
+
+function sanitizedUrlName(url: string, parsed: ReturnType<typeof parseUrl>): string {
+  if (parsed.protocol === 'data') {
+    // MIME 区域也可能含畸形 query/fragment；Core 的正文裁剪本身不会移除它们。
+    return stripUrlQueryAndFragment(stripDataUrlContent(url, false));
+  }
   if (parsed.protocol && !/^(https?|wxfile|ttfile|file)$/i.test(parsed.protocol)) {
     return `${parsed.protocol}:[Filtered]`;
   }
@@ -136,13 +148,28 @@ export function collectUrl(
   client: Client | undefined,
   extraDenyTerms: string[] = [],
 ): string {
-  const name = collectUrlName(url);
+  return collectUrlParts(url, client, extraDenyTerms).url;
+}
+
+/** 一次解析与脱敏供 URL、span 名称和 breadcrumb query 共用；不缓存 client 的采集策略。 */
+export function collectUrlParts(
+  url: string,
+  client: Client | undefined,
+  extraDenyTerms: string[] = [],
+): { url: string; name: string; query: string | undefined } {
+  if (typeof url !== 'string') return { url: '', name: '', query: undefined };
   const parsed = parseUrl(url);
+  const name = sanitizedUrlName(url, parsed);
   const query =
     !parsed.protocol || /^(https?|wxfile|ttfile|file)$/i.test(parsed.protocol)
       ? collectQueryString(parsed.search, client, extraDenyTerms)
       : undefined;
-  return query ? `${name}?${query}` : name;
+  return {
+    url: query ? `${name}?${query}` : name,
+    // url.full 保留 base64 格式标记；网络名称仍只保留 MIME 类型。
+    name: parsed.protocol === 'data' ? stripDataUrlContent(name, false) : name,
+    query: query || undefined,
+  };
 }
 
 /**

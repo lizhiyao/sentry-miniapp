@@ -194,6 +194,8 @@ dispose 能结束 SDK 等待，但不能强制取消用户 Promise 或任意自�
 - **网络授权**：`requireConsent` 控制实际发送，不等同于停止采集。`isEnabled()` 只表示 SDK 启用，授权使用 `getConsent()` 判断。默认请求在排队和执行前均检查同意与 lifetime，撤回后阻止新请求；在途取消依赖宿主能力。
 - **持久化权限**：只有活动 runtime 可以使用 SDK store 和重放；目标、隐私策略、容量和 TTL 共同决定缓存可用性。
 
+自动网络采集通过 `collectUrlParts` 一次解析与脱敏生成 `url.full`、名称和 breadcrumb query，再复用到 span 和面包屑；每次按当前 client 策略计算，不缓存策略或原始 URL。自请求识别、追踪白名单和正文拒绝规则仍匹配业务原始 URL。`data:` URL 的正文裁剪复用 Core helper，并额外移除 MIME 区域的 query／fragment，防止这部分内容经名称、资源性能或最终 URL 属性泄漏。
+
 client 构造时选择 transport 组合，前三行适用于 `init()` 管理的 runtime：
 
 | 配置                         | SDK 装配的离线层                                                                                          |

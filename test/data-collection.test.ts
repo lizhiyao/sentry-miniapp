@@ -6,6 +6,8 @@ import {
   collectKeyValueData,
   collectQueryString,
   collectUrl,
+  collectUrlName,
+  collectUrlParts,
   resolveMaxBodyBytes,
   sanitizeCollectedData,
   truncateToBytes,
@@ -124,7 +126,7 @@ describe('dataCollection 适配层', () => {
     expect(collectBody(body, 1000)).toEqual({ byteLength: utf8ByteLength(body) });
   });
 
-  it('query 保留重复编码，只过滤值；坏键与原型键不能降级泄漏', () => {
+  it('URL 保留 query 编码，坏键和畸形 data 内容不能绕过脱敏', () => {
     expect(
       collectQueryString('id=1&id=2&access%54oken=secret&memberNo=m', fakeClient(), ['memberNo']),
     ).toBe('id=1&id=2&access%54oken=[Filtered]&memberNo=[Filtered]');
@@ -139,6 +141,22 @@ describe('dataCollection 适配层', () => {
       'javascript:[Filtered]',
     );
     expect(collectUrl(undefined as any, fakeClient())).toBe('');
+    expect(collectUrlName(undefined as any)).toBe('');
+    expect(collectUrlParts('https://example.com/path?', fakeClient())).toEqual({
+      url: 'https://example.com/path',
+      name: 'https://example.com/path',
+      query: undefined,
+    });
+    const dataUrl = 'data:image/png?access_token=canary-token;base64,private-bytes';
+    expect(collectUrl(dataUrl, fakeClient())).toBe('data:image/png');
+    expect(collectUrlName('data:image/png#canary-fragment;base64,private-bytes')).toBe(
+      'data:image/png',
+    );
+    expect(collectUrlParts(dataUrl, fakeClient())).toEqual({
+      url: 'data:image/png',
+      name: 'data:image/png',
+      query: undefined,
+    });
   });
 
   it('无法读取宿主 getter 时省略采集，不影响业务', () => {
