@@ -53,6 +53,7 @@ describe('公开 API 出口', () => {
     expectTypeOf<MiniappOptions>().not.toHaveProperty('beforeSendTransaction');
     expectTypeOf<MiniappOptions>().not.toHaveProperty('ignoreTransactions');
     expectTypeOf<MiniappOptions>().not.toHaveProperty('enableLogs');
+    expectTypeOf<MiniappOptions>().not.toHaveProperty('sendDefaultPii');
     expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('sampleRate');
     expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('bufferSize');
     expectTypeOf<PerformanceIntegrationOptions>().not.toHaveProperty('reportInterval');
@@ -109,8 +110,11 @@ describe('公开 API 出口', () => {
     ]) {
       expect(Sentry.Integrations).not.toHaveProperty(name);
     }
-    expect(Object.keys(Sentry.Integrations).every((name) => name.endsWith('Integration'))).toBe(
-      true,
+    expect(Sentry.Integrations.normalizeMiniappFrameFilename('WAService/pages/index.js')).toBe(
+      'app:///pages/index.js',
+    );
+    expect(Sentry.Integrations.normalizeMiniappFrameFilename('app:///pages/index.js')).toBe(
+      'app:///pages/index.js',
     );
     expect(Sentry).not.toHaveProperty('defaultIntegrations');
     expect(Sentry).not.toHaveProperty('showReportDialog');

@@ -3,6 +3,8 @@ import { close, getClient, getCurrentScope } from '@sentry/core';
 import { getDiagnostics, init, setConsent } from '../src/index';
 import { MiniappClient } from '../src/client';
 import { resetPlatformCache } from '../src/crossPlatform';
+import type { Envelope, Event } from '@sentry/core';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 describe('getDiagnostics', () => {
   afterEach(async () => {
@@ -263,11 +265,13 @@ describe('getDiagnostics', () => {
     expect(diagnostics.warnings.map((warning) => warning.code)).toContain('span_streaming_missing');
   });
 
-  it('默认集成不误报 SpanStreaming；拒绝 static 后保留当前 runtime', () => {
-    init({
+  it('拒绝失效的生命周期与采集配置，保留当前 runtime 可继续发送', async () => {
+    const envelopes: Envelope[] = [];
+    const previous = init({
       dsn: 'https://public@example.ingest.sentry.io/123',
       release: 'miniapp@1.0.0',
       tracesSampleRate: 1,
+      transport: createCapturingTransport(envelopes),
     });
     const withDefaults = getDiagnostics();
     expect(withDefaults.integrations).toContain('SpanStreaming');
@@ -276,9 +280,38 @@ describe('getDiagnostics', () => {
     );
 
     // JS 配置在替换当前 runtime 前明确失败。
-    const previous = getClient();
     expect(() => init({ traceLifecycle: 'static' } as any)).toThrow(/only supports traceLifecycle: stream/);
+    for (const key of ['sendDefaultPii', 'enableLogs']) {
+      for (const value of [false, true]) {
+        const configure = () => {
+          throw new Error('must reject before configuration callbacks');
+        };
+        expect(() => init({
+          [key]: value,
+          dataCollection: { userInfo: false },
+          beforeSendLog: () => null,
+          integrations: configure,
+          initialScope: configure,
+          transport: configure,
+        } as any)).toThrow(new RegExp(`${key}.*removed`));
+        expect(getClient()).toBe(previous);
+      }
+      const changingOptions = {
+        [key]: undefined as boolean | undefined,
+        integrations: () => {
+          changingOptions[key] = false;
+          return [];
+        },
+      };
+      expect(() => init(changingOptions)).toThrow(new RegExp(`${key}.*removed`));
+      expect(getClient()).toBe(previous);
+    }
     expect(getClient()).toBe(previous);
     expect(getDiagnostics().options?.traceLifecycle).toBe('stream');
+    const eventId = previous!.captureMessage('still-active', 'info', {}, getCurrentScope());
+    expect(await previous!.flush(100)).toBe(true);
+    expect(collectEnvelopePayloads<Event>(envelopes, ['event'])).toContainEqual(
+      expect.objectContaining({ event_id: eventId, message: 'still-active' }),
+    );
   });
 });

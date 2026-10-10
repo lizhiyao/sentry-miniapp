@@ -107,6 +107,11 @@ for (const name of required) {
   assert.ok(name in sdk, \`Missing public export: \${name}\`);
 }
 assert.equal(
+  sdk.Integrations.normalizeMiniappFrameFilename('WAService/pages/index.js'),
+  'app:///pages/index.js',
+  'Package entrypoint lost the existing frame filename utility',
+);
+assert.equal(
   typeof globalThis.URLSearchParams,
   'function',
   'Package entrypoint did not install the URLSearchParams polyfill',
@@ -155,7 +160,7 @@ const host = {
 };
 globalThis[contract.globalName] = host;
 
-sdk.init({
+const client = sdk.init({
   dsn: 'https://test@o0.ingest.sentry.io/0',
   platform: contract.platform,
   tracesSampleRate: runtimeMode === 'standard' ? undefined : 1,
@@ -164,6 +169,10 @@ sdk.init({
   enableMinigameLifecycle: false,
   enableMinigameFrameRate: false,
 });
+for (const key of ['sendDefaultPii', 'enableLogs']) {
+  assert.throws(() => sdk.init({ [key]: false }), new RegExp(key + '.*removed'));
+  assert.equal(sdk.getClient(), client, 'Rejected options replaced the active package client');
+}
 
 if (runtimeMode === 'standard') {
   sdk.captureMessage('package consumer runtime smoke');
@@ -315,6 +324,8 @@ init({ miniappPlatform });
 captureException(new Error('consumer type probe'));
 logger.info('consumer type probe');
 Integrations.performanceIntegration(performanceOptions);
+const frameFilename: string = Integrations.normalizeMiniappFrameFilename('WAService/pages/index.js');
+frameFilename;
 Transports.createMiniappTransport;
 miniappStackParser;
 `;

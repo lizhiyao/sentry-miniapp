@@ -21,7 +21,7 @@ import {
   MiniappClient,
   setConfiguredDefaultIntegrationsMode,
   markRuntimeConstruction,
-  assertStreamTracingOptions,
+  assertSupportedOptions,
 } from './client';
 import type { MiniappLowLevelClientOptions } from './client';
 import { isTelemetryCritical, withTelemetryCritical, getClientLifetime } from './lifecycle';
@@ -174,7 +174,7 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
     warnUnsupportedInitScope();
     return undefined;
   }
-  assertStreamTracingOptions(options);
+  assertSupportedOptions(options);
   if (!isMiniappEnvironment()) {
     console.warn('[sentry-miniapp] Not running in a supported miniapp environment');
     return undefined;
@@ -204,6 +204,8 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
     stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
     transport: options.transport,
   };
+  // 配置回调或 getter 可能改变原选项；以实际构造快照复查，再退休旧 runtime。
+  assertSupportedOptions(opts);
   // 配置 callback/getter 也可能启动未完成的 Core scope；此时不应用 initialScope 或退休旧 runtime。
   if (getCurrentScope() !== bindingScope) {
     warnUnsupportedInitScope();

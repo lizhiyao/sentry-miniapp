@@ -46,7 +46,11 @@ beta.6 修复会话错误统计的边界问题，以及部分宿主 API 不可�
 | `showReportDialog()` | 原生反馈表单加 `captureFeedback()` |
 | `new Dedupe({ fuzzyMatch: true })` | 官方 `dedupeIntegration()`；删除模糊消息去重 |
 
-`Sentry.Integrations` 保留，但只重导出与顶层相同的 factories，没有第二套实现。内部集成名称用于筛选，并非可构造的公共类。
+`Sentry.Integrations` 保留；集成改用与顶层相同的 factories，内部集成名称用于筛选，并非可构造的公共类。后续版本会保留原有工具出口 `Sentry.Integrations.normalizeMiniappFrameFilename()`；已发布的 beta.6 暂缺该出口，使用它的项目需更新至包含修复的版本后再沿用旧调用。
+
+旧配置中的 `defaultIntegrations: Sentry.defaultIntegrations` 可直接删除，使用默认集合；需要自己选择基底时，改为 `defaultIntegrations: Sentry.getDefaultIntegrations(options)`，不要跨初始化复用返回的实例。
+
+Core v11 已删除 `sendDefaultPii` 和 `enableLogs`。已发布的 beta.6 会忽略这些旧字段，不能依赖它们继续控制采集；后续版本会显式拒绝任何非 `undefined` 的旧值，混合新旧配置同样拒绝。届时 `init()` 会在替换当前 client 之前报迁移错误，直接构造 `MiniappClient` 也会拒绝；值为 `undefined` 等同未配置。按下文改写后应移除旧键。
 
 原 System 独有的存储配额、应用更新信息由业务按实际需要采集。例如微信业务代码显式关联存储信息，不增加 SDK 默认权限调用：
 
@@ -76,7 +80,37 @@ Sentry.init({
 
 ## Stream-only、采样与关联
 
-删除 `traceLifecycle: 'static'`、`beforeSendTransaction`、`ignoreTransactions`、`withStaticSpan`／`withStreamedSpan` 和旧 measurement 双写。JS 显式传 static 在替换当前 runtime 前报错。使用 `startSpan`／`startInactiveSpan`／`startSpanManual`，数值写 attributes；`beforeSendSpan` 修改名称和属性，`ignoreSpans` 丢弃 span，不返回 null。
+删除 `traceLifecycle: 'static'`、`beforeSendTransaction`、`ignoreTransactions` 和旧 measurement 双写。JS 显式传 static 在替换当前 client 前报错。使用 `startSpan`／`startInactiveSpan`／`startSpanManual`，数值写 attributes；`beforeSendSpan` 修改名称和属性，`ignoreSpans` 丢弃 span，不返回 null。v1.20.4 未导出 `withStaticSpan`／`withStreamedSpan`，2.0 也不提供这两个辅助 API。
+
+### beforeSendSpan 回调 {#before-send-span}
+
+已有的脱敏或改名回调需要从 `SpanJSON` 改为 `StreamedSpanJSON`，不能继续读写旧字段：
+
+| 1.x 字段 | 2.0 字段 |
+| --- | --- |
+| `description` | `name` |
+| `data` | `attributes` |
+| `op` | `attributes['sentry.op']` |
+| `timestamp` | `end_timestamp` |
+
+例如，归一化请求名称中的用户 ID，并移除业务自定义的邮箱属性：
+
+```js
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  beforeSendSpan: span => {
+    if (span.attributes['sentry.op'] === 'http.client') {
+      span.name = span.name.replace(/\/users\/[^/]+/g, '/users/:id');
+    }
+    delete span.attributes['customer.email'];
+    return span;
+  },
+});
+```
+
+回调作用于根 span 和子 span，不等待整条流程结束；返回修改后的 span。上表的 `end_timestamp` 是读取结束时间时的新字段，不应为了脱敏改写真实耗时。
+
+### 采样与关联
 
 不再设置 `forceTransaction` 或 `experimental.standalone`。无父 HTTP 默认创建 root／segment；仅采 child 时保留 `enableStandaloneHttpSpans: false`。core 小批发送不等于每次 end 发一个请求，root 未结束也可排 child。
 
@@ -114,7 +148,19 @@ Sentry.metrics.count('checkout.completed', 1);
 
 client reports 默认开启；需要关闭时显式设 `sendClientReports: false`。报告通过同一通道发送，未同意或没有 DSN 时保留丢弃计数，报告失败不会写入离线缓存。`flush()` 后异步产生的丢弃计数留待下一次 `flush()`。
 
-`dataCollection.userInfo: false` 关闭错误事件的后台 IP 自动补充，不删除业务显式 `setUser` 的字段。core 的 span／Logs／metrics enrichment 可读取显式 scope user；需要避免发送时，不设置这些字段或在对应 callback 处理。
+### 隐私配置 {#data-collection-migration}
+
+Core v10 未配置 `sendDefaultPii` 时默认为 `false`；Core v11 删除了这一总开关，`dataCollection.userInfo` 默认是 `true`。原先使用 `sendDefaultPii: false` 时，关闭错误事件后台 IP 自动补充的最小改法是：
+
+```js
+// 1.x
+Sentry.init({ dsn: 'YOUR_DSN', sendDefaultPii: false });
+
+// 2.0：移除旧键，明确新的采集策略
+Sentry.init({ dsn: 'YOUR_DSN', dataCollection: { userInfo: false } });
+```
+
+这不等价于旧版的整套隐私策略，也不删除业务显式 `setUser` 的字段。core 的 span／Logs／metrics enrichment 可读取显式 scope user；需要避免发送时，不设置这些字段或在对应 callback 处理。正文仍受 `traceNetworkBody` 闸门控制，默认关闭；启用后再由 `dataCollection.httpBodies` 收窄方向。迁移时应按项目需要确认各项[采集配置](/guide/configuration#采集数据的脱敏口径)，不要只替换键名。
 
 ## 自动采集与性能成本
 
@@ -136,6 +182,8 @@ SDK 按实际运行平台限制整个缓存容器，记录与元数据都计入�
 `requireConsent: true` 会启用同意等待与弱网共享缓存，即使 `enableOfflineCache: false`；授权前后始终使用 `consentCache*`，不会切换为 `offlineCache*`。条数／字节上限为 0 时不缓存，缺少 Storage 时可降级为内存并记录诊断。撤回后排队的 Sentry 请求不会启动，在途请求会在宿主支持时尝试取消；已保存的记录不会自动清空。自定义 transport 的内部队列仍需自行控制实际发送。具体配置见[可靠上报与隐私同意](/guide/reliability-and-privacy)。
 
 直接构造 MiniappClient 是低层 event／feedback 用法，必须提供 transport 和显式 scope；不接管自动 runtime、持久 store 或并行 tracing。默认应用接入迁到 init。
+
+手工调用 `Sentry.Transports.createMiniappOfflineStore(options)` 的高级用法也有变化：2.0 必须提供 `targetId` 和 `policyId`，缺少时会报错。前者须区分完整 Sentry 目标（包括 DSN 与 tunnel），后者须反映实际采集与存储策略；不要用固定常量冒充所有配置相同。这是 SDK 为隔离缓存目标和策略作出的选择。常规接入继续让 `init()` 管理缓存，无需手工构造 store。
 
 ## 关闭与 Session 统计
 
