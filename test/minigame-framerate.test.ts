@@ -453,8 +453,10 @@ describe('MinigameFrameRateIntegration', () => {
     expect(names.some((n: string) => /^jank\.(minor|major|severe)$/.test(n))).toBe(false);
   });
 
-  it('jankLevels 阈值相等（非严格递增）时 warn 并回退单档', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('jankLevels 阈值相等时，即使告警输出抛错仍回退单档', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
+      throw new Error('console unavailable');
+    });
     const integration = new MinigameFrameRateIntegration({
       reportInterval: 10000,
       jankLevels: { minor: 33, major: 33 }, // 相等 → 非严格递增

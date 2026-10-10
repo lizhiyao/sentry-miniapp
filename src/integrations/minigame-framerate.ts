@@ -52,10 +52,14 @@ function normalizeJankTiers(levels?: MinigameJankLevels): JankTier[] {
     const prev = tiers[i - 1];
     const cur = tiers[i];
     if (prev && cur && cur.threshold <= prev.threshold) {
-      console.warn(
-        '[sentry-miniapp] jankLevels 阈值须按 minor < major < severe 严格递增，' +
-          '当前配置不满足，已忽略分级并回退到单档 longFrameThresholdMs。',
-      );
+      try {
+        console.warn(
+          '[sentry-miniapp] jankLevels 阈值须按 minor < major < severe 严格递增，' +
+            '当前配置不满足，已忽略分级并回退到单档 longFrameThresholdMs。',
+        );
+      } catch (_error) {
+        /* 告警失败不改变既定的单档回退。 */
+      }
       return [];
     }
   }

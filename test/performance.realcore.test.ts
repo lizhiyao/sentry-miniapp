@@ -393,7 +393,7 @@ describe('Performance 的真实 core operation 与时间契约', () => {
     expect(observer.disconnect).toHaveBeenCalledOnce();
   });
 
-  it('仅 User Timing 的注册失败仍保留 cleanup；宿主 getter/createObserver 抛错不泄漏', () => {
+  it('仅 User Timing 注册失败立即解除；宿主和告警输出故障不阻断初始化', async () => {
     observer.observe.mockImplementation(() => {
       throw new Error('unsupported');
     });
@@ -406,18 +406,34 @@ describe('Performance 的真实 core operation 与时间契约', () => {
         enableUserTiming: true,
       }),
     );
+    expect(observer.disconnect).toHaveBeenCalledOnce();
     client.dispose();
     expect(observer.disconnect).toHaveBeenCalledOnce();
     manager.createObserver.mockImplementation(() => {
       throw new Error('host failed');
     });
-    expect(() => start()).not.toThrow();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+      throw new Error('console unavailable');
+    });
+    const survivors = [start()];
     Object.defineProperty(manager, 'timeOrigin', {
+      configurable: true,
       get: () => {
         throw new Error('origin failed');
       },
     });
-    expect(() => start()).not.toThrow();
+    survivors.push(start());
+    const originalConsole = console;
+    vi.stubGlobal('console', undefined);
+    survivors.push(start());
+    vi.stubGlobal('console', originalConsole);
+    warn.mockRestore();
+    const survivor = survivors.at(-1)!;
+    survivor.captureMessage('independent collection survives');
+    await drain(survivor);
+    expect(collectEnvelopePayloads<Event>(envelopes, ['event'])[0]?.message).toBe(
+      'independent collection survives',
+    );
   });
 
   it('坏列表/单条 getter 不阻断后续可信条目；未知/已禁用条目忽略', async () => {

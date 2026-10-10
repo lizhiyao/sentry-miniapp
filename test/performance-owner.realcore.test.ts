@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getClient, getCurrentScope, spanStreamingIntegration, type Envelope } from '@sentry/core';
+import {
+  getClient,
+  getCurrentScope,
+  spanStreamingIntegration,
+  type Envelope,
+  type Event,
+} from '@sentry/core';
 import { init } from '../src/sdk';
 import { MiniappClient } from '../src/client';
 import { ConsoleBreadcrumbs } from '../src/integrations/console';
@@ -9,7 +15,7 @@ import { NetworkBreadcrumbs } from '../src/integrations/networkbreadcrumbs';
 import { PerformanceIntegration } from '../src/integrations/performance';
 import { getClientEnvironment } from '../src/clientState';
 import { resetPlatformCache } from '../src/crossPlatform';
-import { collectSpans, createCapturingTransport } from './support/envelopes';
+import { collectEnvelopePayloads, collectSpans, createCapturingTransport } from './support/envelopes';
 
 describe('Performance observer owner（真实 core）', () => {
   const clients: MiniappClient[] = [];
@@ -121,8 +127,12 @@ describe('Performance observer owner（真实 core）', () => {
     expect(b).toEqual([]);
   });
 
-  it('observe 部分注册后抛错的资源仍解除；低层 client 不安装 observer', () => {
-    const disconnect = vi.fn();
+  it('observe 注册失败即解除，disconnect 失败后回调失效且独立事件仍发送；低层 client 不安装 observer', async () => {
+    const read = vi.fn();
+    const disconnect = vi.fn(() => {
+      callbacks[0]!(new Proxy({}, { get: read }));
+      throw new Error('disconnect failed');
+    });
     manager.createObserver.mockImplementation((cb: (entries: any) => void) => {
       callbacks.push(cb);
       return {
@@ -132,7 +142,21 @@ describe('Performance observer owner（真实 core）', () => {
         disconnect,
       };
     });
-    const owner = start([], 'first');
+    const envelopes: Envelope[] = [];
+    const owner = start(envelopes, 'first');
+    expect(disconnect).toHaveBeenCalledOnce();
+    callbacks[0]!(new Proxy({}, { get: read }));
+    expect(read).not.toHaveBeenCalled();
+    callbacks[0]!(navigation());
+    owner.captureMessage('performance failure isolated');
+    const flushing = owner.flush();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await flushing).toBe(true);
+    expect(collectSpans(envelopes)).toEqual([]);
+    expect(collectEnvelopePayloads<Event>(envelopes, ['event'])[0]?.message).toBe(
+      'performance failure isolated',
+    );
+    expect(owner.getOptions().enabled).not.toBe(false);
     owner.dispose();
     expect(disconnect).toHaveBeenCalledOnce();
     const low = new MiniappClient({

@@ -63,6 +63,8 @@ Sentry.init({
 
 平台未提供 `createObserver` 或可靠的性能时间戳时，SDK 会跳过无法测量的导航、渲染和资源数据。排查时可调用 `Sentry.getPerformanceManager()`，检查返回对象的 `createObserver` 和 `timeOrigin`。API 请求耗时由网络集成采集，**不依赖 PerformanceObserver**。
 
+如果宿主性能监听注册失败，SDK 会停用该监听，独立的错误上报和 API 请求监控仍可继续。控制台不可用也不会阻断这一降级过程。
+
 微信／抖音小游戏默认测量 SDK 初始化到首次帧回调的等待时间。这段时间不包含 SDK 初始化前的启动过程，也不代表画面已完成呈现，因此不能当作完整冷启动耗时。帧率（FPS）和卡顿统计默认关闭，配置 `enableMinigameFrameRate: true` 后开启；数据查看方式见[小游戏接入与性能](/guide/minigame)。
 
 微信的 `wx.reportPerformance()` 属于小程序后台的自定义测速能力，不是 Sentry 性能监控的一部分；如需使用，请先在微信后台配置指标，再由业务代码主动调用。

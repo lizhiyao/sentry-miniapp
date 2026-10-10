@@ -117,9 +117,12 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
   );
 
   it.each([0, -1, NaN, Infinity])(
-    '无效 longFrameThresholdMs=%s 回落 50，汇总保留真实 jank',
+    '无效 longFrameThresholdMs=%s 与 jankLevels 在告警输出故障时仍回落单档 50',
     async (value) => {
-      startFrameRate({ longFrameThresholdMs: value });
+      vi.spyOn(console, 'warn').mockImplementation(() => {
+        throw new Error('console unavailable');
+      });
+      startFrameRate({ longFrameThresholdMs: value, jankLevels: { minor: 100, severe: 17 } });
       frame(20);
       frame(100); // 20ms 正常，80ms 计一次 jank。
       hideCb();
@@ -130,6 +133,8 @@ describe('MinigameFrameRateIntegration（真 @sentry/core 集成）', () => {
       assertDefined(summary);
       expect(spanAttribute(summary, 'frames.total')).toBe(2);
       expect(spanAttribute(summary, 'jank.count')).toBe(1);
+      expect(spanAttribute(summary, 'jank.minor')).toBeUndefined();
+      expect(spanAttribute(summary, 'jank.severe')).toBeUndefined();
       expect(
         event.breadcrumbs?.filter((breadcrumb) => breadcrumb.category === 'minigame.jank'),
       ).toHaveLength(1);

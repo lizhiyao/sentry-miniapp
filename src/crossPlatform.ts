@@ -678,11 +678,16 @@ export interface PerformanceObserver {
 export const getPerformanceManager = (): PerformanceManager | null => {
   try {
     const currentSdk = sdk();
-    if (currentSdk.getPerformance && typeof currentSdk.getPerformance === 'function') {
-      return currentSdk.getPerformance();
+    const getPerformance = currentSdk.getPerformance;
+    if (typeof getPerformance === 'function') {
+      return getPerformance.call(currentSdk);
     }
   } catch (error) {
-    console.warn('Failed to get performance manager:', error);
+    try {
+      console.warn('Failed to get performance manager:', error);
+    } catch (_error) {
+      /* 可选性能 API 的告警失败不能阻断 SDK 初始化。 */
+    }
   }
   return null;
 };
