@@ -38,6 +38,8 @@ const hostRuntimeModes = [
   'native-builtins',
   'native-query-only',
   'native-query-readonly',
+  'core-query-readonly',
+  'writable-query-nonconfigurable',
   'missing-url',
   'partial-url',
   'partial-url-search-params',
@@ -93,13 +95,28 @@ let browserReads = 0;
 const nativeStringMethods = [String.prototype.isWellFormed, String.prototype.toWellFormed];
 const compatibilityMode = ['missing-builtins', 'partial-encoder'].includes(runtimeMode);
 const nativeURLSearchParams = globalThis.URLSearchParams;
-const preserveNativeQuery = ['native-builtins', 'native-query-only', 'native-query-readonly'].includes(runtimeMode);
+let hostQueryConstructor = nativeURLSearchParams;
+const coreQueryOnly = runtimeMode === 'core-query-readonly';
+const preserveNativeQuery = ['native-builtins', 'native-query-only', 'native-query-readonly', 'core-query-readonly'].includes(runtimeMode);
 if (!preserveNativeQuery) assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
 if (runtimeMode === 'native-query-only') {
   assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
 } else if (runtimeMode === 'native-query-readonly') {
   globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
   Object.defineProperty(globalThis, 'URLSearchParams', { value: nativeURLSearchParams, writable: false, configurable: false });
+} else if (coreQueryOnly) {
+  hostQueryConstructor = class URLSearchParams extends nativeURLSearchParams {
+    constructor(init) {
+      if (Array.isArray(init)) throw new Error('Pair inputs are unavailable');
+      super(init);
+    }
+  };
+  Object.defineProperty(hostQueryConstructor.prototype, 'get', { get() {
+    throw new Error('Unused method must not be probed');
+  }});
+  Object.defineProperty(globalThis, 'URLSearchParams', { value: hostQueryConstructor, writable: false, configurable: false });
+} else if (runtimeMode === 'writable-query-nonconfigurable') {
+  Object.defineProperty(globalThis, 'URLSearchParams', { value: class URLSearchParams {}, writable: true, configurable: false });
 } else if (runtimeMode === 'missing-url') {
   assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
 } else if (runtimeMode === 'partial-url') {
@@ -185,41 +202,46 @@ assert.equal(
   'Package entrypoint did not install the URLSearchParams polyfill',
 );
 if (preserveNativeQuery) {
-  assert.equal(globalThis.URLSearchParams, nativeURLSearchParams, 'SDK replaced a working native URLSearchParams');
+  assert.equal(globalThis.URLSearchParams, hostQueryConstructor, 'SDK replaced a working host URLSearchParams');
 } else {
   assert.notEqual(globalThis.URLSearchParams, nativeURLSearchParams);
 }
-const params = new URLSearchParams('a=one&b=two&c=three');
-const iterator = params.entries();
-assert.deepEqual(iterator.next().value, ['a', 'one']);
-params.delete('b');
-params.set('c', 'updated');
-assert.deepEqual(iterator.next().value, ['c', 'updated'], 'URLSearchParams iterator used stale entries');
-const context = {};
-params.forEach(function(value, key, owner) {
-  assert.equal(this, context);
-  assert.equal(owner, params);
-}, context);
-assert.throws(() => new URLSearchParams([['incomplete']]), TypeError);
-assert.throws(() => new URLSearchParams({ key: Symbol('invalid') }), TypeError);
-for (const input of ['a=x+y&=empty&dup=1&dup=2', 'bad=%FF%E4%B8%41%C2%C2%A9%ED%A0%80%F4%90%80%80', 'raw=中🙂&symbols=~!()*&surrogate=\\ud800']) {
-  assert.equal(new URLSearchParams(input).toString(), new nativeURLSearchParams(input).toString());
-  assert.deepEqual([...new URLSearchParams(input)], [...new nativeURLSearchParams(input)]);
+if (runtimeMode === 'writable-query-nonconfigurable') {
+  assert.equal(Object.getOwnPropertyDescriptor(globalThis, 'URLSearchParams').configurable, false);
 }
-const unicodeParams = new URLSearchParams({ ['\\ud800']: '\\udc00' });
-unicodeParams.append('added', '\\ud800');
-unicodeParams.set('set', '\\udc00');
-assert.equal(unicodeParams.get('�'), '�');
-assert.equal(unicodeParams.get('\\ud800'), '�');
-assert.equal(unicodeParams.get('added'), '�');
-assert.equal(unicodeParams.get('set'), '�');
+if (!coreQueryOnly) {
+  const params = new URLSearchParams('a=one&b=two&c=three');
+  const iterator = params.entries();
+  assert.deepEqual(iterator.next().value, ['a', 'one']);
+  params.delete('b');
+  params.set('c', 'updated');
+  assert.deepEqual(iterator.next().value, ['c', 'updated'], 'URLSearchParams iterator used stale entries');
+  const context = {};
+  params.forEach(function(value, key, owner) {
+    assert.equal(this, context);
+    assert.equal(owner, params);
+  }, context);
+  assert.throws(() => new URLSearchParams([['incomplete']]), TypeError);
+  assert.throws(() => new URLSearchParams({ key: Symbol('invalid') }), TypeError);
+  for (const input of ['a=x+y&=empty&dup=1&dup=2', 'bad=%FF%E4%B8%41%C2%C2%A9%ED%A0%80%F4%90%80%80', 'raw=中🙂&symbols=~!()*&surrogate=\\ud800']) {
+    assert.equal(new URLSearchParams(input).toString(), new nativeURLSearchParams(input).toString());
+    assert.deepEqual([...new URLSearchParams(input)], [...new nativeURLSearchParams(input)]);
+  }
+  const unicodeParams = new URLSearchParams({ ['\\ud800']: '\\udc00' });
+  unicodeParams.append('added', '\\ud800');
+  unicodeParams.set('set', '\\udc00');
+  assert.equal(unicodeParams.get('�'), '�');
+  assert.equal(unicodeParams.get('\\ud800'), '�');
+  assert.equal(unicodeParams.get('added'), '�');
+  assert.equal(unicodeParams.get('set'), '�');
 
-// Core 构造 endpoint 使用 record；检查可空键值，不强求宿主构造器所有重载相同。
-for (const input of [undefined, { empty: null, absent: undefined, numeric: 123 }, [['key', null], ['absent', undefined]]]) {
-  const actual = new URLSearchParams(input);
-  const expected = new nativeURLSearchParams(input);
-  assert.deepEqual([...actual], [...expected]);
-  assert.equal(actual.toString(), expected.toString());
+  // 回退实现的额外输入一致性；这些重载不作为宿主启动条件。
+  for (const input of [undefined, { empty: null, absent: undefined, numeric: 123 }, [['key', null], ['absent', undefined]]]) {
+    const actual = new URLSearchParams(input);
+    const expected = new nativeURLSearchParams(input);
+    assert.deepEqual([...actual], [...expected]);
+    assert.equal(actual.toString(), expected.toString());
+  }
 }
 
 
@@ -277,6 +299,8 @@ const client = sdk.init({
   enableMinigameFrameRate: false,
   transportOptions: compatibilityMode ? { binaryRequestBody: 'arraybuffer' } : {},
 });
+const businessUrl = 'https://api.example.com/package-self-request-smoke' +
+  (coreQueryOnly ? '?space+name=ok&token=secret' : '');
 for (const key of ['sendDefaultPii', 'enableLogs']) {
   assert.throws(() => sdk.init({ [key]: false }), new RegExp(key + '.*removed'));
   assert.equal(sdk.getClient(), client, 'Rejected options replaced the active package client');
@@ -299,7 +323,7 @@ if (runtimeMode === 'standard') {
     });
   };
   host[contract.requestMethod]({
-    url: 'https://api.example.com/package-self-request-smoke',
+    url: businessUrl,
     method: 'POST',
   });
 }
@@ -327,7 +351,7 @@ if (runtimeMode !== 'standard') {
   );
   assert.equal(
     requestedUrls[0],
-    'https://api.example.com/package-self-request-smoke',
+    businessUrl,
     \`\${platformName} \${runtimeMode} did not send the business request first\`,
   );
   assert.ok(
@@ -341,6 +365,13 @@ if (runtimeMode !== 'standard') {
   );
   assert.equal(rawRequestCalls, compatibilityMode ? 3 : 2, \`\${platformName} \${runtimeMode} used extra host requests\`);
   assert.equal(envelopes.length, compatibilityMode ? 2 : 1, \`\${platformName} \${runtimeMode} sent extra envelopes\`);
+}
+if (coreQueryOnly) {
+  assert.equal(typeof envelopes[0], 'string');
+  const spanPayload = JSON.parse(envelopes[0].split('\\n')[2]);
+  assert.equal(spanPayload.items.length, 1);
+  assert.equal(spanPayload.items[0].attributes['url.query'].value, 'space+name=ok&token=[Filtered]');
+  assert.ok(!envelopes[0].includes('secret'), 'Core-only query host leaked a sensitive query value');
 }
 await sdk.close(0);
 
@@ -550,6 +581,8 @@ try {
     'native-builtins',
     'native-query-only',
     'native-query-readonly',
+    'core-query-readonly',
+    'writable-query-nonconfigurable',
     'partial-url-search-params',
     'partial-query-methods',
     'frozen-request',

@@ -33,6 +33,21 @@ describe('标准能力启动边界', () => {
     ensureURLSearchParams(fallback);
     expect(URLSearchParams).toBe(nativeURLSearchParams);
 
+    class CoreQueryParams extends nativeURLSearchParams {
+      constructor(init?: ConstructorParameters<typeof URLSearchParams>[0]) {
+        if (Array.isArray(init)) throw new Error('Pair inputs are unavailable');
+        super(init);
+      }
+    }
+    Object.defineProperty(CoreQueryParams.prototype, 'get', {
+      get() {
+        throw new Error('Unused method must not be probed');
+      },
+    });
+    vi.stubGlobal('URLSearchParams', CoreQueryParams);
+    ensureURLSearchParams(fallback);
+    expect(URLSearchParams).toBe(CoreQueryParams);
+
     for (const incomplete of [
       class URLSearchParams {},
       class URLSearchParams {
@@ -47,11 +62,35 @@ describe('标准能力启动边界', () => {
     }
     Object.defineProperty(globalThis, 'URLSearchParams', {
       configurable: true,
+      writable: false,
+      value: undefined,
+    });
+    ensureURLSearchParams(fallback);
+    expect(URLSearchParams).toBe(fallback);
+    expect(Object.getOwnPropertyDescriptor(globalThis, 'URLSearchParams')).toMatchObject({
+      configurable: true,
+      writable: false,
+    });
+
+    Object.defineProperty(globalThis, 'URLSearchParams', {
+      configurable: true,
       get() {
         throw new Error('Unreadable query API');
       },
     });
     ensureURLSearchParams(fallback);
     expect(URLSearchParams).toBe(fallback);
+    expect(Object.getOwnPropertyDescriptor(globalThis, 'URLSearchParams')).toMatchObject({
+      configurable: true,
+      writable: true,
+    });
+
+    expect(Reflect.deleteProperty(globalThis, 'URLSearchParams')).toBe(true);
+    ensureURLSearchParams(fallback);
+    expect(Object.getOwnPropertyDescriptor(globalThis, 'URLSearchParams')).toMatchObject({
+      value: fallback,
+      configurable: true,
+      writable: true,
+    });
   });
 });

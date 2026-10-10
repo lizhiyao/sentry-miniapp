@@ -8,28 +8,23 @@ export function ensureURLSearchParams(fallback: typeof URLSearchParams): void {
   try {
     const Native = globalThis.URLSearchParams;
     if (typeof Native === 'function') {
-      const record = new Native({ sdk: '中🙂\ud800' });
-      const pairs = new Native([
-        ['key', 'a b+'],
-        ['key', 'second'],
-      ]);
-      const query = new Native('sentry%5Fkey=a+b%2B&bad=%FF');
+      const record = new Native({ sentry_key: 'key', sentry_client: 'sdk/1.0' });
+      const query = new Native('sentry%5Fkey+%E4%B8%AD%2B=');
       if (
-        record.toString() === 'sdk=%E4%B8%AD%F0%9F%99%82%EF%BF%BD' &&
-        pairs.toString() === 'key=a+b%2B&key=second' &&
-        query.keys().next().value === 'sentry_key' &&
-        query.get('sentry_key') === 'a b+' &&
-        query.get('bad') === '�'
+        record.toString() === 'sentry_key=key&sentry_client=sdk%2F1.0' &&
+        query.keys().next().value === 'sentry_key 中+'
       )
         return;
     }
   } catch (_error) {
     // 构造器空壳、不可读 getter 或不完整的方法均使用独立回退。
   }
+  // 保留已有数据属性的约束；不可配置但可写的宿主属性同样能够安装回退。
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'URLSearchParams');
   Object.defineProperty(globalThis, 'URLSearchParams', {
     value: fallback,
-    configurable: true,
-    writable: true,
+    configurable: descriptor?.configurable ?? true,
+    writable: descriptor && 'writable' in descriptor ? descriptor.writable : true,
   });
 }
 
