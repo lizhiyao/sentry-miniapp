@@ -23,6 +23,7 @@ import {
   markRuntimeConstruction,
   assertStreamTracingOptions,
 } from './client';
+import type { MiniappLowLevelClientOptions } from './client';
 import { isTelemetryCritical, withTelemetryCritical, getClientLifetime } from './lifecycle';
 import { isMiniappEnvironment, isMinigame, resolveMiniappPlatform } from './crossPlatform';
 import {
@@ -41,6 +42,21 @@ import {
 } from './integrations/index';
 import { functionToStringIntegration } from '@sentry/core';
 import type { MiniappOptions, SendFeedbackParams } from './types';
+
+const initializationScopeRejected = Symbol('miniapp.initializationScopeRejected');
+
+function warnUnsupportedInitScope(): void {
+  try {
+    const owner = getClient();
+    if (owner instanceof MiniappClient) {
+      getClientLifetime(owner)?.warnings.add('init_scope_unsupported');
+    } else {
+      console.warn('[sentry-miniapp] init requires the default scope, outside withScope/startSpan');
+    }
+  } catch (_error) {
+    /* 诊断故障不阻断未绑定 client 的清理，也不改变初始化拒绝结果。 */
+  }
+}
 
 /**
  * 构造一组**全新**的默认集成实例。
@@ -155,12 +171,7 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
   // 只在公开的持久默认 scope 上绑定 runtime，避免新 client 随旧操作 scope 一同丢失。
   const bindingScope = getCurrentScope();
   if (bindingScope !== getDefaultCurrentScope()) {
-    const owner = bindingScope.getClient();
-    if (owner instanceof MiniappClient) {
-      getClientLifetime(owner)?.warnings.add('init_scope_unsupported');
-    } else {
-      console.warn('[sentry-miniapp] init requires the default scope, outside withScope/startSpan');
-    }
+    warnUnsupportedInitScope();
     return undefined;
   }
   assertStreamTracingOptions(options);
@@ -193,13 +204,34 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
     stackParser: stackParserFromStackParserOptions(options.stackParser ?? miniappStackParser),
     transport: options.transport,
   };
+  // 配置 callback/getter 也可能启动未完成的 Core scope；此时不应用 initialScope 或退休旧 runtime。
+  if (getCurrentScope() !== bindingScope) {
+    warnUnsupportedInitScope();
+    return undefined;
+  }
+  // Core 先应用 initialScope，再构造，最后绑定并安装集成。只在公开构造器边界重查身份；
+  // setup 阶段已经根绑定的新 client 不因集成自己的异步 scope 被误拒绝。
+  class ScopeBoundClient extends MiniappClient {
+    public constructor(options: MiniappLowLevelClientOptions) {
+      if (getCurrentScope() !== bindingScope) {
+        warnUnsupportedInitScope();
+        throw initializationScopeRejected;
+      }
+      super(options);
+      if (getCurrentScope() !== bindingScope) {
+        warnUnsupportedInitScope();
+        this.dispose();
+        throw initializationScopeRejected;
+      }
+    }
+  }
   // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
   // init 专用的宽选项，已通过内部标记允许默认 transport；低层公开构造必须显式提供 transport。
   const previous = bindingScope.getClient();
   if (previous instanceof MiniappClient) void previous.retireRuntime().catch(() => {});
   markRuntimeConstruction(opts);
   try {
-    initAndBind(MiniappClient as any, opts as any);
+    initAndBind(ScopeBoundClient as any, opts as any);
   } catch (error) {
     const failed = bindingScope.getClient();
     try {
@@ -213,6 +245,7 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
         bindingScope.setClient(undefined);
       }
     }
+    if (error === initializationScopeRejected) return undefined;
     throw error;
   }
   const client = getCurrentScope().getClient() as MiniappClient | undefined;

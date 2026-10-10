@@ -73,8 +73,8 @@ import { createNetworkBreadcrumbsTestHarness } from './support/networkbreadcrumb
 
 const harness = createNetworkBreadcrumbsTestHarness({ crossPlatform, mockGetClient });
 
-function setupIntegration(integration: NetworkBreadcrumbs): void {
-  harness.setupIntegration(integration);
+function setupIntegration(integration: NetworkBreadcrumbs): () => void {
+  return harness.setupIntegration(integration);
 }
 
 describe('NetworkBreadcrumbs Integration', () => {
@@ -146,6 +146,35 @@ describe('NetworkBreadcrumbs Integration', () => {
     expect(mockStartInactiveSpan).not.toHaveBeenCalled();
   });
 
+  it.each(['old-first', 'new-first'])('%s client cleanup 保留另一 owner 的请求包装', (order) => {
+    const result = {};
+    requestMock.mockImplementation((options) => {
+      options.success?.({ statusCode: 200 });
+      return result;
+    });
+    const host = crossPlatform.sdk();
+    const integration = new NetworkBreadcrumbs();
+    const oldCleanup = setupIntegration(integration);
+    const newCleanup = setupIntegration(integration);
+    const wrapper = host.request;
+    const [first, second] =
+      order === 'old-first' ? [oldCleanup, newCleanup] : [newCleanup, oldCleanup];
+
+    first!();
+    first!();
+    expect(host.request).toBe(wrapper);
+    expect(host.request({ url: 'https://api.example.com/business' })).toBe(result);
+    expect(requestMock.mock.contexts[0]).toBe(host);
+    expect(addBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
+
+    second!();
+    second!();
+    expect(host.request).toBe(requestMock);
+    expect(host.request({ url: 'https://api.example.com/after' })).toBe(result);
+    expect(requestMock).toHaveBeenCalledTimes(2);
+    expect(addBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
+  });
+
   it('should patch a configurable request accessor and restore its descriptor on cleanup', () => {
     const getter = vi.fn(() => requestMock);
     const setter = vi.fn();
@@ -160,7 +189,7 @@ describe('NetworkBreadcrumbs Integration', () => {
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue(miniappSdk as any);
 
     const integration = new NetworkBreadcrumbs();
-    setupIntegration(integration);
+    const cleanup = setupIntegration(integration);
 
     expect(setter).toHaveBeenCalledTimes(1);
     expect(miniappSdk.request).not.toBe(requestMock);
@@ -177,7 +206,8 @@ describe('NetworkBreadcrumbs Integration', () => {
       }),
     );
 
-    integration.cleanup();
+    cleanup();
+    cleanup();
 
     const restoredDescriptor = Object.getOwnPropertyDescriptor(miniappSdk, 'request');
     expect(restoredDescriptor?.get).toBe(getter);
@@ -442,7 +472,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('preserves the failure callback return value', () => {
     const fail = vi.fn(() => 'handled');
-    const failRequestMock = vi.fn(options => options.fail({ errMsg: 'request:fail' }));
+    const failRequestMock = vi.fn((options) => options.fail({ errMsg: 'request:fail' }));
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: failRequestMock });
     const integration = new NetworkBreadcrumbs();
     setupIntegration(integration);
@@ -498,9 +528,7 @@ describe('NetworkBreadcrumbs Integration', () => {
       data: 'password=secret&token=abc&safe=yes',
     });
     const formBreadcrumb = (addBreadcrumb as Mock).mock.calls[0]![0];
-    expect(formBreadcrumb.data.request_body).toBe(
-      'password=[Filtered]&token=[Filtered]&safe=yes',
-    );
+    expect(formBreadcrumb.data.request_body).toBe('password=[Filtered]&token=[Filtered]&safe=yes');
 
     miniappSdk.request({
       url: 'https://api.example.com/do-not-record',
@@ -544,7 +572,7 @@ describe('NetworkBreadcrumbs Integration', () => {
 
   it('handles non-object responses and missing trace data', () => {
     mockGetTraceData.mockReturnValueOnce({});
-    const unusualRequestMock = vi.fn(options => options.success(null));
+    const unusualRequestMock = vi.fn((options) => options.success(null));
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: unusualRequestMock });
     const integration = new NetworkBreadcrumbs({
       tracePropagationTargets: ['api.example.com'],

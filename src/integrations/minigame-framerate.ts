@@ -188,13 +188,18 @@ export class MinigameFrameRateIntegration implements Integration {
   private _setup(): void {
     try {
       const raf = (globalThis as any).requestAnimationFrame;
-      if (typeof raf !== 'function') return;
+      if (typeof raf !== 'function' || !this._owner?.isActive()) return;
       this._raf = raf;
-      const cancel = (globalThis as any).cancelAnimationFrame;
-      if (typeof cancel === 'function') this._cancelFrame = cancel;
     } catch (_error) {
       return;
     }
+    try {
+      const cancel = (globalThis as any).cancelAnimationFrame;
+      if (this._owner?.isActive() && typeof cancel === 'function') this._cancelFrame = cancel;
+    } catch (_error) {
+      /* 不可用的取消能力不阻断采样；退后台／退休后迟到帧有独立门禁。 */
+    }
+    if (!this._owner?.isActive()) return;
     this._restartOnResume();
     const owner = this._owner;
     const client = this._client;

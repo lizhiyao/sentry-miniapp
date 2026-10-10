@@ -9,7 +9,7 @@
 | 弱网离线缓存 | Sentry 请求发送失败或当前离线 | 网络恢复后自动重试 | 开启 |
 | 隐私同意门禁 | 开启 `requireConsent` 后，用户尚未同意 | 调用 `setConsent(true)` 后 | 关闭，按需开启 |
 
-它们复用平台 Storage 和离线 transport，但策略与上限可以分别配置。
+未启用 `requireConsent` 时，内置弱网缓存使用 `offlineCache*` 配置。开启后，同意等待与授权后的弱网重试始终共用 `consentCache*` 上限，并优先保留最早记录；授权不会切换为 `offlineCache*`。
 
 ## 不让监控请求占满业务并发
 
@@ -44,9 +44,9 @@ Sentry.init({
 
 符合存储策略的失败 envelope 会写入 Storage；网络恢复或后续 flush 唤醒重放。记录保留原始时间，retry 不续 TTL；client_report 失败不落盘。写入失败有诊断，不冒称持久化成功。
 
-2.0 仅维护一个持久投递目标，离线重试与同意等待共用一个容器。SDK 将包含元数据的整个容器限制在支付宝／钉钉 180 KiB、其余平台 900 KiB 以内；这是 SDK 的保守预算，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。DSN／tunnel、旧 schema 或不兼容隐私／存储策略变化时丢弃并诊断；条数／字节／TTL 调整仅裁剪兼容记录。新 client 不继承旧 grant，退休 owner 不得回写覆盖新 store。binary 与子视图经 typed codec 保留。
+离线重试与同意等待共用一个缓存，按当前 Sentry 投递目标保存数据。SDK 将包含元数据的整个容器限制在支付宝／钉钉 180 KiB、其余平台 900 KiB 以内；这是 SDK 的保守预算，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。更换 DSN／tunnel、读取旧格式或使用不兼容的隐私／存储策略时，会丢弃旧数据并记录诊断；只调整容量或过期时间时，会裁剪仍兼容的记录。
 
-shift 必须先成功提交删除再交给 transport；提交失败不发送。提交成功后中断仍可能丢失，SDK 不承诺 durable ACK、恰好一次或绝不丢失。限流、容量淘汰、关闭及存储故障也属于 best-effort 边界。
+重放前需要从缓存移除记录；删除保存失败时，该记录不会发送。移除成功后若进程中断，记录仍可能丢失。限流、容量淘汰、关闭和存储故障也可能丢弃数据，因此缓存只能尽力补发，不能保证不丢失、不重复或后台接收成功。
 
 如果宿主缺少必要的 Storage API，SDK 仍可初始化并尝试实时上报，但持久化重试会降级。可通过 `Sentry.getDiagnostics()` 查看 transport 状态。
 
@@ -79,9 +79,9 @@ Sentry.setConsent(false);
 
 > `requireConsent` 是网络发送门禁，不是采样开关。要减少上报量，请配置 `sampleRate`、`tracesSampleRate` 或过滤规则。
 
-## 控制同意前缓冲上限
+## 开启同意门禁后的缓存上限
 
-同意等待期可能比短时断网更长，因此默认允许缓存更多事件：
+同意等待期可能比短时断网更长，因此默认允许缓存更多记录。这组上限在授权后的弱网重试中继续生效，丢弃时也会调用 `onConsentCacheDrop`：
 
 ```js
 Sentry.init({
@@ -98,7 +98,9 @@ Sentry.init({
 
 当前同意缓冲与弱网缓存使用同一个 Storage key。`consentCacheMaxBytes` 默认是 921600 字节（900 KiB），实际取配置值与平台 SDK 预算中的较小值：支付宝／钉钉为 184320 字节（180 KiB），其余平台为 921600 字节（900 KiB）。增加配置不能突破平台预算；容器元数据也计入预算，能保留多少条事件还取决于单条数据大小。
 
-自定义 transport 且 requireConsent=false 时不自动套 SDK offline 层。required=true 时统一包装同意／offline 门，即使 enableOfflineCache=false；base factory 不应再叠第二层 offline，其私有队列需自管实际发送门。低层直接构造 MiniappClient 不获得持久 store／replay 权限，默认接入使用 init。
+条数按 envelope（一次上报批次）计算，一条记录可能包含多条日志、指标或 span。撤回授权或关闭 client 不会自动清空已保存的记录；它们仍受缓存容量与过期时间限制，重新初始化的 client 也不会继承旧授权。
+
+使用自定义 `transport` 时，未开启 `requireConsent` 的缓存与重试由该实现负责；开启后，SDK 会统一处理同意等待和离线缓存，即使 `enableOfflineCache: false`。自定义通道应避免重复添加离线重试，并自行控制内部队列的实际发送与取消。常规接入使用 `Sentry.init()`；直接构造 `MiniappClient` 不会接管持久缓存重放。实现职责见仓库[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。
 
 ## 上线前怎样验证
 

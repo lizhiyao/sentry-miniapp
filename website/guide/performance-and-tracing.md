@@ -110,6 +110,8 @@ Sentry.init({
 
 只有后端网关或 OpenTelemetry 链路明确需要 W3C `traceparent` 时才打开 `propagateTraceparent`。Sentry 原生服务只需要默认的 `sentry-trace` 与 `baggage`。
 
+字符串匹配的是完整 URL 中的子串，包括 query，并不是精确域名匹配。上面的锚定正则可避免第三方域名或查询参数包含相同文本时也收到追踪头。
+
 `enableTracePropagation: false` 只停止追踪头注入，不会关闭本地 `http.client` span。开启性能采样后：
 
 - 请求发生在活跃 span 内时，记录为该流程的子 span；

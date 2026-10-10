@@ -140,9 +140,9 @@ console.log(diagnostics.warnings);
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `enableOfflineCache` | `boolean` | `true` | 断网 / 发送失败时缓存事件到本地 Storage，网络恢复后静默重试 |
-| `offlineCacheLimit` | `number` | `30` | 离线缓存最大事件数 |
-| `offlineCacheMaxAge` | `number` | `86400000` | 缓存过期时间（ms），默认 24 小时，超时丢弃 |
+| `enableOfflineCache` | `boolean` | `true` | 控制未开启 `requireConsent` 时内置 transport 的弱网缓存；自定义 transport 的缓存与重试由其实现负责 |
+| `offlineCacheLimit` | `number` | `30` | 未启用 `requireConsent` 时，内置弱网缓存最多保留的 envelope 记录数 |
+| `offlineCacheMaxAge` | `number` | `86400000` | 未启用 `requireConsent` 时，内置弱网缓存过期时间（ms），默认 24 小时 |
 
 SDK 的缓存条数、字节数、TTL 使用非负安全整数；负数、NaN、Infinity 和小数回落各自默认值。缓存条数／字节上限为 0 时不保留事件，TTL 为 0 时立即过期。2.0 删除通用 Performance 的 `sampleRate`、`bufferSize`、`reportInterval`、`thresholds` 和 `enableMemory`；span 采样和批处理由 core 负责。
 
@@ -152,11 +152,13 @@ SDK 的缓存条数、字节数、TTL 使用非负安全整数；负数、NaN、
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `requireConsent` | `boolean` | `false` | 开启后，用户同意隐私协议前 SDK 照常采集，但不发送任何网络请求 |
-| `consentCacheLimit` | `number` | `100` | 同意前缓冲最大事件数；满了保留最早的冷启动数据、丢弃最新事件 |
-| `consentCacheMaxBytes` | `number` | `921600`（900 KiB） | 同意前缓冲的配置字节上限；实际取配置值与当前平台 SDK 预算中的较小值，整个容器包含元数据。支付宝／钉钉预算为 180 KiB，其余平台为 900 KiB |
-| `consentCacheMaxAge` | `number` | `86400000` | 同意前缓冲过期时间（ms），默认 24 小时 |
-| `onConsentCacheDrop` | `function` | — | 同意缓冲因 `count` / `bytes` / `age` / `target_changed` / `policy_changed` / `migration_drop` 丢弃已知数量的事件时回调 `{ reason, dropped }` |
+| `requireConsent` | `boolean` | `false` | 开启后，用户同意隐私协议前 SDK 照常采集，但不发送 Sentry 网络请求 |
+| `consentCacheLimit` | `number` | `100` | 启用 `requireConsent` 时，授权前后的共享缓存最多保留的 envelope 记录数；满了保留最早记录、丢弃最新记录 |
+| `consentCacheMaxBytes` | `number` | `921600`（900 KiB） | 共享缓存的配置字节上限，授权前后均适用；实际取配置值与当前平台 SDK 预算中的较小值，整个容器包含元数据。支付宝／钉钉预算为 180 KiB，其余平台为 900 KiB |
+| `consentCacheMaxAge` | `number` | `86400000` | 共享缓存过期时间（ms），授权前后均适用，默认 24 小时 |
+| `onConsentCacheDrop` | `function` | — | 共享缓存因 `count` / `bytes` / `age` / `target_changed` / `policy_changed` / `migration_drop` 丢弃已知数量记录时回调 `{ reason, dropped }`；授权后的弱网缓存丢弃也会通知 |
+
+开启 `requireConsent` 后，同意等待与弱网重试始终共用 `consentCache*` 上限和保留最早记录的策略；`setConsent(true)` 不会切换为 `offlineCache*`。条数按 envelope（一次上报批次）计算，一条记录可能包含多条日志、指标或 span，不等于遥测总条数。
 
 ```js
 import * as Sentry from 'sentry-miniapp';
@@ -181,11 +183,13 @@ Sentry.setConsent(false);
 
 同意状态、缓存配置和丢弃回调属于各 client。顶层 `Sentry.setConsent` / `Sentry.getConsent` 只路由当前 MiniappClient；也可调用 `client.setConsent` / `client.getConsent`。构造其他 client 不改变原实例状态；新的 `init({ requireConsent: true })` 默认未同意，不继承旧授权。关闭或退休的实例不能用授权 API 影响新实例。
 
-授权会同步调用 client.flush，排出 core span/log/metric 等缓冲，并通过独立 runtime handle 请求离线重放，不等待尚未完成的 beforeSend processing。默认 show 与网络从离线恢复也经过该恢复入口；撤回暂停重放，退休／关闭永久停止旧 owner 的重放权限。离线磁盘重放仍是 best-effort，flush 成功不表示磁盘排空或后台已接收。撤回会立即阻止默认 transport 新的实际请求，对在途 SDK 遥测请求 best-effort abort；已传输字节无法撤回，业务 HTTP 不受影响。未完成的排队/在途请求由唯一 core offline 层处理，缓存保留待重新同意，仍受容量与过期限制。自定义 transport 的私有队列由其自身控制，SDK 入口门禁不能强制撤销其中已接收的工作。
+授权后，SDK 会尝试发送已准备好的 span、日志和指标，并补发离线缓存；不会等待尚未完成的异步 `beforeSend`。应用回前台或网络从离线恢复时，也会尝试恢复上报。撤回授权会暂停补发，切换或关闭 client 会停止旧 client 的补发。`flush()` 成功不表示缓存已排空或后台已接收。撤回会立即阻止默认 transport 启动新的 Sentry 请求，并在宿主支持时尝试取消在途遥测请求；已传输字节无法撤回，业务 HTTP 不受影响。符合缓存策略的记录可保留到重新同意时补发，仍受容量与过期限制。自定义 transport 的内部队列由其自身控制，SDK 无法强制撤销其中已接收的工作。
 
-`requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；如果传入自定义 `transport`，SDK 也会先用 consent 门禁包住它。2.0 的同意缓冲与弱网重试共用一个 `sentry_miniapp_offline_v2` 容器，记录包含版本、目标身份、原始创建时间和 typed payload。SDK 按实际运行平台限制整个容器的 UTF-8 字节数（含元数据）：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB；较小的 `consentCacheMaxBytes` 仍会进一步收窄。预算是 SDK 的保守存储策略，不是对宿主全部存储额度的承诺，依据见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。DSN（含 public key、project、path）或 tunnel 切换，以及不兼容的缓存隐私协议变化，会丢弃旧容器；容量、TTL、淘汰策略调整只裁剪记录。旧 `sentry_offline_store` 无可验证目标身份，直接删除，不恢复或刷新 TTL。SDK 只访问这两个缓存 key。
+`requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；传入自定义 `transport` 时，SDK 也会处理同意等待。2.0 的同意缓冲与弱网重试共用 `sentry_miniapp_offline_v2` 容器。SDK 按实际运行平台限制整个容器的 UTF-8 字节数（含元数据）：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB；较小的 `consentCacheMaxBytes` 仍会进一步收窄。预算是 SDK 的保守存储策略，不是对宿主全部存储额度的承诺，依据见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。DSN 或 tunnel 切换，以及不兼容的缓存隐私策略变化，会丢弃旧容器；容量和过期时间调整只裁剪仍兼容的记录。旧 `sentry_offline_store` 会删除，不恢复其数据。SDK 只访问这两个缓存 key。
 
-重试沿用记录原始时间，不延长 TTL。删除提交失败时不向 core 交付记录，本实例停止消费磁盘并降级为有界内存；写入失败会拒绝 store 的 Promise，不能当作持久化成功。缺少同步 Storage API 时也使用有界内存，冷启动会丢失其中的数据。直接调用 `createMiniappOfflineStore` 必须提供 `targetId` 和版本化 `policyId`；返回值的 `getDiagnostics()` 以及 SDK `getDiagnostics().transport.offlineStore` 报告实际 storage 模式和失败代码，不返回原始缓存数据；`unknown` 表示尚未进行存储操作，`persistent` 表示同步存储通道可用，`memory` 表示本实例已回退为有界内存。模式不代表后台接收或 durable ACK。丢弃通知在成功提交后执行；未知格式无法可靠计数时只记诊断。
+重试不会延长原过期时间。删除保存失败的记录不会发送；存储写入或删除失败后，本实例停止使用磁盘缓存并回退为有界内存。缺少同步 Storage API 时也使用有界内存，重启会丢失其中的数据。`Sentry.getDiagnostics().transport.offlineStore` 提供存储模式与失败代码，不返回原始数据：`unknown` 表示尚未操作，`persistent` 表示同步存储通道可用，`memory` 表示已回退为内存；这些模式都不代表后台已接收。丢弃通知只包含可确认的记录数，未知格式可能只有诊断。
+
+高级直接调用 `Sentry.Transports.createMiniappOfflineStore` 时，须提供 `targetId` 和版本化 `policyId`；写入失败会拒绝返回的 Promise，不能视为已持久化。存储与重放的实现职责见仓库[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。
 
 ## 显式 Performance 采集（2.0）
 
@@ -240,7 +244,7 @@ Sentry.startInactiveSpan({
 |------|------|------|------|
 | `enableTracePropagation` | `boolean` | `true` | 是否允许向 `tracePropagationTargets` 匹配的请求注入追踪头（`sentry-trace` / `baggage`，以及可选 `traceparent`）。只控制传播，不关闭本地请求 span |
 | `enableStandaloneHttpSpans` | `boolean` | `true` | 无活跃 span 时，把 API 请求作为独立 segment span 上报；设为 `false` 后只保留业务流程内的请求子 span，网络面包屑不受影响 |
-| `tracePropagationTargets` | `Array<string｜RegExp>` | `[]`（不注入） | 追踪头域名白名单。小程序没有可靠的 same-origin，未配置时不向任意业务域名注入；仅添加自己控制的 API |
+| `tracePropagationTargets` | `Array<string｜RegExp>` | `[]`（不注入） | 追踪头的 URL 匹配列表。字符串对完整 URL（含 query）做不区分大小写的包含匹配；限定域名时请使用[锚定正则示例](/guide/performance-and-tracing#串联小程序与服务端)。未配置时不注入 |
 | `propagateTraceparent` | `boolean` | `false` | 额外注入 W3C `traceparent` 头，用于和 OpenTelemetry / W3C Trace Context 兼容的后端链路串联 |
 
 ## Session 与网络

@@ -83,7 +83,7 @@ sentry-miniapp/
 
 - **单元测试 (`yarn test`，Vitest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
 - **真实 core 集成测试 (`test/*.realcore.test.ts`)**：不 mock `@sentry/core`，验证事件、span/v2、logs、metrics、session 与 client reports 的最终 envelope。自定义 transport 与 envelope 解析统一复用 `test/support/`。
-- **发布包消费测试 (`yarn build`)**：把当前 npm tarball 解包到隔离目录，验证 CJS / ESM / UMD 与类型入口；七个平台还会分别在全局 `URL` 缺失和残缺时安装会复制请求参数的外层 wrapper，断言一次业务请求只能产生一次 Sentry envelope，防止 SDK 自请求递归。CJS／ESM 各运行 8 个公开行为场景，检查空会话的迟到操作、冻结 my／dd、只读 request、不可读 Storage 和同意后持久缓存重放；普通会话错误统计作为正向对照，避免以全局禁用统计掩盖归属缺陷。
+- **发布包消费测试 (`yarn build`)**：把当前 npm tarball 解包到隔离目录，验证 CJS / ESM / UMD 与类型入口；七个平台还会分别在全局 `URL` 缺失和残缺时安装会复制请求参数的外层 wrapper，断言一次业务请求只能产生一次 Sentry envelope，防止 SDK 自请求递归。CJS／ESM 各运行 17 个独立进程的公开行为场景，覆盖空会话的迟到操作、冻结／只读宿主、持久缓存重放、平台信号与可选能力 getter 降级、页面业务透明性和初始化中的 scope 变化；普通会话错误统计与 setup 后异步 span 保留有效绑定作为正向对照，避免通过关闭功能掩盖缺陷。
 - **测试类型检查 (`yarn typecheck`)**：源码使用 `tsconfig.json`，测试使用 `tsconfig.test.json`；测试保留严格函数签名检查，仅放宽动态 fixture 的索引访问规则。
 
 测试必须执行 `src/` 或仓库脚本中的生产逻辑；不要只调用测试文件里临时创建的 mock、示例重试函数或常量再断言自身行为。时间相关逻辑优先使用 Vitest fake timers，避免真实等待拖慢 CI。
@@ -95,6 +95,8 @@ sentry-miniapp/
 本次职责取舍、失败复现及文档一致性复核见 [core v11 收尾审查](docs/core-v11-review.md)；真机用户验证由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 单独跟踪。
 
 beta.4 发布后的小游戏 Session、系统信息降级和离线交错复核见 [发布后专项审查](docs/core-v11-postrelease-review.md)。
+
+beta.6 发布后的三轮独立发现、交叉反例与实际包消费复核见 [SDK 深度审查](docs/sdk-deep-review.md)，包含本轮初始化、能力降级、无消费者清理及用户文档修正的证据与取舍。
 
 Taro／uni-app 示例的构建器兼容补丁、实际依赖安全公告与剩余上游问题见 [示例依赖审查](docs/example-dependency-security.md)。
 

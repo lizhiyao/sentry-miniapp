@@ -40,7 +40,6 @@ export class ConsoleBreadcrumbs implements Integration {
   public name: string = ConsoleBreadcrumbs.id;
 
   private readonly _levels: ConsoleLevel[];
-  private readonly _cleanupCallbacks = new Set<() => void>();
 
   constructor(options: ConsoleBreadcrumbsOptions = {}) {
     this._levels = options.levels || [...CONSOLE_LEVELS];
@@ -101,13 +100,6 @@ export class ConsoleBreadcrumbs implements Integration {
     return original.apply(thisArg ?? console, args);
   }
 
-  /**
-   * 清理资源，恢复原始 console 方法
-   */
-  public cleanup(): void {
-    for (const cleanup of [...this._cleanupCallbacks]) cleanup();
-  }
-
   private _trackCleanup(cleanups: Array<() => void>): () => void {
     let active = true;
     const cleanup = (): void => {
@@ -120,9 +112,7 @@ export class ConsoleBreadcrumbs implements Integration {
           /* 继续解除其余订阅。 */
         }
       }
-      this._cleanupCallbacks.delete(cleanup);
     };
-    this._cleanupCallbacks.add(cleanup);
     return cleanup;
   }
 }

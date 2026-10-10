@@ -99,40 +99,40 @@ export interface MiniappOptions extends Omit<
    */
   sensitiveKeys?: string[];
 
-  /** Whether to enable offline cache to retry sending events later */
+  /** Controls built-in transport offline caching when requireConsent is false; custom transport manages its own retry. */
   enableOfflineCache?: boolean;
 
-  /** Maximum number of events to store in offline cache (default: 30) */
+  /** Maximum envelope records in the built-in offline cache when requireConsent is false (default: 30). */
   offlineCacheLimit?: number;
 
-  /** 离线缓存过期时间（ms），超过此时间的缓存事件将被丢弃（默认 86400000 即 24 小时） */
+  /** requireConsent 为 false 时的内置离线缓存过期时间（ms，默认 86400000 即 24 小时）。 */
   offlineCacheMaxAge?: number;
 
   /**
    * 是否启用隐私合规「同意门禁」（默认 false，保持现有行为）。
    * true 时：SDK 照常采集（监听 / 异常 / 面包屑 / performance），但在用户同意隐私协议前
-   * **不发送任何网络请求**，事件先入本地缓冲；调用 `Sentry.setConsent(true)` 后补发并恢复上报。
-   * 注意：开启即隐含使用本地缓冲（即便 enableOfflineCache 为 false 也会启用同意缓冲）。
+   * **不发送 Sentry 网络请求**，事件先入本地缓冲；调用 `Sentry.setConsent(true)` 后补发并恢复上报。
+   * 开启即隐含使用本地缓冲（即便 enableOfflineCache 为 false），授权前后均使用 consentCache*。
    */
   requireConsent?: boolean;
 
   /**
-   * 同意前缓存的最大事件数（默认 100）。区别于弱网重试的 offlineCacheLimit（默认 30）：
-   * 同意等待期事件量级远大于断网几秒，故默认放宽。
+   * requireConsent 为 true 时，共享缓存的最大 envelope 记录数（默认 100），授权前后均适用。
+   * 满了优先保留最早记录；单个 envelope 可包含多条日志、指标或 span。
    */
   consentCacheLimit?: number;
 
   /**
-   * 同意前缓存的最大字节数（默认 900 KiB）。实际容器（含元数据）仍受 SDK 的
-   * 平台预算约束：支付宝／钉钉 180 KiB，其余 900 KiB，超出按淘汰策略丢弃。
+   * requireConsent 为 true 时，共享缓存的最大字节数（默认 900 KiB），授权前后均适用。
+   * 实际容器（含元数据）仍受 SDK 平台预算约束：支付宝／钉钉 180 KiB，其余 900 KiB，超出按淘汰策略丢弃。
    */
   consentCacheMaxBytes?: number;
 
-  /** 同意前缓存的过期时间（ms，默认 86400000 即 24 小时），超时事件丢弃。 */
+  /** requireConsent 为 true 时共享缓存的过期时间（ms，默认 86400000），授权前后均适用。 */
   consentCacheMaxAge?: number;
 
   /**
-   * 同意前缓存因超限 / 过期丢弃事件时的回调，便于接入方评估上限配置是否合理。
+   * requireConsent 为 true 时共享缓存丢弃记录的回调，授权后的弱网缓存丢弃也会通知。
    * reason 包含容量、过期、目标／策略变更和可计数的迁移丢弃；dropped 以 envelope 记录计数。
    */
   onConsentCacheDrop?: (info: {

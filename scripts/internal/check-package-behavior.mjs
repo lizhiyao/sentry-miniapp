@@ -16,6 +16,17 @@ const require = createRequire(import.meta.url);
 const packageDir = path.resolve(process.argv[2] || '');
 const moduleKind = process.argv[3] || 'cjs';
 const scenario = process.argv[4];
+const boundaryScenarios = [
+  'platform-global-getter',
+  'platform-signal-getter',
+  'network-off-getter',
+  'page-zeroargs',
+  'minigame-cancel-getter',
+  'fps-cancel-getter',
+  'init-integrations-scope',
+  'init-initialScope-scope',
+  'init-transport-scope',
+];
 const scenarios = [
   'empty-session-timer',
   'empty-session-raf',
@@ -25,6 +36,7 @@ const scenarios = [
   'dd-frozen',
   'my-readonly-request',
   'dd-unreadable-storage',
+  ...boundaryScenarios,
 ];
 if (!process.argv[2] || !['cjs', 'esm'].includes(moduleKind)) {
   process.stderr.write(
@@ -95,6 +107,7 @@ async function runScenario() {
   for (const name of ['wx', 'my', 'tt', 'dd', 'qq', 'swan', 'ks', 'App', 'Page', 'GameGlobal']) {
     delete global[name];
   }
+  if (boundaryScenarios.includes(scenario)) return runBoundaryScenario(pkg);
   const originalTimeout = global.setTimeout;
   const tasks = [];
   const task = { nativeTaskIdentity: scenario, abort() {} };
@@ -493,5 +506,550 @@ async function runScenario() {
   } finally {
     client?.dispose();
     global.setTimeout = originalTimeout;
+  }
+}
+
+async function runBoundaryScenario(pkg) {
+  const declaredEntry = pkg.exports['.'][moduleKind === 'esm' ? 'import' : 'require'].default;
+  const entry = path.resolve(packageDir, declaredEntry);
+  const sdk = moduleKind === 'esm' ? await import(pathToFileURL(entry).href) : require(entry);
+  assert.equal(sdk.SDK_VERSION, pkg.version);
+  const observed = [];
+  const transmitted = [];
+  const frames = [];
+  const shows = [];
+  const hides = [];
+  const evidence = { version: pkg.version, module: moduleKind, scenario };
+  const originalDateNow = Date.now;
+  const originalError = new Error(`public package probe ${scenario}`);
+  const receiver = { route: 'pages/public-consumer' };
+  const businessValue = { businessReturnIdentity: true };
+  let clock = 1700000000000;
+  let client;
+  const host = {
+    request(options) {
+      assert.equal(this, host, 'default transport must call the selected native host');
+      transmitted.push(options);
+      options.success({ statusCode: 200, header: {} });
+      return businessValue;
+    },
+    getSystemInfoSync() {
+      assert.equal(this, host, 'platform information receiver must remain the native host');
+      return { brand: 'consumer-host', system: 'iOS 18', appName: 'Douyin' };
+    },
+    onShow(callback) {
+      assert.equal(this, host);
+      shows.push(callback);
+    },
+    onHide(callback) {
+      assert.equal(this, host);
+      hides.push(callback);
+    },
+  };
+  global.wx = host;
+  const transport = () => ({
+    send(envelope) {
+      observed.push(envelope);
+      return Promise.resolve({ statusCode: 200 });
+    },
+    flush() {
+      return Promise.resolve(true);
+    },
+  });
+  const common = {
+    dsn: 'https://probe@example.invalid/0',
+    release: `public-behavior@${pkg.version}`,
+    sendClientReports: false,
+    enableOfflineCache: false,
+    enableAutoSessionTracking: false,
+  };
+  const payloads = (type) =>
+    observed
+      .flatMap((envelope) => envelope[1])
+      .filter(([header]) => header.type === type)
+      .map(([, payload]) => payload);
+  const finishEvent = async (message) => {
+    const id = client.captureMessage(message);
+    assert.equal(await client.flush(1000), true);
+    const event = payloads('event').find((value) => value.event_id === id);
+    assert.ok(event, 'actual final event envelope must be delivered');
+    assert.equal(event.message, message);
+    assert.equal(event.sdk.version, pkg.version);
+    return event;
+  };
+  try {
+    if (scenario.startsWith('platform-')) {
+      global.tt = host;
+      if (scenario === 'platform-global-getter') {
+        Object.defineProperty(global, 'wx', {
+          configurable: true,
+          get() {
+            throw new Error('unavailable platform alias');
+          },
+        });
+      } else {
+        global.wx = {
+          request() {
+            assert.fail('ambiguous first candidate must not receive event');
+          },
+        };
+        host.getEnvInfoSync = function () {
+          assert.equal(this, host);
+          return Object.defineProperty({}, 'microapp', {
+            get() {
+              throw new Error('unreadable platform signal');
+            },
+          });
+        };
+      }
+      client = sdk.init(common);
+      assert.ok(client, 'one unavailable candidate or signal must not block init');
+      const id = client.captureException(originalError);
+      assert.equal(await client.flush(1000), true);
+      assert.equal(transmitted.length, 1);
+      const event = JSON.parse(transmitted[0].data.split('\n')[2]);
+      assert.equal(event.event_id, id);
+      assert.equal(event.sdk.version, pkg.version);
+      assert.equal(event.contexts.miniapp.platform, 'bytedance');
+      assert.equal(event.contexts.device.brand, 'consumer-host');
+      evidence.event = {
+        id,
+        platform: event.contexts.miniapp.platform,
+        sdkVersion: event.sdk.version,
+      };
+      evidence.hostCalls = transmitted.length;
+    } else if (scenario === 'network-off-getter') {
+      let handler;
+      host.onNetworkStatusChange = function (callback) {
+        assert.equal(this, host);
+        handler = callback;
+      };
+      Object.defineProperty(host, 'offNetworkStatusChange', {
+        configurable: true,
+        get() {
+          throw new Error('optional off unavailable');
+        },
+      });
+      client = sdk.init({
+        ...common,
+        defaultIntegrations: [sdk.networkStatusIntegration()],
+        transport,
+      });
+      assert.equal(typeof handler, 'function', 'optional off failure must not block usable on');
+      let reconnectFlushes = 0;
+      client.on('flush', () => {
+        reconnectFlushes += 1;
+      });
+      handler({ networkType: 'none', isConnected: false });
+      handler({ networkType: 'wifi', isConnected: true });
+      assert.equal(reconnectFlushes, 1);
+      const event = await finishEvent('network callback delivered');
+      assert.deepEqual(event.contexts.network, { type: 'wifi', isConnected: true });
+      assert.equal(
+        event.breadcrumbs.filter((value) => value.category === 'network.change').length,
+        2,
+      );
+      client.dispose();
+      let lateReads = 0;
+      const late = new Proxy(
+        {},
+        {
+          get() {
+            lateReads += 1;
+          },
+        },
+      );
+      handler(late);
+      assert.equal(lateReads, 0);
+      let offCalls = 0;
+      host.onNetworkStatusChange = function (callback) {
+        assert.equal(this, host);
+        sdk.getClient().dispose();
+        handler = callback;
+      };
+      Object.defineProperty(host, 'offNetworkStatusChange', {
+        configurable: true,
+        get() {
+          sdk.getClient().dispose();
+          return function () {
+            assert.equal(this, host);
+            offCalls += 1;
+          };
+        },
+      });
+      client = sdk.init({
+        ...common,
+        defaultIntegrations: [sdk.networkStatusIntegration()],
+        transport,
+      });
+      assert.equal(client.getOptions().enabled, false);
+      assert.ok(offCalls > 0, 'a handler saved after registration disposal must be detached');
+      handler(late);
+      assert.equal(lateReads, 0, 'retired late handler must not read host payload');
+      assert.equal(payloads('event').length, 1);
+      evidence.controls = { reconnectFlushes: 1, partialRegistrationDisposal: true, lateReads };
+    } else if (scenario === 'page-zeroargs') {
+      global.Page = function (options) {
+        assert.equal(this, global);
+        return options;
+      };
+      let observerThrows = false;
+      client = sdk.init({
+        ...common,
+        defaultIntegrations: [sdk.pageBreadcrumbsIntegration()],
+        transport,
+        beforeBreadcrumb(breadcrumb) {
+          if (observerThrows) throw new Error('observation failure');
+          return breadcrumb;
+        },
+      });
+      let throwBusiness = false;
+      let calls = 0;
+      const page = global.Page({
+        handleTap(...args) {
+          calls += 1;
+          assert.equal(this, receiver);
+          assert.deepEqual(args, [], 'zero-argument business callback must stay zero-argument');
+          if (throwBusiness) throw originalError;
+          return businessValue;
+        },
+      });
+      assert.equal(page.handleTap.call(receiver), businessValue);
+      const event = await finishEvent('zeroargs interaction delivered');
+      assert.ok(event.breadcrumbs.some((value) => value.category === 'user.interaction'));
+      observerThrows = true;
+      assert.equal(page.handleTap.call(receiver), businessValue);
+      throwBusiness = true;
+      for (let pass = 0; pass < 2; pass++) {
+        let thrown;
+        try {
+          page.handleTap.call(receiver);
+        } catch (error) {
+          thrown = error;
+        }
+        assert.equal(
+          thrown,
+          originalError,
+          'original Error identity must survive observer failure',
+        );
+        if (pass === 0) client.dispose();
+      }
+      throwBusiness = false;
+      assert.equal(page.handleTap.call(receiver), businessValue);
+      assert.equal(calls, 5);
+      assert.equal(payloads('event').length, 1);
+      evidence.controls = {
+        zeroArgs: true,
+        nativeReceiver: true,
+        businessReturnIdentity: true,
+        originalErrorIdentity: true,
+        afterDisposeTransparent: true,
+      };
+    } else if (scenario.endsWith('-cancel-getter')) {
+      Date.now = () => clock;
+      const raf = function (callback) {
+        assert.equal(this, global, 'native frame receiver must be global');
+        frames.push(callback);
+        return frames.length;
+      };
+      global.requestAnimationFrame = raf;
+      Object.defineProperty(global, 'cancelAnimationFrame', {
+        configurable: true,
+        get() {
+          throw new Error('optional cancel unavailable');
+        },
+      });
+      const fps = scenario === 'fps-cancel-getter';
+      const factory = fps ? sdk.minigameFrameRateIntegration : sdk.minigameIntegration;
+      const options = {
+        ...common,
+        tracesSampleRate: 1,
+        defaultIntegrations: [sdk.spanStreamingIntegration(), factory()],
+        transport,
+      };
+      client = sdk.init(options);
+      assert.equal(frames.length, 1, 'missing cancellation must not disable native sampling');
+      clock += 20;
+      frames[0]();
+      if (fps) {
+        clock += 20;
+        frames[1]();
+        hides.forEach((callback) => callback());
+      }
+      assert.equal(await client.flush(1000), true);
+      const spanName = fps ? 'minigame.framerate.summary' : 'minigame.init_to_first_frame';
+      const spans = payloads('span').flatMap((container) => container.items);
+      assert.ok(
+        spans.some((span) => span.name === spanName),
+        'actual final span envelope must be delivered',
+      );
+      const frameCount = frames.length;
+      const envelopeCount = observed.length;
+      client.dispose();
+      frames.forEach((callback) => callback());
+      assert.equal(frames.length, frameCount);
+      assert.equal(observed.length, envelopeCount);
+      let cancelCalls = 0;
+      const cancel = () => {
+        cancelCalls += 1;
+      };
+      for (const field of ['requestAnimationFrame', 'cancelAnimationFrame']) {
+        Object.defineProperty(global, 'requestAnimationFrame', {
+          configurable: true,
+          writable: true,
+          value: raf,
+        });
+        Object.defineProperty(global, 'cancelAnimationFrame', {
+          configurable: true,
+          writable: true,
+          value: cancel,
+        });
+        Object.defineProperty(global, field, {
+          configurable: true,
+          get() {
+            sdk.getClient().dispose();
+            return field === 'requestAnimationFrame' ? raf : cancel;
+          },
+        });
+        const listeners = shows.length + hides.length;
+        client = sdk.init({
+          ...options,
+          defaultIntegrations: [sdk.spanStreamingIntegration(), factory()],
+        });
+        assert.equal(client.getOptions().enabled, false);
+        assert.equal(frames.length, frameCount, 'getter disposal must not schedule native frames');
+        assert.equal(
+          shows.length + hides.length,
+          listeners,
+          'getter disposal must not register lifecycle listeners',
+        );
+        assert.equal(cancelCalls, 0, 'getter disposal must not recreate a cancellation resource');
+        assert.equal(observed.length, envelopeCount);
+      }
+      evidence.controls = {
+        spanName,
+        lateFramesInert: true,
+        requestGetterDisposal: true,
+        cancelGetterDisposal: true,
+      };
+    } else {
+      const phase = scenario.slice('init-'.length, -'-scope'.length);
+      const rootScope = sdk.getCurrentScope();
+      const warningFailureControls = [];
+      if (phase === 'transport') {
+        for (const failureMode of ['getter', 'call']) {
+          assert.equal(sdk.getClient(), undefined, 'warning control must be a first init');
+          const warningDescriptor = Object.getOwnPropertyDescriptor(console, 'warn');
+          const prototype = sdk.MiniappClient.prototype;
+          const disposeDescriptor = Object.getOwnPropertyDescriptor(prototype, 'dispose');
+          const originalDispose = prototype.dispose;
+          const disposed = [];
+          let constructed = 0;
+          let completeFirst;
+          let pendingFirst;
+          const firstCompletion = new Promise((resolve) => {
+            completeFirst = resolve;
+          });
+          let attemptedFirst;
+          let thrown;
+          try {
+            Object.defineProperty(prototype, 'dispose', {
+              ...disposeDescriptor,
+              value: function (...args) {
+                disposed.push(this);
+                return originalDispose.apply(this, args);
+              },
+            });
+            const failWarning = () => {
+              throw new Error(`diagnostic ${failureMode} unavailable`);
+            };
+            Object.defineProperty(console, 'warn', {
+              configurable: true,
+              ...(failureMode === 'getter'
+                ? { get: failWarning }
+                : { value: failWarning, writable: true }),
+            });
+            attemptedFirst = sdk.init({
+              ...common,
+              defaultIntegrations: false,
+              transport() {
+                constructed += 1;
+                pendingFirst = sdk.startSpan(
+                  { name: 'first transport scope' },
+                  () => firstCompletion,
+                );
+                return transport();
+              },
+            });
+          } catch (error) {
+            thrown = error;
+          } finally {
+            if (warningDescriptor) Object.defineProperty(console, 'warn', warningDescriptor);
+            else delete console.warn;
+            if (disposeDescriptor) Object.defineProperty(prototype, 'dispose', disposeDescriptor);
+            else delete prototype.dispose;
+            completeFirst();
+            await pendingFirst;
+          }
+          assert.equal(
+            thrown === undefined,
+            true,
+            'diagnostic failure must not interrupt rejection cleanup',
+          );
+          assert.equal(
+            attemptedFirst === undefined,
+            true,
+            'first transport scope must reject initialization',
+          );
+          assert.equal(constructed, 1);
+          assert.equal(
+            disposed.length,
+            1,
+            'unbound constructed client must be disposed exactly once',
+          );
+          const discarded = disposed[0];
+          assert.ok(discarded instanceof sdk.MiniappClient);
+          assert.equal(discarded.getOptions().enabled, false);
+          assert.equal(sdk.getCurrentScope(), rootScope);
+          assert.equal(
+            sdk.getClient(),
+            undefined,
+            'failed first init must not bind its discarded client',
+          );
+          const beforeCapture = observed.length;
+          discarded.captureMessage('discarded client must not capture');
+          await discarded.flush(1000);
+          await discarded
+            .getTransport()
+            .send([{}, [[{ type: 'event' }, { message: 'discarded send' }]]]);
+          assert.equal(
+            observed.length,
+            beforeCapture,
+            'discarded client must not deliver telemetry',
+          );
+          client = sdk.init({ ...common, defaultIntegrations: false, transport });
+          assert.ok(client);
+          await finishEvent(`safe root init after diagnostic ${failureMode} failure`);
+          client.dispose();
+          rootScope.setClient(undefined);
+          client = undefined;
+          warningFailureControls.push({
+            failureMode,
+            constructed,
+            disposed: disposed.length,
+            discardedCaptureBlocked: true,
+            safeRootEventDelivered: true,
+          });
+        }
+      }
+      const priorEvents = payloads('event').length;
+      client = sdk.init({ ...common, defaultIntegrations: false, tracesSampleRate: 1, transport });
+      const originalClient = client;
+      let complete;
+      const completion = new Promise((resolve) => {
+        complete = resolve;
+      });
+      let pending;
+      const begin = () => {
+        pending = sdk.startSpan({ name: 'configuration callback scope' }, () => completion);
+      };
+      let initialScopeCalls = 0;
+      let transportCalls = 0;
+      const attempted = sdk.init({
+        ...common,
+        defaultIntegrations: false,
+        initialScope(scope) {
+          initialScopeCalls += 1;
+          if (phase === 'initialScope') begin();
+          return scope;
+        },
+        transport() {
+          transportCalls += 1;
+          if (phase === 'transport') begin();
+          return transport();
+        },
+        ...(phase === 'integrations' && {
+          integrations(defaults) {
+            begin();
+            return defaults;
+          },
+        }),
+      });
+      complete();
+      await pending;
+      evidence.initializationPhase = phase;
+      evidence.attemptedReturnedClient = attempted !== undefined;
+      assert.equal(
+        attempted === undefined,
+        true,
+        'configuration scope change must reject initialization',
+      );
+      assert.equal(sdk.getCurrentScope(), rootScope);
+      if (phase === 'integrations') {
+        assert.equal(initialScopeCalls, 0);
+        assert.equal(transportCalls, 0);
+        assert.equal(
+          sdk.getClient(),
+          originalClient,
+          'early rejection must preserve the usable previous runtime',
+        );
+        await finishEvent('original runtime survived early rejection');
+      } else {
+        assert.equal(initialScopeCalls, 1);
+        assert.equal(transportCalls, phase === 'transport' ? 1 : 0);
+        assert.equal(
+          sdk.getClient(),
+          undefined,
+          'later rejection must not resurrect retired runtime',
+        );
+      }
+      // Positive control: setup starts its scope after root binding, so it remains supported.
+      let finishSetup;
+      const setupCompletion = new Promise((resolve) => {
+        finishSetup = resolve;
+      });
+      let setupPending;
+      client = sdk.init({
+        ...common,
+        defaultIntegrations: false,
+        transport,
+        integrations: [
+          {
+            name: 'PublicSetupScopeControl',
+            setup() {
+              setupPending = sdk.startSpan({ name: 'setup control' }, () => setupCompletion);
+            },
+          },
+        ],
+      });
+      assert.ok(client);
+      const nextClient = client;
+      await finishEvent('before setup scope completion');
+      finishSetup();
+      await setupPending;
+      assert.equal(sdk.getCurrentScope(), rootScope);
+      assert.equal(
+        sdk.getClient(),
+        nextClient,
+        'setup scope completion must preserve the newly bound runtime',
+      );
+      await finishEvent('after setup scope completion');
+      assert.equal(payloads('event').length, priorEvents + (phase === 'integrations' ? 3 : 2));
+      evidence.controls = {
+        phase,
+        rejectedInitialization: true,
+        originalRuntimePreserved: phase === 'integrations',
+        setupAfterRootBindingSupported: true,
+        ...(warningFailureControls.length > 0 && { warningFailureControls }),
+        finalEvents: payloads('event').length,
+      };
+    }
+    return { ...evidence, passed: true };
+  } catch (error) {
+    error.evidence = evidence;
+    throw error;
+  } finally {
+    client?.dispose();
+    Date.now = originalDateNow;
   }
 }

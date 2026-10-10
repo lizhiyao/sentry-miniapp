@@ -27,6 +27,8 @@ Sentry.setConsent(false); // Revoke the current client's permission.
 
 required=true implies a consent/offline layer even with enableOfflineCache=false. Count/bytes=0 disables SDK caching; missing Storage can fall back to bounded memory with diagnostics. Before grant, SDK collection may still occur but no SDK Sentry request starts. Revocation also checks queued work at actual host dequeue; in-flight abort depends on host capability.
 
+When required=true, consentCache* limits and preserve-oldest eviction apply to the shared store both before and after grant, including weak-network retries; offlineCacheLimit/offlineCacheMaxAge do not take over after setConsent(true). Limits and drop notices count envelope records, which can contain batched telemetry. Revocation or client shutdown does not automatically erase persisted records.
+
 Custom transport with required=false remains user-managed with no automatic SDK offline layer. With required=true it is wrapped for consent; it should not itself stack a second offline layer. Its private queue needs its own actual-send gate for strict revocation. Low-level directly constructed MiniappClient does not acquire persistent store or runtime replay ownership.
 
 ## Verification

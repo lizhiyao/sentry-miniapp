@@ -81,6 +81,39 @@ describe('Minigame 资源 owner（真实 core）', () => {
   }
 
   it.each([
+    ['首帧', () => new MinigameIntegration(), 'minigame.init_to_first_frame'],
+    ['FPS', () => new MinigameFrameRateIntegration(), 'minigame.framerate.summary'],
+  ] as const)(
+    '%s 的 cancel getter 不可读时仍采集，关闭后迟到帧失效',
+    async (_name, factory, spanName) => {
+      Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+        configurable: true,
+        get() {
+          throw new Error('cancel unavailable');
+        },
+      });
+      const envelopes: Envelope[] = [];
+      const client = start(envelopes, 'cancelProbe', factory());
+      expect(frames).toHaveLength(1);
+      frame(0, 20);
+      if (spanName === 'minigame.framerate.summary') {
+        frame(1, 20);
+        for (const hide of [...hides]) hide();
+      }
+      const flushing = client.flush(100);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(await flushing).toBe(true);
+      expect(collectSpans(envelopes).some((span) => span.name === spanName)).toBe(true);
+      const queued = frames.length;
+      const count = collectSpans(envelopes).length;
+      client.dispose();
+      for (const callback of [...frames]) callback();
+      expect(frames).toHaveLength(queued);
+      expect(collectSpans(envelopes)).toHaveLength(count);
+    },
+  );
+
+  it.each([
     ['Minigame', () => new MinigameIntegration()],
     ['FPS', () => new MinigameFrameRateIntegration()],
   ] as const)('%s 在监听注册中退休，解除 cleanup 返回后才保存的监听', (_name, factory) => {
@@ -97,6 +130,34 @@ describe('Minigame 资源 owner（真实 core）', () => {
     const read = vi.fn();
     handlers[0]!(new Proxy({}, { get: read }));
     expect(read).not.toHaveBeenCalled();
+  });
+
+  describe.each([
+    ['Minigame', () => new MinigameIntegration()],
+    ['FPS', () => new MinigameFrameRateIntegration()],
+  ] as const)('%s 能力探测中关闭（真实 Core）', (_name, factory) => {
+    it.each(['requestAnimationFrame', 'cancelAnimationFrame'] as const)(
+      '%s getter 关闭后返回可用函数，不恢复帧或生命周期资源',
+      (field) => {
+        const available = globalThis[field];
+        Object.defineProperty(globalThis, field, {
+          configurable: true,
+          get() {
+            getClient()!.dispose();
+            return available;
+          },
+        });
+        const envelopes: Envelope[] = [];
+        const client = start(envelopes, 'getterDispose', factory());
+        expect(client.getOptions().enabled).toBe(false);
+        client.dispose();
+        expect(frames).toEqual([]);
+        expect(shows).toEqual([]);
+        expect(hides).toEqual([]);
+        expect(cancel).not.toHaveBeenCalled();
+        expect(envelopes).toEqual([]);
+      },
+    );
   });
 
   it('同对象 A/B 复用：A 退休取消 SDK 帧，旧监听/帧不采集；B span 的 DSC 属于 B', async () => {

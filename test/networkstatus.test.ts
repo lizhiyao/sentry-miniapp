@@ -12,8 +12,10 @@ const {
   mockFlush,
   mockGetClient,
   mockClient,
+  activeCleanups,
 } = vi.hoisted(() => {
   const mockFlush = vi.fn(() => Promise.resolve(true));
+  const activeCleanups = new Set<() => void>();
 
   return {
     mockAddBreadcrumb: vi.fn(),
@@ -22,8 +24,15 @@ const {
     mockFlush,
     // 稳定的 client 桩：集成按「绑定的 client 是否仍是当前 client」过滤回调，
     // 每次新建对象会让 setup(client) 之后的回调全部被当成 stale 丢掉。
-    mockClient: { flush: mockFlush, registerCleanup: vi.fn(), getOptions: () => ({}) },
+    mockClient: {
+      flush: mockFlush,
+      registerCleanup: vi.fn((cleanup: () => void) => {
+        activeCleanups.add(cleanup);
+      }),
+      getOptions: () => ({}),
+    },
     mockGetClient: vi.fn(() => mockClient),
+    activeCleanups,
   };
 });
 
@@ -62,6 +71,8 @@ describe('NetworkStatusIntegration', () => {
   });
 
   afterEach(() => {
+    for (const cleanup of activeCleanups) cleanup();
+    activeCleanups.clear();
     vi.restoreAllMocks();
   });
 
@@ -72,7 +83,7 @@ describe('NetworkStatusIntegration', () => {
     vi.mocked(crossPlatform.sdk).mockReturnValue({
       request: vi.fn(),
       onNetworkStatusChange: (handler: (res: any) => void) => {
-        integration.cleanup();
+        mockClient.registerCleanup.mock.calls[0]![0]();
         handlers.push(handler);
       },
       offNetworkStatusChange: off,
@@ -95,7 +106,10 @@ describe('NetworkStatusIntegration', () => {
   });
 
   it('ignores initial and change callbacks owned by an inactive client', () => {
-    const oldClient = { registerCleanup: vi.fn() };
+    const registerCleanup = vi.fn((cleanup: () => void) => {
+      activeCleanups.add(cleanup);
+    });
+    const oldClient = { registerCleanup };
     // 全局 client 已被新一轮 init 换掉：本实例的回调必须失活。
     mockGetClient.mockReturnValue({
       flush: mockFlush,
@@ -109,7 +123,7 @@ describe('NetworkStatusIntegration', () => {
 
     expect(mockSetContext).not.toHaveBeenCalled();
     expect(mockAddBreadcrumb).not.toHaveBeenCalled();
-    integration.cleanup();
+    registerCleanup.mock.calls[0]![0]();
   });
 
   it('should add breadcrumb on network change', () => {
@@ -151,10 +165,12 @@ describe('NetworkStatusIntegration', () => {
     const integration = new NetworkStatusIntegration();
     integration.setup(mockClient as any);
 
-    integration.cleanup();
+    const cleanup = mockClient.registerCleanup.mock.calls[0]![0];
+    cleanup();
+    cleanup();
 
     const miniappSdk = crossPlatform.sdk();
-    expect(miniappSdk.offNetworkStatusChange).toHaveBeenCalled();
+    expect(miniappSdk.offNetworkStatusChange).toHaveBeenCalledOnce();
   });
 
   it('同 client 重复 setup 幂等，第二个 client 有独立订阅', () => {
@@ -162,7 +178,9 @@ describe('NetworkStatusIntegration', () => {
     const onNetworkStatusChange = vi.fn((callback: any) => {
       networkChangeCallback = callback;
     });
-    const registerCleanup = vi.fn();
+    const registerCleanup = vi.fn((cleanup: () => void) => {
+      activeCleanups.add(cleanup);
+    });
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({
       getNetworkType,
       onNetworkStatusChange,
@@ -179,6 +197,44 @@ describe('NetworkStatusIntegration', () => {
     expect(getNetworkType).toHaveBeenCalledTimes(2);
     expect(onNetworkStatusChange).toHaveBeenCalledTimes(2);
     expect(registerCleanup).toHaveBeenCalledOnce();
+  });
+
+  it.each(['old-first', 'new-first'])('%s client cleanup 只解除对应网络监听', (order) => {
+    const handlers: Array<(res: any) => void> = [];
+    const off = vi.fn();
+    vi.mocked(crossPlatform.sdk).mockReturnValue({
+      request: vi.fn(),
+      onNetworkStatusChange: (handler: (res: any) => void) => handlers.push(handler),
+      offNetworkStatusChange: off,
+    });
+    const integration = new NetworkStatusIntegration();
+    integration.setup(mockClient as any);
+    const oldCleanup = mockClient.registerCleanup.mock.calls[0]![0];
+    const registerCleanup = vi.fn((cleanup: () => void) => {
+      activeCleanups.add(cleanup);
+    });
+    const secondClient = { registerCleanup, getOptions: () => ({}) };
+    mockGetClient.mockReturnValue(secondClient as any);
+    integration.setup(secondClient as any);
+    const newCleanup = registerCleanup.mock.calls[0]![0];
+    const retired = order === 'old-first' ? 0 : 1;
+    const [first, second] = retired === 0 ? [oldCleanup, newCleanup] : [newCleanup, oldCleanup];
+
+    first!();
+    first!();
+    expect(off).toHaveBeenCalledExactlyOnceWith(handlers[retired]);
+    const read = vi.fn();
+    handlers[retired]!(new Proxy({}, { get: read }));
+    expect(read).not.toHaveBeenCalled();
+    handlers[1]!({ networkType: 'wifi', isConnected: true });
+    expect(mockAddBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
+
+    second!();
+    second!();
+    expect(off).toHaveBeenCalledTimes(2);
+    expect(off).toHaveBeenLastCalledWith(handlers[1 - retired]);
+    for (const handler of handlers) handler(new Proxy({}, { get: read }));
+    expect(read).not.toHaveBeenCalled();
   });
 
   it('should handle missing network APIs gracefully', () => {
@@ -246,7 +302,7 @@ describe('NetworkStatusIntegration', () => {
     });
     expect(() => networkChangeCallback!({ networkType: 'wifi' })).not.toThrow();
     expect(mockFlush).toHaveBeenCalled();
-    expect(() => integration.cleanup()).not.toThrow();
+    expect(mockClient.registerCleanup.mock.calls[0]![0]).not.toThrow();
     expect(offNetworkStatusChange).toHaveBeenCalled();
   });
 

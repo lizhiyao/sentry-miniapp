@@ -59,6 +59,6 @@ uni-app 官方稳定模板仍使用现有版本组和 Vite `5.2.8`；较新 alph
 
 GitHub 此前显示的 18 条 Dependabot 告警尚未取得正文，因此本表不是它们的逐项核销。官方 npm 审计是本次实际依赖树的独立证据，后续仍需核对 GitHub 的 manifest、版本、公告及告警状态，不能只按数量判断完成。
 
-剩余框架依赖公告、上游兼容升级与 GitHub 告警核对由 [#467](https://github.com/lizhiyao/sentry-miniapp/issues/467) 继续跟踪。
+[#467](https://github.com/lizhiyao/sentry-miniapp/issues/467) 已按维护者决定关闭。剩余示例框架依赖警告与上游兼容升级暂缓处理，不作为 SDK 升级或发布阻塞；此前审查证据保留，关闭不表示所有警告已修复。
 
 真实设备冻结恢复、弱网、设备存储、撤回同意和最终后台符号化继续按 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 收集用户证据。本轮未新增这些场景的通过结论。

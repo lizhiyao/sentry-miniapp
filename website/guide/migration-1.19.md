@@ -19,7 +19,7 @@ Sentry.init({
   dsn: 'YOUR_DSN',
   tracesSampleRate: 0.2,
   tracePropagationTargets: [
-    'https://api.example.com',
+    /^https:\/\/api\.example\.com\//,
     /^https:\/\/gateway\.example\.com\//,
   ],
 });

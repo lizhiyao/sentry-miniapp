@@ -52,6 +52,102 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
     delete g.tt;
   });
 
+  async function captureThroughDetectedHost(): Promise<void> {
+    const request = tt.request;
+    request.mockImplementation(function (this: unknown, options: any) {
+      options.success({ statusCode: 200, header: {} });
+    });
+    const client = init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      enableAutoSessionTracking: false,
+      enableOfflineCache: false,
+    });
+    assertDefined(client);
+    captureException(new Error('platform capability fallback'));
+    await client.flush(2000);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.contexts[0]).toBe(tt);
+    const body = request.mock.calls[0]![0].data as string;
+    const event = JSON.parse(body.split('\n')[2]!) as Event;
+    expect(event.contexts?.miniapp?.platform).toBe('bytedance');
+    expect(event.contexts?.device?.brand).toBe('ByteDance');
+    expect(event.exception?.values?.[0]?.value).toContain('platform capability fallback');
+  }
+
+  it.each(['wx', 'my', 'dd', 'qq', 'swan', 'ks'])(
+    '%s 全局候选 getter 不可读时仍使用可用的抖音宿主发送最终事件',
+    async (globalName) => {
+      Object.defineProperty(g, globalName, {
+        configurable: true,
+        get() {
+          throw new Error(`${globalName} unavailable`);
+        },
+      });
+
+      await captureThroughDetectedHost();
+    },
+  );
+
+  it.each([
+    ['getEnvInfoSync', 'microapp', undefined, 'system'],
+    ['getEnvInfoSync', 'microapp', 'appId', 'system'],
+    ['getEnvInfoSync', 'common', undefined, 'system'],
+    ['getEnvInfoSync', 'common', 'USER_DATA_PATH', 'system'],
+    ['getSystemInfoSync', 'appName', undefined, 'hostName'],
+    ['getSystemInfoSync', 'hostName', undefined, 'account'],
+    ['getAccountInfoSync', 'miniProgram', undefined, 'launch'],
+    ['getAccountInfoSync', 'miniProgram', 'appId', 'launch'],
+    ['getLaunchOptionsSync', 'extra', undefined, 'otherHost'],
+    ['getLaunchOptionsSync', 'extra', 'appId', 'otherHost'],
+  ])(
+    '%s 返回值的 %s.%s 不可读时继续采用下一项有效宿主信号',
+    async (apiName, outerKey, innerKey, fallback) => {
+      const result: Record<string, unknown> = {};
+      const throwing = innerKey ? (result[outerKey!] = {}) : result;
+      Object.defineProperty(throwing, innerKey ?? outerKey!, {
+        get() {
+          throw new Error('unavailable platform signal');
+        },
+      });
+      tt.getSystemInfoSync.mockReturnValue({
+        brand: 'ByteDance',
+        model: 'Douyin Device',
+        system: 'iOS 18',
+      });
+      if (fallback === 'system')
+        tt.getSystemInfoSync.mockReturnValue({
+          brand: 'ByteDance',
+          model: 'Douyin Device',
+          system: 'iOS 18',
+          appName: 'Douyin',
+        });
+      if (fallback === 'hostName')
+        Object.assign(result, {
+          brand: 'ByteDance',
+          model: 'Douyin Device',
+          system: 'iOS 18',
+          hostName: 'Douyin',
+        });
+      if (fallback === 'account') {
+        Object.assign(result, { brand: 'ByteDance', model: 'Douyin Device', system: 'iOS 18' });
+        tt.getAccountInfoSync = vi.fn(() => ({ miniProgram: { appId: 'tt123' } }));
+      }
+      if (fallback === 'launch')
+        tt.getLaunchOptionsSync = vi.fn(() => ({ extra: { appId: 'tt123' } }));
+      if (fallback === 'otherHost')
+        g.wx.getEnvInfoSync = vi.fn(() => ({ microapp: { appId: 'tt123' } }));
+      tt[apiName!] = vi.fn(function (this: unknown) {
+        expect(this).toBe(tt);
+        return result;
+      });
+
+      await captureThroughDetectedHost();
+      expect(tt[apiName!]).toHaveBeenCalled();
+      expect(tt[apiName!].mock.contexts.every((receiver: unknown) => receiver === tt)).toBe(true);
+    },
+  );
+
   it('wx / tt 共存时自动识别抖音宿主，并兼容 beforeSend 顶层 platform', async () => {
     const wxOnError = g.wx.onError;
     const client = init({

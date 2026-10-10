@@ -77,7 +77,9 @@ span.end();
 
 自动 HTTP 等 producer 在创建前写动态维度；稳定设备／应用字段只按缺失键补齐，用户值和单位优先。tags／extra 用于错误事件，attributes 用于 spans／Logs／metrics；不要自动复制所有 tags／context。
 
-小程序仅支持一个 init 管理的活动 tracing client。stack strategy 不能隔离任意 Promise／await 并发，SDK owner 的 `withScope` 范围保持同步；不要承诺 await 后的并行请求仍绑定各自父 span。init 替换先退休旧 runtime，其迟到 SDK 回调不采集新数据；业务 HTTP 不被取消。
+小程序仅支持一个 `init()` 管理的活动 tracing client，不能隔离任意 Promise／await 并发；不要假定 await 后的并行请求仍绑定各自父 span。重新初始化会停止旧 client 的自动采集，其迟到 SDK 回调不采集新数据；业务 HTTP 不被取消。
+
+初始化配置阶段的 `integrations(defaults)`、`initialScope(scope)` 和 `transport(options)` 回调必须同步完成，且不能留下未结束的临时 `withScope` 或异步 `startSpan` 上下文。异步准备工作应先完成，再调用 `init()`。这项要求限定配置阶段；已绑定 client 的 integration `setup` 可按其生命周期正常创建异步 span。
 
 ## Logs、metrics 与 client reports
 
@@ -93,7 +95,7 @@ Sentry.logger.info('checkout completed', { channel: 'miniapp' });
 Sentry.metrics.count('checkout.completed', 1);
 ```
 
-client reports 默认开启；需要关闭时显式设 false。报告通过同一 transport 发送，未同意／无 DSN 不清 outcomes，报告失败不入离线磁盘。flush 后异步产生的新 drop 留待下一次 flush。报告通过公开 recorder／envelope API 实现，不依赖 core 的内部 outcomes 容器。
+client reports 默认开启；需要关闭时显式设 `sendClientReports: false`。报告通过同一通道发送，未同意或没有 DSN 时保留丢弃计数，报告失败不会写入离线缓存。`flush()` 后异步产生的丢弃计数留待下一次 `flush()`。
 
 `dataCollection.userInfo: false` 不删除业务显式 `setUser` 的所有传播。core 的 span／Logs／metrics enrichment 可读取显式 scope user；需要避免发送时，不设置这些字段或在对应 callback 处理。
 
@@ -101,7 +103,7 @@ client reports 默认开启；需要关闭时显式设 false。报告通过同�
 
 - 不再自动读取交互 dataset，也不复制任意 User Timing detail。需要时由业务白名单构造 breadcrumb，不复制整份模板数据。
 - handler／targetId 限 128 个 UTF-16 code units，eventType 限 64 个；坐标仅接受有限数值，业务参数不变。
-- query 和 body 分别受 typed collector 控制；未知 plaintext、multipart／binary 默认省略正文，不因解析失败回落原文。
+- query 和 body 使用独立的采集策略；无法识别的纯文本、multipart／binary 默认省略正文，不因解析失败回落原文。
 - 通用 Performance 与小游戏 FPS 默认关闭。显式安装 `performanceIntegration()` 或配置 `enableMinigameFrameRate: true`。
 - 删除通用 Performance 的 `sampleRate`、`bufferSize`、`reportInterval`、`thresholds`、`enableMemory`；不再做二次 trace 采样、条目聚合和 memory 轮询。FPS 自身的统计窗口参数保留。
 - 相对 PerformanceEntry 没有可信 timeOrigin 时省略 span，不伪造发生时间或关联到交付时当前页面。
@@ -110,11 +112,11 @@ client reports 默认开启；需要关闭时显式设 false。报告通过同�
 
 ## 单目标缓存与同意
 
-2.0 只有一层官方 offline 管道和一个活动持久投递目标。旧格式、DSN／tunnel 目标或不兼容隐私／存储策略变化时丢弃并诊断，不能跨目标补发。count／bytes／TTL 调整仅裁剪，不整批删兼容数据；同目标新 client 不继承旧 grant。
+2.0 的同意等待与弱网重试共用一个缓存，只向当前 Sentry 目标补发。更换 DSN／tunnel、读取旧格式或使用不兼容的隐私／存储策略时，会丢弃旧数据并记录诊断。只调整条数、字节上限或过期时间时，会裁剪仍兼容的记录。重新初始化的 client 不继承旧授权。
 
-SDK 按实际运行平台限制整个缓存容器，记录与元数据都计入：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB。`consentCacheMaxBytes` 默认仍为 900 KiB，较小的配置可进一步收窄，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。typed codec 保留 binary／子视图；retry 不刷新原 TTL。shift 必须持久提交删除后才交给 transport：提交失败不发送；退休 owner 在途失败不得覆盖新 owner store。缓存是 best-effort，不承诺 durable ACK、恰好一次或绝不丢失。
+SDK 按实际运行平台限制整个缓存容器，记录与元数据都计入：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB。`consentCacheMaxBytes` 默认仍为 900 KiB，较小的配置可进一步收窄，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。重试不会延长原过期时间；重放前保存删除失败的记录不会发送，移除成功后中断仍可能丢失数据。缓存只能尽力补发，不能保证不丢失、不重复或后台接收成功。
 
-`requireConsent: true` 保留同意前缓存含义，即使 enableOfflineCache=false；count／bytes=0 则不缓存，缺 Storage 可内存降级并诊断。撤回后排队请求不得启动，已经在途请求在宿主支持时 abort。第三方 transport 私有队列仍需自己的实际发送门。
+`requireConsent: true` 会启用同意等待与弱网共享缓存，即使 `enableOfflineCache: false`；授权前后始终使用 `consentCache*`，不会切换为 `offlineCache*`。条数／字节上限为 0 时不缓存，缺少 Storage 时可降级为内存并记录诊断。撤回后排队的 Sentry 请求不会启动，在途请求会在宿主支持时尝试取消；已保存的记录不会自动清空。自定义 transport 的内部队列仍需自行控制实际发送。具体配置见[可靠上报与隐私同意](/guide/reliability-and-privacy)。
 
 直接构造 MiniappClient 是低层 event／feedback 用法，必须提供 transport 和显式 scope；不接管自动 runtime、持久 store 或并行 tracing。默认应用接入迁到 init。
 

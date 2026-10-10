@@ -19,16 +19,19 @@ vi.mock('@sentry/core', async () => {
 
 import { addBreadcrumb, getClient, setContext } from '@sentry/core';
 
-const activeIntegrations = new Set<PageBreadcrumbs>();
+const activeCleanups = new Set<() => void>();
 
-function setupIntegration(integration: PageBreadcrumbs): void {
+function setupIntegration(integration: PageBreadcrumbs): () => void {
+  const registerCleanup = vi.fn((cleanup: () => void) => {
+    activeCleanups.add(cleanup);
+  });
   const client = {
-    registerCleanup: vi.fn(),
+    registerCleanup,
     getDataCollectionOptions: () => ({}),
   } as any;
   vi.mocked(getClient).mockReturnValue(client);
   integration.setup(client);
-  activeIntegrations.add(integration);
+  return registerCleanup.mock.calls[0]![0];
 }
 
 describe('PageBreadcrumbs Integration', () => {
@@ -44,8 +47,8 @@ describe('PageBreadcrumbs Integration', () => {
   });
 
   afterEach(() => {
-    for (const integration of activeIntegrations) integration.cleanup();
-    activeIntegrations.clear();
+    for (const cleanup of activeCleanups) cleanup();
+    activeCleanups.clear();
     (globalThis as any).Page = originalPage;
     (globalThis as any).App = originalApp;
     _resetAppLifecycle();
@@ -78,8 +81,9 @@ describe('PageBreadcrumbs Integration', () => {
   it('client 清理登记立即生效时不安装 App／Page 或导航资源', () => {
     const original = vi.fn((options: any) => options);
     (globalThis as any).Page = original;
+    const registerCleanup = vi.fn((stop: () => void) => stop());
     const client = {
-      registerCleanup: (stop: () => void) => stop(),
+      registerCleanup,
       getDataCollectionOptions: () => ({}),
     } as any;
     vi.mocked(getClient).mockReturnValue(client);
@@ -87,7 +91,7 @@ describe('PageBreadcrumbs Integration', () => {
     integration.setup(client);
     expect((globalThis as any).Page).toBe(original);
     expect(addBreadcrumb).not.toHaveBeenCalled();
-    integration.cleanup();
+    expect(registerCleanup.mock.calls[0]![0]).not.toThrow();
   });
 
   describe('Page lifecycle breadcrumbs', () => {
@@ -431,7 +435,38 @@ describe('PageBreadcrumbs Integration', () => {
   });
 
   describe('Edge cases', () => {
-    it('manual cleanup drains client-specific subscriptions idempotently', () => {
+    it.each(['old-first', 'new-first'])('%s client cleanup 保留其它订阅和业务回调', (order) => {
+      const basePage = vi.fn((options: any) => options);
+      (globalThis as any).Page = basePage;
+      const integration = new PageBreadcrumbs();
+      const oldCleanup = setupIntegration(integration);
+      const newCleanup = setupIntegration(integration);
+      const wrapper = (globalThis as any).Page;
+      const result = {};
+      const business = vi.fn(() => result);
+      const page = wrapper({ onTap: business });
+      const receiver = { route: 'pages/home' };
+      const event = { type: 'tap' };
+      const [first, second] =
+        order === 'old-first' ? [oldCleanup, newCleanup] : [newCleanup, oldCleanup];
+
+      first!();
+      first!();
+      expect((globalThis as any).Page).toBe(wrapper);
+      expect(page.onTap.call(receiver, event)).toBe(result);
+      expect(business.mock.contexts[0]).toBe(receiver);
+      expect(business).toHaveBeenCalledWith(event);
+      expect(addBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
+
+      second!();
+      second!();
+      expect((globalThis as any).Page).toBe(basePage);
+      expect(page.onTap.call(receiver, event)).toBe(result);
+      expect(business).toHaveBeenCalledTimes(2);
+      expect(addBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
+    });
+
+    it('registered cleanup drains client-specific subscriptions idempotently', () => {
       const basePage = vi.fn((options: any) => options);
       (globalThis as any).Page = basePage;
       (globalThis as any).App = vi.fn((options: any) => options);
@@ -442,7 +477,6 @@ describe('PageBreadcrumbs Integration', () => {
 
       integration.setup(client);
       const registeredCleanup = registerCleanup.mock.calls[0][0];
-      integration.cleanup();
       registeredCleanup();
       registeredCleanup();
 
@@ -498,14 +532,14 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = base;
 
       const integration = new PageBreadcrumbs();
-      setupIntegration(integration);
+      const cleanup = setupIntegration(integration);
       const ourWrapper = (globalThis as any).Page;
 
       // 第三方在我们之后再包一层
       const thirdParty = vi.fn((o: any) => ourWrapper(o));
       (globalThis as any).Page = thirdParty;
 
-      integration.cleanup();
+      cleanup();
       // 当前 Page 已非本集成的包装 → 不还原，保留第三方包装（修复前会被无条件清成原始 Page）
       expect((globalThis as any).Page).toBe(thirdParty);
     });
@@ -515,10 +549,10 @@ describe('PageBreadcrumbs Integration', () => {
       (globalThis as any).Page = base;
 
       const integration = new PageBreadcrumbs();
-      setupIntegration(integration);
+      const cleanup = setupIntegration(integration);
       expect((globalThis as any).Page).not.toBe(base);
 
-      integration.cleanup();
+      cleanup();
       expect((globalThis as any).Page).toBe(base);
     });
   });

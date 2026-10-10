@@ -69,11 +69,11 @@ flowchart TD
 `init()` 的主要顺序是：
 
 1. 检查遥测同步临界区和默认持久 scope；临时 `withScope`／`withActiveSpan`、尚未完成的异步 span 上下文返回 `undefined`，并保留原 client。同步采集 hook 重入同样拒绝初始化。
-2. 校验只支持 `traceLifecycle: 'stream'`，判断宿主环境；装配全新的默认集成实例、用户集成、平台标签、stack parser 和 transport 配置。
-3. 若旧绑定是 `MiniappClient`，开始其有界退休；再通过 Core 的公开 `initAndBind` 构造和绑定新 client。
+2. 校验只支持 `traceLifecycle: 'stream'`，判断宿主环境；装配全新的默认集成实例、用户集成、平台标签、stack parser 和 transport 配置。配置解析后再次检查根 scope 身份；配置回调或 getter 留下临时上下文时拒绝，尚不应用 `initialScope` 或退休旧 client。
+3. 若旧绑定是 `MiniappClient`，开始其有界退休；再通过 Core 的公开 `initAndBind` 应用 `initialScope`、构造和绑定新 client。局部构造器在 `super` 前后检查同一根 scope：`initialScope` 改变上下文时不构造，transport 构造改变上下文时立即 dispose 尚未绑定的新 client。该守卫不复制 Core 的 scope 栈或装配算法。
 4. Core 执行集成安装；client 自有环境、lifetime、consent 和 transport 控制闭包已经就绪。自动 runtime 的活动身份只授予 `init()` 构造的 client。
 
-旧 runtime 退休后，新构造失败不会复活旧 runtime。根初始化可正常替换 client，但业务入口应尽早、通常在 `App()` 注册前初始化；晚初始化不能补回已发生的宿主注册和启动异常。
+旧 runtime 退休后，新构造失败或构造阶段的 scope 拒绝不会复活旧 runtime。Core 绑定完成后，集成 `setup` 可以启动自身的异步 span；它完成后返回的根仍绑定新 client。根初始化可正常替换 client，但业务入口应尽早、通常在 `App()` 注册前初始化；晚初始化不能补回已发生的宿主注册和启动异常。
 
 集成的公共形式是 factory，返回类型只承诺 Core `Integration`，不将内部 class 的清理方法作为公共 API。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
 

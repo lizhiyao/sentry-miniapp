@@ -9,13 +9,16 @@ vi.mock('@sentry/core', () => ({
 
 import { addBreadcrumb, getClient } from '@sentry/core';
 
-const activeIntegrations = new Set<ConsoleBreadcrumbs>();
+const activeCleanups = new Set<() => void>();
 
-function setupIntegration(integration: ConsoleBreadcrumbs): void {
-  const client = { registerCleanup: vi.fn() } as any;
+function setupIntegration(integration: ConsoleBreadcrumbs): () => void {
+  const registerCleanup = vi.fn((cleanup: () => void) => {
+    activeCleanups.add(cleanup);
+  });
+  const client = { registerCleanup } as any;
   vi.mocked(getClient).mockReturnValue(client);
   integration.setup(client);
-  activeIntegrations.add(integration);
+  return registerCleanup.mock.calls[0]![0];
 }
 
 describe('ConsoleBreadcrumbs Integration', () => {
@@ -31,8 +34,8 @@ describe('ConsoleBreadcrumbs Integration', () => {
   });
 
   afterEach(() => {
-    for (const integration of activeIntegrations) integration.cleanup();
-    activeIntegrations.clear();
+    for (const cleanup of activeCleanups) cleanup();
+    activeCleanups.clear();
     // Restore original console methods
     for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
       (console as any)[level] = originalConsole[level];
@@ -165,10 +168,11 @@ describe('ConsoleBreadcrumbs Integration', () => {
     const originalLog = console.log;
     const integration = new ConsoleBreadcrumbs({ levels: ['log'] });
 
-    setupIntegration(integration);
+    const cleanup = setupIntegration(integration);
     expect(console.log).not.toBe(originalLog);
 
-    integration.cleanup();
+    cleanup();
+    cleanup();
     expect(console.log).toBe(originalLog);
   });
 
@@ -178,11 +182,35 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
     integration.setup({ registerCleanup } as any);
     const cleanup = registerCleanup.mock.calls[0][0];
-    integration.cleanup();
     cleanup();
     cleanup();
 
     expect(registerCleanup).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it.each(['old-first', 'new-first'])('%s client cleanup 不清除另一 owner 的包装', (order) => {
+    const result = {};
+    const original = vi.fn(() => result);
+    console.log = original as any;
+    const integration = new ConsoleBreadcrumbs({ levels: ['log'] });
+    const oldCleanup = setupIntegration(integration);
+    const newCleanup = setupIntegration(integration);
+    const wrapper = console.log;
+    const [first, second] =
+      order === 'old-first' ? [oldCleanup, newCleanup] : [newCleanup, oldCleanup];
+
+    first!();
+    first!();
+    expect(console.log).toBe(wrapper);
+    expect(console.log('business')).toBe(result);
+    expect(addBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
+
+    second!();
+    second!();
+    expect(console.log).toBe(original);
+    expect(console.log('after cleanup')).toBe(result);
+    expect(original).toHaveBeenCalledTimes(2);
+    expect(addBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
   });
 
   it('client setup skips unavailable levels and detached calls preserve console as this', () => {
@@ -202,7 +230,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
 
       const detached = console.warn;
       expect(detached()).toBe(console);
-      integration.cleanup();
+      registerCleanup.mock.calls[0]![0]();
     } finally {
       console.error = savedError;
       console.warn = savedWarn;
@@ -214,7 +242,8 @@ describe('ConsoleBreadcrumbs Integration', () => {
     const integration = new ConsoleBreadcrumbs({ levels: ['info'] });
 
     expect(() => integration.setupOnce()).not.toThrow();
-    expect(() => integration.cleanup()).not.toThrow();
+    const cleanup = setupIntegration(integration);
+    expect(cleanup).not.toThrow();
     expect(addBreadcrumb).not.toHaveBeenCalled();
   });
 
