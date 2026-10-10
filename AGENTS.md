@@ -10,6 +10,7 @@ sentry-miniapp 是基于 `@sentry/core` 的跨端小程序 Sentry SDK，覆盖�
 - 涉及 SDK 功能或 Core 依赖改造时，先看 `ARCHITECTURE.md` 的职责边界和验证不变量。
 - 功能改造前确认对所有已支持平台的影响；如果使用某个平台特有 API，必须提供条件判断或回退机制。
 - 交付前默认跑 `yarn run lint` 和 `yarn run test`（Vitest 单测）；涉及构建产物或跨端行为时，再跑 `yarn run build`。
+- 新增测试前先检查能否强化现有用例；参数组合优先参数化，跨层重复须保护不同接缝，不以用例数量作为验收指标。具体准则见 `CONTRIBUTING.md` 的 Testing。
 - 代码改造完成后，必须检查并更新相关文档，如 `README.md`、`docs/README.en.md`、`website/` 或示例工程文档。
 
 ## 硬规则

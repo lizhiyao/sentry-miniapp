@@ -46,7 +46,7 @@ tracesSampler: ({ attributes, inheritOrSampleWith }) => {
 | `enableSystemInfo` | `boolean` | `true` | 采集 client 自有的设备 / 系统 / 应用与宿主版本快照 |
 | `traceNetworkBody` | `boolean` | `false` | 网络面包屑中记录请求 / 响应体；体先按敏感键脱敏再按 `maxRequestBodySize` 截断，且仍受 `dataCollection.httpBodies` 约束 |
 | `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | 单个请求 / 响应体上报的字节上限（`small` = 1 KB、`medium` = 10 KB）。数值须为正安全整数，否则回落默认；超出部分截断，省略号也计入上限，1／2 字节预算分别最多补 `.`／`..`。`request_body_size` / `response_body_size` 仍记录原文的完整字节数 |
-| `dataCollection` | `object` | 见下 | core 11 的采集开关。本 SDK 尊重 `urlQueryParams`（URL、`url.full`、面包屑 `url.query`、页面 `onLoad` 入参）与 `httpBodies`（请求 / 响应体方向）；**不采集请求头、响应头与 cookie**，因此 `httpHeaders` / `cookies` 在本 SDK 无作用对象 |
+| `dataCollection` | `object` | 见下 | core 11 的采集开关。`userInfo: false` 关闭错误事件的后台 IP 自动补充；`urlQueryParams` 控制 URL、`url.full`、面包屑 `url.query` 与页面 `onLoad` 入参；`httpBodies` 控制请求 / 响应体方向。**不采集请求头、响应头与 cookie**，因此 `httpHeaders` / `cookies` 在本 SDK 无作用对象 |
 | `maxBreadcrumbs` | `number` | `100` | 面包屑最大条数 |
 
 > 网络面包屑（`url`/`method`/状态码/耗时）**默认开启**，无需配置。若开启 `traceNetworkBody` 后需要按 URL 排除 body，可在 `beforeBreadcrumb` 里按 `breadcrumb.data.url` 删除 `request_body` / `response_body`，或返回 `null` 丢弃该条面包屑。
@@ -56,6 +56,8 @@ tracesSampler: ({ attributes, inheritOrSampleWith }) => {
 > `dataCollection.httpBodies` 与 `traceNetworkBody` 是**两层独立的闸门**：前者按方向收窄（`outgoingRequest` / `outgoingResponse`），后者是本 SDK 的总开关；只有两者都放行才记录请求 / 响应体。SDK 自身采集的 URL 一律经过 `dataCollection.urlQueryParams` 过滤，默认即会把 `token` 这类敏感键值写成 `[Filtered]`。
 
 ## 采集数据的脱敏口径
+
+`dataCollection.userInfo` 默认为 `true`。设为 `false` 可关闭错误事件的后台 IP 自动补充，但不会删除业务通过 `setUser` 显式提供的 id、邮箱或 IP；也不会自动清理自定义日志、span 属性或事件字段。需要移除这些数据时，在采集前删去字段，或用对应的过滤回调处理。各类回调的作用范围见[常用 API](/guide/api)。
 
 SDK 自动采集的键值数据都走 core 11 的 `CollectBehavior` 语义：键名保留，命中的值就地替换成 `[Filtered]`。
 

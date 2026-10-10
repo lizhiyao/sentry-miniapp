@@ -18,6 +18,7 @@ import {
   SPAN_STATUS_ERROR,
   getTraceData,
   setHttpStatus,
+  spanIsIgnored,
   startInactiveSpan,
 } from '@sentry/core';
 import type { Client, Integration, Span } from '@sentry/core';
@@ -488,7 +489,10 @@ function injectTraceHeaders(
   propagateTraceparent: boolean,
 ): void {
   try {
-    const span = requestSpan?.span;
+    let span = requestSpan?.span;
+    // 忽略本地 HTTP 子 span 不应把已采样的父 trace 改为未采样；与 Core fetch / Browser XHR 一致。
+    // 无父的 ignored segment 仍使用自身明确的未采样决策。
+    if (span && spanIsIgnored(span) && getActiveSpan()) span = undefined;
     const traceData = getTraceData(
       span
         ? propagateTraceparent

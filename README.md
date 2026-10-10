@@ -122,6 +122,8 @@ console.log(Sentry.getDiagnostics());
 Sentry.setConsent(true);
 ```
 
+如需关闭错误事件的后台 IP 自动补充，设置 `dataCollection: { userInfo: false }`；业务显式提供的用户信息仍会保留，详见[数据采集配置](https://sentry-miniapp.pages.dev/guide/configuration#采集数据的脱敏口径)。
+
 ---
 
 ## 🧭 下一步看哪里

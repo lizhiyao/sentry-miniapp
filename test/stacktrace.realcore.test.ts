@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getCurrentScope, type Envelope, type Event } from '@sentry/core';
-import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
 import { init } from '../src/sdk';
 import type { MiniappClient } from '../src/client';
 import { rewriteFramesIntegration } from '../src/integrations/rewriteframes';
@@ -14,7 +13,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('async bare stack frame through real Core and source maps', () => {
+describe('async bare stack frame through real Core and Debug ID matching', () => {
   it.each([true, false])(
     'preserves the artifact and Debug ID (Error header=%s)',
     async (header) => {
@@ -57,27 +56,6 @@ describe('async bare stack frame through real Core and source maps', () => {
       expect(frame.function).toBe('?');
       expect(frame.debug_id).toBeUndefined();
       expect(event.sdkProcessingMetadata).toBeUndefined();
-      // A minimal real v3 map links generated line 42, column 13 to source line 7, column 3.
-      const uploadedMaps = new Map([
-        [
-          codeFile,
-          new TraceMap({
-            version: 3,
-            file: 'index.js',
-            sources: ['src/pages/index.ts'],
-            names: ['loadData'],
-            mappings: `${';'.repeat(41)}YAMEA`,
-          }),
-        ],
-      ]);
-      const map = uploadedMaps.get(frame.filename!);
-      expect(map).toBeDefined();
-      expect(originalPositionFor(map!, { line: frame.lineno!, column: frame.colno! - 1 })).toEqual({
-        source: 'src/pages/index.ts',
-        line: 7,
-        column: 2,
-        name: 'loadData',
-      });
     },
   );
 });

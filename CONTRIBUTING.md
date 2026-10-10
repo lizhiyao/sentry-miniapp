@@ -77,6 +77,11 @@ This is critical: when modifying functionality, **always consider the impact on 
   function signatures instead of bypassing test type errors with broad casts.
 - Coverage must stay above the global thresholds enforced by `vitest.config.mts`.
   New changes should improve coverage without excluding production code from measurement.
+- Prefer strengthening an existing test to adding another test for the same behavior. Use
+  parameterized cases for distinct inputs, and avoid assertions that merely check a fixture,
+  reproduce implementation logic or count private state. Tests at multiple layers should
+  protect distinct boundaries, such as parser output, the final Core envelope and installed
+  package entry points. Test count is not an acceptance criterion.
 
 ## License
 
