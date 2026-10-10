@@ -359,7 +359,7 @@ Sentry.init({
 
 2.0 将 JS 未处理异常的 Session 状态从 `crashed` 改为 `unhandled`，不将可继续运行的异常当作宿主进程崩溃。Release Health 的统计与告警须重新建立基线，不能直接比较 1.x 的 crash-free 数据；没有真实原生崩溃证据时 SDK 不生成 `crashed`。
 
-自动 Session 随每次前台运行开始。可包装的小程序 App 路径在业务同步 `onHide` 之后结束会话。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。SDK 自动捕获的定时器／业务 rAF 同步异常按调度时的会话统计；开始时没有活动会话，也不会计入随后开始的会话（该空会话归属修复随 beta.5 之后的版本提供）。网络请求的业务回调中手动捕获的异常，以及宿主随后独立报告的全局异常，仍使用捕获当时的活动会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
+自动 Session 随每次前台运行开始。可包装的小程序 App 路径在业务同步 `onHide` 之后结束会话。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。SDK 自动捕获的定时器／业务 rAF 同步异常按调度时的会话统计；开始时没有活动会话，也不会计入随后开始的会话（该空会话归属修复自 `2.0.0-beta.6` 起提供）。网络请求的业务回调中手动捕获的异常，以及宿主随后独立报告的全局异常，仍使用捕获当时的活动会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
 
 小游戏依赖宿主 `onShow`／`onHide`；小程序无法包装 App 时，使用可用的 `onAppShow`／`onAppHide`。两项监听均注册成功后自动管理前台会话；缺少或无法注册任一项监听时，跳过自动 Session，需要会话统计的项目可手动管理。SDK 与业务原生监听之间的执行顺序由宿主决定，业务处理器末尾应显式调用 `Sentry.flush()`，排出该处理器中产生的数据。
 
