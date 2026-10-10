@@ -53,11 +53,21 @@ import { miniappStackParser } from './stacktrace';
 import { registerClientSpanDimensions } from './spanDimensions';
 import { SessionCapture } from './sessionCapture';
 
-/** 在任何宿主安装或替换旧 runtime 前校验；低层构造同样遵守唯一 tracing 契约。 */
-export function assertStreamTracingOptions(options: MiniappOptions): void {
+/** 在安装宿主观测、构造资源或替换旧 runtime 前拒绝会被 Core 静默忽略的配置。 */
+export function assertSupportedOptions(options: Pick<MiniappOptions, 'traceLifecycle'>): void {
   if (options.traceLifecycle !== undefined && options.traceLifecycle !== 'stream') {
     throw new Error(
       'sentry-miniapp 2.0 only supports traceLifecycle: stream; migrate static transactions to span attributes and beforeSendSpan',
+    );
+  }
+  if ('sendDefaultPii' in options && options.sendDefaultPii !== undefined) {
+    throw new Error(
+      'sentry-miniapp 2.0: sendDefaultPii was removed; configure dataCollection explicitly (userInfo: false disables automatic IP enrichment)',
+    );
+  }
+  if ('enableLogs' in options && options.enableLogs !== undefined) {
+    throw new Error(
+      'sentry-miniapp 2.0: enableLogs was removed; remove true, or stop logger calls / use beforeSendLog: () => null to disable logs',
     );
   }
 }
@@ -173,6 +183,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
         'Direct MiniappClient construction requires an explicit transport; use init for the managed runtime',
       );
     }
+    assertSupportedOptions(options);
     const { transport: transportFactory, ...snapshot } = options;
     if (!runtimeManaged && typeof transportFactory !== 'function') {
       throw new Error(
@@ -180,7 +191,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       );
     }
     options = { ...snapshot, transport: transportFactory };
-    assertStreamTracingOptions(options);
+    assertSupportedOptions(options);
     ensureEnvelopeEncoding();
     const environment = new EnvironmentState(options);
     const lifetime = new ClientLifetime();

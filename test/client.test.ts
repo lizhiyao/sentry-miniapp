@@ -455,12 +455,40 @@ describe('MiniappClient', () => {
 
     it('normalizes direct construction for public capture without calling init', async () => {
       resetPlatformCache();
-      const c = createClient({ dsn: 'https://test@sentry.io/123' });
+      for (const key of ['sendDefaultPii', 'enableLogs']) {
+        for (const value of [false, true]) {
+          expect(() => createClient({
+            dsn: 'https://test@sentry.io/123',
+            [key]: value,
+            transport: () => { throw new Error('must reject before transport construction'); },
+          } as MiniappOptions)).toThrow(new RegExp(`${key}.*removed`));
+        }
+        expect(() => new MiniappClient(Object.defineProperties(Object.create({ [key]: false }), {
+          dsn: { value: 'https://test@sentry.io/123' },
+          transport: { get() { throw new Error('must reject before reading transport'); } },
+        }))).toThrow(new RegExp(`${key}.*removed`));
+
+        const changingOptions = {
+          [key]: undefined as boolean | undefined,
+          get transport() {
+            changingOptions[key] = false;
+            return () => { throw new Error('must reject before transport construction'); };
+          },
+        };
+        expect(() => new MiniappClient(changingOptions)).toThrow(new RegExp(`${key}.*removed`));
+      }
+      const c = createClient({
+        dsn: 'https://test@sentry.io/123',
+        sendDefaultPii: undefined,
+        enableLogs: undefined,
+        dataCollection: { userInfo: false },
+      } as MiniappOptions);
 
       const event = await captureFinalEvent(c, { message: 'test' }, {});
 
       expect(event?.message).toBe('test');
       expect(event?.sdk?.name).toBe('sentry.javascript.miniapp');
+      expect(event?.sdk?.settings?.infer_ip).toBe('never');
     });
 
     it('processor 失败不发送未经处理的原事件', async () => {

@@ -132,7 +132,7 @@ console.log(Sentry.getDiagnostics());
 Sentry.setConsent(true);
 ```
 
-如需关闭错误事件的后台 IP 自动补充，设置 `dataCollection: { userInfo: false }`；业务显式提供的用户信息仍会保留，详见[数据采集配置](https://sentry-miniapp.pages.dev/guide/configuration#采集数据的脱敏口径)。
+如需关闭错误事件的后台 IP 自动补充，设置 `dataCollection: { userInfo: false }`；业务显式提供的用户信息仍会保留。升级到 2.0 时应删除旧 `sendDefaultPii`／`enableLogs`，重新确认采集策略；旧开关不再生效，日志禁用应使用 `beforeSendLog: () => null` 或停止日志调用。具体改法见[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ---
 

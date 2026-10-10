@@ -79,7 +79,7 @@ flowchart TD
 `init()` 的主要顺序是：
 
 1. 检查遥测同步临界区和默认持久 scope；临时 `withScope`／`withActiveSpan`、尚未完成的异步 span 上下文返回 `undefined`，并保留原 client。同步采集 hook 重入同样拒绝初始化。
-2. 校验只支持 `traceLifecycle: 'stream'`，判断宿主环境；装配全新的默认集成实例、用户集成、平台标签、stack parser 和 transport 配置。配置解析后再次检查根 scope 身份；配置回调或 getter 留下临时上下文时拒绝，尚不应用 `initialScope` 或退休旧 client。
+2. 校验只支持 `traceLifecycle: 'stream'`，并拒绝非 `undefined` 的旧 `sendDefaultPii`／`enableLogs` 配置，避免 Core 静默忽略后扩大采集。判断宿主环境后，装配全新的默认集成实例、用户集成、平台标签、stack parser 和 transport 配置；再校验实际配置快照和根 scope 身份。配置回调或 getter 改写成不支持的选项，或留下临时上下文时拒绝，尚不应用 `initialScope` 或退休旧 client。低层构造器在创建 client 资源前执行同一选项校验；不猜测旧隐私策略的等价映射。取舍与发布状态见[迁移成本专项审查](docs/core-v11-migration-cost-review.md)。
 3. 若旧绑定是 `MiniappClient`，开始其有界退休；再通过 Core 的公开 `initAndBind` 应用 `initialScope`、构造和绑定新 client。局部构造器在 `super` 前后检查同一根 scope：`initialScope` 改变上下文时不构造，transport 构造改变上下文时立即 dispose 尚未绑定的新 client。该守卫不复制 Core 的 scope 栈或装配算法。
 4. Core 执行集成安装；client 自有环境、lifetime、consent 和 transport 控制闭包已经就绪。自动 runtime 的活动身份只授予 `init()` 构造的 client。
 
