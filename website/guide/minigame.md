@@ -74,6 +74,8 @@ Sentry.init({
 
 `reportInterval` 控制本地统计窗口，不代表每个窗口都会发送汇总 span。会话汇总在退后台或 `client.close()` 的同步收尾窗口产生，并由 `flush` 排出。`client.dispose()` 与集成资源 cleanup 只释放状态，不产生最后汇总。退后台会停止 SDK 自己的 rAF，回前台重建基线；重复 show 不重置正在采集的窗口。
 
+`fpsWarningThreshold`、`longFrameThresholdMs` 和 `reportInterval` 均接受有限正数（包括小数）；0、负数、NaN、Infinity 或非数值会使用默认值。`maxJankBreadcrumbsPerWindow` 接受非负安全整数，设为 0 可关闭卡顿面包屑；非法值回落默认 3。
+
 ## 按严重程度区分卡顿
 
 需要分别统计轻微、明显和严重卡顿时使用 `jankLevels`：

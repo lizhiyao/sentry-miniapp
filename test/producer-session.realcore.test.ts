@@ -116,7 +116,7 @@ describe('长期 producer 使用当前 Session；调度任务保留原 Session�
         ? { defaultIntegrations: [sessionIntegration(), miniappLifecycleIntegration()] }
         : {}),
       enableMinigameFrameRate: producer === 'fps',
-      minigameFrameRateOptions: { reportInterval: 0 },
+      minigameFrameRateOptions: { reportInterval: 40 },
       beforeBreadcrumb: (breadcrumb) => {
         const trigger =
           producer === 'minigame'
@@ -134,14 +134,18 @@ describe('长期 producer 使用当前 Session；调度任务保留原 Session�
       client.addIntegration(
         producer === 'minigame'
           ? minigameIntegration()
-          : minigameFrameRateIntegration({ reportInterval: 0 }),
+          : minigameFrameRateIntegration({ reportInterval: 40 }),
       );
     }
     hides[0]!();
     capture = true;
     shows[0]!();
     const second = getIsolationScope().getSession()!;
-    if (producer === 'fps') frame(20);
+    if (producer === 'fps') {
+      frame(20);
+      expect(observedSession).toBeUndefined(); // 未到合法窗口边界，不提前上报。
+      frame(20);
+    }
     await drain(client);
     expect(second.sid).not.toBe(first.sid);
     expect(observedSession).toBe(second);

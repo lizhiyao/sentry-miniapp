@@ -6,6 +6,7 @@ import type { StackFrame, StackParser } from '@sentry/core';
  * 格式示例：
  *   at functionName (filename:line:col)
  *   at filename:line:col
+ *   at async filename:line:col
  *   at (filename:line:col)
  *   at functionName (app-service.js:123:45)
  *   at Object.handleTap (pages/index/index.js:42:13)
@@ -65,7 +66,8 @@ function v8StackLineParser(line: string): StackFrame | undefined {
     bareLinenoStr,
     bareColnoStr,
   ] = match;
-  const filename = wrappedFilename || bareFilename;
+  // V8 的 async 裸帧没有函数名；修饰词不是源码路径，wrapped 函数名仍保持原样。
+  const filename = wrappedFilename || bareFilename?.replace(/^async\s+/, '');
   const frame: StackFrame = {
     filename: filename || '<anonymous>',
     function: wrappedFilename ? functionName || UNKNOWN_FUNCTION : UNKNOWN_FUNCTION,

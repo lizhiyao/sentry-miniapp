@@ -8,13 +8,15 @@ import {
   getConsent,
 } from '../src/sdk';
 // flush / close / lastEventId 是 SDK 从 @sentry/core 透传的公开 API（sdk.ts 不再自定义重复实现）
-import { lastEventId, flush, close, getCurrentScope } from '@sentry/core';
+import { lastEventId, flush, close } from '../src/index';
+import { getCurrentScope, getIsolationScope, type Envelope, type Event } from '@sentry/core';
 import { eventFiltersIntegration } from '@sentry/core';
 import type { StackParser } from '@sentry/core';
 import { MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { MinigameFrameRateIntegration } from '../src/integrations/minigame-framerate';
 import { resetPlatformCache } from '../src/crossPlatform';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 describe('SDK', () => {
   beforeEach(() => {
@@ -502,35 +504,53 @@ describe('SDK', () => {
   });
 
   describe('lastEventId', () => {
-    it('should return last event id from scope', () => {
-      // 初始化 SDK 后调用
-      init({ dsn: 'https://test@sentry.io/123' });
-      const id = lastEventId();
-      // 可能返回 undefined 如果没有事件
-      expect(id === undefined || typeof id === 'string').toBe(true);
+    it('returns the id of the captured event and its final envelope', async () => {
+      const envelopes: Envelope[] = [];
+      getIsolationScope().setLastEventId(undefined);
+      const client = init({
+        dsn: 'https://test@sentry.io/123',
+        defaultIntegrations: false,
+        transport: createCapturingTransport(envelopes),
+      })!;
+
+      expect(lastEventId()).toBeUndefined();
+      const id = client.captureException(new Error('last event id probe'));
+      expect(lastEventId()).toBe(id);
+      expect(await flush(100)).toBe(true);
+      expect(collectEnvelopePayloads<Event>(envelopes, ['event'])).toEqual([
+        expect.objectContaining({ event_id: id }),
+      ]);
     });
   });
 
   describe('flush', () => {
     it('should resolve to false when no client', async () => {
-      // 不初始化，直接调用
-      const result = await flush();
-      // 如果有前序测试初始化了 client，可能返回 true
-      expect(typeof result === 'boolean').toBe(true);
+      const scope = getCurrentScope();
+      const previous = scope.getClient();
+      scope.setClient(undefined);
+      try {
+        expect(await flush()).toBe(false);
+      } finally {
+        scope.setClient(previous);
+      }
     });
 
     it('should call client.flush with timeout', async () => {
-      init({ dsn: 'https://test@sentry.io/123' });
-      const result = await flush(1000);
-      expect(typeof result === 'boolean').toBe(true);
+      const client = init({ dsn: 'https://test@sentry.io/123' })!;
+      const flushSpy = vi.spyOn(client, 'flush').mockResolvedValue(false);
+
+      expect(await flush(1000)).toBe(false);
+      expect(flushSpy).toHaveBeenCalledExactlyOnceWith(1000);
     });
   });
 
   describe('close', () => {
     it('should call client.close with timeout', async () => {
-      init({ dsn: 'https://test@sentry.io/123' });
-      const result = await close(1000);
-      expect(typeof result === 'boolean').toBe(true);
+      const client = init({ dsn: 'https://test@sentry.io/123' })!;
+      const closeSpy = vi.spyOn(client, 'close').mockResolvedValue(false);
+
+      expect(await close(1000)).toBe(false);
+      expect(closeSpy).toHaveBeenCalledExactlyOnceWith(1000);
     });
   });
 
@@ -550,15 +570,34 @@ describe('SDK', () => {
       expect(result).toBe('result');
     });
 
-    it('should capture exceptions and re-throw', () => {
-      init({ dsn: 'https://test@sentry.io/123' });
+    it('captures the original exception with its mechanism and rethrows the same error', async () => {
+      const envelopes: Envelope[] = [];
+      init({
+        dsn: 'https://test@sentry.io/123',
+        defaultIntegrations: false,
+        transport: createCapturingTransport(envelopes),
+      });
       const error = new Error('Test wrap error');
       const fn = () => {
         throw error;
       };
       const wrapped = wrap(fn);
 
-      expect(() => wrapped()).toThrow('Test wrap error');
+      let thrown: unknown;
+      try {
+        wrapped();
+      } catch (caught) {
+        thrown = caught;
+      }
+      expect(thrown).toBe(error);
+      expect(await flush(100)).toBe(true);
+      const events = collectEnvelopePayloads<Event>(envelopes, ['event']);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.exception?.values?.[0]).toMatchObject({
+        type: 'Error',
+        value: 'Test wrap error',
+        mechanism: { type: 'instrument', handled: false, data: { function: 'wrap' } },
+      });
     });
 
     it('should preserve this context', () => {

@@ -26,6 +26,7 @@ const boundaryScenarios = [
   'init-integrations-scope',
   'init-initialScope-scope',
   'init-transport-scope',
+  'async-stacktrace',
 ];
 const scenarios = [
   'empty-session-timer',
@@ -618,6 +619,50 @@ async function runBoundaryScenario(pkg) {
         sdkVersion: event.sdk.version,
       };
       evidence.hostCalls = transmitted.length;
+    } else if (scenario === 'async-stacktrace') {
+      const sourceFilename = 'pages/index/index.js';
+      const codeFile = `app:///${sourceFilename}`;
+      const debugId = '11111111-2222-4333-8444-555555555555';
+      global._sentryDebugIds = {
+        [`Error\n    at buildDebugId (${sourceFilename}:1:1)`]: debugId,
+      };
+      delete global._debugIds;
+      client = sdk.init({
+        ...common,
+        enableSystemInfo: false,
+        defaultIntegrations: [sdk.rewriteFramesIntegration()],
+        transport,
+      });
+      assert.ok(client);
+      evidence.events = [];
+      for (const header of [true, false]) {
+        const error = new Error('async mapped error');
+        error.stack = `${header ? 'Error: async mapped error\n' : ''}    at async ${sourceFilename}:42:13`;
+        const eventId = sdk.captureException(error);
+        assert.equal(await client.flush(1000), true);
+        const event = payloads('event').find((value) => value.event_id === eventId);
+        assert.ok(event, 'actual final async error envelope must be delivered');
+        const stackFrames = event.exception?.values?.[0]?.stacktrace?.frames;
+        evidence.events.push({
+          header,
+          eventId,
+          frames: stackFrames,
+          images: event.debug_meta?.images,
+        });
+        assert.equal(event.exception.values[0].value, error.message);
+        assert.equal(event.sdk.version, pkg.version);
+        assert.equal(stackFrames?.length, 1);
+        assert.equal(stackFrames[0].filename, codeFile);
+        assert.equal(stackFrames[0].lineno, 42);
+        assert.equal(stackFrames[0].colno, 13);
+        assert.equal(stackFrames[0].function, '?');
+        assert.equal(stackFrames[0].debug_id, undefined);
+        assert.deepEqual(event.debug_meta?.images, [
+          { type: 'sourcemap', code_file: codeFile, debug_id: debugId },
+        ]);
+        assert.equal(event.sdkProcessingMetadata, undefined);
+      }
+      assert.equal(payloads('event').length, 2);
     } else if (scenario === 'network-off-getter') {
       let handler;
       host.onNetworkStatusChange = function (callback) {

@@ -31,6 +31,51 @@ describe('miniappStackParser', () => {
       expect(frames[0]!.lineno).toBe(42);
     });
 
+    it.each([
+      'pages/index/index.js',
+      'https://example.test:8080/pages/index.js?async=1',
+      'app:///pages/index/index.js',
+      'tt://main/index.js',
+      'chunks:///_virtual/runtime.js',
+      'webpack-internal:///./src/pages/index.tsx',
+      'file:///Users/test/My App/index.mjs',
+    ])('async bare frame keeps the source filename: %s', (filename) => {
+      expect(miniappStackParser(`    at async ${filename}:42:13`, 1)).toEqual([
+        { filename, function: '?', lineno: 42, colno: 13, in_app: true },
+      ]);
+    });
+
+    it.each(['async loadData', 'async Object.handleTap', 'async <anonymous>'])(
+      'async named or anonymous function stays in the function field: %s',
+      (functionName) => {
+        expect(
+          miniappStackParser(`    at ${functionName} (pages/index/index.js:42:13)`, 0),
+        ).toEqual([
+          {
+            filename: 'pages/index/index.js',
+            function: functionName,
+            lineno: 42,
+            colno: 13,
+            in_app: true,
+          },
+        ]);
+      },
+    );
+
+    it.each([
+      ['    at pages/async helpers.js:42:13', 'pages/async helpers.js', '?'],
+      ['async loadData@pages/index/index.js:42:13', 'pages/index/index.js', 'async loadData'],
+      [
+        '    at Object.load (webpack-internal:///./src/pages/index.tsx:42:13)',
+        'webpack-internal:///./src/pages/index.tsx',
+        'Object.load',
+      ],
+    ])('does not rewrite async text outside a V8 modifier: %s', (line, filename, functionName) => {
+      expect(miniappStackParser(line, 0)).toEqual([
+        { filename, function: functionName, lineno: 42, colno: 13, in_app: true },
+      ]);
+    });
+
     it('should parse anonymous frames wrapped in parentheses', () => {
       const stack = [
         'TypeError: Cannot read property x of null',
