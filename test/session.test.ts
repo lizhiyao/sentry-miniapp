@@ -6,6 +6,7 @@ import {
   makeSession,
   type Envelope,
   type SerializedSession,
+  type Session,
   type User,
 } from '@sentry/core';
 import { SessionIntegration } from '../src/integrations/session';
@@ -286,10 +287,12 @@ describe('Session owner 与前台 episode', () => {
     }
   });
 
-  it('session capture hook 失败仍解除自己的引用，业务回调仍运行', () => {
+  it('Session 发送的同步重入不重复终态，异常和关闭仍清理引用', async () => {
     const owner = start();
     const business = vi.fn();
-    owner.on('beforeSendSession', () => {
+    let failedSession: Session | undefined;
+    const stopFailure = owner.on('beforeSendSession', (session) => {
+      if ('sid' in session) failedSession = session;
       throw new Error('hook');
     });
     (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({
@@ -301,6 +304,106 @@ describe('Session owner 与前台 episode', () => {
     expect(business).toHaveBeenCalledOnce();
     expect(getIsolationScope().getSession()).toBeUndefined();
     expect(sessions()).toHaveLength(0);
+    stopFailure();
+    owner.captureSession(failedSession!);
+    expect(sessions().map(({ status, init }) => ({ status, init }))).toEqual([
+      { status: 'exited', init: true },
+    ]);
+    const manual = makeSession({ release: 'manual@2.0' });
+    const stopReentry = owner.on('beforeSendSession', (session) => {
+      if (session === manual) owner.captureSession(manual);
+    });
+    try {
+      owner.captureSession(manual);
+    } finally {
+      stopReentry();
+    }
+    owner.captureSession(manual);
+    expect(
+      sessions()
+        .filter(({ sid }) => sid === manual.sid)
+        .map(({ init }) => init),
+    ).toEqual([true, false]);
+
+    for (const phase of ['session', 'envelope', 'transport'] as const) {
+      for (const action of ['hide', 'hide-show', 'close', 'dispose'] as const) {
+        getClient()?.dispose();
+        envelopes = [];
+        let closing: Promise<boolean> | undefined;
+        let firstSid: string | undefined;
+        let armed = true;
+        const flushed: SerializedSession[][] = [];
+        const act = (): void => {
+          if (!armed) return;
+          armed = false;
+          if (action === 'close') closing = client.close(1000);
+          else if (action === 'dispose') client.dispose();
+          else {
+            app.onHide();
+            if (action === 'hide-show') app.onShow();
+          }
+        };
+        const factory = createCapturingTransport(envelopes);
+        const client = init({
+          dsn: 'https://test@example.com/0',
+          release: 'session@2.0',
+          defaultIntegrations: [new SessionIntegration()],
+          transport: () => {
+            const transport = factory();
+            return {
+              send(envelope) {
+                const result = transport.send(envelope);
+                if (phase === 'transport' && envelope[1].some(([h]) => h.type === 'session')) act();
+                return result;
+              },
+              flush(timeout) {
+                flushed.push(sessions());
+                return transport.flush(timeout);
+              },
+            };
+          },
+        })!;
+        clients.push(client);
+        client.on('beforeSendSession', (session) => {
+          if (!('sid' in session)) return;
+          firstSid ??= session.sid;
+          if (phase === 'session') act();
+        });
+        client.on('beforeEnvelope', (envelope) => {
+          if (phase === 'envelope' && envelope[1].some(([h]) => h.type === 'session')) act();
+        });
+        (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
+        app.onLaunch();
+        if (closing) expect(await closing).toBe(true);
+        const first = sessions().filter(({ sid }) => sid === firstSid);
+        if (action === 'dispose') {
+          expect(first.map(({ status }) => status)).toEqual(phase === 'transport' ? ['ok'] : []);
+          expect(getIsolationScope().getSession()).toBeUndefined();
+          continue;
+        }
+        expect(
+          first.map(({ status }) => status),
+          `${phase}/${action}`,
+        ).toEqual(phase === 'session' ? ['exited'] : ['ok', 'exited']);
+        expect(first.map(({ init }) => init)).toEqual(phase === 'session' ? [true] : [true, false]);
+        if (action === 'close') {
+          expect(flushed.at(-1)?.filter(({ sid }) => sid === firstSid)).toEqual(first);
+          expect(getIsolationScope().getSession()).toBeUndefined();
+        } else {
+          if (action === 'hide') expect(getIsolationScope().getSession()).toBeUndefined();
+          app.onShow();
+          const nextSid = getIsolationScope().getSession()!.sid;
+          expect(nextSid).not.toBe(firstSid);
+          app.onHide();
+          expect(
+            sessions()
+              .filter(({ sid }) => sid === nextSid)
+              .map(({ status }) => status),
+          ).toEqual(['ok', 'exited']);
+          expect(getIsolationScope().getSession()).toBeUndefined();
+        }
+      }
+    }
   });
   it('同 client 重复 setup 幂等；退休同步释放 App；低层绑定也不安装 session', () => {
     const integration = new SessionIntegration();

@@ -148,6 +148,10 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   private readonly _transportRuntime: TransportRuntimeHandle | undefined;
   private readonly _offlineStore: MiniappOfflineStore | undefined;
   private readonly _sessionCapture: SessionCapture;
+  private readonly _sessionSendOperations = new WeakMap<
+    Session,
+    { inBeforeSend: boolean; pendingCapture: boolean }
+  >();
   private readonly _discardLateLogMetrics: () => void;
   // core 构造 transport 时即可调用 recorder；懒初始化且不在 super 返回后覆盖早期计数。
   declare private _clientReportOutcomes: Map<string, Outcome> | undefined;
@@ -173,12 +177,19 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       (hook === 'spanStart' || hook === 'afterSpanEnd' || hook === 'afterSegmentSpanEnd')
     )
       return;
+    const sessionSend =
+      hook === 'beforeSendSession'
+        ? this._sessionSendOperations.get(args[0] as Session)
+        : undefined;
+    const wasInBeforeSend = sessionSend?.inBeforeSend;
+    if (sessionSend) sessionSend.inBeforeSend = true;
     this._hookDepth++;
     try {
       withTelemetryCritical(() =>
         Function.prototype.apply.call(Client.prototype.emit, this, [hook, ...args]),
       );
     } finally {
+      if (sessionSend) sessionSend.inBeforeSend = !!wasInBeforeSend;
       this._hookDepth--;
       if (this._hookDepth === 0 && this._finishPending && !this._finishing) this._finishClosed();
     }
@@ -530,7 +541,23 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   public override captureSession(session: Session): void {
     // closing 仍需接收 core 在途事件的 Session 更新与同步收尾。
     if (this._lifetime.state === 'closed') return;
-    super.captureSession(session);
+    const pending = this._sessionSendOperations.get(session);
+    if (pending) {
+      // beforeSendSession 后 Core 才序列化，当前发送会包含该 hook 的最终修改。
+      // envelope 已生成后的重入则须等 Core 更新 init，再发送后续状态。
+      if (!pending.inBeforeSend) pending.pendingCapture = true;
+      return;
+    }
+    const operation = { inBeforeSend: false, pendingCapture: false };
+    this._sessionSendOperations.set(session, operation);
+    try {
+      do {
+        operation.pendingCapture = false;
+        super.captureSession(session);
+      } while (operation.pendingCapture && this._lifetime.canSend());
+    } finally {
+      this._sessionSendOperations.delete(session);
+    }
   }
 
   /** 只选择捕获时的 Session；是否更新、状态和发送时机继续由 core 决定。 */

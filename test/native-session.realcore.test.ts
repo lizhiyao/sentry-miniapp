@@ -101,6 +101,45 @@ describe('原生 show/hide 与真实 core Session', () => {
       expect(sessions()).toHaveLength(4);
       expect(sessions().at(-1)).toMatchObject({ init: true, errors: 0, status: 'ok' });
       expect(sessions().at(-1)!.sid).not.toBe(sid);
+      for (const phase of ['session', 'envelope'] as const) {
+        const currentSid = getIsolationScope().getSession()!.sid;
+        let armed = true;
+        const hide = (): void => {
+          if (!armed) return;
+          armed = false;
+          hides[0]!();
+        };
+        const stop =
+          phase === 'session'
+            ? client.on('beforeSendSession', (session) => {
+                if ('sid' in session && session.sid === currentSid && session.errors === 1) hide();
+              })
+            : client.on('beforeEnvelope', (envelope) => {
+                if (
+                  collectEnvelopePayloads<SerializedSession>([envelope], ['session']).some(
+                    (session) => session.sid === currentSid && session.errors === 1,
+                  )
+                )
+                  hide();
+              });
+        try {
+          client.captureException(new Error(`handled error with ${phase} hide`));
+          const drained = client.flush();
+          await vi.advanceTimersByTimeAsync(10);
+          expect(await drained).toBe(true);
+          const updates = sessions().filter((session) => session.sid === currentSid);
+          expect(updates.map(({ status }) => status)).toEqual(
+            phase === 'session' ? ['ok', 'exited'] : ['ok', 'ok', 'exited'],
+          );
+          expect(updates.filter(({ init }) => init)).toHaveLength(1);
+          expect(updates.at(-1)).toMatchObject({ errors: 1, status: 'exited' });
+          expect(getIsolationScope().getSession()).toBeUndefined();
+        } finally {
+          armed = false;
+          stop();
+        }
+        shows[0]!();
+      }
     },
   );
 
