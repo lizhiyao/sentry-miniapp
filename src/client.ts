@@ -444,7 +444,12 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       try {
         syncDebugIdsToCoreGlobal();
       } catch (error) {
-        if (this.getOptions().debug) console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
+        try {
+          if (this.getOptions().debug)
+            console.warn('[sentry-miniapp] Debug ID 全局同步失败:', error);
+        } catch (_error) {
+          /* 可选映射同步与告警失败不能丢弃原事件。 */
+        }
       }
     });
     this.on('postprocessEvent', (event, hint) => {

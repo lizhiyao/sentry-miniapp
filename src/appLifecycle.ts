@@ -17,6 +17,7 @@ import type { Client } from '@sentry/core';
 import { isMinigame, sdk } from './crossPlatform';
 import { getClientLifetime } from './lifecycle';
 import type { ClientLifetime } from './lifecycle';
+import { createFunctionWrapper } from './helpers';
 
 export interface AppLifecycleHandlers {
   onLaunch?: (options?: unknown) => void;
@@ -76,7 +77,8 @@ function patchApp(): boolean {
     return false;
   }
 
-  const wrapper = function (this: any, appOptions: Record<string, any> = {}): any {
+  const wrapper = createFunctionWrapper(currentOriginalApp, (original, receiver, args) => {
+    const appOptions = args[0] as Record<string, any> | undefined;
     if (registration.active && appOptions && typeof appOptions === 'object') {
       for (const method of LIFECYCLE_METHODS) {
         try {
@@ -99,8 +101,9 @@ function patchApp(): boolean {
         }
       }
     }
-    return currentOriginalApp.call(this, appOptions);
-  };
+    return Reflect.apply(original, receiver, args);
+  }) as AppPatch['wrapper'] | undefined;
+  if (!wrapper) return false;
   const registration: AppPatch = { original: currentOriginalApp, wrapper, active: true };
   try {
     g.App = wrapper;

@@ -250,6 +250,18 @@ describe.each(PLATFORM_CONTRACTS)(
     it('初始化、错误、请求、Storage、生命周期和重初始化遵守统一契约', async () => {
       const originalHostApp = g.App;
       const originalHostPage = g.Page;
+      const extension = Symbol('framework capability');
+      const capability = {};
+      Object.defineProperty(originalRequest, 'capability', {
+        value: 'initial',
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(originalRequest, extension, { value: capability });
+      Object.defineProperty(originalRequest, 'apply', { value: 'framework extension' });
+      const originals = [originalRequest, originalHostApp, originalHostPage];
+      const descriptors = originals.map((fn) => Object.getOwnPropertyDescriptors(fn));
+      const sourceStrings = originals.map((fn) => fn.toString());
       const client = initClient();
       expect(client).toBeDefined();
       expect(errorHandlers.size).toBe(1);
@@ -258,6 +270,20 @@ describe.each(PLATFORM_CONTRACTS)(
       expect(memoryWarningHandlers.size).toBe(1);
       expect(networkHandlers.size).toBe(1);
       expect(host[requestMethod]).not.toBe(originalRequest);
+      for (const [index, fn] of [host[requestMethod], g.App, g.Page].entries()) {
+        expect(fn.toString()).toBe(sourceStrings[index]);
+        expect(fn.name).toBe(originals[index].name);
+        expect(fn.length).toBe(originals[index].length);
+        expect(Reflect.ownKeys(fn)).toEqual(Reflect.ownKeys(originals[index]));
+        expect(Object.getOwnPropertyDescriptors(originals[index])).toEqual(descriptors[index]);
+      }
+      expect(host[requestMethod].capability).toBe('initial');
+      expect(host[requestMethod][extension]).toBe(capability);
+      expect(host[requestMethod].apply).toBe('framework extension');
+      Reflect.set(originalRequest, 'capability', 'updated');
+      expect(host[requestMethod].capability).toBe('updated');
+      host[requestMethod].capability = 'business update';
+      expect(Reflect.get(originalRequest, 'capability')).toBe('business update');
 
       const platformSdk = sdk();
       const source = platformSdk as unknown as Record<string, unknown>;
@@ -406,9 +432,7 @@ describe.each(PLATFORM_CONTRACTS)(
       });
       expect(JSON.stringify(pageNotFoundEvent)).not.toContain('canary');
       const memoryWarningEvent = events.find((candidate) =>
-        candidate.exception?.values?.some((value: any) =>
-          value.value?.includes('内存不足告警'),
-        ),
+        candidate.exception?.values?.some((value: any) => value.value?.includes('内存不足告警')),
       );
       expect(memoryWarningEvent?.exception?.values?.[0]?.mechanism).toEqual({
         type: 'onmemorywarning',
@@ -426,6 +450,8 @@ describe.each(PLATFORM_CONTRACTS)(
       expect(memoryWarningHandlers.size).toBe(0);
       expect(networkHandlers.size).toBe(0);
       expect(host[requestMethod]).toBe(originalRequest);
+      expect(host[requestMethod].capability).toBe('business update');
+      expect(host[requestMethod][extension]).toBe(capability);
       expect(g.App).toBe(originalHostApp);
       expect(g.Page).toBe(originalHostPage);
 

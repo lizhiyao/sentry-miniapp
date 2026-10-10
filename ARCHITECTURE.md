@@ -136,6 +136,8 @@ Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业
 
 宿主重新赋值后可迁移包装状态；旧 wrapper 留在第三方链内部时透明转发，防止重复分发。API 不可读或不可写时跳过该观测点。请求观测准备失败透传原 options，宿主原调用的异常保留且不重试。
 
+共享函数和全局 App 入口使用同一个 Proxy apply helper，保留宿主函数的扩展成员、动态读写、name／length 与完整调用参数。原函数标记通过虚拟读取供 Core FunctionToString 使用，不写入宿主函数或其 prototype；已有不可配置标记遵守 Proxy 不变量。缺少 Proxy 时普通函数回退为调用包装，带扩展成员或不可检查的函数跳过自动观测，避免属性快照破坏框架的动态更新。不能建立代理时也只跳过该入口，基础 transport 仍直接使用可用宿主 API。
+
 Session／TryCatch 的资源清理由每个 client 的 lifetime stop 与公开 `registerCleanup()` 配对持有，不另设跨 client 的聚合清理入口或 Set。相应回归通过公开 `dispose()` 验证重复关闭、wrapper 恢复和迟到观测失效；内部清理闭包仍负责订阅与 owner 的实际释放。
 
 ### App 与小游戏的不同路径

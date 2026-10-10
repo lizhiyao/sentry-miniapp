@@ -314,15 +314,9 @@ export function fill(
   }
   if (typeof original !== 'function') return undefined;
   const wrapped = replacementFactory(original);
-
-  if (typeof wrapped === 'function') {
-    try {
-      wrapped.prototype = wrapped.prototype || {};
-      wrapped.prototype.constructor = wrapped;
-    } catch (_Oo) {
-      // This can throw in some funky environments
-    }
-  }
+  // factory 可拒绝无法透明包装的宿主。不要修改函数 prototype：Proxy 会把写入
+  // 转发到原函数，清理时恢复 source 属性也无法撤销这种业务对象变更。
+  if (wrapped === undefined || wrapped === original) return undefined;
 
   const enumerable = originalDescriptor?.enumerable ?? true;
   const replaced = replacePropertyValue(source, name, wrapped, enumerable);
@@ -364,4 +358,58 @@ export function fill(
       }
     },
   };
+}
+
+export function createFunctionWrapper(
+  original: Function,
+  invoke: (original: Function, receiver: unknown, args: unknown[]) => unknown,
+): Function | undefined {
+  if (typeof Proxy === 'function') {
+    try {
+      return new Proxy(original, {
+        apply: invoke,
+        get(target, key, receiver) {
+          if (key === '__sentry_original__') {
+            // Core FunctionToString 用这个公开标记识别原函数。虚拟读取避免写入
+            // 宿主函数；已有不可配置属性仍须遵守 Proxy 的 get 不变量。
+            const descriptor = Object.getOwnPropertyDescriptor(target, key);
+            if (
+              !descriptor ||
+              descriptor.configurable ||
+              ('value' in descriptor ? descriptor.writable : descriptor.get)
+            ) {
+              return target;
+            }
+          }
+          return Reflect.get(target, key, receiver);
+        },
+      });
+    } catch (_error) {
+      // 无法建立透明代理时只跳过这个观测点。
+      return undefined;
+    }
+  }
+
+  // 缺 Proxy 时保留普通函数的调用包装。带扩展成员的宿主函数须原样保留，
+  // 复制属性快照无法保留动态更新、setter 和退订后的业务写入。
+  try {
+    const standardKeys = ['name', 'length', 'prototype', 'arguments', 'caller'];
+    if (
+      Object.getPrototypeOf(original) !== Function.prototype ||
+      Reflect.ownKeys(original).some((key) => !standardKeys.includes(key as string))
+    ) {
+      return undefined;
+    }
+    const wrapper = function (this: unknown, ...args: unknown[]): unknown {
+      return invoke(original, this, args);
+    };
+    Object.defineProperties(wrapper, {
+      __sentry_original__: { value: original },
+      name: { value: original.name, configurable: true },
+      length: { value: original.length, configurable: true },
+    });
+    return wrapper;
+  } catch (_error) {
+    return undefined;
+  }
 }

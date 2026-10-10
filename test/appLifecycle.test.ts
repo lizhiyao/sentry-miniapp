@@ -265,13 +265,26 @@ describe('appLifecycle（单一 App 包装）', () => {
     }
   });
 
-  it('冻结 App 定义保留业务原回调和注册返回值', () => {
+  it('App 注册保留完整参数、receiver、返回值、异常和冻结定义', () => {
     const stop = subscribeAppLifecycle({ onHide: vi.fn() });
     const business = vi.fn(() => 42);
     const frozen = Object.freeze({ onHide: business });
-    expect((globalThis as any).App(frozen)).toBe(frozen);
+    const receiver = {};
+    const extra = {};
+    const wrapper = (globalThis as any).App;
+    for (const args of [[], [undefined], [frozen, extra, 'extra argument']]) {
+      expect(wrapper.apply(receiver, args)).toBe(args[0]);
+      expect(realApp).toHaveBeenLastCalledWith(...args);
+      expect(realApp.mock.instances.at(-1)).toBe(receiver);
+    }
     expect(frozen.onHide()).toBe(42);
     expect(business).toHaveBeenCalledOnce();
+    const error = new Error('original registration failure');
+    realApp.mockImplementationOnce(() => { throw error; });
+    expect(() => wrapper.apply(receiver, [frozen, extra])).toThrow(error);
+    expect(realApp).toHaveBeenCalledTimes(4);
     stop();
+    expect(wrapper.apply(receiver, [frozen, extra])).toBe(frozen);
+    expect(realApp).toHaveBeenLastCalledWith(frozen, extra);
   });
 });

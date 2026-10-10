@@ -422,7 +422,7 @@ export class NetworkBreadcrumbs implements Integration {
       // 宿主调用在降级边界之外，仅执行一次；业务异常不能触发请求重试。
       try {
         if (requestArgs.length) requestArgs[0] = preparedOptions;
-        return originalRequest.apply(this, requestArgs);
+        return Reflect.apply(originalRequest, this, requestArgs);
       } catch (error) {
         try {
           requestThrew?.(error);
