@@ -216,7 +216,7 @@ UTF-8 编码与字节预算共用 `coreCompat` 的标量转换，缺少 TextEnco
 
 操作 Session 标记还依赖当前 Core 的 scope metadata 克隆、两层 merge 和最终 envelope 移除 `sdkProcessingMetadata` 的语义。holder 放在 merge 深度之外，不通过私有 scope 字段传播；升级 Core 时须重跑 [producer-session](test/producer-session.realcore.test.ts) 和 [client-capture](test/client-capture.realcore.test.ts) 的空会话、当前策略与最终 payload 回归。
 
-不以“零 protected”作为重构目标，也不恢复旧 class 集成、static transaction 管道或复制 Core buffer。评判替换实现的依据是：是否减少重复算法、能否保留可观察语义，以及是否缩小升级时需要复核的接缝。
+不以“零 protected”作为重构目标，也不恢复旧 class 集成、static transaction 管道或复制 Core buffer。评判替换实现的依据是：是否减少重复算法、能否保留可观察语义，以及是否缩小升级时需要复核的接缝。与同版本 Browser、Node、Deno、Cloudflare 的实践对照及本项目取舍见[官方 SDK 对照](docs/sdk-official-practices.md)。
 
 升级 Core 必须阅读候选源码的签名、调用顺序和实现差异，检查上述接缝、公开 hook、stream 格式、offline 行为与编码契约，并运行真实 Core 和实际发布包回归。类型检查通过不能替代行为验证；调整精确依赖和结论应一并写入升级 PR。
 

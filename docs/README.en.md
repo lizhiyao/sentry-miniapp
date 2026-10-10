@@ -158,6 +158,7 @@ After the first event is working, pick the guide based on what you are doing nex
 - **Are trace headers sent to every API by default?** No. Mini programs have no reliable same-origin baseline, so an empty `tracePropagationTargets` list injects nothing. Allowlist only backend origins you control.
 - **Why do uni-app / Taro component errors need extra wiring?** Frameworks may catch component errors before they reach the platform global `onError`. Use `app.config.errorHandler` / `Vue.config.errorHandler` for Vue, and an Error Boundary for Taro React.
 - **Will it send requests before privacy consent?** By default the SDK reports normally according to your config. If your app must avoid network requests before consent, enable `requireConsent` and call `Sentry.setConsent(true)` once the user grants consent.
+- **Can I disable automatic IP enrichment for error events?** Set `dataCollection: { userInfo: false }`. User fields you explicitly supply through `setUser` are retained; filter these before capture when needed. See [Data Collection](https://sentry-miniapp.pages.dev/guide/configuration#采集数据的脱敏口径).
 - **Session Replay or H5 builds?** Mini programs have no DOM, so official Session Replay is not supported. For H5 builds, use official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); keep `sentry-miniapp` for mini program builds.
 
 > Full answers on the **[docs site · FAQ](https://sentry-miniapp.pages.dev/guide/faq)**.

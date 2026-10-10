@@ -26,6 +26,8 @@ const boundaryScenarios = [
   'init-integrations-scope',
   'init-initialScope-scope',
   'init-transport-scope',
+  'error-infer-ip',
+  'ignored-http-parent-propagation',
 ];
 const scenarios = [
   'empty-session-timer',
@@ -618,6 +620,139 @@ async function runBoundaryScenario(pkg) {
         sdkVersion: event.sdk.version,
       };
       evidence.hostCalls = transmitted.length;
+    } else if (scenario === 'error-infer-ip') {
+      client = sdk.init({
+        ...common,
+        defaultIntegrations: false,
+        dataCollection: { userInfo: false },
+        transport,
+      });
+      assert.ok(client);
+      const explicit = {
+        id: 'business-id',
+        email: 'explicit@example.test',
+        username: 'explicit',
+        ip_address: '203.0.113.9',
+      };
+      sdk.setUser(explicit);
+      const explicitId = sdk.captureException(originalError);
+      sdk.setUser(null);
+      const anonymousError = new Error('anonymous error must also disable IP inference');
+      const anonymousId = sdk.captureException(anonymousError);
+      assert.equal(await client.flush(1000), true);
+      const events = payloads('event').map((event) => JSON.parse(JSON.stringify(event)));
+      evidence.events = events.map((event) => ({
+        id: event.event_id,
+        inferIp: event.sdk.settings?.infer_ip ?? null,
+        user: event.user ?? null,
+      }));
+      assert.equal(events.length, 2, 'both actual error envelopes must be delivered');
+      const explicitEvent = events.find((event) => event.event_id === explicitId);
+      const anonymousEvent = events.find((event) => event.event_id === anonymousId);
+      assert.ok(explicitEvent);
+      assert.ok(anonymousEvent);
+      assert.deepEqual(explicitEvent.user, explicit, 'explicit business user must be preserved');
+      assert.equal(explicitEvent.exception.values[0].value, originalError.message);
+      assert.equal(anonymousEvent.exception.values[0].value, anonymousError.message);
+      assert.deepEqual(anonymousEvent.user ?? {}, {}, 'cleared user must not retain identity');
+      for (const event of events) {
+        assert.equal(event.sdk.version, pkg.version);
+        assert.equal(
+          event.sdk.settings?.infer_ip,
+          'never',
+          'error must disable Relay IP inference',
+        );
+      }
+    } else if (scenario === 'ignored-http-parent-propagation') {
+      const requestReceiver = {};
+      const response = { statusCode: 200 };
+      const task = { abort() {} };
+      let businessCalls = 0;
+      host.request = function (options) {
+        assert.equal(this, requestReceiver, 'native request receiver must be preserved');
+        transmitted.push(options);
+        businessCalls += 1;
+        assert.equal(options.success.call(receiver, response), businessValue);
+        return task;
+      };
+      evidence.controls = [];
+      for (const propagateTraceparent of [false, true]) {
+        const envelopeStart = observed.length;
+        const requestStart = transmitted.length;
+        client = sdk.init({
+          ...common,
+          tracesSampleRate: 1,
+          ignoreSpans: [{ op: 'http.client' }],
+          tracePropagationTargets: ['https://business.example.test'],
+          propagateTraceparent,
+          enableMinigameLifecycle: false,
+          enableMinigameFrameRate: false,
+          transport,
+        });
+        assert.ok(client);
+        const originalHeader = { 'x-business': 'preserved' };
+        const originalOptions = {
+          url: 'https://business.example.test/ignored-http',
+          header: originalHeader,
+          success(result) {
+            assert.equal(this, receiver);
+            assert.equal(result, response);
+            return businessValue;
+          },
+        };
+        let parentHeaders;
+        const returned = sdk.startSpan({ name: 'business.parent', op: 'ui.action' }, () => {
+          parentHeaders = sdk.getTraceData({ propagateTraceparent });
+          return host.request.call(requestReceiver, originalOptions);
+        });
+        assert.equal(returned, task, 'native request task identity must be preserved');
+        assert.equal(await client.flush(1000), true);
+        const parentRequestHeaders = transmitted[requestStart].header;
+        assert.equal(parentRequestHeaders['x-business'], 'preserved');
+        assert.match(parentHeaders['sentry-trace'], /-1$/);
+        for (const key of ['sentry-trace', 'baggage']) {
+          assert.equal(
+            parentRequestHeaders[key],
+            parentHeaders[key],
+            `must propagate parent ${key}`,
+          );
+        }
+        if (propagateTraceparent) {
+          assert.equal(parentRequestHeaders.traceparent, parentHeaders.traceparent);
+          assert.match(parentRequestHeaders.traceparent, /-01$/);
+        } else assert.equal('traceparent' in parentRequestHeaders, false);
+        assert.equal(host.request.call(requestReceiver, originalOptions), task);
+        assert.equal(await client.flush(1000), true);
+        assert.equal(transmitted.length, requestStart + 2, 'both business requests must run once');
+        const noParentHeaders = transmitted[requestStart + 1].header;
+        assert.equal(noParentHeaders['x-business'], 'preserved');
+        assert.match(noParentHeaders['sentry-trace'], /^[0-9a-f]{32}-[0-9a-f]{16}-0$/);
+        if (propagateTraceparent) {
+          const [traceId, spanId] = noParentHeaders['sentry-trace'].split('-');
+          assert.equal(noParentHeaders.traceparent, `00-${traceId}-${spanId}-00`);
+        } else assert.equal('traceparent' in noParentHeaders, false);
+        assert.equal(originalOptions.header, originalHeader);
+        assert.deepEqual(originalHeader, { 'x-business': 'preserved' });
+        const spans = observed
+          .slice(envelopeStart)
+          .flatMap((envelope) => envelope[1])
+          .filter(([header]) => header.type === 'span')
+          .flatMap(([, container]) => container.items);
+        assert.equal(spans.length, 1, 'ignored HTTP spans must not enter final envelopes');
+        assert.equal(spans[0].name, 'business.parent');
+        assert.equal(
+          parentRequestHeaders['sentry-trace'],
+          `${spans[0].trace_id}-${spans[0].span_id}-1`,
+        );
+        evidence.controls.push({
+          propagateTraceparent,
+          parent: 'sampled',
+          noParent: 'unsampled',
+          spans: 1,
+        });
+        client.dispose();
+      }
+      assert.equal(businessCalls, 4);
     } else if (scenario === 'network-off-getter') {
       let handler;
       host.onNetworkStatusChange = function (callback) {

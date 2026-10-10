@@ -5,6 +5,7 @@ import {
   getClient,
   getCurrentScope,
   getIsolationScope,
+  getTraceData,
   startSpan,
   spanStreamingIntegration,
   type Envelope,
@@ -1231,6 +1232,97 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     // 请求 span 归到业务 trace 里，不再另发独立 segment；stream 下也没有 transaction 事件。
     expect(spans.filter((span) => span.is_segment)).toHaveLength(1);
     expect(collectEnvelopePayloads(captured, ['transaction'])).toEqual([]);
+  });
+
+  it.each([false, true])(
+    '忽略 HTTP 子 span 时继续 sampled 父 span 的传播（traceparent=%s）',
+    async (propagateTraceparent) => {
+      const client = init({
+        dsn: 'https://test@o0.ingest.sentry.io/0',
+        platform: 'bytedance',
+        tracesSampleRate: 1,
+        ignoreSpans: [{ op: 'http.client' }],
+        tracePropagationTargets: ['https://api.example.com'],
+        propagateTraceparent,
+        enableOfflineCache: false,
+        enableAutoSessionTracking: false,
+        enableMinigameLifecycle: false,
+        enableMinigameFrameRate: false,
+        transport: createCapturingTransport(captured),
+      })!;
+      const requestReceiver = {};
+      const callbackReceiver = {};
+      const response = { statusCode: 200 };
+      const task = { abort: vi.fn() };
+      const success = vi.fn(function (this: unknown, result: unknown) {
+        expect(this).toBe(callbackReceiver);
+        expect(result).toBe(response);
+        return 'business result';
+      });
+      const originalHeader = { 'x-business': 'preserved' };
+      const originalOptions = {
+        url: 'https://api.example.com/users/123',
+        header: originalHeader,
+        success,
+      };
+      requestMock.mockImplementation(function (this: unknown, options) {
+        expect(this).toBe(requestReceiver);
+        expect(options.url).toBe(originalOptions.url);
+        expect(options.header['x-business']).toBe('preserved');
+        expect(options.success.call(callbackReceiver, response)).toBe('business result');
+        return task;
+      });
+      let parentHeaders: ReturnType<typeof getTraceData> = {};
+      const returned = startSpan({ name: 'business.parent', op: 'ui.action' }, () => {
+        parentHeaders = getTraceData({ propagateTraceparent });
+        return g.tt.request.call(requestReceiver, originalOptions);
+      });
+      await client.flush();
+
+      expect(returned).toBe(task);
+      expect(success).toHaveBeenCalledOnce();
+      expect(requestMock).toHaveBeenCalledOnce();
+      expect(originalOptions.header).toBe(originalHeader);
+      expect(originalHeader).toEqual({ 'x-business': 'preserved' });
+      const hostHeaders = requestMock.mock.calls[0]![0].header;
+      expect(parentHeaders['sentry-trace']).toMatch(/-1$/);
+      expect(hostHeaders['sentry-trace']).toBe(parentHeaders['sentry-trace']);
+      expect(hostHeaders.baggage).toBe(parentHeaders.baggage);
+      if (propagateTraceparent) {
+        expect(hostHeaders.traceparent).toBe(parentHeaders.traceparent);
+        expect(hostHeaders.traceparent).toMatch(/-01$/);
+      } else {
+        expect(hostHeaders).not.toHaveProperty('traceparent');
+      }
+      const spans = collectSpans(captured);
+      expect(spans).toHaveLength(1);
+      expect(spans[0]!.name).toBe('business.parent');
+      expect(hostHeaders['sentry-trace']).toBe(`${spans[0]!.trace_id}-${spans[0]!.span_id}-1`);
+    },
+  );
+
+  it('无父 span 的被忽略 HTTP segment 仍传播未采样，不发送 span', async () => {
+    const client = init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      ignoreSpans: [{ op: 'http.client' }],
+      tracePropagationTargets: ['https://api.example.com'],
+      propagateTraceparent: true,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    })!;
+    g.tt.request({ url: 'https://api.example.com/users/123' });
+    await client.flush();
+
+    expect(requestMock).toHaveBeenCalledOnce();
+    const hostHeaders = requestMock.mock.calls[0]![0].header;
+    expect(hostHeaders['sentry-trace']).toMatch(/^[0-9a-f]{32}-[0-9a-f]{16}-0$/);
+    expect(hostHeaders.traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-00$/);
+    expect(collectSpans(captured)).toEqual([]);
   });
 
   it('采样率为 0 时请求正常执行但不发送 span', async () => {

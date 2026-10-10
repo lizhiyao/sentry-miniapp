@@ -232,6 +232,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
         ...options._metadata,
         sdk: {
           ...options._metadata?.sdk,
+          // 在 Core 构造 transport 前读取配置，避免 getter 故障留下未绑定的可发送 client。
+          settings: { ...options._metadata?.sdk?.settings },
           name: SDK_NAME,
           version: SDK_VERSION,
           packages: [
@@ -378,6 +380,15 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     this._transportRuntime = transportRuntime;
     this._offlineStore = offlineStore;
     this._sessionCapture = sessionCapture;
+    const sdkMetadata = this.getSdkMetadata()?.sdk;
+    if (sdkMetadata) {
+      // 错误事件的 Relay IP 推断不会自动读取 dataCollection；通过 Core 元数据合并传达。
+      // 与 Browser 一样，保留调用方显式传入的底层设置，不修改其元数据对象。
+      sdkMetadata.settings = {
+        infer_ip: this.getDataCollectionOptions().userInfo ? 'auto' : 'never',
+        ...sdkMetadata.settings,
+      };
+    }
     lifetime.registerStop(() => transportRuntime?.stopReplay());
     registerClientLifetime(this, lifetime);
     registerClientEnvironment(this, environment);

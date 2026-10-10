@@ -97,7 +97,7 @@ Sentry.metrics.count('checkout.completed', 1);
 
 client reports 默认开启；需要关闭时显式设 `sendClientReports: false`。报告通过同一通道发送，未同意或没有 DSN 时保留丢弃计数，报告失败不会写入离线缓存。`flush()` 后异步产生的丢弃计数留待下一次 `flush()`。
 
-`dataCollection.userInfo: false` 不删除业务显式 `setUser` 的所有传播。core 的 span／Logs／metrics enrichment 可读取显式 scope user；需要避免发送时，不设置这些字段或在对应 callback 处理。
+`dataCollection.userInfo: false` 关闭错误事件的后台 IP 自动补充，不删除业务显式 `setUser` 的字段。core 的 span／Logs／metrics enrichment 可读取显式 scope user；需要避免发送时，不设置这些字段或在对应 callback 处理。
 
 ## 自动采集与性能成本
 

@@ -73,8 +73,8 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
     tryCatchIntegration(),
     linkedErrorsIntegration(),
     dedupeIntegration(),
-    // core 11 的 span streaming。自定义 Client 不会自动装配它（只有 ServerRuntimeClient 和
-    // browser 入口会），漏装则包括无父 HTTP segment 在内的 span 都不会发送。
+    // 自定义 Client 不会自动装配 core 11 span streaming；Browser 的 span API / tracing 集成
+    // 会按需安装。此处默认 HTTP producer 也依赖它，漏装则无父 HTTP segment 等 span 都不会发送。
     spanStreamingIntegration(),
   ];
 

@@ -83,7 +83,7 @@ sentry-miniapp/
 
 - **单元测试 (`yarn test`，Vitest)**：覆盖核心类、工具函数与集成插件（跨端兼容性、面包屑、去重、transport 等），用 mock 的平台全局对象跑通 init → 事件构建 → transport → `wx.request` 全链路。
 - **真实 core 集成测试 (`test/*.realcore.test.ts`)**：不 mock `@sentry/core`，验证事件、span/v2、logs、metrics、session 与 client reports 的最终 envelope。自定义 transport 与 envelope 解析统一复用 `test/support/`。
-- **发布包消费测试 (`yarn build`)**：把当前 npm tarball 解包到隔离目录，验证 CJS / ESM / UMD 与类型入口；七个平台还会分别在全局 `URL` 缺失和残缺时安装会复制请求参数的外层 wrapper，断言一次业务请求只能产生一次 Sentry envelope，防止 SDK 自请求递归。CJS／ESM 各运行 17 个独立进程的公开行为场景，覆盖空会话的迟到操作、冻结／只读宿主、持久缓存重放、平台信号与可选能力 getter 降级、页面业务透明性和初始化中的 scope 变化；普通会话错误统计与 setup 后异步 span 保留有效绑定作为正向对照，避免通过关闭功能掩盖缺陷。
+- **发布包消费测试 (`yarn build`)**：把当前 npm tarball 解包到隔离目录，验证 CJS / ESM / UMD 与类型入口；七个平台还会分别在全局 `URL` 缺失和残缺时安装会复制请求参数的外层 wrapper，断言一次业务请求只能产生一次 Sentry envelope，防止 SDK 自请求递归。CJS／ESM 各在独立进程中验证公开行为，覆盖空会话的迟到操作、冻结／只读宿主、持久缓存重放、平台信号与可选能力 getter 降级、页面业务透明性、初始化中的 scope 变化、错误事件的 IP 推断开关和被忽略 HTTP 子 span 的传播；普通会话错误统计与 setup 后异步 span 保留有效绑定作为正向对照，避免通过关闭功能掩盖缺陷。
 - **测试类型检查 (`yarn typecheck`)**：源码使用 `tsconfig.json`，测试使用 `tsconfig.test.json`；测试保留严格函数签名检查，仅放宽动态 fixture 的索引访问规则。
 
 测试必须执行 `src/` 或仓库脚本中的生产逻辑；不要只调用测试文件里临时创建的 mock、示例重试函数或常量再断言自身行为。时间相关逻辑优先使用 Vitest fake timers，避免真实等待拖慢 CI。
@@ -97,6 +97,8 @@ sentry-miniapp/
 beta.4 发布后的小游戏 Session、系统信息降级和离线交错复核见 [发布后专项审查](docs/core-v11-postrelease-review.md)。
 
 beta.6 发布后的三轮独立发现、交叉反例与实际包消费复核见 [SDK 深度审查](docs/sdk-deep-review.md)，包含本轮初始化、能力降级、无消费者清理及用户文档修正的证据与取舍。
+
+同版本 Browser、Node、Deno、Cloudflare 的实现对照、采纳的修复和小程序环境取舍见[官方 SDK 实践](docs/sdk-official-practices.md)。
 
 Taro／uni-app 示例的构建器兼容补丁、实际依赖安全公告与剩余上游问题见 [示例依赖审查](docs/example-dependency-security.md)。
 
@@ -157,7 +159,7 @@ CD 只复用本仓库 `.github/workflows/ci.yml` 在 **master push、精确发�
 现有发版流程中 tag 可能指向 merge commit 的父提交，此时正常走回退验证；不要为了复用 CI 移动已经发布的 tag。
 
 发布阶段执行 `yarn build:release` 一次，然后 `npm pack --ignore-scripts` 生成 tarball。
-验收脚本接收该 tarball，在系统临时目录用 npm 安装真实生产依赖（禁用安装脚本），检查 CJS、ESM、UMD、类型入口、七平台降级和上述 16 个公开行为场景。`check-package-behavior.mjs` 只加载安装包声明的公共入口，不导入源码或 Core 私有文件；CD 保存两种入口的逐场景 JSON 证据。原有 `yarn build` 保留本地打包消费检查。
+验收脚本接收该 tarball，在系统临时目录用 npm 安装真实生产依赖（禁用安装脚本），检查 CJS、ESM、UMD、类型入口、七平台降级和上述公开行为场景。`check-package-behavior.mjs` 只加载安装包声明的公共入口，不导入源码或 Core 私有文件；CD 保存两种入口的逐场景 JSON 证据。原有 `yarn build` 保留本地打包消费检查。
 CD 核对 tag、package.json、SDK_VERSION、tarball 元数据，保存提交 SHA、CI 证据、SHA-256/SHA-512 摘要和安装锁文件，并只发布验收过的 tarball，显式禁用发布生命周期脚本以避免再次构建。
 同版本已经存在时仅在 registry integrity 与本次 tarball 一致时跳过发布；网络或鉴权失败不会被当成“版本不存在”。
 发布成功后 GitHub Release 额外附带 tarball 和来源清单；完整诊断、CI 证据与安装记录在 Actions artifact 中。
