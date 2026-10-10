@@ -1,6 +1,6 @@
 # 快速接入
 
-本页对应 2.0 beta 契约，试用安装 `sentry-miniapp@next`，默认安装仍获取 1.x 稳定版。升级前阅读[2.0 迁移说明](/guide/migration-2.0)中的破坏性变更和 beta 验收范围；仓库示例默认使用当前构建产物。
+本页对应 2.0 beta，试用安装 `sentry-miniapp@next`。默认安装仍获取 1.x 稳定版，已稳定使用 1.x 的项目无须为了版本号升级。接入前先看[如何选择版本](/guide/migration-2.0#version-choice)，其中也提供 1.x 文档归档；选择 2.0 后，再阅读迁移变更与试用检查步骤。仓库示例默认使用当前构建产物。
 
 `sentry-miniapp` 是基于 [`@sentry/core`](https://github.com/getsentry/sentry-javascript) 的跨端小程序 Sentry SDK，覆盖微信、支付宝、字节跳动、钉钉、QQ、百度、快手，并兼容 Taro / uni-app。
 

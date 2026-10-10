@@ -2,6 +2,8 @@
 
 `Sentry.init({ ... })` 的常用选项与小程序扩展选项。通常只需 `dsn` + `release` 即可上手（见[快速接入](/guide/getting-started)），下面按参数类别列出类型、默认值和行为。
 
+本页对应 2.0 beta。1.x 的接入与参数请使用[版本选择页中的归档文档](/guide/migration-2.0#version-choice)。
+
 如果你还在判断“为什么需要这个选项”，先看对应的[异常、日志与上下文](/guide/errors-and-context)、[性能与链路追踪](/guide/performance-and-tracing)、[可靠上报与隐私同意](/guide/reliability-and-privacy)或[小游戏](/guide/minigame)指南。
 
 ## 基础
@@ -235,8 +237,9 @@ Sentry.startInactiveSpan({
 ## 运行环境与自建 Sentry
 
 - npm 包的 Node.js 依赖范围为 `>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0`，与固定的 core 11 版本一致；22.0–22.11 和 23.0–23.1 不在范围内。开发本 SDK 仓库还须满足构建、测试、lint 工具的共同要求，请用 20.x ≥ 20.19、22.x ≥ 22.13 或 ≥ 24。Node 要求不是小程序宿主版本要求。
-- core v11 的[官方迁移说明](https://github.com/getsentry/sentry-javascript/blob/3e02c87cd51066b147ab37c5c33b44bfe69ae3cd/MIGRATION.md)要求自建 Sentry 26.4.2 及以上。升级后仍须在目标环境验收 span/v2 与其他遥测接收；2.0 不支持 static，不能用它作为旧后台的降级路径。
-- 删除项、数据采集与统计迁移见[升级到 2.0](/guide/migration-2.0)。
+- Core v11 的[官方迁移说明](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/MIGRATION.md#upgrading-from-10x-to-11x)将自建 Sentry 26.4.2 及以上列为支持基线。旧版本可能部分可用，但不受支持；关闭 tracing 不能保证旧后台兼容。使用官方 SaaS 或受支持自建部署时，仍应确认项目启用的 `span/v2`、Logs、Metrics 等数据能被接收和显示。
+- 官方 Core v11 仍[保留 `traceLifecycle: 'static'`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/types/options.ts#L497-L503)，但 sentry-miniapp v2 只支持 `stream`，不能用 static 作为旧后台的降级路径；上游保留 static 也不构成对旧后台兼容性的保证。
+- 版本选择与 1.x 文档归档见[如何选择版本](/guide/migration-2.0#version-choice)；删除项、数据采集与统计迁移见[升级到 2.0](/guide/migration-2.0)。
 
 ## 分布式追踪
 

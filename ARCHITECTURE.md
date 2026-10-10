@@ -17,6 +17,16 @@
 
 正式支持一个当前 runtime 和 Core 的默认异步上下文策略。并行任务跨 `await` 的父 span 隔离不作保证；自定义 async context strategy、多个长期并行自动 client、任意临时 scope 内重新初始化不在支持范围。直接构造 `MiniappClient` 是自管 transport 的低层入口，不获得 `init()` 的自动 runtime 权限。
 
+### 版本与后台兼容的取舍
+
+2.0 保持单一的 Core span streaming 管道，不恢复 v1 上报协议或新增 static 过渡模式。Core v11 本身仍有 static transaction 兼容入口；此处收窄支持范围是本 SDK 的设计取舍，不能描述为上游强制删除所有旧性能格式。
+
+Core v11 的[官方自建后台支持基线](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x)为 Sentry 26.4.2 及以上。官方云服务与受支持的新自建后台可接收多个 SDK 版本；旧自建后台可以暂时沿用项目已验收的 1.x，用户入口保留 [v1 文档归档](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide)。1.x 已满足需求的项目无需仅为 Core 升级而迁移。
+
+保留 static 并不能完整还原 v1：Core 已移除旧独立 span envelope，现有 HTTP root、小游戏／Performance attributes 不会自动恢复为原数据模型；Logs、Metrics、Session 也有独立的格式与语义。因此，一次旧后台异常接收成功或关闭 tracing 不能构成完整兼容证据。
+
+未来只有出现明确的旧后台版本、所需 v2 能力与可复现的用户需求，才单独评估有限的过渡支持。评估须覆盖实际接收与看板、生命周期排空、缓存跨模式重放和维护成本，优先复用 Core 现存能力，不自行重建已删除的 v1 序列化或复制遥测管道。相关用户选择见[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+
 ## 2. 分层与模块职责
 
 ```mermaid
