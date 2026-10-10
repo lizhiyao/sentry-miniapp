@@ -100,3 +100,11 @@ Performance 的 `mark` 分支原本恢复 delivery scope，参数化同一旧 ti
 最终本地检查：lint、源码与测试严格类型检查、74 文件／1244 测试及完整覆盖率通过；statements 98.72%、branches 95.46%、functions 99.23%、lines 99.43%，原门槛不变。SDK 构建、文档站构建、微信独立 bundle 运行与本地映射检查通过；官网 20 页的 311 个内部路由／片段链接有效。
 
 本轮没有重跑手机和目标 Sentry 后台验收。真实冻结恢复、弱网、设备存储和最终部署产物的后台映射仍由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 收集真实用户证据；本地函数调用或映射结果不作为交付证明。
+
+## beta.6 发布准备与真实包回归
+
+上述 beta.5 发布后的清理和修复纳入 beta.6。发布包检查增加 CJS／ESM 各 8 个独立进程场景，通过安装包声明的公共入口验证空会话的迟到 timer／rAF／request／wrap，以及冻结 my／dd、只读 request 和不可读 Storage。断言最终事件、Session 终态、持久缓存重放和业务对象身份；普通 `startSession`／`captureException` 的统计是正向对照，最终 envelope 不含内部归属引用。相同检查在已发布 beta.5 两个入口均为 8 个失败，在 beta.6 候选包均通过，避免只检查源码而遗漏 CJS 严格模式差异。
+
+beta.6 候选 tarball 的真实生产依赖通过官方 npm registry 安装与审计，未命中安全公告。Taro／uni-app 的实际依赖审计仍有剩余公告；构建器修补、peer 兼容取舍、两套微信生产构建／watch 首轮／各 3 处业务映射证据见[示例依赖审查](./example-dependency-security.md)，剩余项由 [#467](https://github.com/lizhiyao/sentry-miniapp/issues/467) 跟踪。
+
+此处记录发布准备证据，实际发版是否成功以对应 GitHub Release 和 npm registry 为准；真实设备及后台矩阵仍待 #457 用户证据。

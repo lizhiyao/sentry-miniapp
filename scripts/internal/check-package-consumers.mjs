@@ -331,6 +331,7 @@ try {
     }));
   const nodeModules = join(tempRoot, 'node_modules');
   const packageRoot = join(nodeModules, 'sentry-miniapp');
+  console.log(`Checking installed package in temporary consumer: ${packageRoot}`);
 
   if (suppliedTarball) {
     await writeConsumer(join(tempRoot, 'package.json'), JSON.stringify({ private: true }));
@@ -447,6 +448,28 @@ try {
   const umdKeys = await runUmdProbe(packageRoot, packageJson.version);
   assert.deepEqual(umdKeys, cjsResult.keys, 'UMD and CJS exports differ');
 
+  // CJS and ESM differ in strictness around readonly native APIs; test both actual installed entries.
+  for (const moduleSyntax of ['cjs', 'esm']) {
+    console.log(`Checking packaged ${moduleSyntax.toUpperCase()} lifecycle and host behavior`);
+    const execution = await runNode(
+      join(repoRoot, 'scripts/internal/check-package-behavior.mjs'),
+      tempRoot,
+      { scriptArgs: [packageRoot, moduleSyntax] },
+    );
+    await writeConsumer(join(tempRoot, `behavior-${moduleSyntax}.ndjson`), execution.stdout);
+    const results = execution.stdout
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    const summary = results.pop();
+    assert.equal(summary.passed, true, `${moduleSyntax} packaged behavior failed`);
+    assert.equal(summary.module, moduleSyntax);
+    assert.equal(summary.version, packageJson.version);
+    assert.equal(summary.scenarios, 8);
+    assert.equal(results.length, summary.scenarios);
+    assert.ok(results.every((result) => result.passed && result.version === packageJson.version));
+  }
+
   await writeConsumer(join(tempRoot, 'consumer.mts'), typeProbe);
   await writeConsumer(join(tempRoot, 'consumer.cts'), typeProbe);
   await writeConsumer(
@@ -469,7 +492,7 @@ try {
   });
 
   console.log(
-    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${selfRequestRuntimeModes.length} URL modes), UMD and TypeScript (${cjsResult.keys.length} exports).`,
+    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${selfRequestRuntimeModes.length} URL modes), UMD, TypeScript (${cjsResult.keys.length} exports), and 8 behavior scenarios for each CJS/ESM entry.`,
   );
 } finally {
   if (suppliedTarball && process.env.DIAGNOSTICS_DIR) {
@@ -481,6 +504,8 @@ try {
       'consumer.mts',
       'consumer.cts',
       'tsconfig.json',
+      'behavior-cjs.ndjson',
+      'behavior-esm.ndjson',
     ]) {
       try {
         await cp(join(tempRoot, name), join(evidenceRoot, name));
