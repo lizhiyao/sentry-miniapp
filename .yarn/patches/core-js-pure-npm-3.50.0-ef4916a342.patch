@@ -1,16 +1,17 @@
 diff --git a/modules/web.url-search-params.constructor.js b/modules/web.url-search-params.constructor.js
-index e873e7f54de38bdd209c4eb8870ae74caffcf23b..673a228b8890a2790771cb0e62977f23b15ca50f 100644
 --- a/modules/web.url-search-params.constructor.js
 +++ b/modules/web.url-search-params.constructor.js
-@@ -7,6 +7,7 @@ var safeGetBuiltIn = require('../internals/safe-get-built-in');
+@@ -7,7 +7,8 @@
  var call = require('../internals/function-call');
  var uncurryThis = require('../internals/function-uncurry-this');
  var DESCRIPTORS = require('../internals/descriptors');
+-var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 +var IS_PURE = require('../internals/is-pure');
- var USE_NATIVE_URL = require('../internals/url-constructor-detection');
++var USE_NATIVE_URL = !IS_PURE && require('../internals/url-constructor-detection');
  var percentCoding = require('../internals/url-percent-coding');
  var defineBuiltIn = require('../internals/define-built-in');
-@@ -22,7 +23,10 @@ var bind = require('../internals/function-bind-context');
+ var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
+@@ -22,7 +23,10 @@
  var classof = require('../internals/classof');
  var anObject = require('../internals/an-object');
  var isObject = require('../internals/is-object');
@@ -22,7 +23,7 @@ index e873e7f54de38bdd209c4eb8870ae74caffcf23b..673a228b8890a2790771cb0e62977f23
  var create = require('../internals/object-create');
  var createPropertyDescriptor = require('../internals/create-property-descriptor');
  var getIterator = require('../internals/get-iterator-internal');
-@@ -41,9 +45,10 @@ var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_I
+@@ -41,9 +45,10 @@
  var percentDecode = percentCoding.decode;
  var percentEncode = percentCoding.encode;
  
@@ -36,7 +37,7 @@ index e873e7f54de38bdd209c4eb8870ae74caffcf23b..673a228b8890a2790771cb0e62977f23
  var RequestPrototype = NativeRequest && NativeRequest.prototype;
  var HeadersPrototype = Headers && Headers.prototype;
  var TypeError = globalThis.TypeError;
-@@ -139,10 +144,11 @@ URLSearchParamsState.prototype = {
+@@ -139,10 +144,11 @@
          push(entries, { key: $toString(first.value), value: $toString(second.value) });
        }
      } else for (var key in object) if (hasOwn(object, key)) {

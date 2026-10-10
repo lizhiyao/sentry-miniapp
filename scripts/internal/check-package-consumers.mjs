@@ -36,9 +36,12 @@ const platformContracts = [
 ];
 const hostRuntimeModes = [
   'native-builtins',
+  'native-query-only',
+  'native-query-readonly',
   'missing-url',
   'partial-url',
   'partial-url-search-params',
+  'partial-query-methods',
   'frozen-request',
   'unreadable-browser',
   'missing-reflect',
@@ -84,25 +87,37 @@ const nativePromise = Promise;
 const nativeFetch = globalThis.fetch;
 const nativeRequest = globalThis.Request;
 const nativeRequestConstructor = globalThis.Request?.prototype.constructor;
-const browserNames = ['fetch', 'Request', 'Headers'];
+const browserNames = ['fetch', 'Request', 'Headers', 'URL'];
 const browserDescriptors = browserNames.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
 let browserReads = 0;
 const nativeStringMethods = [String.prototype.isWellFormed, String.prototype.toWellFormed];
 const compatibilityMode = ['missing-builtins', 'partial-encoder'].includes(runtimeMode);
 const nativeURLSearchParams = globalThis.URLSearchParams;
-if (runtimeMode !== 'native-builtins') assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
-if (runtimeMode === 'missing-url') {
+const preserveNativeQuery = ['native-builtins', 'native-query-only', 'native-query-readonly'].includes(runtimeMode);
+if (!preserveNativeQuery) assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
+if (runtimeMode === 'native-query-only') {
+  assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
+} else if (runtimeMode === 'native-query-readonly') {
+  globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
+  Object.defineProperty(globalThis, 'URLSearchParams', { value: nativeURLSearchParams, writable: false, configurable: false });
+} else if (runtimeMode === 'missing-url') {
   assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
 } else if (runtimeMode === 'partial-url') {
   globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
 } else if (runtimeMode === 'partial-url-search-params') {
   globalThis.URLSearchParams = class URLSearchParams {};
+} else if (runtimeMode === 'partial-query-methods') {
+  globalThis.URLSearchParams = class URLSearchParams extends nativeURLSearchParams {};
+  globalThis.URLSearchParams.prototype.keys = undefined;
 } else if (runtimeMode === 'frozen-request') {
   Object.freeze(globalThis.Request.prototype);
 } else if (runtimeMode === 'unreadable-browser') {
   for (const name of browserNames) Object.defineProperty(globalThis, name, { configurable: true, get() {
     browserReads++;
     throw new Error('Browser capability is unavailable');
+  }});
+  Object.defineProperty(globalThis, 'URLSearchParams', { configurable: true, get() {
+    throw new Error('Query capability is unavailable');
   }});
 } else if (runtimeMode === 'missing-reflect') {
   globalThis.Reflect = undefined;
@@ -169,7 +184,7 @@ assert.equal(
   'function',
   'Package entrypoint did not install the URLSearchParams polyfill',
 );
-if (runtimeMode === 'native-builtins') {
+if (preserveNativeQuery) {
   assert.equal(globalThis.URLSearchParams, nativeURLSearchParams, 'SDK replaced a working native URLSearchParams');
 } else {
   assert.notEqual(globalThis.URLSearchParams, nativeURLSearchParams);
@@ -533,7 +548,10 @@ try {
   const cjsExecutions = [];
   for (const runtimeMode of [
     'native-builtins',
+    'native-query-only',
+    'native-query-readonly',
     'partial-url-search-params',
+    'partial-query-methods',
     'frozen-request',
     'unreadable-browser',
     'missing-url',

@@ -3,6 +3,36 @@ import { getGlobalSingleton } from '@sentry/core';
 // 固定版本的内部依赖仅从此处进入；过滤语义继续由 core 实现，不复制名单或算法。
 export { _INTERNAL_filterKeyValueData as filterKeyValueData } from '@sentry/core';
 
+/** 独立检查 Core 的查询参数接缝，不以完整 URL 或浏览器请求能力为前提。 */
+export function ensureURLSearchParams(fallback: typeof URLSearchParams): void {
+  try {
+    const Native = globalThis.URLSearchParams;
+    if (typeof Native === 'function') {
+      const record = new Native({ sdk: '中🙂\ud800' });
+      const pairs = new Native([
+        ['key', 'a b+'],
+        ['key', 'second'],
+      ]);
+      const query = new Native('sentry%5Fkey=a+b%2B&bad=%FF');
+      if (
+        record.toString() === 'sdk=%E4%B8%AD%F0%9F%99%82%EF%BF%BD' &&
+        pairs.toString() === 'key=a+b%2B&key=second' &&
+        query.keys().next().value === 'sentry_key' &&
+        query.get('sentry_key') === 'a b+' &&
+        query.get('bad') === '�'
+      )
+        return;
+    }
+  } catch (_error) {
+    // 构造器空壳、不可读 getter 或不完整的方法均使用独立回退。
+  }
+  Object.defineProperty(globalThis, 'URLSearchParams', {
+    value: fallback,
+    configurable: true,
+    writable: true,
+  });
+}
+
 function scalarAt(input: string, index: number): number {
   const first = input.charCodeAt(index);
   if (first >= 0xd800 && first <= 0xdbff) {

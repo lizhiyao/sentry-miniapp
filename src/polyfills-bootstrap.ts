@@ -8,14 +8,8 @@ import 'core-js/modules/es.promise.all-settled.js';
 import 'core-js/modules/es.string.is-well-formed.js';
 import 'core-js/modules/es.string.to-well-formed.js';
 import URLSearchParams from 'core-js-pure/web/url-search-params.js';
-import { ensureEnvelopeEncoding } from './coreCompat';
+import { ensureEnvelopeEncoding, ensureURLSearchParams } from './coreCompat';
 
-// pure 入口沿用成熟能力检测，只安装查询参数能力，避免改写宿主 fetch／Request。
-if (globalThis.URLSearchParams !== URLSearchParams) {
-  Object.defineProperty(globalThis, 'URLSearchParams', {
-    value: URLSearchParams,
-    configurable: true,
-    writable: true,
-  });
-}
+// 仅安装 Core 所需的查询参数能力；可用宿主实现不依赖完整 URL。
+ensureURLSearchParams(URLSearchParams);
 ensureEnvelopeEncoding();
