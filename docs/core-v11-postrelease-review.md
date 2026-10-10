@@ -120,3 +120,15 @@ beta.6 候选 tarball 的真实生产依赖通过官方 npm registry 安装与�
 - 中英文 README 最小配置先验证错误上报，性能采样另按流量选择；明确旧采集开关会导致初始化报错。官网将重复的 beta 修复历史指向 Releases，集中保留早期 beta 用户必须知道的采集风险与工具出口差异；DSN 示例明确要求替换完整值，保留已有迁移片段链接。
 
 验证通过：lint、严格类型检查、77 文件／1333 测试及覆盖率门槛（statements 98.72%、branches 95.57%、functions 99.23%、lines 99.44%）、SDK 三种产物与实际包消费、七平台 URL 降级和 CJS／ESM 各 20 个公开行为场景、文档站构建与修改页片段链接检查。测试数由 1337 降至 1333；这反映删去重复或无生产用途的断言，不是完成度指标。真实冻结、弱网及设备存储仍由 #457 跟踪。
+
+## 自动采集开销与 URL 边界复核
+
+基线为 `master ca8d157`，本轮检查网络自动采集、离线记录读写、正文脱敏及页面包装的运行成本。
+
+- 网络请求为 URL、breadcrumb query 和 span 名称重复调用 Core `parseUrl`，其中 collectUrl 自身解析两次；改为一次生成内部 `collectUrlParts` 并复用。仍由 Core 处理解析、名称与键过滤，不新增 URL 算法、公共配置或全局缓存；业务 URL、正文拒绝规则和传播白名单保持原输入。
+- 复现畸形 `data:image/png?access_token=canary-token;base64,...` 与 MIME 区域 fragment：Core `stripDataUrlContent` 会留下这部分 MIME 字符串，原网络／资源性能 span 的名称和 `url.full` 仍包含 canary。裁剪正文之后再调用 Core `stripUrlQueryAndFragment`，过滤所有自动采集出口。复用并加强已有数据采集、真实 Core HTTP 与 Performance 回归，合并同一边界的 URL 输入，未增加测试文件。
+- 评估了离线校验延迟还原 JSON／binary 的候选实现。同机 Node 24、七轮交错的受控对照中，30 条 16 KiB JSON 和 6 条 100 KiB 附件的整批读取中位耗时分别从约 4.4／7.9 ms 上升到 5.1／8.8 ms；输出 wire 一致，但没有足够证据支持增加校验模式和内部控制分支。撤回该候选，保留现有 Store、typed record、重试身份、TTL 和先提交后交付语义。
+
+URL 处理的本机受控对照覆盖 credentials、重复 query 键、追加敏感键、坏编码、相对路径、文件协议、data／javascript 与空 URL。已测原有 URL 场景输出保持一致；畸形 data MIME 的 query／fragment 按上述隐私修复省略。这些测量用于判断改动取舍，不代表真实设备耗时或 Sentry 后台验收。
+
+实际 npm beta.7 的 CJS／ESM 公开入口均复现上述 data MIME 泄漏；候选构建在原生、缺失与残缺 `URL` 三种宿主模式下，两个入口的事件、两条 HTTP span 与两条资源 span 均不含 canary，原始业务请求 URL 保持一致。最终检查通过：lint、源码与测试类型、77 文件／1331 测试及原覆盖率门槛（statements 98.72%、branches 95.62%、functions 99.23%、lines 99.44%）、SDK 三种产物、实际 tarball 消费与七平台 URL 降级、微信独立 bundle 和本地映射检查。测试数比上一轮减少 2，覆盖的坏 URL 场景反而增加。本轮修复属于 beta.7 之后的源码改动，尚未发包。

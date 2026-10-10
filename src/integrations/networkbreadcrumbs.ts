@@ -3,8 +3,6 @@ import { automaticSpanAttributes } from '../spanDimensions';
 import { OwnerToken } from '../owner';
 import {
   addBreadcrumb,
-  getUrlQuery,
-  parseUrl,
   parseStringToURLObject,
   getHttpSpanDetailsFromUrlObject,
   getActiveSpan,
@@ -22,7 +20,7 @@ import {
   startInactiveSpan,
 } from '@sentry/core';
 import type { Client, Integration, Span } from '@sentry/core';
-import { collectBody, collectUrl, collectUrlName, resolveMaxBodyBytes } from '../dataCollection';
+import { collectBody, collectUrlParts, resolveMaxBodyBytes } from '../dataCollection';
 import type { MaxBodySizeOption } from '../dataCollection';
 import { sdk } from '../crossPlatform';
 import {
@@ -212,19 +210,17 @@ export class NetworkBreadcrumbs implements Integration {
         const startTime = Date.now();
         // dataCollection.urlQueryParams 只管 SDK 自己采集的数据：span 与面包屑用过滤后的 URL，
         // 而 Sentry 自身请求识别、追踪头注入和 body 黑名单仍按原始 URL 匹配。
-        const collectedUrl = collectUrl(url, client, sensitiveKeys);
+        const collected = collectUrlParts(url, client, sensitiveKeys);
         const propagate = enableTracePropagation && shouldPropagateTrace(url);
 
         // 面包屑的 url 只到 path（core 的 getSanitizedUrlString），query 单列成 url.query，
         // 与 core 的 fetch 集成同构；span 侧仍用带过滤后 query 的 url.full。
-        const parsedUrl = parseUrl(collectedUrl);
         const breadcrumbData: Record<string, any> = {
-          url: collectUrlName(collectedUrl),
+          url: collected.name,
           method,
         };
-        const collectedQuery = getUrlQuery(parsedUrl.search);
-        if (collectedQuery) {
-          breadcrumbData['url.query'] = collectedQuery;
+        if (collected.query) {
+          breadcrumbData['url.query'] = collected.query;
         }
 
         // dataCollection.httpBodies 约束 SDK 自采的数据体，判定方式与 core 自身集成一致；
@@ -266,7 +262,7 @@ export class NetworkBreadcrumbs implements Integration {
         owner.run((activeClient) => {
           requestSpan = startRequestSpan(
             method,
-            collectedUrl,
+            collected,
             enableStandaloneHttpSpans,
             activeClient,
           );
@@ -443,7 +439,7 @@ type RequestSpan = {
 
 function startRequestSpan(
   method: string,
-  url: string,
+  collected: ReturnType<typeof collectUrlParts>,
   enableStandaloneHttpSpans: boolean,
   client: Client | undefined,
 ): RequestSpan | null {
@@ -452,8 +448,9 @@ function startRequestSpan(
     const parentSpan = getActiveSpan();
     if (!parentSpan && !enableStandaloneHttpSpans) return null;
 
+    const { url, name } = collected;
     const serverAddress = extractHost(url);
-    const spanName = `${method} ${collectUrlName(url)}`;
+    const spanName = `${method} ${name}`;
     const standalone = !parentSpan;
     const [, urlAttributes] = getHttpSpanDetailsFromUrlObject(
       parseStringToURLObject(url),

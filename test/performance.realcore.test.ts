@@ -225,12 +225,25 @@ describe('Performance 的真实 core operation 与时间契约', () => {
     const client = start();
     const name =
       'https://canary-user:canary-password@example.com/path?token=canary-token#canary-fragment';
-    callback([navigation(), { entryType: 'resource', name, startTime: 250, duration: 20 }]);
+    const names = [
+      name,
+      'data:image/png?access_token=canary-token;base64,canary-payload',
+      'data:image/png#canary-fragment;base64,canary-payload',
+    ];
+    callback([
+      navigation(),
+      ...names.map((name) => ({ entryType: 'resource', name, startTime: 250, duration: 20 })),
+    ]);
     await drain(client);
     const resource = collectSpans(envelopes)[1]!;
     expect(resource.name).toBe('Resource: https://[filtered]:[filtered]@example.com/path');
     expect(spanAttribute(resource, 'resource.transfer_size')).toBeUndefined();
     expect(spanAttribute(resource, 'resource.type')).toBeUndefined();
+    expect(
+      collectSpans(envelopes)
+        .slice(2)
+        .map((span) => span.name),
+    ).toEqual(['Resource: data:image/png', 'Resource: data:image/png']);
     expect(JSON.stringify(envelopes)).not.toContain('canary');
   });
 

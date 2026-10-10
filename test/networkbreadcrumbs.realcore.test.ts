@@ -612,11 +612,14 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(JSON.stringify(captured)).not.toContain('canary');
   });
 
-  it.each([
-    'data:text/plain,canary-payload?foo=canary-query#canary-fragment',
-    'javascript:canary-payload?foo=canary-query#canary-fragment',
-    'https://api.example.com/path?tok%FFen=canary-query',
-  ])('无法安全采集的 URL 内容不经 breadcrumb 回退泄漏：%s', async (url) => {
+  it('无法安全采集的 URL 内容不经 breadcrumb 或 span 别名泄漏', async () => {
+    const urls = [
+      'data:text/plain,canary-payload?foo=canary-query#canary-fragment',
+      'javascript:canary-payload?foo=canary-query#canary-fragment',
+      'https://api.example.com/path?tok%FFen=canary-query',
+      'data:image/png?access_token=canary-token;base64,canary-payload',
+      'data:image/png#canary-fragment;base64,canary-payload',
+    ];
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       platform: 'bytedance',
@@ -627,11 +630,15 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       enableMinigameFrameRate: false,
       transport: createCapturingTransport(captured),
     });
-    g.tt.request({ url });
+    for (const url of urls) g.tt.request({ url });
     captureException(new Error('unsafe URL probe'));
     await flush(2000);
-    expect(xhrBreadcrumbData(captured)['url.query']).toBeUndefined();
-    expect(requestMock.mock.calls[0]?.[0].url).toBe(url);
+    const event = collectEnvelopePayloads<Event>(captured, ['event'])[0]!;
+    const crumbs = event.breadcrumbs!.filter((crumb) => crumb.category === 'xhr');
+    expect(crumbs).toHaveLength(urls.length);
+    for (const crumb of crumbs) expect(crumb.data!['url.query']).toBeUndefined();
+    expect(collectSpans(captured)).toHaveLength(urls.length);
+    expect(requestMock.mock.calls.map(([options]) => options.url)).toEqual(urls);
     expect(JSON.stringify(captured)).not.toContain('canary');
   });
 
