@@ -190,9 +190,9 @@ Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能
 | App 注册改变业务调用 | 原独立包装器截断额外参数，并把零参数或显式 undefined 改为 `{}`。App 入口复用 helper，完整转发 receiver、参数、返回值与异常，生命周期 before／after／flush 顺序不变；冻结定义和退休 wrapper 有正向回归。 |
 | 诊断故障丢弃原事件 | 可选 Debug ID alias 不可读且 debug 告警抛错时，原消息被 Core 丢弃。告警独立容错，真实 Core 最终 envelope 仍含原 event ID／message。未复制 Core 映射缓存或事件管道；不可读的 Core 全局 map 仍不属于这项修复保证。 |
 
-函数扩展名为 `apply` 时，直接调用 `original.apply()` 会误调用扩展属性。当前 master 的请求参数修复引入了这一回归：实际 beta.7 两入口的同一探针均通过，`7bce47e3` 实际 tarball 均失败。相关原函数转发改用 Reflect.apply，并强化七平台已有契约测试；该问题不能归为已发布 beta.7 缺陷。
+函数扩展名为 `apply` 时，直接调用 `original.apply()` 会误调用扩展属性。当前 master 的请求参数修复引入了这一回归：实际 beta.7 两入口的同一探针均通过，`7bce47e3` 实际 tarball 均失败。相关原函数转发改用 Reflect.apply，并强化七平台已有契约测试；该请求函数回归不能归为已发布 beta.7 缺陷。进一步调用链复核还确认已有 Page、Console、timer 和业务回调转发存在同类遮蔽，均改用 Reflect.apply，并强化已有真实 Core 用例。
 
-公开安装包对照中，已发布 beta.7 的两个入口在五种场景的 10 项检查中失败 8 项（`apply` 两项正常）；修复前 master 同样 10 项全部失败。最终实际候选 tarball 的 CJS／ESM、七平台、七种场景共 98 项全部通过，覆盖扩展读写、源码字符串、App 参数、诊断故障、冻结原函数、缺 Proxy 降级与 `apply` 遮蔽。证据为公开入口、真实 Core 事件和受控宿主，不是手机或目标 Sentry 后台验收。
+公开安装包对照中，已发布 beta.7 的两个入口在九种场景的 18 项检查中失败 16 项（请求函数 `apply` 两项正常）；修复前 master 同样 18 项全部失败。最终实际候选 tarball 的 CJS／ESM、七平台、十一种场景共 154 项全部通过，覆盖扩展读写、源码字符串、App 参数、诊断故障、冻结原函数、缺 Proxy 降级，以及请求、Page、Console、timer 和业务回调的 `apply` 遮蔽。证据为公开入口、真实 Core 事件和受控宿主，不是手机或目标 Sentry 后台验收。
 
 缺 Proxy 时普通函数继续包装；带自有／继承扩展或不可检查的函数保持原样并跳过该自动观测点，避免快照复制破坏框架更新。平台 transport 仍可用；不把一项可选观测失败扩大为初始化失败。
 

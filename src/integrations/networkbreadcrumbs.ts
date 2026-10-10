@@ -161,7 +161,7 @@ export class NetworkBreadcrumbs implements Integration {
       wrapper = this._createRequestWrapper(original);
       this._requestWrappers.set(original, wrapper);
     }
-    return wrapper.apply(thisArg, args);
+    return Reflect.apply(wrapper, thisArg, args);
   }
 
   /**
@@ -369,7 +369,7 @@ export class NetworkBreadcrumbs implements Integration {
               level: isErrorStatusCode(statusCode) || duration > 3000 ? 'warning' : 'info',
             });
           });
-          if (typeof originalSuccess === 'function') return originalSuccess.apply(this, args);
+          if (typeof originalSuccess === 'function') return Reflect.apply(originalSuccess, this, args);
         };
 
         requestOptions['fail'] = function (this: any, ...args: any[]) {
@@ -386,7 +386,7 @@ export class NetworkBreadcrumbs implements Integration {
             if (!owner.isActive()) return;
             addBreadcrumb({ type: 'http', category: 'xhr', data: breadcrumbData, level: 'error' });
           });
-          if (typeof originalFail === 'function') return originalFail.apply(this, args);
+          if (typeof originalFail === 'function') return Reflect.apply(originalFail, this, args);
         };
 
         requestOptions['complete'] = function (this: any, ...args: any[]) {
@@ -399,7 +399,7 @@ export class NetworkBreadcrumbs implements Integration {
               durationMs: Date.now() - startTime,
             });
           });
-          if (typeof originalComplete === 'function') return originalComplete.apply(this, args);
+          if (typeof originalComplete === 'function') return Reflect.apply(originalComplete, this, args);
         };
 
         requestThrew = (error) =>

@@ -89,7 +89,7 @@ function patchApp(): boolean {
             broadcast(eventSubscribers, 'before', method, args[0]);
             try {
               if (typeof userHandler === 'function') {
-                return userHandler.apply(this, args);
+                return Reflect.apply(userHandler, this, args);
               }
             } finally {
               broadcast(eventSubscribers, 'after', method, args[0]);

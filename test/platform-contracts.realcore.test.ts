@@ -250,6 +250,8 @@ describe.each(PLATFORM_CONTRACTS)(
     it('初始化、错误、请求、Storage、生命周期和重初始化遵守统一契约', async () => {
       const originalHostApp = g.App;
       const originalHostPage = g.Page;
+      Object.defineProperty(originalHostApp, 'apply', { value: 'App extension' });
+      Object.defineProperty(originalHostPage, 'apply', { value: 'Page extension' });
       const extension = Symbol('framework capability');
       const capability = {};
       Object.defineProperty(originalRequest, 'capability', {
@@ -297,6 +299,8 @@ describe.each(PLATFORM_CONTRACTS)(
 
       const success = vi.fn();
       const complete = vi.fn();
+      Object.defineProperty(success, 'apply', { value: 'callback extension' });
+      Object.defineProperty(complete, 'apply', { value: 'callback extension' });
       const requestOptions = {
         url: 'https://api.example.com/contracts',
         method: 'POST',

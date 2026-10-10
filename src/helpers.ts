@@ -41,7 +41,7 @@ export function wrap(
 
   const sentryWrapped: WrappedFunction = function (this: any, ...args: any[]): any {
     try {
-      return fn.apply(this, args);
+      return Reflect.apply(fn, this, args);
     } catch (ex) {
       const capture = (): void => {
         // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。

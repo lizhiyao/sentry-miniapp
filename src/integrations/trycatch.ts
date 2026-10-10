@@ -32,11 +32,11 @@ export class TryCatch implements Integration {
       const once = name !== 'setInterval';
       unsubscribers.push(
         addFunctionInstrumentationHandler(source, name, client, (original, receiver, args) => {
-          if (typeof args[0] !== 'function') return original.apply(receiver, args);
+          if (typeof args[0] !== 'function') return Reflect.apply(original, receiver, args);
           const owner = new OwnerToken(client);
           if (!owner.isActive()) {
             owner.release();
-            return original.apply(receiver, args);
+            return Reflect.apply(original, receiver, args);
           }
           let id: unknown;
           let pending = true;
@@ -58,7 +58,7 @@ export class TryCatch implements Integration {
             once ? () => owner.release() : undefined,
           );
           try {
-            id = original.apply(receiver, forwarded);
+            id = Reflect.apply(original, receiver, forwarded);
             // 同步调用 callback 的宿主 shim 已经完成，不重新登记失效 owner。
             if (pending && owner.isActive()) records.set(id, owner);
             return id;
@@ -74,7 +74,7 @@ export class TryCatch implements Integration {
       const records = name === 'cancelAnimationFrame' ? frames : timers;
       unsubscribers.push(
         addFunctionInstrumentationHandler(source, name, client, (original, receiver, args) => {
-          const result = original.apply(receiver, args);
+          const result = Reflect.apply(original, receiver, args);
           records.get(args[0])?.release();
           return result;
         }),

@@ -62,6 +62,7 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
       cb();
       return 0 as any;
     };
+    Object.defineProperty(g.setTimeout, 'apply', { value: 'timer extension' });
 
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
@@ -71,11 +72,9 @@ describe('TryCatch（真 @sentry/core 集成）', () => {
     } as any);
 
     // 经 TryCatch 包装的 setTimeout：回调抛错被 wrap 捕获上报后 re-throw，故 try 包住
-    expect(() => {
-      g.setTimeout(() => {
-        throw new Error('timer boom');
-      });
-    }).toThrow('timer boom');
+    const callback = () => { throw new Error('timer boom'); };
+    Object.defineProperty(callback, 'apply', { value: 'callback extension' });
+    expect(() => g.setTimeout(callback)).toThrow('timer boom');
 
     await flush(2000);
 

@@ -30,7 +30,8 @@ describe('Console 面包屑（真实 Core）', () => {
       expect(this).toBe(receiver);
       return result;
     });
-    vi.spyOn(console, 'log').mockImplementation(original);
+    const log = vi.spyOn(console, 'log').mockImplementation(original);
+    Object.defineProperty(log, 'apply', { value: 'console extension', configurable: true });
     const client = init({
       dsn: 'https://test@example.com/1',
       defaultIntegrations: [consoleBreadcrumbsIntegration({ levels: ['log'] })],
