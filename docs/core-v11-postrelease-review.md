@@ -254,3 +254,23 @@ Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能
 源码注释改为说明当前优先级、字段回退和统计规则，移除开发模式残留及类型迁移历史；退休 client／持久化记录等当前时间归属仍按必要性解释。README、官网、架构与官方对照分别维护接入边界、实现理由和审查证据，不把复现过程堆进用户配置页。本轮不新增 npm 发布或真实设备／后台结论。
 
 验证通过：lint、严格类型、77 文件／1339 用例的 coverage 与 shuffle、SDK 构建、微信独立 bundle／本地映射及文档站构建；覆盖率门槛不变，statements 98.71%、branches 95.71%、functions 99.25%、lines 99.46%。
+
+## 标准兼容层复用与声明复核
+
+基线为 `master f4626a3`（#485）。以其实际 CJS 包删除原生 URLSearchParams 后作对照：迭代期间删除 `b` 仍读到旧条目，forEach 的 thisArg 丢失，不完整 pair 与 Symbol 值被接受。替换后，迭代读取当前条目，receiver 保留，非法输入按 TypeError 拒绝。
+
+删除 320 行 `polyfills.ts`：String.prototype.isWellFormed／toWellFormed 交给 core-js 按需模块；URLSearchParams 使用同版本 core-js-pure 的公开入口及其能力检测，保留正常原生构造器。SDK 不再维护另一套 String 修复、表单编解码、查询参数迭代与全局对象发现算法。精确依赖及版本补丁以 package.json／yarn.lock／.yarn/patches 为准，所有选中模块继续内联，生产消费不需要安装 core-js。
+
+成熟实现也经过边界复核。未修补的 pure URLSearchParams 模块会读取 fetch／Request／Headers 并写 Request.prototype.constructor；冻结原型时直接导入失败。最小 Yarn patch 在 pure 模式跳过这段无关 transport 探测与包装。该版本对原始孤立 surrogate 的输入转换还不完整，补丁在参数输入处先执行同库 ToString，再复用公开 String.prototype.toWellFormed 完成 USVString 转换，保留 null／undefined 键值的字符串语义与 Symbol 拒绝，避免替换后 get／迭代与已有规范化行为不同；解析、百分号编码、排序与迭代算法仍由上游维护。可空值对照采用 SDK endpoint 所用的 record／pair 输入，不把宿主对整个 null 构造参数的差异误判为 SDK 故障。真实包检查同时约束原生身份、冻结原型、不可读浏览器 API、Unicode 键值与最终 wire。升级依赖时须复核上游是否修复，并移除已无必要的补丁。
+
+保留的共用 UTF-8 标量转换服务于 Core 编码回退和无需分配编码结果的字节预算，core-js 不提供 TextEncoder。精确 ArrayBuffer 复制是宿主请求能力适配，离线 codec 的类型、长度、规范化 base64 和预算校验属于存储协议；不能用宽松全局 polyfill 替换这些约束。Babel generator 转换也仍必要：实际产物检查发现，Vite 降级 async 时会生成 generator，源码没有 generator 并不足以删除转换。
+
+删去自实现的细碎算法和全局 mock 测试，保留启动装配与真实 Core 日志的边界测试；String 缺失、原生／空壳能力检测在实际包的独立进程／UMD realm 验证，避免 CommonJS 依赖缓存影响重复安装判断。容量 worker 的独立 TS 编译与仓库 esModuleInterop 配置对齐。现有 transport 超时用例强化重复 shutdown／撤回的幂等清理，验证没有额外请求、abort 或残留 timer。总数从 1339 降到 1276，覆盖率门槛及统计范围不变。
+
+THIRD_PARTY_NOTICES.md 保留安装包中实际内联的 Core、core-js／core-js-pure 和 Babel helpers 完整 MIT 声明。文件名不是许可证要求，保留声明内容才是；不列仅用于构建且未进入运行时的工具依赖。构建在最终压缩后把同一份声明追加到每个独立 JS 尾部，避免压缩删除且不移动现有 source map 位置；npm 包和单文件产物均有声明，实际 tarball 检查比对所安装依赖的 LICENSE。独立小程序 bundle 的原始异常映射也通过验证。
+
+最终 tarball 的 CJS／ESM 在七个小程序宿主和微信／抖音小游戏上运行 12 种标准／缺失能力组合，216 项通过；真实最终 event／log／metric／span／attachment、孤立 surrogate 日志、附件字节、异步请求排空与 dispose 均有检查。Reflect、扩展函数与业务透明性矩阵重跑 144 项通过。长期消费检查覆盖七平台 ESM × 10 种模式、微信 CJS、缺少标准方法的 UMD、68 个类型／导出入口与每种 CJS／ESM 入口各 20 项公开行为场景。
+
+相同 gzip 设置的实际包对照：CJS 从 77,612 增至 84,118 bytes，ESM 从 87,692 增至 94,914 bytes，约增加 6.4／7.1 KiB；这是复用成熟实现、隔离宿主副作用并携带完整声明的体积代价。该取舍不等同于完整浏览器平台或任意 ES5 引擎支持。
+
+验证通过：immutable 安装、lint、严格类型、77 文件／1276 用例的 coverage 与 shuffle、SDK／微信 bundle／本地映射和文档站构建。覆盖率为 statements 98.72%、branches 95.66%、functions 99.20%、lines 99.44%。本轮不新增 npm 发布、设备或后台验收结论。

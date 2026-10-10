@@ -35,8 +35,12 @@ const platformContracts = [
   { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', statusKey: 'statusCode' },
 ];
 const hostRuntimeModes = [
+  'native-builtins',
   'missing-url',
   'partial-url',
+  'partial-url-search-params',
+  'frozen-request',
+  'unreadable-browser',
   'missing-reflect',
   'partial-reflect',
   'missing-builtins',
@@ -74,18 +78,32 @@ async function unpackPackage(tarball, packageRoot) {
 function runtimeProbe(moduleSyntax) {
   const required = JSON.stringify(requiredExports);
   const platforms = JSON.stringify(platformContracts);
-  const load =
-    moduleSyntax === 'esm'
-      ? `import assert from 'node:assert/strict';
+  const load = `${moduleSyntax === 'esm' ? "import assert from 'node:assert/strict';" : "const assert = require('node:assert/strict');"}
 const runtimeMode = process.argv[3] || 'standard';
 const nativePromise = Promise;
+const nativeFetch = globalThis.fetch;
+const nativeRequest = globalThis.Request;
+const nativeRequestConstructor = globalThis.Request?.prototype.constructor;
+const browserNames = ['fetch', 'Request', 'Headers'];
+const browserDescriptors = browserNames.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+let browserReads = 0;
+const nativeStringMethods = [String.prototype.isWellFormed, String.prototype.toWellFormed];
 const compatibilityMode = ['missing-builtins', 'partial-encoder'].includes(runtimeMode);
 const nativeURLSearchParams = globalThis.URLSearchParams;
-assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
+if (runtimeMode !== 'native-builtins') assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
 if (runtimeMode === 'missing-url') {
   assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
 } else if (runtimeMode === 'partial-url') {
   globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
+} else if (runtimeMode === 'partial-url-search-params') {
+  globalThis.URLSearchParams = class URLSearchParams {};
+} else if (runtimeMode === 'frozen-request') {
+  Object.freeze(globalThis.Request.prototype);
+} else if (runtimeMode === 'unreadable-browser') {
+  for (const name of browserNames) Object.defineProperty(globalThis, name, { configurable: true, get() {
+    browserReads++;
+    throw new Error('Browser capability is unavailable');
+  }});
 } else if (runtimeMode === 'missing-reflect') {
   globalThis.Reflect = undefined;
 } else if (runtimeMode === 'partial-reflect') {
@@ -94,38 +112,18 @@ if (runtimeMode === 'missing-url') {
   for (const key of ['entries', 'values', 'fromEntries']) Object[key] = undefined;
   Promise.allSettled = undefined;
   Promise.prototype.finally = undefined;
+  String.prototype.isWellFormed = String.prototype.toWellFormed = undefined;
   globalThis.TextEncoder = undefined;
   Array.prototype.includes = undefined;
   globalThis.globalThis = undefined;
 } else if (runtimeMode === 'partial-encoder') {
   globalThis.TextEncoder = class TextEncoder {};
 }
-const sdk = await import('sentry-miniapp');`
-      : `const assert = require('node:assert/strict');
-const runtimeMode = process.argv[3] || 'standard';
-const nativePromise = Promise;
-const compatibilityMode = ['missing-builtins', 'partial-encoder'].includes(runtimeMode);
-const nativeURLSearchParams = globalThis.URLSearchParams;
-assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
-if (runtimeMode === 'missing-url') {
-  assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
-} else if (runtimeMode === 'partial-url') {
-  globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
-} else if (runtimeMode === 'missing-reflect') {
-  globalThis.Reflect = undefined;
-} else if (runtimeMode === 'partial-reflect') {
-  globalThis.Reflect = {};
-} else if (runtimeMode === 'missing-builtins') {
-  for (const key of ['entries', 'values', 'fromEntries']) Object[key] = undefined;
-  Promise.allSettled = undefined;
-  Promise.prototype.finally = undefined;
-  globalThis.TextEncoder = undefined;
-  Array.prototype.includes = undefined;
-  globalThis.globalThis = undefined;
-} else if (runtimeMode === 'partial-encoder') {
-  globalThis.TextEncoder = class TextEncoder {};
-}
-const sdk = require('sentry-miniapp');`;
+const sdk = ${moduleSyntax === 'esm' ? "await import('sentry-miniapp')" : "require('sentry-miniapp')"};
+if (runtimeMode === 'unreadable-browser') {
+  assert.equal(browserReads, 0, 'SDK inspected unrelated browser transports');
+  for (const [index, name] of browserNames.entries()) Object.defineProperty(globalThis, name, browserDescriptors[index]);
+}`;
 
   const runStart = moduleSyntax === 'esm' ? '' : 'async function main() {';
   const runEnd =
@@ -140,6 +138,22 @@ main().catch(error => {
   return `${load}
 ${runStart}
 assert.equal(Promise, nativePromise, 'SDK replaced the host Promise constructor');
+assert.equal(globalThis.fetch, nativeFetch, 'SDK replaced the host fetch');
+assert.equal(globalThis.Request, nativeRequest, 'SDK replaced the host Request');
+assert.equal(globalThis.Request?.prototype.constructor, nativeRequestConstructor, 'SDK changed the host Request prototype');
+if (runtimeMode !== 'missing-builtins') {
+  for (const [index, name] of ['isWellFormed', 'toWellFormed'].entries()) {
+    if (typeof nativeStringMethods[index] === 'function') assert.equal(String.prototype[name], nativeStringMethods[index]);
+    else assert.equal(typeof String.prototype[name], 'function');
+  }
+} else {
+  for (const name of ['isWellFormed', 'toWellFormed']) {
+    assert.equal(typeof String.prototype[name], 'function');
+    assert.equal(Object.getOwnPropertyDescriptor(String.prototype, name).enumerable, false);
+  }
+  assert.equal('中🙂\\ud800'.toWellFormed(), '中🙂�');
+  assert.equal('中🙂\\ud800'.isWellFormed(), false);
+}
 if (runtimeMode === 'missing-builtins') assert.equal(Promise.prototype.finally, undefined);
 const required = ${required};
 for (const name of required) {
@@ -155,11 +169,44 @@ assert.equal(
   'function',
   'Package entrypoint did not install the URLSearchParams polyfill',
 );
-assert.notEqual(
-  globalThis.URLSearchParams,
-  nativeURLSearchParams,
-  'Package runtime probe unexpectedly kept the native URLSearchParams',
-);
+if (runtimeMode === 'native-builtins') {
+  assert.equal(globalThis.URLSearchParams, nativeURLSearchParams, 'SDK replaced a working native URLSearchParams');
+} else {
+  assert.notEqual(globalThis.URLSearchParams, nativeURLSearchParams);
+}
+const params = new URLSearchParams('a=one&b=two&c=three');
+const iterator = params.entries();
+assert.deepEqual(iterator.next().value, ['a', 'one']);
+params.delete('b');
+params.set('c', 'updated');
+assert.deepEqual(iterator.next().value, ['c', 'updated'], 'URLSearchParams iterator used stale entries');
+const context = {};
+params.forEach(function(value, key, owner) {
+  assert.equal(this, context);
+  assert.equal(owner, params);
+}, context);
+assert.throws(() => new URLSearchParams([['incomplete']]), TypeError);
+assert.throws(() => new URLSearchParams({ key: Symbol('invalid') }), TypeError);
+for (const input of ['a=x+y&=empty&dup=1&dup=2', 'bad=%FF%E4%B8%41%C2%C2%A9%ED%A0%80%F4%90%80%80', 'raw=中🙂&symbols=~!()*&surrogate=\\ud800']) {
+  assert.equal(new URLSearchParams(input).toString(), new nativeURLSearchParams(input).toString());
+  assert.deepEqual([...new URLSearchParams(input)], [...new nativeURLSearchParams(input)]);
+}
+const unicodeParams = new URLSearchParams({ ['\\ud800']: '\\udc00' });
+unicodeParams.append('added', '\\ud800');
+unicodeParams.set('set', '\\udc00');
+assert.equal(unicodeParams.get('�'), '�');
+assert.equal(unicodeParams.get('\\ud800'), '�');
+assert.equal(unicodeParams.get('added'), '�');
+assert.equal(unicodeParams.get('set'), '�');
+
+// Core 构造 endpoint 使用 record；检查可空键值，不强求宿主构造器所有重载相同。
+for (const input of [undefined, { empty: null, absent: undefined, numeric: 123 }, [['key', null], ['absent', undefined]]]) {
+  const actual = new URLSearchParams(input);
+  const expected = new nativeURLSearchParams(input);
+  assert.deepEqual([...actual], [...expected]);
+  assert.equal(actual.toString(), expected.toString());
+}
+
 
 const platformName = process.argv[2] || 'wechat';
 const contract = ${platforms}.find(candidate => candidate.platform === platformName);
@@ -324,7 +371,7 @@ async function runUmdProbe(packageRoot, expectedVersion) {
   const umdPath = join(packageRoot, 'dist/sentry-miniapp.umd.js');
   const code = await readFile(umdPath, 'utf8');
   runInNewContext(
-    `Object.entries = Object.values = Object.fromEntries = undefined; Promise.allSettled = undefined; Promise.prototype.finally = undefined; Array.prototype.includes = undefined; globalThis.globalThis = undefined; ${code}`,
+    `Object.entries = Object.values = Object.fromEntries = undefined; Promise.allSettled = undefined; Promise.prototype.finally = undefined; String.prototype.isWellFormed = String.prototype.toWellFormed = undefined; Array.prototype.includes = undefined; globalThis.globalThis = undefined; ${code}`,
     sandbox,
     { filename: umdPath },
   );
@@ -361,8 +408,14 @@ async function runUmdProbe(packageRoot, expectedVersion) {
     enableMinigameFrameRate: false,
   });
   sdk.captureMessage('UMD package consumer runtime smoke');
+  sdk.logger.info('UMD 中🙂\ud800');
   assert.equal(await sdk.flush(2000), true, 'UMD SDK flush failed');
   assert.ok(envelopes.length > 0, 'UMD SDK did not send an envelope through the host');
+  const logEnvelope = envelopes.find(
+    (data) => typeof data === 'string' && data.includes('"type":"log"'),
+  );
+  assert.ok(logEnvelope, 'UMD SDK did not send a log without native String methods');
+  assert.equal(JSON.parse(logEnvelope.split('\n')[2]).items[0].body, 'UMD 中🙂�');
   await sdk.close(0);
 
   return Object.keys(sdk).sort();
@@ -441,6 +494,20 @@ try {
     });
   }
 
+  const notices = await readFile(join(packageRoot, 'THIRD_PARTY_NOTICES.md'), 'utf8');
+  for (const dependency of ['@sentry/core', 'core-js', 'core-js-pure', '@babel/helpers']) {
+    const license = (
+      await readFile(join(repoRoot, 'node_modules', dependency, 'LICENSE'), 'utf8')
+    ).trim();
+    assert.ok(notices.includes(license), `Missing bundled license: ${dependency}`);
+  }
+  for (const bundle of ['sentry-miniapp.cjs.js', 'sentry-miniapp.mjs', 'sentry-miniapp.umd.js']) {
+    assert.ok(
+      (await readFile(join(packageRoot, 'dist', bundle), 'utf8')).includes(notices.trim()),
+      `Standalone bundle omitted notices: ${bundle}`,
+    );
+  }
+
   const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
   const expected = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8'));
   assert.equal(packageJson.name, expected.name);
@@ -465,6 +532,10 @@ try {
 
   const cjsExecutions = [];
   for (const runtimeMode of [
+    'native-builtins',
+    'partial-url-search-params',
+    'frozen-request',
+    'unreadable-browser',
     'missing-url',
     'missing-reflect',
     'partial-reflect',
