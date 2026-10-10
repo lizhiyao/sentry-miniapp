@@ -23,6 +23,18 @@
     "vite": "6.4.3"
   },
   "overrides": {
-    "vite": "$vite"
+    "vite": "$vite",
+    "@dcloudio/uni-nvue-styler@3.0.0-5020620260917001": {
+      "postcss": "8.5.29"
+    },
+    "@dcloudio/uni-mp-weixin@3.0.0-5020620260917001": {
+      "ws": "8.22.0"
+    },
+    "@dcloudio/uni-cli-shared@3.0.0-5020620260917001": {
+      "source-map-js": "1.2.2"
+    },
+    "@dcloudio/vite-plugin-uni@3.0.0-5020620260917001": {
+      "source-map-js": "1.2.2"
+    }
   }
 }

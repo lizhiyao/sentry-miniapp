@@ -22,6 +22,7 @@
 ```bash
 # 先在仓库根执行 yarn build，再到本目录
 npm install
+node ../../scripts/internal/check-example-dependencies.mjs package.json
 
 # 编译微信小程序（产出到 dist/dev/mp-weixin）
 npm run dev:mp-weixin
@@ -31,7 +32,9 @@ npm run build:mp-weixin
 
 然后用**微信开发者工具**导入产物目录（`dist/dev/mp-weixin` 或 `dist/build/mp-weixin`），即可预览。
 
-示例固定使用 Vite `6.4.3`，通过 npm `overrides` 统一 uni-app 插件声明的旧版本；保留该配置并使用 npm 安装。当前验证目标是微信小程序构建和 watch，其他目标需另行验证。示例框架依赖仍有上游安全公告，具体范围与处理记录见[示例依赖审查](../../docs/example-dependency-security.md)。
+示例固定使用 Vite `6.4.3`，并针对当前 DCloud 版本组中的具体消费者修补 PostCSS、ws 和 source-map-js；保留 npm `overrides` 并使用 npm 安装。安装后运行上面的检查，确认消费者实际解析到预期版本。当前构建验证覆盖微信生产构建、watch 首轮编译和业务映射；其他目标需另行验证。剩余框架安全公告与修补范围见[示例依赖审查](../../docs/example-dependency-security.md)。
+
+若检查提示实际版本仍旧，已有安装锁可能保留了旧依赖；安装成功或 `npm install --package-lock-only` 成功不代表 override 已生效。只在本示例目录重新生成被忽略的 `node_modules/` 和 `package-lock.json`，再执行 `npm install` 与版本检查。不要用 `--force` 或 `--legacy-peer-deps` 跳过兼容性检查。
 
 ## DSN 配置
 
@@ -63,4 +66,4 @@ doctor 验证上传前产物，不能替代微信二次编译后的真机 map �
 
 ## 说明
 
-仓库的 `Framework Examples` workflow 会在 SDK 源码、依赖、构建脚本或相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install、真实构建和业务异常位置映射检查。`node_modules/`、`dist/`、`unpackage/` 已在 `.gitignore` 中忽略。
+仓库的 `Framework Examples` workflow 会在 SDK 源码、依赖、构建脚本或相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install、消费者实际依赖版本检查、真实构建和业务异常位置映射检查。`node_modules/`、`package-lock.json`、`dist/`、`unpackage/` 已在 `.gitignore` 中忽略。

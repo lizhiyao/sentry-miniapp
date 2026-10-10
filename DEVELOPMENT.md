@@ -88,7 +88,7 @@ sentry-miniapp/
 
 测试必须执行 `src/` 或仓库脚本中的生产逻辑；不要只调用测试文件里临时创建的 mock、示例重试函数或常量再断言自身行为。时间相关逻辑优先使用 Vitest fake timers，避免真实等待拖慢 CI。
 
-`.github/workflows/framework-examples.yml` 在 SDK 源码、依赖、构建脚本、相关示例或 workflow 变化的 PR，以及每周定时和手动触发时，构建当前 SDK tarball，覆盖示例声明的发布版依赖后执行 Taro／uni-app 的真实微信小程序构建，并检查业务异常的原始源码内容和双向映射。无关改动不触发重型框架构建。
+`.github/workflows/framework-examples.yml` 在 SDK 源码、依赖、构建脚本、相关示例或 workflow 变化的 PR，以及每周定时和手动触发时，构建当前 SDK tarball，覆盖示例声明的发布版依赖后，先用 `scripts/internal/check-example-dependencies.mjs` 核对 override 声明的消费者实际解析版本，再执行 Taro／uni-app 的真实微信小程序构建和业务异常的原始源码内容、双向映射检查。已有安装锁可能保留旧依赖，因此不能用安装成功代替版本核对。无关改动不触发重型框架构建。
 
 ### core 扩展边界与升级审查
 

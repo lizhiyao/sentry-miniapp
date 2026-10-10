@@ -65,6 +65,9 @@ jobs:
         working-directory: ${{ matrix.directory }}
         run: npm install --no-save --no-package-lock --no-audit --no-fund "$RUNNER_TEMP/sentry-miniapp.tgz"
 
+      - name: Verify installed example dependency overrides
+        run: node scripts/internal/check-example-dependencies.mjs "${{ matrix.directory }}/package.json"
+
       - name: Build example
         working-directory: ${{ matrix.directory }}
         run: npm run ${{ matrix.script }}
