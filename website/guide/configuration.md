@@ -358,13 +358,15 @@ Sentry.init({
 
 ## 2.0 的 client 关闭与切换契约
 
-`init()` 只保留一个活动 runtime。切换前，旧 client 停止持久缓存消费，同步执行 SDK finalizer 并启动 owner flush，再绑定新 client；内部收尾预算为 2000ms。同步 span/sampler/DSC hook 中重入 `init()` 会返回 `undefined` 并诊断 `reentrant_init_unsupported`，业务应在 hook 返回后的独立控制流中切换。
+`init()` 只保留一个活动 runtime。切换前，旧 client 停止持久缓存消费，同步执行 SDK finalizer 并启动 owner flush，再绑定新 client；内部收尾预算为 2000ms。同步 span/sampler/DSC hook 或 `beforeBreadcrumb` 中重入 `init()` 会返回 `undefined` 并诊断 `reentrant_init_unsupported`，业务应在 hook 返回后的独立控制流中切换。
 
 初始化和切换应发生在入口的根 scope。在 `withScope()`、`withActiveSpan()` 或尚未完成的异步 `startSpan()` 上下文中调用 `init()` 会返回 `undefined`；已有 runtime 保持运行，并诊断 `init_scope_unsupported`。先退出该上下文（异步 span 须等待完成），再初始化或切换。小程序使用 Core 的默认上下文策略，不支持替换为自定义 async context strategy。
 
 `client.close(timeout)` 的正有限 timeout 是整个收尾的预算；`0` 或省略 timeout 表示等待排空，不套内部 2000ms 预算。负数、NaN、Infinity 使用 2000ms 安全预算。重复 close 共享同一 Promise。`dispose()` 是立即废弃：禁用采集与发送，排弃 core buffer，再解除资源；它不生成最后的 summary，也可以中断等待中的 close，使其返回 `false`。宿主恢复后，默认发送队列在实际出队时仍检查终态与绝对 deadline。
 
-调用 `close()` 后，client 停止接收新的业务异常、消息、事件和反馈；已经进入 core 处理队列的数据继续在收尾预算内排出，SDK 的同步收尾步骤仍可生成最后一份汇总。调用 `dispose()` 后，再次捕获不会执行事件处理器或 `beforeSend`。这些采集 API 仍可能返回事件 ID，但 ID 不代表事件已进入队列或上报成功。
+调用 `close()` 后，client 停止接收新的业务异常、消息、事件、反馈和面包屑；已经进入 core 处理队列的数据继续在收尾预算内排出，SDK 的同步收尾步骤仍可生成最后一份汇总。调用 `dispose()` 后，再次捕获不会执行事件处理器、`beforeSend` 或 `beforeBreadcrumb`。这些采集 API 仍可能返回事件 ID，但 ID 不代表事件已进入队列或上报成功。
+
+如果 `beforeBreadcrumb` 中关闭了当前 client，这一条面包屑也会丢弃。关闭不会自动清空此前已记录的面包屑；需要清空时使用 `getIsolationScope().clearBreadcrumbs()`。
 
 业务应先停止发起新的手动 trace，再调用 `close()`。直接导出的 Core tracing API 在排空期间仍可能创建 span、执行 hook 并进入发送队列；关闭完成或期限到达后，发送门禁会阻止后续交付。`close()` 返回 `true` 只表示本次排空完成，不是后台接收确认。
 

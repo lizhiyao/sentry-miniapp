@@ -170,9 +170,11 @@ client 的 `open / closing / closed` 与宿主的前台／后台可见性是两�
 | `dispose()`             | 同步关闭采集／发送／存储门禁，停止重放，结算 SDK 等待并清理资源；不作业务 summary 收尾                        |
 | `init()` 替换旧 runtime | 旧 client 使用有限预算退休；新 client 独立取得自动采集和存储权限                                              |
 
-close 的 `0`／未指定预算保留无期限 drain；非法预算会诊断并保守回落。closing 阶段拒收 exception／message／event／feedback 和 logs／metrics 的新采集，同步 finalizer 除外。`captureSession` 仅在 closed 时拒收，closing 仍接受该公共路径，以保留在途 Core 事件的会话更新；它不能区分这类更新与新的手动调用。业务须先停止创建新的手动 Session 和 trace：Core 公共 tracing 在 drain 期间仍可能触发 hooks／batch，发送最终受预算与关闭门禁限制。
+close 的 `0`／未指定预算保留无期限 drain；非法预算会诊断并保守回落。closing 阶段拒收 exception／message／event／feedback、breadcrumbs 和 logs／metrics 的新采集，同步 finalizer 除外。`captureSession` 仅在 closed 时拒收，closing 仍接受该公共路径，以保留在途 Core 事件的会话更新；它不能区分这类更新与新的手动调用。业务须先停止创建新的手动 Session 和 trace：Core 公共 tracing 在 drain 期间仍可能触发 hooks／batch，发送最终受预算与关闭门禁限制。
 
 dispose 能结束 SDK 等待，但不能强制取消用户 Promise 或任意自定义 transport 内部任务。Core hook 中 dispose 先关闭门禁，最外层 hook 返回后再完成清理，避免 hook 后续逻辑重新建立已退休资源。`flush()`／`close()` 返回 true 不证明 Sentry 后台已接收或完成符号化。
+
+Core `addBreadcrumb()` 写入共享 isolation scope，不会自行检查 MiniappClient 的关闭状态。client 在公开 `beforeBreadcrumb` 回调前后检查 lifetime，回调中关闭后返回的条目也丢弃；同步 finalizer 仍可记录面包屑。console 格式化在每个参数与 JSON／String 用户代码边界检查 owner 活动状态，退休后不继续读取剩余参数，但原 console 仍执行一次并保留业务语义。关闭不清空已存在的 Core 面包屑，也不改写 Scope 或复制 Core 的 breadcrumb pipeline。
 
 对应回归见 [instrumentation](test/instrumentation.test.ts)、[lifecycle-coordinator](test/lifecycle-coordinator.realcore.test.ts)、[native-session](test/native-session.realcore.test.ts)和[client-lifecycle](test/client-lifecycle.realcore.test.ts)。
 

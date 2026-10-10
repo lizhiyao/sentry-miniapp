@@ -1,5 +1,5 @@
 import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
-import { addBreadcrumb } from '@sentry/core';
+import { addBreadcrumb, getClient } from '@sentry/core';
 import type { Client, Integration, SeverityLevel } from '@sentry/core';
 
 import {
@@ -54,11 +54,15 @@ export class ConsoleBreadcrumbs implements Integration {
   public setup(client: Client): void {
     const lifetime = getClientLifetime(client);
     if (lifetime && !lifetime.canCollectAutomatic()) return;
+    const isActive = (): boolean =>
+      getClient() === client &&
+      client.getOptions().enabled !== false &&
+      (!lifetime || lifetime.canCollectAutomatic());
     const cleanups: Array<() => void> = [];
     for (const level of this._levels) {
       cleanups.push(
         addFunctionInstrumentationHandler(console, level, client, (original, thisArg, args) =>
-          this._handleConsole(level, original, thisArg, args),
+          this._handleConsole(isActive, level, original, thisArg, args),
         ),
       );
     }
@@ -71,6 +75,7 @@ export class ConsoleBreadcrumbs implements Integration {
   }
 
   private _handleConsole(
+    isActive: () => boolean,
     level: ConsoleLevel,
     original: Function,
     thisArg: unknown,
@@ -78,19 +83,27 @@ export class ConsoleBreadcrumbs implements Integration {
   ): unknown {
     try {
       withTelemetryCritical(() => {
+        const parts: string[] = [];
+        for (const arg of args) {
+          if (!isActive()) return;
+          if (typeof arg === 'string') {
+            parts.push(arg);
+            continue;
+          }
+          let serialized: string | undefined;
+          try {
+            serialized = JSON.stringify(arg);
+          } catch (_error) {
+            /* 活动 client 的不可序列化参数回落到 String。 */
+          }
+          if (!isActive()) return;
+          parts.push(serialized ?? String(arg));
+        }
+        if (!isActive()) return;
         addBreadcrumb({
           category: 'console',
           level: LEVEL_TO_SEVERITY[level],
-          message: args
-            .map((arg) => {
-              if (typeof arg === 'string') return arg;
-              try {
-                return JSON.stringify(arg) ?? String(arg);
-              } catch (_e) {
-                return String(arg);
-              }
-            })
-            .join(' '),
+          message: parts.join(' '),
         });
       });
     } catch (_error) {

@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  addBreadcrumb,
   logger,
   getClient,
   getCurrentScope,
+  getIsolationScope,
   metrics,
   withScope,
   startInactiveSpan,
@@ -20,7 +22,11 @@ import type { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { ClientLifetime, getClientLifetime } from '../src/lifecycle';
 import { OwnerToken } from '../src/owner';
-import { createCapturingTransport, createEventEnvelope } from './support/envelopes';
+import {
+  collectEnvelopePayloads,
+  createCapturingTransport,
+  createEventEnvelope,
+} from './support/envelopes';
 
 describe('真实 core client 关闭与发送边界', () => {
   const clients: MiniappClient[] = [];
@@ -50,10 +56,12 @@ describe('真实 core client 关闭与发送边界', () => {
     vi.useFakeTimers();
     resetPlatformCache();
     envelopes = [];
+    getIsolationScope().clearBreadcrumbs();
     vi.stubGlobal('wx', { request: vi.fn() });
   });
   afterEach(() => {
     clients.splice(0).forEach((client) => client.dispose());
+    getIsolationScope().clearBreadcrumbs();
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -81,11 +89,12 @@ describe('真实 core client 关闭与发送边界', () => {
   });
 
   it.each(['dispose', 'close'] as const)(
-    '%s 后新增事件不执行 processor 或 beforeSend',
+    '%s 后新增事件和面包屑不执行 processor 或用户过滤回调',
     async (stop) => {
       const beforeSend = vi.fn((event) => event);
+      const beforeBreadcrumb = vi.fn((breadcrumb) => breadcrumb);
       const processor = vi.fn((event) => event);
-      const client = make({ beforeSend });
+      const client = make({ beforeSend, beforeBreadcrumb });
       client.addEventProcessor(processor);
       if (stop === 'dispose') client.dispose();
       else {
@@ -103,7 +112,9 @@ describe('真实 core client 关闭与发送边界', () => {
       expect(client.captureEvent({ message: 'closed event' }, { event_id: 'closed-event' })).toBe(
         'closed-event',
       );
+      owned(client, () => addBreadcrumb({ message: 'closed breadcrumb' }));
       expect(beforeSend).not.toHaveBeenCalled();
+      expect(beforeBreadcrumb).not.toHaveBeenCalled();
       expect(processor).not.toHaveBeenCalled();
       expect(envelopes).toEqual([]);
       expect(vi.getTimerCount()).toBe(0);
@@ -114,6 +125,7 @@ describe('真实 core client 关闭与发送边界', () => {
       await vi.advanceTimersByTimeAsync(5);
       await flushed;
       expect(envelopes).toHaveLength(1);
+      expect((envelopes[0]![1][0]![1] as ErrorEvent).breadcrumbs).toBeUndefined();
     },
   );
 
@@ -126,13 +138,22 @@ describe('真实 core client 关闭与发送边界', () => {
           })
         : event,
     );
-    const client = make({ beforeSend });
+    const beforeBreadcrumb = vi.fn((breadcrumb) => breadcrumb);
+    const client = make({ beforeSend, beforeBreadcrumb });
     client.captureMessage('pending');
-    client.registerFinalizer(() => client.captureMessage('finalizer'));
+    client.registerFinalizer(() => {
+      owned(client, () => addBreadcrumb({ message: 'finalizer breadcrumb' }));
+      client.captureMessage('finalizer');
+    });
     const closing = client.close(100);
     client.captureException(new Error('too late'));
     client.captureMessage('too late');
     client.captureEvent({ message: 'too late' });
+    owned(client, () => addBreadcrumb({ message: 'too late breadcrumb' }));
+    expect(beforeBreadcrumb).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: 'finalizer breadcrumb' }),
+      undefined,
+    );
     expect(beforeSend).toHaveBeenCalledTimes(2);
     finish({ message: 'pending' });
     await vi.advanceTimersByTimeAsync(20);
@@ -140,6 +161,9 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(envelopes.flatMap((env) => env[1].map((item) => (item[1] as any).message))).toEqual([
       'finalizer',
       'pending',
+    ]);
+    expect((envelopes[0]![1][0]![1] as ErrorEvent).breadcrumbs).toEqual([
+      expect.objectContaining({ message: 'finalizer breadcrumb' }),
     ]);
   });
 
@@ -533,7 +557,7 @@ describe('真实 core client 关闭与发送边界', () => {
     first.dispose();
   });
 
-  it('同步 sampler/span/DSC hook 内 init 拒绝重入且保留原绑定', async () => {
+  it('同步 sampler/span/DSC/beforeBreadcrumb 内 init 拒绝重入且保留原绑定', async () => {
     const attempts: Array<MiniappClient | undefined> = [];
     const attempt = () =>
       attempts.push(init({ dsn: 'https://test@example.com/1', defaultIntegrations: false }));
@@ -551,20 +575,30 @@ describe('真实 core client 关闭与发送边界', () => {
         attempt();
         return span;
       },
+      beforeBreadcrumb: (breadcrumb) => {
+        attempt();
+        return breadcrumb;
+      },
     })!;
     clients.push(owner);
     owner.on('createDsc', attempt);
     startInactiveSpan({ name: 'hook reentry' }).end();
+    addBreadcrumb({ message: 'manual breadcrumb' });
+    owner.captureMessage('breadcrumb reentry');
     const flushed = owner.flush();
     await vi.runAllTimersAsync();
     await flushed;
-    expect(attempts.length).toBeGreaterThanOrEqual(3);
+    expect(attempts.length).toBeGreaterThanOrEqual(4);
     expect(attempts.every((client) => client === undefined)).toBe(true);
     expect(getClient()).toBe(owner);
     expect(getDiagnostics().warnings.map((warning) => warning.code)).toContain(
       'reentrant_init_unsupported',
     );
-    expect(envelopes).toHaveLength(1);
+    expect(envelopes).toHaveLength(2);
+    const event = collectEnvelopePayloads<ErrorEvent>(envelopes, ['event'])[0]!;
+    expect(event.breadcrumbs).toEqual([
+      expect.objectContaining({ message: 'manual breadcrumb' }),
+    ]);
   });
 
   it('integration setup 失败立即废弃 B、解除绑定并保留原异常，后续 init 正常', async () => {
