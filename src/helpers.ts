@@ -14,11 +14,9 @@ export function wrap(
       type?: string;
     };
   } = {},
-  before?: WrappedFunction,
   owner?: OwnerToken,
   finish?: () => void,
 ): any {
-  // tslint:disable-next-line:strict-type-predicates
   if (typeof fn !== 'function') {
     return fn;
   }
@@ -42,11 +40,6 @@ export function wrap(
   }
 
   const sentryWrapped: WrappedFunction = function (this: any, ...args: any[]): any {
-    // tslint:disable-next-line:strict-type-predicates
-    if (before && typeof before === 'function') {
-      before.apply(this, args);
-    }
-
     try {
       return fn.apply(this, args);
     } catch (ex) {
@@ -84,7 +77,6 @@ export function wrap(
 
   // Accessing some objects may throw
   try {
-    // tslint:disable-next-line: no-for-in
     for (const property in fn) {
       if (Object.prototype.hasOwnProperty.call(fn, property)) {
         (sentryWrapped as any)[property] = (fn as any)[property];

@@ -20,7 +20,7 @@ npm install sentry-miniapp@next --save
 import * as Sentry from 'sentry-miniapp';
 
 Sentry.init({
-  dsn: 'https://your-dsn@o0.ingest.sentry.io/0',
+  dsn: 'YOUR_DSN', // 替换为 Sentry 项目中的完整 DSN
   release: 'my-uniapp@1.0.0', // 与上传 Source Map 时的 release 完全一致
   environment: 'production',
 });

@@ -108,3 +108,15 @@ Performance 的 `mark` 分支原本恢复 delivery scope，参数化同一旧 ti
 beta.6 候选 tarball 的真实生产依赖通过官方 npm registry 安装与审计，未命中安全公告。Taro／uni-app 的实际依赖审计仍有剩余公告；构建器修补、peer 兼容取舍、两套微信生产构建／watch 首轮／各 3 处业务映射证据见[示例依赖审查](./example-dependency-security.md)。[#467](https://github.com/lizhiyao/sentry-miniapp/issues/467) 已按维护者决定关闭，剩余示例依赖警告暂缓处理，不作为 SDK 升级或发布阻塞；关闭不表示全部警告已修复。
 
 此处记录发布准备证据，实际发版是否成功以对应 GitHub Release 和 npm registry 为准；真实设备及后台矩阵仍待 #457 用户证据。
+
+## beta.7 发布后的维护打磨
+
+本轮基线为 `master e8f4d98` 和已发布 beta.7 实物，检查公共入口、Core 接缝、调度包装、环境字段、生命周期及用户接入路径。以下清理属于 beta.7 之后的源码改动；本轮未发现需要改变 Core 管道或增加旧协议模式的新依据。
+
+- 内部 `helpers.wrap` 的 `before` 参数只有一个单测消费者，唯一生产调用来自 TryCatch，始终传 `undefined`；删除该分支与占位参数。owner 归属、完成释放、业务 receiver／参数／返回值／原异常行为继续由真实 Core 回归保护。
+- helpers 的旧异常测试在静态导入之后模拟已移除的 `getCurrentHub`，没有验证采集，且不需要真实计时器；改为检查原异常对象、业务 receiver／参数和仅调用一次。删除仅检查内部 class 名称／实例身份的三个 integration 用例，以及被清理分支的单测；公共 factory、环境字段与最终 envelope 的回归保留，没有新增测试。
+- `httpContextIntegration()` 仍是公开入口，显式调用遵循 client 快照和 `enableSystemInfo`。本轮保留该入口，避免为删重复环境填充而制造新的用户 API 迁移；bootstrap／低层 client 的编码兜底也有不同入口消费者，不按重复名称删除。
+- 修正快速接入、FAQ 与英文 README 对晚初始化的笼统描述：实际 npm beta.7 在受控原生 App 监听下，初始化即产生 `ok` Session，hide 收尾为 `exited`；不能补回初始化前的启动异常和 `onLaunch` 面包屑。该证据来自公开 CJS 入口与模拟微信宿主，未增加设备验收结论。
+- 中英文 README 最小配置先验证错误上报，性能采样另按流量选择；明确旧采集开关会导致初始化报错。官网将重复的 beta 修复历史指向 Releases，集中保留早期 beta 用户必须知道的采集风险与工具出口差异；DSN 示例明确要求替换完整值，保留已有迁移片段链接。
+
+验证通过：lint、严格类型检查、77 文件／1333 测试及覆盖率门槛（statements 98.72%、branches 95.57%、functions 99.23%、lines 99.44%）、SDK 三种产物与实际包消费、七平台 URL 降级和 CJS／ESM 各 20 个公开行为场景、文档站构建与修改页片段链接检查。测试数由 1337 降至 1333；这反映删去重复或无生产用途的断言，不是完成度指标。真实冻结、弱网及设备存储仍由 #457 跟踪。

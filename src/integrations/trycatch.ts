@@ -54,7 +54,6 @@ export class TryCatch implements Integration {
                 type: 'instrument',
               },
             },
-            undefined,
             owner,
             once ? () => owner.release() : undefined,
           );

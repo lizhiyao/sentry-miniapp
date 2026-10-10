@@ -21,11 +21,7 @@ Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://git
 
 选定 2.0 后，通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.7` 固定版本。默认安装仍获取 1.x 稳定版。升级前先确认实际安装版本。
 
-已使用早期 beta 的项目也应更新：beta.1 修复 `lastEventId()` 未更新的问题；beta.2 起，开启正文采集也会省略无法识别格式的正文；beta.3 修复自定义 transport 忽略超时时，`dispose()` 无法结束正在等待的 `flush()` 的问题。
-
-beta.6 修复会话错误统计的边界问题，以及部分宿主 API 不可读或只读时导致 SDK 初始化失败的问题。
-
-beta.7 修复异步／eval 栈帧定位、初始化与宿主能力降级边界、FPS 参数及 console 文本处理，并完善追踪传播和错误事件的 IP 采集控制。旧采集开关的迁移与路径工具恢复见下文。
+已使用早期 beta 的项目也应更新到当前版本；各版本修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
 
 ## 试用前需要确认
 
@@ -48,11 +44,15 @@ beta.7 修复异步／eval 栈帧定位、初始化与宿主能力降级边界�
 | `showReportDialog()` | 原生反馈表单加 `captureFeedback()` |
 | `new Dedupe({ fuzzyMatch: true })` | 官方 `dedupeIntegration()`；删除模糊消息去重 |
 
-`Sentry.Integrations` 保留；集成改用与顶层相同的 factories，内部集成名称用于筛选，并非可构造的公共类。自 beta.7 起恢复原有工具出口 `Sentry.Integrations.normalizeMiniappFrameFilename()`；beta.6 暂缺该出口，使用它的项目升级至 beta.7 后可沿用旧调用。
+`Sentry.Integrations` 保留；集成改用与顶层相同的 factories，内部集成名称用于筛选，并非可构造的公共类。原有的 `Sentry.Integrations.normalizeMiniappFrameFilename()` 工具可继续使用。
 
 旧配置中的 `defaultIntegrations: Sentry.defaultIntegrations` 可直接删除，使用默认集合；需要自己选择基底时，改为 `defaultIntegrations: Sentry.getDefaultIntegrations(options)`，不要跨初始化复用返回的实例。
 
-Core v11 已删除 `sendDefaultPii` 和 `enableLogs`。已发布的 beta.6 会忽略这些旧字段，不能依赖它们继续控制采集；自 beta.7 起显式拒绝任何非 `undefined` 的旧值，混合新旧配置同样拒绝。`init()` 会在替换当前 client 之前报迁移错误，直接构造 `MiniappClient` 也会拒绝；值为 `undefined` 等同未配置。按下文改写后应移除旧键。
+删除旧 `sendDefaultPii` 和 `enableLogs` 配置；保留旧值会导致初始化报错，添加新配置后也须移除旧键。隐私配置改用下文的 [`dataCollection`](#data-collection-migration)，日志过滤改用 `beforeSendLog`。
+
+::: warning 早期 beta 用户
+beta.6 及更早版本可能静默忽略这些旧开关，不能依赖它们限制采集；beta.6 还缺少上述路径工具出口。请升级到 beta.7 或更新版本，并按本页迁移。
+:::
 
 原 System 独有的存储配额、应用更新信息由业务按实际需要采集。例如微信业务代码显式关联存储信息，不增加 SDK 默认权限调用：
 
@@ -80,9 +80,9 @@ Sentry.init({
 
 `integrations` 数组追加到默认集合，同名用户实例优先；函数返回最终集合。使用 `defaultIntegrations: false` 时，业务 tracing 必须自行安装 `spanStreamingIntegration()`，SDK 不偷偷装回。
 
-## Stream-only、采样与关联
+## 性能数据、采样与关联 {#stream-only采样与关联}
 
-删除 `traceLifecycle: 'static'`、`beforeSendTransaction`、`ignoreTransactions` 和旧 measurement 双写。JS 显式传 static 在替换当前 client 前报错。使用 `startSpan`／`startInactiveSpan`／`startSpanManual`，数值写 attributes；`beforeSendSpan` 修改名称和属性，`ignoreSpans` 丢弃 span，不返回 null。v1.20.4 未导出 `withStaticSpan`／`withStreamedSpan`，2.0 也不提供这两个辅助 API。
+删除 `traceLifecycle: 'static'`、`beforeSendTransaction`、`ignoreTransactions` 和旧 measurement 双写。改用 `startSpan`／`startInactiveSpan`／`startSpanManual`，数值写 attributes；`beforeSendSpan` 修改名称和属性，`ignoreSpans` 丢弃 span，不返回 null。
 
 ### beforeSendSpan 回调 {#before-send-span}
 

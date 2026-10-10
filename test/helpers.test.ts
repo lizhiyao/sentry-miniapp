@@ -22,33 +22,24 @@ describe('Helpers', () => {
       expect(originalFn).toHaveBeenCalledWith(2, 3);
     });
 
-    it('should handle function that throws error', () => {
-      vi.useFakeTimers();
-      const mockCaptureException = vi.fn();
-      const mockGetClient = vi.fn(() => ({
-        captureException: mockCaptureException,
-      }));
-
-      // Mock getCurrentHub
-      vi.doMock('@sentry/core', () => ({
-        getCurrentHub: () => ({
-          getClient: mockGetClient,
-        }),
-      }));
-
-      const errorFn = vi.fn(() => {
-        throw new Error('Test error');
+    it('preserves the original exception, receiver and arguments without repeating the call', () => {
+      const receiver = {};
+      const argument = {};
+      const error = new Error('Test error');
+      const errorFn = vi.fn(function (this: unknown, value: unknown) {
+        expect(this).toBe(receiver);
+        expect(value).toBe(argument);
+        throw error;
       });
-
       const wrappedFn = wrap(errorFn);
-
+      let thrown: unknown;
       try {
-        expect(() => wrappedFn()).toThrow('Test error');
-        expect(errorFn).toHaveBeenCalled();
-      } finally {
-        vi.runOnlyPendingTimers();
-        vi.useRealTimers();
+        wrappedFn.call(receiver, argument);
+      } catch (value) {
+        thrown = value;
       }
+      expect(thrown).toBe(error);
+      expect(errorFn).toHaveBeenCalledExactlyOnceWith(argument);
     });
 
     it('should preserve function properties', () => {
@@ -81,18 +72,6 @@ describe('Helpers', () => {
       const result = wrap(nonFunction as any);
 
       expect(result).toBe(nonFunction);
-    });
-
-    it('runs the optional before hook with the original receiver and arguments', () => {
-      const receiver = { value: 3 };
-      const before = vi.fn();
-      const wrapped = wrap(function (this: typeof receiver, increment: number) {
-        return this.value + increment;
-      }, {}, before);
-
-      expect(wrapped.call(receiver, 4)).toBe(7);
-      expect(before).toHaveBeenCalledWith(4);
-      expect(before.mock.instances[0]).toBe(receiver);
     });
 
     it('returns a callable unchanged when host guards reject marker access', () => {

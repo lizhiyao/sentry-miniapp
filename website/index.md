@@ -99,7 +99,7 @@ npm install sentry-miniapp@next --save
 import * as Sentry from 'sentry-miniapp';
 
 Sentry.init({
-  dsn: 'https://your-dsn@o0.ingest.sentry.io/0',
+  dsn: 'YOUR_DSN', // 替换为 Sentry 项目中的完整 DSN
   release: 'my-miniapp@1.0.0',
   environment: 'production',
 });
