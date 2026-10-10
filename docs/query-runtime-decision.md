@@ -21,7 +21,7 @@ SDK 在 `coreCompat.ensureURLSearchParams` 中独立检查 record 和字符串�
 
 改用成熟依赖的主要收益是删除重复维护的解析、编码与迭代算法。v1 回退在直接解析 `+`、非法 UTF-8 或序列化孤立 surrogate 时存在标准行为差异，但这些独立输入探针不能证明常规 SDK 上报失败。不能仅为扩大标准测试覆盖而无限增加兼容范围。
 
-当前补丁的两类依据也须分开：宿主隔离修正的是引入 core-js-pure 后的无关 URL／请求探测与原型改写风险；USVString 修正的是回退构造器的输入行为一致性。冻结 Request 原型、不可读 getter 和只读查询构造器的结果来自模拟宿主的实际包检查，尚无对应的设备故障证据。USVString 补丁复用现有标准方法，未增加一套转换算法，也不是普通 ASCII 上报能够工作的前提。
+当前补丁的两类依据也须分开：宿主隔离修正的是引入 core-js-pure 后的无关 URL／请求探测与原型改写风险；USVString 修正的是回退构造器的输入行为一致性。冻结 Request 原型、不可读 getter 和只读查询构造器的结果来自模拟宿主的实际包检查，尚无对应的设备故障证据。USVString 补丁复用现有标准方法，未增加一套转换算法，也不是普通 ASCII 上报能够工作的前提。另以所有浏览器 API 均缺失的环境验证，未修补的 pure 包也能生成正常 endpoint；原型改写故障需要实际存在可调用的 Headers／Request。隔离补丁保护的是这些 API 由宿主或框架提供的组合，而非证明每个小程序都存在该故障。
 
 因此当前方案是有维护成本的折中，不能宣称已经证明它是所有候选中的长期最优方案。保持补丁范围稳定，以实际 SDK 路径、宿主副作用、包体积和升级成本评估后续替换；无需补丁的独立查询实现若满足这些约束，应优先考虑。构造器的额外一致性探针用于防止已有行为倒退，不能独立充当增加新补丁的理由。
 
@@ -37,7 +37,7 @@ SDK 在 `coreCompat.ensureURLSearchParams` 中独立检查 record 和字符串�
 
 | 候选 | 复核结果 | 取舍 |
 | --- | --- | --- |
-| core-js-pure 3.50.0 原包 | 缺少 URL 时会进入 Request 包装分支并写原型；冻结原型导致导入失败。record 和原始查询字符串的孤立 surrogate 保留原值 | 宿主操作需要隔离；USVString 修正用于保留输入一致性 |
+| core-js-pure 3.50.0 原包 | 缺少 URL 且存在可调用的 Headers／Request 时，会写 Request 原型；冻结该原型导致导入失败。record 和原始查询字符串的孤立 surrogate 保留原值 | 宿主操作需要隔离；USVString 修正用于保留输入一致性 |
 | [@ungap/url-search-params 0.2.2](https://github.com/ungap/url-search-params) | 非法 UTF-8 可能抛 URIError，iterator 使用快照；不完整 pair 和 Symbol 值的拒绝与标准行为不同 | 直接替换会退回已经修复的输入／迭代问题 |
 | [whatwg-url-minimum 0.2.0](https://github.com/expo/whatwg-url-minimum) | 本次探针中 record／字符串保留孤立 surrogate，接受 Symbol 值，混合非法 UTF-8 百分号序列解码与原生不同 | 零依赖有吸引力，但暂不能直接替换 |
 | [whatwg-url 17.2.0](https://github.com/jsdom/whatwg-url) | 包要求 Node 22.14／24 以上，带 Web IDL、IDNA 和字节库；查询编解码路径也使用 TextEncoder／TextDecoder | 完整实现适合其目标环境，当前小程序缺失能力和开发 Node 20 基线需要额外适配 |
