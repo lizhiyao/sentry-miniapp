@@ -120,6 +120,9 @@ describe('Helpers', () => {
 
       fillResult?.restore();
       expect(obj.method).toBe(originalMethod);
+      expect(fill(obj, 'method', () => originalMethod)).toBeUndefined();
+      expect(fill(obj, 'method', () => undefined)).toBeUndefined();
+      expect(obj.method).toBe(originalMethod);
     });
 
     it('should replace and restore an accessor when its setter ignores assignment', () => {
@@ -425,10 +428,14 @@ describe('Helpers', () => {
       expect(host.method).toBe(original);
     });
 
-    it('contains replacement prototype assignment failures', () => {
+    it('does not write through a replacement Proxy to the original prototype', () => {
       const obj = { method: vi.fn() };
-      const replacement = new Proxy(function replacement() {}, {
+      const original = function replacement() {};
+      const constructor = original.prototype.constructor;
+      const set = vi.fn();
+      const replacement = new Proxy(original, {
         set(target, property, value, receiver) {
+          set(property);
           if (property === 'prototype') throw new Error('prototype is read-only');
           return Reflect.set(target, property, value, receiver);
         },
@@ -437,6 +444,8 @@ describe('Helpers', () => {
       const result = fill(obj, 'method', () => replacement);
       expect(result?.replaced).toBe(true);
       expect(obj.method).toBe(replacement);
+      expect(set).not.toHaveBeenCalled();
+      expect(original.prototype.constructor).toBe(constructor);
     });
   });
 

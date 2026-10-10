@@ -89,3 +89,15 @@ Session 是另一条通道。Browser 仅在允许 userInfo 时通过公开 `befo
 另核对了 [DenoClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/src/client.ts) 和 [CloudflareClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/cloudflare/src/client.ts)：Deno 在 close 前解除退出监听，Cloudflare 在 dispose 解除 span 订阅并清空自身等待状态，均未另建 Logs／Metrics 序列化模型。Deno 的退出 hook 直接使用 Core 内部 flush helper，本项目有公开 flush hook 可用，无需增加内部接缝。Cloudflare 的调用隔离、缓存 client 和 `waitUntil` 依赖其运行时，不作为小程序多 client／跨 await 隔离的依据。
 
 此次修复与最终公开包验证记录见[发布后审查](core-v11-postrelease-review.md#请求快照与日志指标的晚到数据)。README 的安装和公共 API 未变；官网仅更新用户可以依赖的关闭行为，不把这些维护者实现细节放入接入流程。
+
+## beta.7 后的函数包装契约对照
+
+官方 Core fetch 使用 Proxy apply 保留 `fetch.preconnect` 等运行时扩展，Browser XHR 同样通过 Proxy 保留原函数与完整参数。[Core fetch](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/instrument/fetch.ts#L73-L82)、[Browser XHR](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser-utils/src/instrumentation/xhr.ts#L38-L66)。这项做法适用于小程序宿主函数，不依赖 DOM 或 fetch。
+
+本项目 `master 7bce47e3` 仍用普通闭包替换请求、Page、timer 等函数，丢失函数上的非枚举／Symbol 扩展和 name／length。默认 FunctionToString 集成也无法识别这些未标记的共享 wrapper；全局 App 的独立包装器有同样缺口，还截断注册参数并把零参数调用改成 `{}`。CJS／ESM 公开包探针确认了这些差异。
+
+共享 instrumentation 与 App 改用同一个 apply helper。Proxy 默认转发属性、descriptor、原型、构造能力和动态读写；仅在 Core 查询 `__sentry_original__` 时虚拟提供原函数，已有不可配置标记遵守 get 不变量。这样默认 FunctionToString 可保留源码字符串，又不会写入冻结或框架持有的原函数。没有 Proxy 时普通函数保留调用包装，扩展或不可检查函数跳过自动观测；复制扩展属性快照无法保留动态更新和清理后的写入。原函数调用使用 Reflect.apply，避免被同名扩展属性遮蔽。
+
+没有直接复用官方 `fill`：它不提供本项目所需的 descriptor 恢复与按 owner 退订，而且 [`markFunctionWrapped`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/utils/object.ts#L75-L83) 会写原函数 prototype／标记。本项目旧 `fill` 的 prototype 写入也移除，否则 Proxy 会把它转发到原函数，退订不能撤销这种变更。Core 的 scope、integration 装配和遥测管道保持复用。
+
+同时隔离 Debug ID 桥接失败后的 debug 告警异常：可选 alias 不可读且 `console.warn` 抛错时，原消息曾被 Core 丢弃。修复只阻断诊断故障传播，不复制 Core 的 Debug ID 解析、缓存或事件处理，也不承诺修复不可读的 Core 全局 map。验证和发布状态见[发布后审查](core-v11-postrelease-review.md#函数包装透明性与诊断故障)。

@@ -179,3 +179,21 @@ Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能
 最终资源复核发现候选实现新增的门禁闭包仍持有 client／lifetime：即使 OwnerToken 已释放，宿主保留未完成请求的回调时，退休 client 仍不可回收。公开包的 Node GC 对照中，beta.7 不保留、修正前候选保留；改为随 owner release 清空两个引用后，候选不再保留。该修正属于候选审查，不计为已发布 beta.7 的缺陷，也不是对目标设备 GC 时机的承诺。
 
 最终本地检查通过：lint、源码与测试严格类型、77 文件／1335 测试及 shuffle、原覆盖率门槛（statements 98.73%、branches 95.63%、functions 99.24%、lines 99.45%）、SDK 三种产物、publint 与实际包消费、微信独立 bundle 与本地符号化、文档站构建。Core 及其它依赖版本未改。
+
+## 函数包装透明性与诊断故障
+
+继续对照固定的官方 Core／Browser `11.4.0` 源码，基线为 `master 7bce47e3`，重点检查函数包装、集成装配与可选诊断对业务调用和原事件的影响。直接上游链接与没有照搬官方 fill 的原因见[官方 SDK 对照](sdk-official-practices.md#beta7-后的函数包装契约对照)。
+
+| 确定问题 | 修复与验证 |
+| --- | --- |
+| 共享 wrapper 丢失函数契约 | 普通闭包丢失原函数 name／length、非枚举和 Symbol 扩展；默认 FunctionToString 无法识别未标记 wrapper。复用一个 Proxy apply helper，保留属性及动态读写，虚拟提供原函数标记，遵守冻结／不可配置属性不变量；不写原函数或其 prototype。第三方重包迁移与按 client 退订仍沿用现有状态。 |
+| App 注册改变业务调用 | 原独立包装器截断额外参数，并把零参数或显式 undefined 改为 `{}`。App 入口复用 helper，完整转发 receiver、参数、返回值与异常，生命周期 before／after／flush 顺序不变；冻结定义和退休 wrapper 有正向回归。 |
+| 诊断故障丢弃原事件 | 可选 Debug ID alias 不可读且 debug 告警抛错时，原消息被 Core 丢弃。告警独立容错，真实 Core 最终 envelope 仍含原 event ID／message。未复制 Core 映射缓存或事件管道；不可读的 Core 全局 map 仍不属于这项修复保证。 |
+
+函数扩展名为 `apply` 时，直接调用 `original.apply()` 会误调用扩展属性。当前 master 的请求参数修复引入了这一回归：实际 beta.7 两入口的同一探针均通过，`7bce47e3` 实际 tarball 均失败。相关原函数转发改用 Reflect.apply，并强化七平台已有契约测试；该请求函数回归不能归为已发布 beta.7 缺陷。进一步调用链复核还确认已有 Page、Console、timer 和业务回调转发存在同类遮蔽，均改用 Reflect.apply，并强化已有真实 Core 用例。
+
+公开安装包对照中，已发布 beta.7 的两个入口在九种场景的 18 项检查中失败 16 项（请求函数 `apply` 两项正常）；修复前 master 同样 18 项全部失败。最终实际候选 tarball 的 CJS／ESM、七平台、十一种场景共 154 项全部通过，覆盖扩展读写、源码字符串、App 参数、诊断故障、冻结原函数、缺 Proxy 降级，以及请求、Page、Console、timer 和业务回调的 `apply` 遮蔽。证据为公开入口、真实 Core 事件和受控宿主，不是手机或目标 Sentry 后台验收。
+
+缺 Proxy 时普通函数继续包装；带自有／继承扩展或不可检查的函数保持原样并跳过该自动观测点，避免快照复制破坏框架更新。平台 transport 仍可用；不把一项可选观测失败扩大为初始化失败。
+
+主要强化现有 App、fill 与七平台契约测试，只新增三个独立定义（debug 的两个参数合计四个用例），总数由 1335 到 1339。lint、严格类型、77 文件全量 coverage／shuffle、SDK 三种产物、publint／实际包消费、微信独立 bundle 与本地映射、官网构建全部通过。覆盖率门槛未改：statements 98.71%、branches 95.69%、functions 99.25%、lines 99.45%。架构、官网平台降级说明与维护者对照记录已更新；README 安装及公共 API 未变。本轮未发 npm，真实设备反馈继续由 #457 跟踪。

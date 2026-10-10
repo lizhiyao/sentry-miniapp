@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockGetClient } = vi.hoisted(() => ({ mockGetClient: vi.fn() }));
 
@@ -13,6 +13,93 @@ describe('共享函数 instrumentation', () => {
   beforeEach(() => {
     mockGetClient.mockReset();
     mockGetClient.mockReturnValue(undefined);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('缺少或不可用 Proxy 时保留普通调用，扩展函数及不可检查函数跳过观测', () => {
+    const NativeProxy = Proxy;
+    const original = function (value: number) {
+      return value + 1;
+    };
+    const extended = Object.assign(function () {}, { capability: true });
+    const inherited = Object.setPrototypeOf(function () {}, { capability: true });
+    const inaccessible = new NativeProxy(original, {
+      ownKeys() {
+        throw new Error('keys unavailable');
+      },
+    });
+    const badSignature = new NativeProxy(original, {
+      get(target, key, receiver) {
+        if (key === 'name') throw new Error('signature unavailable');
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    vi.stubGlobal('Proxy', undefined);
+    const source = { run: original };
+    const client = {} as any;
+    const unsubscribe = addFunctionInstrumentationHandler(
+      source,
+      'run',
+      client,
+      (fn, receiver, args) => fn.apply(receiver, args),
+    );
+    mockGetClient.mockReturnValue(client);
+    expect(source.run(2)).toBe(3);
+    expect(source.run.name).toBe(original.name);
+    expect(source.run.length).toBe(original.length);
+    expect((source.run as any).__sentry_original__).toBe(original);
+    expect(Object.prototype.hasOwnProperty.call(original, '__sentry_original__')).toBe(false);
+    unsubscribe();
+    expect(source.run).toBe(original);
+    for (const run of [extended, inherited, inaccessible, badSignature]) {
+      const host = { run };
+      expect(ensureFunctionInstrumentation(host, 'run')).toBe(false);
+      expect(host.run).toBe(run);
+    }
+    vi.stubGlobal('Proxy', function () {
+      throw new Error('Proxy unavailable');
+    });
+    const installed = ensureFunctionInstrumentation(source, 'run');
+    vi.stubGlobal('Proxy', NativeProxy);
+    expect(installed).toBe(false);
+    expect(source.run).toBe(original);
+  });
+
+  it('冻结函数仍可调用并遵守已有原函数标记的 Proxy 不变量', () => {
+    for (const descriptor of [
+      undefined,
+      { value: 'locked' },
+      { value: 'writable', writable: true },
+      { set() {} },
+      { get: () => 'accessor' },
+      { value: 'configurable', configurable: true },
+    ]) {
+      const original = () => 'result';
+      if (descriptor) Object.defineProperty(original, '__sentry_original__', descriptor);
+      // 可写／可配置标记需要保留其 descriptor；其余输入覆盖冻结 target。
+      if (!descriptor?.writable && !descriptor?.configurable) Object.freeze(original);
+      const before = Object.getOwnPropertyDescriptors(original);
+      const source = { run: original };
+      const client = {} as any;
+      const unsubscribe = addFunctionInstrumentationHandler(
+        source,
+        'run',
+        client,
+        (fn, receiver, args) => fn.apply(receiver, args),
+      );
+      mockGetClient.mockReturnValue(client);
+      expect(source.run()).toBe('result');
+      const expected =
+        descriptor && !descriptor.configurable && !descriptor.writable && !descriptor.get
+          ? descriptor.value
+          : original;
+      expect((source.run as any).__sentry_original__).toBe(expected);
+      expect(Object.getOwnPropertyDescriptors(original)).toEqual(before);
+      expect(() => new (source.run as any)()).toThrow(TypeError);
+      unsubscribe();
+      expect(source.run).toBe(original);
+    }
   });
 
   it('中性包装幂等且无 client 时透明调用原函数', () => {
@@ -35,12 +122,7 @@ describe('共享函数 instrumentation', () => {
     const unknown = {} as any;
     const firstHandler = vi.fn(() => 'first');
     const secondHandler = vi.fn(() => 'second');
-    const unsubscribeFirst = addFunctionInstrumentationHandler(
-      source,
-      'run',
-      first,
-      firstHandler,
-    );
+    const unsubscribeFirst = addFunctionInstrumentationHandler(source, 'run', first, firstHandler);
     const wrapper = source.run;
     const unsubscribeSecond = addFunctionInstrumentationHandler(
       source,

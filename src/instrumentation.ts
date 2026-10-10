@@ -1,7 +1,7 @@
 import { getClient } from '@sentry/core';
 import type { Client } from '@sentry/core';
 
-import { fill } from './helpers';
+import { createFunctionWrapper, fill } from './helpers';
 import { getClientLifetime } from './lifecycle';
 
 export type FunctionInstrumentationHandler = (
@@ -71,10 +71,10 @@ function createState(
   const target = source as Record<string, unknown>;
 
   const result = fill(target, name, (original: Function) => {
-    const wrapper = function (this: unknown, ...args: unknown[]): unknown {
+    const wrapper = createFunctionWrapper(original, (target, receiver, args) => {
       // 宿主 API 被第三方重包后，旧 wrapper 可能仍位于新调用链内部。状态迁移到新 wrapper
       // 后旧层必须透明转发，否则同一 handler 会递归或重复执行。
-      if (state.wrapper !== wrapper) return original.apply(this, args);
+      if (state.wrapper !== wrapper) return Reflect.apply(target, receiver, args);
 
       const activeClient = getClient();
       const lifetime = activeClient && getClientLifetime(activeClient);
@@ -82,10 +82,10 @@ function createState(
         activeClient && (!lifetime || lifetime.canCollectAutomatic())
           ? state.handlers.get(activeClient)
           : undefined;
-      return handler ? handler(original, this, args) : original.apply(this, args);
-    };
+      return handler ? handler(target, receiver, args) : Reflect.apply(target, receiver, args);
+    });
 
-    state.wrapper = wrapper;
+    if (wrapper) state.wrapper = wrapper;
     return wrapper;
   });
 
