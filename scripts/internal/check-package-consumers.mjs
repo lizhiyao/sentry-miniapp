@@ -34,7 +34,14 @@ const platformContracts = [
   { globalName: 'swan', platform: 'swan', requestMethod: 'request', statusKey: 'statusCode' },
   { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', statusKey: 'statusCode' },
 ];
-const hostRuntimeModes = ['missing-url', 'partial-url', 'missing-reflect', 'partial-reflect'];
+const hostRuntimeModes = [
+  'missing-url',
+  'partial-url',
+  'missing-reflect',
+  'partial-reflect',
+  'missing-builtins',
+  'partial-encoder',
+];
 
 async function writeConsumer(file, source) {
   await writeFile(file, source, 'utf8');
@@ -71,6 +78,8 @@ function runtimeProbe(moduleSyntax) {
     moduleSyntax === 'esm'
       ? `import assert from 'node:assert/strict';
 const runtimeMode = process.argv[3] || 'standard';
+const nativePromise = Promise;
+const compatibilityMode = ['missing-builtins', 'partial-encoder'].includes(runtimeMode);
 const nativeURLSearchParams = globalThis.URLSearchParams;
 assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
 if (runtimeMode === 'missing-url') {
@@ -81,10 +90,21 @@ if (runtimeMode === 'missing-url') {
   globalThis.Reflect = undefined;
 } else if (runtimeMode === 'partial-reflect') {
   globalThis.Reflect = {};
+} else if (runtimeMode === 'missing-builtins') {
+  for (const key of ['entries', 'values', 'fromEntries']) Object[key] = undefined;
+  Promise.allSettled = undefined;
+  Promise.prototype.finally = undefined;
+  globalThis.TextEncoder = undefined;
+  Array.prototype.includes = undefined;
+  globalThis.globalThis = undefined;
+} else if (runtimeMode === 'partial-encoder') {
+  globalThis.TextEncoder = class TextEncoder {};
 }
 const sdk = await import('sentry-miniapp');`
       : `const assert = require('node:assert/strict');
 const runtimeMode = process.argv[3] || 'standard';
+const nativePromise = Promise;
+const compatibilityMode = ['missing-builtins', 'partial-encoder'].includes(runtimeMode);
 const nativeURLSearchParams = globalThis.URLSearchParams;
 assert.equal(Reflect.deleteProperty(globalThis, 'URLSearchParams'), true);
 if (runtimeMode === 'missing-url') {
@@ -95,6 +115,15 @@ if (runtimeMode === 'missing-url') {
   globalThis.Reflect = undefined;
 } else if (runtimeMode === 'partial-reflect') {
   globalThis.Reflect = {};
+} else if (runtimeMode === 'missing-builtins') {
+  for (const key of ['entries', 'values', 'fromEntries']) Object[key] = undefined;
+  Promise.allSettled = undefined;
+  Promise.prototype.finally = undefined;
+  globalThis.TextEncoder = undefined;
+  Array.prototype.includes = undefined;
+  globalThis.globalThis = undefined;
+} else if (runtimeMode === 'partial-encoder') {
+  globalThis.TextEncoder = class TextEncoder {};
 }
 const sdk = require('sentry-miniapp');`;
 
@@ -110,6 +139,8 @@ main().catch(error => {
 
   return `${load}
 ${runStart}
+assert.equal(Promise, nativePromise, 'SDK replaced the host Promise constructor');
+if (runtimeMode === 'missing-builtins') assert.equal(Promise.prototype.finally, undefined);
 const required = ${required};
 for (const name of required) {
   assert.ok(name in sdk, \`Missing public export: \${name}\`);
@@ -141,6 +172,7 @@ assert.ok(
 const envelopes = [];
 const requestedUrls = [];
 let rawRequestCalls = 0;
+let completedRequests = 0;
 const rawRequest = function(options) {
     rawRequestCalls += 1;
     requestedUrls.push(options.url);
@@ -156,8 +188,13 @@ const rawRequest = function(options) {
       header: {},
       headers: {},
     };
-    options.success?.(response);
-    options.complete?.(response);
+    const complete = () => {
+      completedRequests += 1;
+      options.success?.(response);
+      options.complete?.(response);
+    };
+    if (compatibilityMode && contentType === 'application/x-sentry-envelope') setTimeout(complete, 25);
+    else complete();
     return { abort() {} };
 };
 const host = {
@@ -176,6 +213,7 @@ const client = sdk.init({
   enableAutoSessionTracking: false,
   enableMinigameLifecycle: false,
   enableMinigameFrameRate: false,
+  transportOptions: compatibilityMode ? { binaryRequestBody: 'arraybuffer' } : {},
 });
 for (const key of ['sendDefaultPii', 'enableLogs']) {
   assert.throws(() => sdk.init({ [key]: false }), new RegExp(key + '.*removed'));
@@ -204,12 +242,25 @@ if (runtimeMode === 'standard') {
   });
 }
 
+if (compatibilityMode) {
+  sdk.withScope(scope => {
+    scope.addAttachment({ filename: 'unicode.txt', data: '中文🙂' });
+    scope.addAttachment({ filename: 'binary.bin', data: new Uint8Array([0, 255]) });
+    sdk.captureMessage('package binary runtime smoke');
+  });
+}
 assert.equal(await sdk.flush(2000), true, 'SDK flush failed');
+assert.equal(completedRequests, rawRequestCalls, 'flush returned before pending host requests settled');
+if (compatibilityMode) {
+  assert.ok(envelopes.some(data => data instanceof ArrayBuffer), 'Binary envelope was not sent');
+  const bytes = envelopes.find(data => data instanceof ArrayBuffer);
+  assert.ok(Buffer.from(bytes).includes(Buffer.from('中文🙂')), 'UTF-8 attachment bytes changed');
+}
 assert.ok(envelopes.length > 0, 'SDK did not send an envelope through the mini program host');
 if (runtimeMode !== 'standard') {
   assert.equal(
     requestedUrls.length,
-    2,
+    compatibilityMode ? 3 : 2,
     \`\${platformName} \${runtimeMode} recursively traced an SDK envelope\`,
   );
   assert.equal(
@@ -226,8 +277,8 @@ if (runtimeMode !== 'standard') {
     envelopeQuery.split('&').includes('sentry_key=test'),
     \`\${platformName} \${runtimeMode} envelope URL omitted sentry_key\`,
   );
-  assert.equal(rawRequestCalls, 2, \`\${platformName} \${runtimeMode} used extra host requests\`);
-  assert.equal(envelopes.length, 1, \`\${platformName} \${runtimeMode} sent extra envelopes\`);
+  assert.equal(rawRequestCalls, compatibilityMode ? 3 : 2, \`\${platformName} \${runtimeMode} used extra host requests\`);
+  assert.equal(envelopes.length, compatibilityMode ? 2 : 1, \`\${platformName} \${runtimeMode} sent extra envelopes\`);
 }
 await sdk.close(0);
 
@@ -259,8 +310,10 @@ async function runUmdProbe(packageRoot, expectedVersion) {
         if (contentType === 'application/x-sentry-envelope') envelopes.push(options.data);
 
         const response = { statusCode: 200, data: { ok: true }, header: {} };
-        options.success?.(response);
-        options.complete?.(response);
+        setTimeout(() => {
+          options.success?.(response);
+          options.complete?.(response);
+        }, 25);
         return { abort() {} };
       },
       getSystemInfoSync() {
@@ -270,7 +323,11 @@ async function runUmdProbe(packageRoot, expectedVersion) {
   };
   const umdPath = join(packageRoot, 'dist/sentry-miniapp.umd.js');
   const code = await readFile(umdPath, 'utf8');
-  runInNewContext(code, sandbox, { filename: umdPath });
+  runInNewContext(
+    `Object.entries = Object.values = Object.fromEntries = undefined; Promise.allSettled = undefined; Promise.prototype.finally = undefined; Array.prototype.includes = undefined; globalThis.globalThis = undefined; ${code}`,
+    sandbox,
+    { filename: umdPath },
+  );
 
   const sdk = sandbox.SentryMiniapp;
   assert.ok(sdk, 'UMD bundle did not expose globalThis.SentryMiniapp');
@@ -407,7 +464,13 @@ try {
   await writeConsumer(esmConsumer, runtimeProbe('esm'));
 
   const cjsExecutions = [];
-  for (const runtimeMode of ['missing-url', 'missing-reflect', 'partial-reflect']) {
+  for (const runtimeMode of [
+    'missing-url',
+    'missing-reflect',
+    'partial-reflect',
+    'missing-builtins',
+    'partial-encoder',
+  ]) {
     cjsExecutions.push(
       await runNode(cjsConsumer, tempRoot, {
         scriptArgs: ['wechat', runtimeMode],
@@ -430,8 +493,16 @@ try {
   for (const execution of cjsExecutions) {
     assert.equal(execution.stderr, '', `CJS import emitted stderr:\n${execution.stderr}`);
     const result = JSON.parse(execution.stdout);
-    assert.equal(result.envelopes, 1, `CJS ${result.runtimeMode} sent unexpected envelopes`);
-    assert.equal(result.requests, 2, `CJS ${result.runtimeMode} used unexpected host requests`);
+    assert.equal(
+      result.envelopes,
+      ['missing-builtins', 'partial-encoder'].includes(result.runtimeMode) ? 2 : 1,
+      `CJS ${result.runtimeMode} sent unexpected envelopes`,
+    );
+    assert.equal(
+      result.requests,
+      ['missing-builtins', 'partial-encoder'].includes(result.runtimeMode) ? 3 : 2,
+      `CJS ${result.runtimeMode} used unexpected host requests`,
+    );
   }
   for (const [index, execution] of esmExecutions.entries()) {
     assert.equal(
@@ -468,12 +539,12 @@ try {
     assert.ok(result, `Missing ESM runtime result for ${contract.platform} ${runtimeMode}`);
     assert.equal(
       result.envelopes,
-      1,
+      ['missing-builtins', 'partial-encoder'].includes(runtimeMode) ? 2 : 1,
       `ESM ${contract.platform} ${runtimeMode} sent unexpected envelopes through ${contract.globalName}.${contract.requestMethod}`,
     );
     assert.equal(
       result.requests,
-      2,
+      ['missing-builtins', 'partial-encoder'].includes(runtimeMode) ? 3 : 2,
       `ESM ${contract.platform} ${runtimeMode} used unexpected host requests`,
     );
   }

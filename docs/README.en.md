@@ -53,6 +53,7 @@ Before you start:
 
 - Choose an SDK version supported by your Sentry deployment as described above, then create a project and copy its DSN.
 - Add your Sentry endpoint domain to the `request` trusted-domain list in your mini program console.
+- Check [runtime compatibility](https://sentry-miniapp.pages.dev/guide/platform-compatibility) for required JavaScript capabilities, supplied standard methods, and optional instrumentation fallbacks.
 
 Install:
 

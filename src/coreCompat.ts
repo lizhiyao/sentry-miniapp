@@ -47,9 +47,23 @@ export function encodeUtf8(input: string): Uint8Array {
   return bytes;
 }
 
-/** 固定 core v11 的公开 carrier singleton；不替换已有 encoder，不安装 decoder。 */
+/** 使用 Core 的公开编码接缝；构造器空壳不能视作可用能力，已有 encoder 保持优先。 */
 export function ensureEnvelopeEncoding(): void {
-  if (typeof TextEncoder === 'undefined') getGlobalSingleton('encodePolyfill', () => encodeUtf8);
+  try {
+    if (typeof TextEncoder === 'function') {
+      const expected = [0xe4, 0xb8, 0xad, 0xf0, 0x9f, 0x99, 0x82, 0xef, 0xbf, 0xbd];
+      const bytes = new TextEncoder().encode('中🙂\ud800');
+      if (
+        bytes instanceof Uint8Array &&
+        bytes.length === expected.length &&
+        expected.every((byte, index) => bytes[index] === byte)
+      )
+        return;
+    }
+  } catch (_error) {
+    // 宿主实现可能不可构造或无法编码；不改写全局 TextEncoder。
+  }
+  getGlobalSingleton('encodePolyfill', () => encodeUtf8);
 }
 
 /** 宿主请求只接受 ArrayBuffer 时复制精确视图，不包含共享 backing buffer 的其他字节。 */

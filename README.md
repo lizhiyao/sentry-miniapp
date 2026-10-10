@@ -49,6 +49,7 @@
 
 - 已按上面的版本选择确认 Sentry 后台，创建好项目并复制该项目的 DSN。
 - 小程序后台已把 Sentry 上报域名加入 `request` 合法域名。
+- 宿主具备基础 JavaScript 能力；标准方法补齐和可选观测的降级边界见[运行时兼容说明](https://sentry-miniapp.pages.dev/guide/platform-compatibility)。
 
 安装：
 

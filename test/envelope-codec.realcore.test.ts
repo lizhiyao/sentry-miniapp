@@ -339,18 +339,53 @@ describe('typed codec 与真实 core 线上序列化', () => {
     expect(utf8ByteLength(input)).toBe(native.length);
   });
 
-  it('缺 TextEncoder 时真实 core binary 序列化正常，不要求 TextDecoder/Buffer', () => {
+  it('TextEncoder 缺失或不完整时 Core binary 序列化正常，不修改宿主编码器', () => {
     const envelope = createEventEnvelope('unicode');
     envelope[1].push(attachment(new Uint8Array([0, 255])), attachment('中文😃\ud800'));
     const expected = serializeEnvelope(envelope);
-    vi.stubGlobal('__SENTRY__', {});
-    vi.stubGlobal('TextEncoder', undefined);
     vi.stubGlobal('TextDecoder', undefined);
     vi.stubGlobal('Buffer', undefined);
-    ensureEnvelopeEncoding();
-    expect(
-      serializeEnvelope(decodeEnvelope(JSON.parse(JSON.stringify(encodeEnvelope(envelope))))),
-    ).toEqual(expected);
+    for (const encoder of [
+      undefined,
+      null,
+      {},
+      class {},
+      class {
+        constructor() {
+          throw new Error('unavailable');
+        }
+      },
+      class {
+        encode() {
+          throw new Error('unavailable');
+        }
+      },
+      class {
+        encode() {
+          return [];
+        }
+      },
+      class {
+        encode() {
+          return new Uint8Array();
+        }
+      },
+      class {
+        encode(input: string) {
+          const bytes = encodeUtf8(input);
+          bytes[0] = 0;
+          return bytes;
+        }
+      },
+    ]) {
+      vi.stubGlobal('__SENTRY__', {});
+      vi.stubGlobal('TextEncoder', encoder);
+      ensureEnvelopeEncoding();
+      expect(
+        serializeEnvelope(decodeEnvelope(JSON.parse(JSON.stringify(encodeEnvelope(envelope))))),
+      ).toEqual(expected);
+      expect(globalThis.TextEncoder).toBe(encoder);
+    }
   });
 
   it('原生 encoder 可用时不注册，缺 native 时保留已有公开 singleton', () => {
