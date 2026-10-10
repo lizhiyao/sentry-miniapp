@@ -199,6 +199,13 @@ assert.equal(unicodeParams.get('\\ud800'), '�');
 assert.equal(unicodeParams.get('added'), '�');
 assert.equal(unicodeParams.get('set'), '�');
 
+for (const input of [null, undefined, { empty: null, absent: undefined, numeric: 123 }, [['key', null], ['absent', undefined]]]) {
+  const actual = new URLSearchParams(input);
+  const expected = new nativeURLSearchParams(input);
+  assert.deepEqual([...actual], [...expected]);
+  assert.equal(actual.toString(), expected.toString());
+}
+
 
 const platformName = process.argv[2] || 'wechat';
 const contract = ${platforms}.find(candidate => candidate.platform === platformName);

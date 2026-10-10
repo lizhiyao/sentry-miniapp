@@ -2937,8 +2937,8 @@ __metadata:
 
 "core-js-pure@patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch":
   version: 3.50.0
-  resolution: "core-js-pure@patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch::version=3.50.0&hash=b970b9"
-  checksum: 10c0/9928b42c38161c0f52f12446436d5e3ded750c08df6703fa6aa412d24012abcd01934bf9915d2be2ec180e177172a3b1d86ce66c90ba0e709a34250b9d14698b
+  resolution: "core-js-pure@patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch::version=3.50.0&hash=db58b8"
+  checksum: 10c0/3d27aaee448d74737e5af96b1a09f1d2aa9b3d75921b45713bb4953a854e2e2b8547cc4bb94070437e55b6c7fd77f4063dafde5b91f893da977c85ffb2e3fbc1
   languageName: node
   linkType: hard
 
