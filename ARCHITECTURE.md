@@ -122,6 +122,8 @@ Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业
 
 关闭会释放 owner 引用；缺少宿主 `off*` 时，迟到的 SDK 观测回调通过活动门禁失效。原业务 timer／request 回调仍可运行，其中显式调用顶层捕获 API，或随后发生独立宿主错误时，仍可按当前 client 捕获。该机制解决 SDK 自己的自动观测归属，不取消业务回调，也不实现通用异步上下文隔离。
 
+可选 Performance observer 注册失败时立即释放该 controller 的 owner，再尝试 `disconnect()`；即使宿主部分注册或解除抛错，迟到条目也不能继续读取或发送。此故障不关闭整个 client，告警输出故障也不能升级为初始化失败。宿主 `getPerformance` 只读取一次并保留 receiver，避免 getter 返回值变化影响调用。FPS 的非法分档阈值同样须在告警输出失败时回退为单档，而不影响初始化。
+
 对应回归见 [client-capture](test/client-capture.realcore.test.ts)、[producer-session](test/producer-session.realcore.test.ts)、[performance-owner](test/performance-owner.realcore.test.ts)和[span-dimensions](test/span-dimensions.realcore.test.ts)。
 
 ## 5. 生命周期与共享宿主观测

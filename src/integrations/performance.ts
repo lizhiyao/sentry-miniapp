@@ -105,7 +105,13 @@ class PerformanceController {
         options: this._options,
       });
     } catch (error) {
-      console.warn('[sentry-miniapp] Failed to setup performance observers:', error);
+      // 注册可能部分成功；先使 owner 失效，再解除宿主资源，即使 disconnect 抛错也不收迟到条目。
+      this.cleanup();
+      try {
+        console.warn('[sentry-miniapp] Failed to setup performance observers:', error);
+      } catch (_error) {
+        /* 告警输出不可用时，独立的错误与请求采集仍可继续。 */
+      }
     }
   }
 

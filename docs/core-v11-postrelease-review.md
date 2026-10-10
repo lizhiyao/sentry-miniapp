@@ -132,3 +132,17 @@ beta.6 候选 tarball 的真实生产依赖通过官方 npm registry 安装与�
 URL 处理的本机受控对照覆盖 credentials、重复 query 键、追加敏感键、坏编码、相对路径、文件协议、data／javascript 与空 URL。已测原有 URL 场景输出保持一致；畸形 data MIME 的 query／fragment 按上述隐私修复省略。这些测量用于判断改动取舍，不代表真实设备耗时或 Sentry 后台验收。
 
 实际 npm beta.7 的 CJS／ESM 公开入口均复现上述 data MIME 泄漏；候选构建在原生、缺失与残缺 `URL` 三种宿主模式下，两个入口的事件、两条 HTTP span 与两条资源 span 均不含 canary，原始业务请求 URL 保持一致。最终检查通过：lint、源码与测试类型、77 文件／1331 测试及原覆盖率门槛（statements 98.72%、branches 95.62%、functions 99.23%、lines 99.44%）、SDK 三种产物、实际 tarball 消费与七平台 URL 降级、微信独立 bundle 和本地映射检查。测试数比上一轮减少 2，覆盖的坏 URL 场景反而增加。本轮修复属于 beta.7 之后的源码改动，尚未发包。
+
+## 可选性能能力的失败隔离
+
+基线为 `master c2387e4`。本轮沿着 owner 退休、共享包装、Performance 注册与告警输出检查降级行为，确认并修复三处实际问题：
+
+- `observe()` 部分注册后抛错，原 controller 直到 client 关闭才解除；失败后的回调仍能产生 span。改为失败时立即清理 controller，先释放 owner，再尝试 `disconnect()`；解除同步触发回调或抛错时，回调仍不读取条目，也不生成遥测。错误事件和 HTTP 集成继续运行，不关闭整个 client。
+- 宿主性能 API／observer 抛错时，错误路径的 `console.warn` 也可能不可用或抛错，导致 `init()` 失败。隔离这两处告警输出；公开 `getPerformanceManager()` 在宿主 API 失败时保留 `null` 回退，并只读取一次 `getPerformance`、保留宿主 receiver。
+- FPS 的非法 `jankLevels` 本应回退单档阈值，但告警抛错会阻断 factory 构造与默认初始化。隔离该告警；真实 Core 最终汇总仍按单档 50ms 回退，保留真实 jank 数而不输出非法分档属性。
+
+改动留在各自能力边界，没有增加全局吞掉 integration 异常的逻辑、公共配置、额外遥测管道或后台协议。复用并加强五个已有测试文件；修复前 Performance 的三个用例及 FPS 的五个用例失败，修复后通过，测试总数保持 1331。架构文档记录维护约束，用户性能指南只说明失败时仍可继续错误和请求监控。
+
+实际 npm beta.7 的 CJS／ESM 公开入口各复现五个失败场景：监听部分注册、宿主 API 与不可用／抛错控制台组合，以及 FPS 非法分档与两种控制台故障。候选 CJS／ESM 在七平台受控宿主下的 70 个对应检查通过，最终各保留一个独立事件与一个 HTTP span，失败监听不产生性能 span。此证据来自安装包入口和宿主模拟，不是设备或 Sentry 后台验收。
+
+本地检查通过：lint、源码与测试类型、77 文件／1331 测试及原覆盖率门槛（statements 98.73%、branches 95.61%、functions 99.23%、lines 99.44%）、SDK 三种产物、实际 tarball 消费与七平台 URL 降级、微信独立 bundle 和本地映射检查、文档站构建。本轮源码修复尚未发包，真实设备反馈继续由 #457 跟踪。

@@ -489,7 +489,7 @@ describe('CrossPlatform', () => {
   });
 
   describe('getPerformanceManager', () => {
-    it('宿主性能 API 抛错时返回 null 而不是影响 SDK 初始化', async () => {
+    it('性能 API 只读取一次并保留 receiver；宿主或告警输出故障安全返回 null', async () => {
       const error = new Error('performance unavailable');
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       (global as any).wx = {
@@ -503,6 +503,28 @@ describe('CrossPlatform', () => {
       try {
         expect(getPerformanceManager()).toBeNull();
         expect(warn).toHaveBeenCalledWith('Failed to get performance manager:', error);
+        warn.mockImplementation(() => {
+          throw new Error('console failed');
+        });
+        expect(getPerformanceManager()).toBeNull();
+        const originalConsole = console;
+        try {
+          vi.stubGlobal('console', undefined);
+          expect(getPerformanceManager()).toBeNull();
+        } finally {
+          vi.stubGlobal('console', originalConsole);
+        }
+        const host = (global as any).wx;
+        const manager = { now: () => 1 };
+        const read = vi.fn(
+          () => function (this: unknown) {
+            expect(this).toBe(host);
+            return manager;
+          },
+        );
+        Object.defineProperty(host, 'getPerformance', { configurable: true, get: read });
+        expect(getPerformanceManager()).toBe(manager);
+        expect(read).toHaveBeenCalledOnce();
       } finally {
         warn.mockRestore();
       }
