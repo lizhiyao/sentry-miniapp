@@ -72,7 +72,9 @@ flowchart TD
 
 ## 3. 初始化与集成装配
 
-公共入口先加载 `polyfills-bootstrap`，补齐缺失的运行时能力和 envelope 编码；它不替换已有的原生实现，也不随某个 client 的关闭卸载进程能力。
+公共入口先加载 `polyfills-bootstrap`，先于 Core 和其它 SDK 模块补齐所需的运行时能力。构建目标 ES2015 只约束语法，不能保证宿主具备更新的标准方法：入口按需内联 `core-js` 的 globalThis、Array.includes、Object.entries／values／fromEntries、Promise.allSettled 模块，覆盖 Core 实际调用的接缝，不引入完整 Promise polyfill 或替换宿主 Promise 构造器。标准方法的迭代、Symbol 键、getter 和 thenable 语义由该依赖维护；全局模块也使用 core-js 的共享注册与函数源码标记机制。能力按进程安装，不随 client 关闭卸载；这不是对任意 ES5 引擎的支持承诺，Promise、Symbol、Map／Set、WeakMap／WeakSet、typed arrays 等基础能力仍由宿主提供。
+
+自身的 flush 清理通过成功／失败两条 then 分支完成，不依赖 Promise.finally。TextEncoder 则经过构造及 UTF-8 标量编码检查；缺失、空壳或编码失败时，通过 Core 公开 singleton 注册现有 UTF-8 回退，保留已有编码 singleton，不改写宿主 TextEncoder。构建语法转换、标准库补齐和宿主 API 检测分别解决不同层面的兼容性，不能相互替代。
 
 `init()` 的主要顺序是：
 
@@ -238,7 +240,7 @@ SDK 自请求通过 [requestMarker.ts](src/transports/requestMarker.ts)识别，
 | `_unhandledSessionStatus = 'unhandled'` | JS 未处理异常不能作为宿主进程崩溃证据                                                                                                       | [session.realcore](test/session.realcore.test.ts)：错误状态与单次终态；Core 有等价公开宿主配置后替换                                                                                         |
 | `coreCompat.filterKeyValueData`         | 唯一生产入口重导出 `_INTERNAL_filterKeyValueData`，过滤算法与 Core 保持一致，不复制内置敏感名单或放行 fallback                              | [data-collection](test/data-collection.test.ts)、[page-data-collection](test/page-data-collection.realcore.test.ts)：键值／URL／JSON／form 和最终 payload；公开过滤 API 可表达同等契约后迁移 |
 
-UTF-8 编码与字节预算共用 `coreCompat` 的标量转换，缺少 TextEncoder 时通过 Core 公开 singleton 注册编码回退；不修改 Core 私有队列或 hooks。client reports 使用 SDK 自有 Map 和公开 recorder／envelope 入口，不读写 `_outcomes` 或调用 `_flushOutcomes`；发送前交换批次，发送 hook 新增的 drop 留到下次 flush，见 [client-reports](test/client-reports.realcore.test.ts)。
+UTF-8 编码与字节预算共用 `coreCompat` 的标量转换，TextEncoder 不可用时通过 Core 公开 singleton 注册编码回退；不修改 Core 私有队列或 hooks。client reports 使用 SDK 自有 Map 和公开 recorder／envelope 入口，不读写 `_outcomes` 或调用 `_flushOutcomes`；发送前交换批次，发送 hook 新增的 drop 留到下次 flush，见 [client-reports](test/client-reports.realcore.test.ts)。
 
 公开入口仍有需要验证的协议假设：`encodePolyfill` singleton 键、`_sentryDebugIds`／`_debugIds` 全局 map，以及 `getDefaultCurrentScope()` 对默认持久根的身份语义。升级时须同时检查缺编码器的线上字节、最终 `debug_meta` 和同步／异步临时 scope 的初始化回归，不能只登记 protected 方法。
 

@@ -2928,6 +2928,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"core-js@npm:3.50.0":
+  version: 3.50.0
+  resolution: "core-js@npm:3.50.0"
+  checksum: 10c0/1bfcfb1dbdf45b0b1428a9fdcb03697d1fc52c7e9bc336f804a86ff2c2705a301dca7d9d6636d09d49d60298183273b9321681baeaf330c78db5393bc73f3f6a
+  languageName: node
+  linkType: hard
+
 "core-util-is@npm:~1.0.0":
   version: 1.0.3
   resolution: "core-util-is@npm:1.0.3"
@@ -5614,6 +5621,7 @@ __metadata:
     "@typescript-eslint/parser": "npm:^8.70.0"
     "@vitest/coverage-v8": "npm:^4.1.11"
     commit-and-tag-version: "npm:^12.7.3"
+    core-js: "npm:3.50.0"
     eslint: "npm:^10.10.0"
     globals: "npm:^17.12.0"
     husky: "npm:^9.1.7"

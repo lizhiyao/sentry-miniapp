@@ -42,6 +42,10 @@ yarn install
 
 我们提供了一个完整的微信小程序示例项目（`examples/wxapp`），用于在真实环境中验证您的代码修改。
 
+### 语法与标准库兼容
+
+Vite 的 ES2015 target 负责语法降级，Babel 的 generator 转换保证产物不残留 generator／yield。它们不补齐运行时 API；`polyfills-bootstrap` 的 core-js 按需模块负责 Core 与 SDK 使用的标准方法，宿主接口仍须特性检测或降级。新增 API 前同时检查内联 Core 的调用及实际 tarball，不能仅根据 Node 单测或构建成功判断兼容。
+
 ### 示例产物
 
 `examples/wxapp/lib/` 是本地生成目录，不进入版本控制。标准 `yarn build` 只负责 npm 包产物；需要运行微信示例时，使用专用的小程序构建命令，避免日常构建产生无关的大文件 diff。

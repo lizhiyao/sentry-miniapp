@@ -196,7 +196,7 @@ function mergePlatformInfo(target: Record<string, any>, source: Record<string, a
   try {
     for (const key of Object.keys(source)) keys.add(key);
   } catch (_error) {
-    /* 一项宿主结果不可枚举不阻断其他 API 和旧 API 回退。 */
+    /* 一项宿主结果不可枚举时，仍读取其它可用 API。 */
   }
   for (const key of keys) {
     try {
@@ -226,7 +226,7 @@ const readPlatformField = (source: unknown, key: string): unknown => {
 
 /**
  * 从宿主 API 返回值推断真实平台，仅识别有稳定、平台专属格式的信号。
- * 该推断只在多个平台全局对象共存时使用，失败时由 detectPlatform 保留历史 first-match。
+ * 该推断只在多个平台全局对象共存时使用，失败时由 detectPlatform 按 PLATFORMS 顺序选择首个候选。
  */
 const inferPlatformFromRuntime = (platformSdk: SDK): AppName | null => {
   const envInfo = callPlatformInfo(platformSdk, 'getEnvInfoSync');
@@ -265,7 +265,7 @@ const inferPlatformFromRuntime = (platformSdk: SDK): AppName | null => {
 
 /**
  * 检测当前平台。单一命中直接返回；多个平台对象共存时优先采用宿主 API 的明确证据，
- * 无法判定才回退历史 first-match 顺序，未命中返回 null。
+ * 无法判定时按 PLATFORMS 顺序选择首个候选，未命中返回 null。
  */
 export const detectPlatform = (): DetectedPlatform | null => {
   const g = globalThis as Record<string, unknown>;
@@ -374,7 +374,7 @@ const getAppName = (): AppName => {
 };
 
 /**
- * 计算系统信息（优先新 API，回退旧 API）。一次会话内系统信息是静态的，
+ * 优先聚合分项系统 API，字段不足时读取 getSystemInfoSync。会话内系统信息是静态的，
  * 故由 getSystemInfo() 记忆化包裹，避免被多处 context（client/httpcontext 等）反复重算。
  */
 const computeSystemInfo = (): SystemInfo | null => {
@@ -383,7 +383,7 @@ const computeSystemInfo = (): SystemInfo | null => {
     const result: any = {};
     let hasNewApi = false;
 
-    // 只读取环境快照实际使用的 API。单项不可用不丢弃其它信息，也不阻断旧 API 回退。
+    // 只读取环境快照实际使用的 API。单项不可用时保留其它信息，并继续尝试完整系统 API。
     for (const method of ['getAppBaseInfo', 'getWindowInfo', 'getDeviceInfo'] as const) {
       const info = callPlatformInfo(currentSdk, method);
       if (!info) continue;
@@ -391,15 +391,15 @@ const computeSystemInfo = (): SystemInfo | null => {
       hasNewApi = true;
     }
 
-    // 新 API 须至少返回一个核心设备身份字段（brand/model/system）才采纳。部分非微信端
-    //「方法存在却返回空壳 {}」，此时三者皆空 → 回退旧 getSystemInfoSync 取真实数据，
+    // 分项 API 须至少返回一个核心设备身份字段（brand/model/system）才采纳。部分宿主
+    //的方法存在却返回空壳 {}，此时读取 getSystemInfoSync 获取可用字段，
     // 避免产出全 unknown 的设备信息。
     const newApiUsable = hasNewApi && !!(result.brand || result.model || result.system);
     if (newApiUsable) {
       return result as SystemInfo;
     }
 
-    // 兜底使用旧的 API（已弃用但保持兼容性）
+    // 分项能力缺失或不完整时，通过 getSystemInfoSync 获取设备信息。
     const syncInfo = callPlatformInfo(currentSdk, 'getSystemInfoSync');
     if (syncInfo) {
       // 支付宝小程序等平台，版本信息可能叫 version 而不是 SDKVersion
@@ -412,7 +412,7 @@ const computeSystemInfo = (): SystemInfo | null => {
       return snapshot as SystemInfo;
     }
 
-    // 新 API 仅拿到部分信息、又无旧 API 兜底：部分结果仍好过 null。
+    // 完整系统 API 也不可用时，保留分项 API 已取得的字段。
     if (hasNewApi) {
       return result as SystemInfo;
     }
@@ -500,7 +500,7 @@ export const appName = (): AppName => {
 const MINIAPP_PLATFORMS = new Set<MiniappPlatform>(PLATFORMS.map((platform) => platform.name));
 
 /**
- * 解析事件使用的小程序宿主标记。`miniappPlatform` 是公开主选项，旧 `platform`
+ * 解析事件使用的小程序宿主标记。`miniappPlatform` 优先，`platform`
  * 仅作兼容别名；非法 JavaScript 入参不会污染 Sentry 顶层平台语义。
  */
 export const resolveMiniappPlatform = (options: {

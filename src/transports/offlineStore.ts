@@ -46,7 +46,7 @@ export interface MiniappOfflineStoreOptions {
 
 /**
  * 支付宝单 key 额度为 200 KB；钉钉采用同样的保守预算，给宿主存储封装留余量。
- * 协议解析仍保留 MAX_STORE_BYTES，读入旧容器后按当前宿主预算裁剪，而非变更身份。
+ * 协议解析仍保留 MAX_STORE_BYTES，读取已存储容器后按当前宿主预算裁剪，而非变更身份。
  */
 function storageByteBudget(): number {
   const platform = appName();

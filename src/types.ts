@@ -38,8 +38,8 @@ export interface MinigameFrameRateOptions {
    * 分级卡顿阈值（ms）。提供后切换为分级统计：每帧按命中的最高档计入，
    * `minigame.jank` 面包屑带 `jankLevel`，summary 对启用的档增发
    * `jank.minor` / `jank.major` / `jank.severe` 属性。
-   * 不提供则沿用 `longFrameThresholdMs` 单档，行为与历史完全一致；
-   * 同时提供 `longFrameThresholdMs` 与 `jankLevels` 时，`jankLevels` 优先（老参数忽略）。
+   * 未提供时使用 `longFrameThresholdMs` 单档统计；
+   * 同时提供两项时，`jankLevels` 优先。
    */
   jankLevels?: MinigameJankLevels;
 }
@@ -51,7 +51,7 @@ export interface MiniappOptions extends Omit<
   CoreOptions<MiniappTransportOptions>,
   'traceLifecycle' | 'beforeSendTransaction' | 'ignoreTransactions'
 > {
-  /** 2.0 只支持 core 原生 span streaming。JS 传入 static 时显式报错。 */
+  /** 只支持 Core 原生 span streaming。JS 传入 static 时显式报错。 */
   traceLifecycle?: 'stream';
 
   /**

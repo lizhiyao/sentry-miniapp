@@ -482,8 +482,10 @@ describe('真实 core client 关闭与发送边界', () => {
       throw new Error('cleanup');
     });
     client.registerCleanup(cleanup);
-    vi.spyOn(client, 'flush').mockRejectedValue(new Error('flush'));
-    await expect(client.close()).rejects.toThrow('flush');
+    vi.spyOn(client.getTransport()!, 'flush').mockRejectedValue(new Error('flush'));
+    const closing = expect(client.close()).rejects.toThrow('flush');
+    await vi.runAllTimersAsync();
+    await closing;
     expect(final).toHaveBeenCalledOnce();
     expect(cleanup).toHaveBeenCalledOnce();
     expect(client.getOptions().enabled).toBe(false);
@@ -537,7 +539,14 @@ describe('真实 core client 关闭与发送边界', () => {
     const client = make();
     client.addEventProcessor(() => new Promise(() => {}));
     client.captureMessage('never finished');
-    const draining = client.flush();
+    const descriptor = Object.getOwnPropertyDescriptor(Promise.prototype, 'finally')!;
+    let draining: PromiseLike<boolean>;
+    try {
+      Object.defineProperty(Promise.prototype, 'finally', { value: undefined, configurable: true });
+      draining = client.flush();
+    } finally {
+      Object.defineProperty(Promise.prototype, 'finally', descriptor);
+    }
     await vi.advanceTimersByTimeAsync(10);
     client.dispose();
     await vi.advanceTimersByTimeAsync(1);
@@ -657,9 +666,7 @@ describe('真实 core client 关闭与发送边界', () => {
     );
     expect(envelopes).toHaveLength(2);
     const event = collectEnvelopePayloads<ErrorEvent>(envelopes, ['event'])[0]!;
-    expect(event.breadcrumbs).toEqual([
-      expect.objectContaining({ message: 'manual breadcrumb' }),
-    ]);
+    expect(event.breadcrumbs).toEqual([expect.objectContaining({ message: 'manual breadcrumb' })]);
   });
 
   it('integration setup 失败立即废弃 B、解除绑定并保留原异常，后续 init 正常', async () => {

@@ -638,11 +638,16 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     return new Promise<boolean>((resolve, reject) => {
       const stop = (): void => resolve(false);
       this._pendingFlushStops.add(stop);
-      void Promise.resolve(flushed)
-        .then(resolve, reject)
-        .finally(() => {
+      void Promise.resolve(flushed).then(
+        (result) => {
           this._pendingFlushStops.delete(stop);
-        });
+          resolve(result);
+        },
+        (error) => {
+          this._pendingFlushStops.delete(stop);
+          reject(error);
+        },
+      );
       if (this._lifetime.state === 'closed') {
         this._pendingFlushStops.delete(stop);
         stop();

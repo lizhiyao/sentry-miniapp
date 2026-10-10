@@ -238,3 +238,19 @@ Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能
 现有安装包消费门禁增加 Reflect 缺失／不完整模式：七平台 ESM、微信 CJS 及无 Reflect 的 UMD 完成初始化、请求和上报验证；保留 CJS／ESM 各 20 项生命周期行为及类型检查。lint、严格类型、77 文件／1339 用例的 coverage 与 shuffle、SDK 构建、微信独立 bundle／本地映射和官网构建均通过，覆盖率门槛不变：statements 98.71%、branches 95.71%、functions 99.25%、lines 99.45%。这些检查不替代真实设备或目标后台验收，也没有新增 npm 发布。
 
 架构与官方 SDK 对照只说明当前实现及理由，阶段复现与验证数字移入本审查记录；README 与官网删除重复的 beta 修复历史，保留影响用户选择的发布通道、后台要求和迁移说明。配置页标题保留原链接锚点，避免已有链接失效。
+
+## 标准运行时 API 与注释职责复核
+
+基线为 `master e1d77be9`。以该提交的实际 CJS 包作受控对照：正常宿主完成错误、日志、指标、span 和附件发送；导入前分别移除 Object.fromEntries、Object.entries／values、Promise.allSettled、Promise.finally、globalThis 或 Array.includes 时，初始化或 flush 失败。TextEncoder 为 null 或只有构造器空壳时，带附件的 flush 返回失败。这些是能力缺失复现，不能据此声称某个具体手机型号已经发生故障。
+
+对照精确固定的 Core 11.4.0，其集成去重、属性转换、事件准备和 buffer drain 确实依赖这些标准方法；仅替换 sentry-miniapp 的调用不能保护 Core 路径。入口改为按需内联 core-js 3.50.0 的六个模块，先于 Core 补齐 globalThis、Array.includes、Object.entries／values／fromEntries 和 Promise.allSettled。Promise 构造器保持宿主身份；自身 flush 改用成功／失败两条 then 分支清理，不另补 finally。迭代、getter、Symbol／`__proto__` 和 thenable 语义交由成熟标准库维护，不建立第二套实现。core-js 全局模块的共享注册及函数源码标记属于此取舍，未引入完整 Promise 或 ES5 支持。
+
+参考官方 React Native SDK 的 Core 编码接缝，TextEncoder 检查构造、返回类型及中文、补充平面字符和孤立 surrogate 的 UTF-8 字节；失败时注册现有公开编码回退，保留已有 singleton，不替换全局编码器。强化已有 codec 用例覆盖空值、空壳、构造／encode 抛错、错误类型／长度／字节；flush 拒绝测试从整体 mock client 改为真实 Core 经过 transport 的失败，dispose 用例同时检查没有 finally。测试定义和总数均未增加。
+
+实际 tarball 的 CJS／ESM，在七个小程序宿主和微信／抖音小游戏中，分别检查标准能力、八种缺失／空壳、Core 的 crypto／performance 缺失回退以及多能力同时缺失，共 198 项通过。检查真实最终 event／log／metric／span／attachment 发送、中文二进制字节、待完成宿主请求、宿主 Promise 身份及 dispose；小游戏场景显式断言识别结果。各平台的模拟请求均声明支持二进制，不改变生产 transport 默认能力。新增依赖后还重跑 Reflect、函数扩展和业务透明性组合，144 项通过。长期消费门禁扩展为七平台 ESM × 六种运行时模式、微信 CJS 与缺少标准方法的 UMD，并继续保留各 20 项 CJS／ESM 行为场景及类型入口检查。
+
+相同构建配置的 tarball 对照：CJS gzip 从 71,107 增至 77,612 bytes，ESM 从 80,741 增至 87,692 bytes；用约 6.4／6.8 KiB 的代价减少标准库自实现和应用配置依赖。产物内联这些模块，core-js 仅作精确固定的构建依赖，MIT 声明随包提供。基础 Promise、Symbol、Map／Set、WeakMap／WeakSet 与 typed arrays 仍是宿主前提。
+
+源码注释改为说明当前优先级、字段回退和统计规则，移除开发模式残留及类型迁移历史；退休 client／持久化记录等当前时间归属仍按必要性解释。README、官网、架构与官方对照分别维护接入边界、实现理由和审查证据，不把复现过程堆进用户配置页。本轮不新增 npm 发布或真实设备／后台结论。
+
+验证通过：lint、严格类型、77 文件／1339 用例的 coverage 与 shuffle、SDK 构建、微信独立 bundle／本地映射及文档站构建；覆盖率门槛不变，statements 98.71%、branches 95.71%、functions 99.25%、lines 99.46%。
