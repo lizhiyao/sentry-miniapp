@@ -552,6 +552,13 @@ function injectTraceHeaders(
   propagateTraceparent: boolean,
 ): void {
   try {
+    const header = {
+      ...(isRecord(options.headers) ? options.headers : {}),
+      ...(isRecord(options.header) ? options.header : {}),
+    };
+    // 调用方已有 trace 标识时整组传播由其管理，不能混入本地 span 的另一条 trace。
+    if (hasHeader(header, 'sentry-trace') || hasHeader(header, 'traceparent')) return;
+
     let span = requestSpan?.span;
     // 忽略本地 HTTP 子 span 不应把已采样的父 trace 改为未采样；与 Core fetch / Browser XHR 一致。
     // 无父的 ignored segment 仍使用自身明确的未采样决策。
@@ -568,20 +575,14 @@ function injectTraceHeaders(
     const sentryTrace = traceData['sentry-trace'];
     if (!sentryTrace) return;
 
-    const header = {
-      ...(isRecord(options.headers) ? options.headers : {}),
-      ...(isRecord(options.header) ? options.header : {}),
-    };
-    if (!hasHeader(header, 'sentry-trace')) {
-      header['sentry-trace'] = sentryTrace;
-    }
+    header['sentry-trace'] = sentryTrace;
 
     if (traceData.baggage) {
       const baggageKey = findHeaderKey(header, 'baggage') || 'baggage';
       header[baggageKey] = mergeBaggageHeader(header[baggageKey], traceData.baggage);
     }
 
-    if (propagateTraceparent && traceData.traceparent && !hasHeader(header, 'traceparent')) {
+    if (propagateTraceparent && traceData.traceparent) {
       header['traceparent'] = traceData.traceparent;
     }
 

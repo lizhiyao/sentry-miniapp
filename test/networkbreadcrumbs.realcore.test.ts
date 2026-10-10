@@ -1401,12 +1401,13 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(businessCalls[2]!.header ?? {}).not.toHaveProperty('sentry-trace');
   });
 
-  it('有 active span 时仍把请求记录为现有 transaction 的子 span', async () => {
+  it('手动传播不混入另一条 trace，本地请求仍记录为业务流程的子 span', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       platform: 'bytedance',
       tracesSampleRate: 1,
       tracePropagationTargets: ['api.example.com'],
+      propagateTraceparent: true,
       enableOfflineCache: false,
       enableAutoSessionTracking: false,
       enableMinigameLifecycle: false,
@@ -1414,27 +1415,85 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       transport: createCapturingTransport(captured),
     });
 
+    const manualTrace = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-1';
+    const manualParent = '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01';
+    const cases: Array<{
+      name: string;
+      field: 'header' | 'headers';
+      headers: Record<string, string>;
+      automatic?: boolean;
+    }> = [
+      { name: 'automatic', field: 'header', headers: { baggage: 'tenant=demo' }, automatic: true },
+      { name: 'sentry-only', field: 'header', headers: { 'Sentry-Trace': manualTrace } },
+      {
+        name: 'sentry-tenant',
+        field: 'headers',
+        headers: { 'sentry-trace': manualTrace, Baggage: 'tenant=demo' },
+      },
+      { name: 'w3c-only', field: 'header', headers: { Traceparent: manualParent } },
+      {
+        name: 'w3c-tenant',
+        field: 'headers',
+        headers: { traceparent: manualParent, baggage: 'tenant=demo' },
+      },
+      {
+        name: 'all-manual',
+        field: 'header',
+        headers: {
+          'sentry-trace': manualTrace,
+          traceparent: manualParent,
+          baggage: 'sentry-trace_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        },
+      },
+    ];
+    const success = vi.fn();
     startSpan({ name: 'game.login', op: 'ui.action' }, () => {
-      g.tt.request({ url: 'https://api.example.com/v1/login', method: 'POST' });
+      for (const item of cases) {
+        const headers = Object.freeze(item.headers);
+        g.tt.request(
+          Object.freeze({
+            url: `https://api.example.com/v1/${item.name}`,
+            method: 'POST',
+            [item.field]: headers,
+            success,
+          }),
+        );
+      }
     });
+    captureException(new Error('manual propagation audit'));
     await flush(2000);
 
     const spans = collectSpans(captured);
     const root = spans.find((span) => span.name === 'game.login');
-    const child = spans.find((span) => span.name === 'POST https://api.example.com/v1/login');
     assertDefined(root);
-    assertDefined(child);
     expect(root.is_segment).toBe(true);
-    expect(child.is_segment).toBe(false);
-    expect(child.parent_span_id).toBe(root.span_id);
-    expect(spanAttribute(child, 'sentry.op')).toBe('http.client');
-    expect(spanAttribute(child, 'sentry.origin')).toBe('auto.http.miniapp');
-    // 非 ignored 子 span 的传播头必须锚定子 span 自身；误回落到父 span 时
-    // traceId/sampled 位不变，只有下游 parent_span_id 链接会静默退化。
-    expect(requestMock.mock.calls[0]?.[0].header).toEqual(
-      expect.objectContaining({
-        'sentry-trace': `${child.trace_id}-${child.span_id}-1`,
-      }),
+    expect(spans).toHaveLength(cases.length + 1);
+    expect(requestMock).toHaveBeenCalledTimes(cases.length);
+    expect(success).toHaveBeenCalledTimes(cases.length);
+    for (const [index, item] of cases.entries()) {
+      const child = spans.find(
+        (span) => span.name === `POST https://api.example.com/v1/${item.name}`,
+      );
+      assertDefined(child);
+      expect(child.is_segment).toBe(false);
+      expect(child.parent_span_id).toBe(root.span_id);
+      expect(spanAttribute(child, 'sentry.op')).toBe('http.client');
+      expect(spanAttribute(child, 'sentry.origin')).toBe('auto.http.miniapp');
+      const forwarded = requestMock.mock.calls[index]![0];
+      if (item.automatic) {
+        expect(forwarded.header['sentry-trace']).toBe(`${child.trace_id}-${child.span_id}-1`);
+        expect(forwarded.header.traceparent).toBe(`00-${child.trace_id}-${child.span_id}-01`);
+        expect(forwarded.header.baggage).toContain(`sentry-trace_id=${child.trace_id}`);
+        expect(forwarded.header.baggage).toMatch(/^tenant=demo,/);
+      } else {
+        expect(forwarded[item.field]).toBe(item.headers);
+        expect(forwarded[item.field]).toEqual(item.headers);
+        expect(forwarded[item.field === 'header' ? 'headers' : 'header']).toBeUndefined();
+      }
+    }
+    const event = collectEnvelopePayloads<Event>(captured, ['event'])[0]!;
+    expect(event.breadcrumbs!.filter((breadcrumb) => breadcrumb.category === 'xhr')).toHaveLength(
+      cases.length,
     );
     // 请求 span 归到业务 trace 里，不再另发独立 segment；stream 下也没有 transaction 事件。
     expect(spans.filter((span) => span.is_segment)).toHaveLength(1);

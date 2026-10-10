@@ -304,3 +304,11 @@ THIRD_PARTY_NOTICES.md 保留安装包中实际内联的 Core、core-js／core-j
 强化现有启动用例，用例数仍为 1276；CJS 增加两种对应属性组合，七平台 ESM 消费检查由 13 种扩展至 15 种宿主模式。只满足 Core 需求的只读构造器保持身份，最终 HTTP span 的 `url.query` 正确解码筛选并省略敏感值；不可配置但可写的空壳能够安装回退，属性约束保留。最终实际 tarball 在七个小程序及微信／抖音小游戏、两个入口和两种新增组合的 36 项遥测检查全部通过，覆盖错误、span、Logs、Metrics 和二进制附件。
 
 lint、严格类型、coverage、SDK 构建／实际包消费、微信独立 bundle／本地映射和文档站构建通过；原覆盖率门槛保持，statements 98.72%、branches 95.68%、functions 99.20%、lines 99.44%。本轮为模拟宿主与真实 Core／安装包验证，未新增发布、设备或目标 Sentry 后台证据。
+
+## 人工追踪头归属复核（2026-10-11）
+
+基线 `master bf8e1a4` 的实际 CJS 包可复现：请求手动指定 trace A 的 `sentry-trace` 或 `traceparent`，SDK 又添加本地 trace B 的其它标识／baggage，同一请求的传播上下文不一致。对照固定 Core 11.4.0，Browser XHR 已有 sentry-trace 时整体跳过注入，fetch 则逐项补齐；本 SDK 选择整组由调用方管理，并对 W3C 标识采用同一保护。此取舍及上游源码见[官方实践](sdk-official-practices.md#请求观察与-trace-传播)。
+
+请求已有任一 trace 标识头时保留原 header／headers，头名不区分大小写；本地 HTTP span 和面包屑继续采集。仅有第三方 baggage 时仍正常自动传播；自动标识与最终请求 span 对齐。强化现有 mock、真实 Core 与实际安装包场景，未增加 Vitest 用例总数（仍为 1276）。最终 tarball 的七个小程序及微信／抖音小游戏模拟环境、CJS／ESM 共 18 组、108 次请求通过；检查冻结输入、回调 receiver／返回值／调用次数，以及最终请求 span。
+
+lint、严格类型、全量 coverage、SDK 构建／实际安装包消费、微信独立 bundle／本地映射和文档站构建通过，原覆盖率门槛保持。本轮未增加 polyfill 或依赖补丁；实际产物没有装配 Core 服务端请求体捕获或 envelope 解码路径，不能据上游文件中的 TextEncoder／TextDecoder 用法扩张本项目的兼容范围。以上为模拟宿主证据，未新增 npm 发布、设备或目标 Sentry 后台验收。
