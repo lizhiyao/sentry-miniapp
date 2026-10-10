@@ -21,7 +21,7 @@ npm install sentry-miniapp@next --save
 import * as Sentry from 'sentry-miniapp';
 
 Sentry.init({
-  dsn: 'https://your-dsn@o0.ingest.sentry.io/0',
+  dsn: 'YOUR_DSN', // 替换为 Sentry 项目中的完整 DSN
 
   // release 是 Source Map 生效的关键，需与上传 Source Map 时的 release 完全一致
   release: 'my-miniapp@1.0.0',
@@ -30,7 +30,9 @@ Sentry.init({
 ```
 
 ::: warning 初始化时序
-不要把 `Sentry.init` 放进 `App.onLaunch` 里：此时 `App()` 已注册完成，SDK 无法再提前包装本次 `onLaunch`。这会导致 App 生命周期面包屑、首次 Session 启动，以及依赖 `onLaunch` 起点的冷启动耗时缺失。若只关心后续异常、网络面包屑和手动上报，放在 `onLaunch` 内仍可工作，但启动阶段能力会降级。
+应在 `App()` 之前初始化。放进 `App.onLaunch` 时，SDK 无法补回已经发生的启动异常或本次 `onLaunch` 面包屑，后续异常、网络面包屑和手动上报仍可工作。
+
+晚初始化时，若宿主的原生前台和后台监听均可用，SDK 会继续管理初始化后的 Session；这不包含初始化之前的运行记录。用 `Sentry.getDiagnostics()` 检查 `late_init`／`lifecycle_unavailable` 警告；缺少完整监听时，需要业务显式管理 Session 和前后台边界的 `flush()`。
 :::
 
 默认初始化路径已包含自动异常捕获、Source Map 路径归一化、网络面包屑、Session 与网络状态；通用 Performance／FPS 需显式启用。通常无需手动传 `integrations`。
@@ -57,7 +59,7 @@ Sentry.captureException(new Error('sentry test'));
 - **真机 vs 开发者工具**：微信开发者工具某些环境下的报错不会触发底层 `wx.onError`，建议在真机预览下测试。
 - **uni-app / Taro 框架**：组件内的错误可能被框架接住、不冒泡到 `wx.onError`，需接框架的错误处理。详见 [Taro 接入指南](/guide/taro)、[uni-app 接入指南](/guide/uniapp) 或 [常见问题](/guide/faq#component-errors)。
 
-例如，DSN 为 `https://public-key@o123.ingest.us.sentry.io/456` 时，填写 `https://o123.ingest.us.sentry.io`，保留 `.us` 等实际域名部分。Sentry 控制台的网址、DSN 中的 key 和项目路径都不填入域名配置。
+例如，DSN 为 `https://publickey@o123.ingest.us.sentry.io/456` 时，填写 `https://o123.ingest.us.sentry.io`，保留 `.us` 等实际域名部分。Sentry 控制台的网址、DSN 中的 key 和项目路径都不填入域名配置。
 
 仍然没有数据时，按 [FAQ · 初始化后没有数据](/guide/faq#no-events) 的完整清单逐项排查。
 

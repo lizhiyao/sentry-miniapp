@@ -61,9 +61,7 @@ tracesSampler: ({ attributes, inheritOrSampleWith }) => {
 
 `dataCollection.userInfo` 默认为 `true`。设为 `false` 可关闭错误事件的后台 IP 自动补充，但不会删除业务通过 `setUser` 显式提供的 id、邮箱或 IP；也不会自动清理自定义日志、span 属性或事件字段。需要移除这些数据时，在采集前删去字段，或用对应的过滤回调处理。各类回调的作用范围见[常用 API](/guide/api)。
 
-Core v10 未配置 `sendDefaultPii` 时默认为 `false`；Core v11 已删除它，`dataCollection.userInfo` 改为默认 `true`。旧 `sendDefaultPii: false` 配置应移除旧键，改用 `dataCollection: { userInfo: false }`；这是关闭错误事件 IP 自动补充的最小改法，不是旧版全部隐私行为的等价替换。正文仍需 `traceNetworkBody` 放行，默认关闭。完整改法见[隐私配置迁移](/guide/migration-2.0#data-collection-migration)。
-
-已发布的 beta.6 会忽略 `sendDefaultPii` 和 `enableLogs`，不能依赖旧值控制采集。自 beta.7 起显式拒绝任何非 `undefined` 的旧值，混用新旧配置也会拒绝；`init()` 会在替换当前 client 前检查，直接构造 `MiniappClient` 同样拒绝，`undefined` 等同未配置。
+从 1.x 升级时应删除旧 `sendDefaultPii`，明确配置 `dataCollection`；保留旧值会导致初始化报错。旧 `sendDefaultPii: false` 如需继续关闭错误事件的后台 IP 自动补充，可改用 `dataCollection: { userInfo: false }`，但这不是旧版全部隐私行为的等价替换。完整改法与早期 beta 注意事项见[隐私配置迁移](/guide/migration-2.0#data-collection-migration)。
 
 SDK 自动采集的键值数据都走 core 11 的 `CollectBehavior` 语义：键名保留，命中的值就地替换成 `[Filtered]`。
 
@@ -89,7 +87,7 @@ SDK 自动产生的 HTTP、navigation/resource URL 名称去掉 query、fragment
 
 ## Logs
 
-2.0 删除 `enableLogs`；beta.6 忽略旧值，自 beta.7 起对非 `undefined` 旧值报迁移错误。`Sentry.logger.trace/debug/info/warn/error/fatal` 按调用即采集，由 core 批量发送。迁移时移除 `enableLogs: true`；原先依赖 `enableLogs: false` 的应用，应停止调用 logger／安装日志集成，或配置 `beforeSendLog: () => null`。SDK 不默认安装 console 到 Logs 的集成。
+`Sentry.logger.trace/debug/info/warn/error/fatal` 按调用采集并批量发送，不需要开启日志开关。升级时删除旧 `enableLogs`，否则初始化会报错；原先依赖 `enableLogs: false` 的应用，应停止 logger 调用／移除日志集成，或配置 `beforeSendLog: () => null`。SDK 不默认把 console 转成 Logs。
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
@@ -236,13 +234,13 @@ Sentry.startInactiveSpan({
 
 自动操作初始属性的优先级为 SDK 默认值 → 显式 scope 同名属性 → 操作显式属性。初始值只支持合法标量、同类数组和无单位包装值；带 unit 或不适配创建类型的 scope 值不强转，也不补该键的默认值，最终仍由 core 合并原始属性。若要按这些值采样，应在创建时显式提供合法标量。手动 span 的显式属性和 scope 单位始终优先于稳定默认值。
 
-`enableSystemInfo: false` 禁止 SDK 自动采集 device/os/app/runtime version，包括显式 HttpContext 的残余路径；平台标识与用户自己提供的字段保留。默认环境状态不写共享 scope。小程序 tracing 的正式支持范围是一个活动 init client，不承诺任意并发 client 或跨 await 上下文隔离。
+`enableSystemInfo: false` 禁止 SDK 自动采集 device/os/app/runtime version；显式使用 `httpContextIntegration()` 同样遵循该配置。平台标识与用户自己提供的字段保留。小程序 tracing 的正式支持范围是一个活动 init client，不承诺任意并发 client 或跨 await 上下文隔离。
 
 ## 运行环境与自建 Sentry
 
 - npm 包的 Node.js 依赖范围为 `>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0`，与固定的 core 11 版本一致；22.0–22.11 和 23.0–23.1 不在范围内。开发本 SDK 仓库还须满足构建、测试、lint 工具的共同要求，请用 20.x ≥ 20.19、22.x ≥ 22.13 或 ≥ 24。Node 要求不是小程序宿主版本要求。
 - Core v11 的[官方迁移说明](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/MIGRATION.md#upgrading-from-10x-to-11x)将自建 Sentry 26.4.2 及以上列为支持基线。旧版本可能部分可用，但不受支持；关闭 tracing 不能保证旧后台兼容。使用官方 SaaS 或受支持自建部署时，仍应确认项目启用的 `span/v2`、Logs、Metrics 等数据能被接收和显示。
-- 官方 Core v11 仍[保留 `traceLifecycle: 'static'`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/types/options.ts#L497-L503)，但 sentry-miniapp v2 只支持 `stream`，不能用 static 作为旧后台的降级路径；上游保留 static 也不构成对旧后台兼容性的保证。
+- 2.0 仅支持流式性能数据，没有切换到旧性能格式的兼容开关；旧自建后台应沿用项目已验证的 1.x 版本。
 - 版本选择与 1.x 文档归档见[如何选择版本](/guide/migration-2.0#version-choice)；删除项、数据采集与统计迁移见[升级到 2.0](/guide/migration-2.0)。
 
 ## 分布式追踪
@@ -354,7 +352,7 @@ Sentry.init({
 每次 `init()` 都应创建新的有状态 integration 实例。不要跨多次初始化复用
 缓存后的 `getDefaultIntegrations()` 结果。2.0 删除旧 `defaultIntegrations` 静态数组、公共 class 和空 `showReportDialog`；使用 named factories，或 `Sentry.Integrations` 中相同的 factories。反馈由业务 UI 收集后调用 `captureFeedback()`。
 
-旧 `defaultIntegrations: Sentry.defaultIntegrations` 可删除以使用默认集合，或改为每次初始化时调用 `Sentry.getDefaultIntegrations(options)`。自 beta.7 起恢复原工具出口 `Sentry.Integrations.normalizeMiniappFrameFilename()`；beta.6 暂缺该出口，使用它的项目升级至 beta.7 后可沿用旧调用。
+旧 `defaultIntegrations: Sentry.defaultIntegrations` 可删除以使用默认集合，或改为每次初始化时调用 `Sentry.getDefaultIntegrations(options)`。路径工具 `Sentry.Integrations.normalizeMiniappFrameFilename()` 可继续使用；早期 beta 用户请看[迁移说明](/guide/migration-2.0)。
 
 2.0 不再自动复制交互 `dataset`；自动 targetId／handler 限 128 个 UTF-16 code units，eventType 限 64 个，不改业务传参。业务需要时应构造显式白名单的 breadcrumb，避免复制整份模板数据。导航 API 的面包屑由 Page collector 提供，服从 `enableNavigationBreadcrumbs` 和 query 策略；跳转尝试不写 route tag，也不启动轮询。
 

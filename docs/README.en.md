@@ -71,8 +71,6 @@ Sentry.init({
   dsn: 'https://<key>@<org>.ingest.sentry.io/<project>',
   release: 'my-project@1.0.0', // match the release you upload Source Maps with
   environment: 'production',
-  sampleRate: 1.0, // error sample rate
-  tracesSampleRate: 1.0, // performance sample rate; API requests become http.client spans
 });
 
 App({ onLaunch() {} });
@@ -85,6 +83,8 @@ Sentry.captureException(new Error('sentry test'));
 ```
 
 Then check the Sentry Issues list.
+
+Once error delivery works, choose a `tracesSampleRate` appropriate for your traffic to enable performance monitoring; see [Performance and Tracing](https://sentry-miniapp.pages.dev/guide/performance-and-tracing) (Chinese). The minimal setup above does not enable tracing.
 
 If nothing shows up, first check the DSN, trusted domain, initialization placement, and sampling config. The full checklist lives in [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started) and the [FAQ](https://sentry-miniapp.pages.dev/guide/faq#no-events).
 
@@ -161,14 +161,14 @@ After the first event is working, pick the guide based on what you are doing nex
 ## ❓ FAQ
 
 - **No events in Sentry after initialization?** Send a test event with `captureException`, then check the DSN, `request` trusted domain, whether `Sentry.init` runs before `App()`, whether `sampleRate` is too low, and whether you only called `addBreadcrumb`. Breadcrumbs are not sent alone; they ship with the next captured event.
-- **Must I report manually in `onError`?** No. `Sentry.init` registers platform global error listeners automatically, as long as it runs before `App()`. If it runs too late, startup lifecycle, session, and some breadcrumbs are degraded.
+- **Must I report manually in `onError`?** No. `Sentry.init` registers available platform global error listeners automatically. Initialize before `App()` to observe startup. Late initialization cannot recover earlier startup errors or `onLaunch` breadcrumbs; native foreground/background listeners can still support sessions after initialization when both are available. Check `getDiagnostics()` for lifecycle warnings.
 - **Are network requests included with errors?** Yes. By default the SDK records `url` (path only), `url.query`, `method`, status code and duration as breadcrumbs, both filtered through `dataCollection.urlQueryParams`. Request / response bodies are off by default; when you enable `traceNetworkBody`, bodies are sanitized key-by-key first (core's sensitive snippets plus this SDK's payment / ID-document snippets, extendable via the top-level `sensitiveKeys`) and then truncated to `maxRequestBodySize` (1 MB by default).
 
   JSON and form body filtering is independent of the query switch. Disabling query collection cannot expose form secrets; duplicate form keys and unaffected encoding are preserved. Unsafe form key decoding blanks the collected body while retaining its original byte count. SDK URL names exclude query, fragment and plaintext credentials; page-not-found and minigame launch queries follow the client collection policy. In 2.0, unknown plaintext/multipart/binary bodies are omitted and interaction dataset is not copied; manual capture data still belongs to the application.
 - **Are trace headers sent to every API by default?** No. Mini programs have no reliable same-origin baseline, so an empty `tracePropagationTargets` list injects nothing. Allowlist only backend origins you control.
 - **Why do uni-app / Taro component errors need extra wiring?** Frameworks may catch component errors before they reach the platform global `onError`. Use `app.config.errorHandler` / `Vue.config.errorHandler` for Vue, and an Error Boundary for Taro React.
 - **Will it send requests before privacy consent?** By default the SDK reports normally according to your config. If your app must avoid network requests before consent, enable `requireConsent` and call `Sentry.setConsent(true)` once the user grants consent.
-- **Can I disable automatic IP enrichment for error events?** Set `dataCollection: { userInfo: false }`. User fields you explicitly supply through `setUser` are retained; filter these before capture when needed. When upgrading to 2.0, remove the old `sendDefaultPii` / `enableLogs` options and review your collection policy; these switches no longer work. To disable logs, use `beforeSendLog: () => null` or stop logging calls. See the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) (Chinese).
+- **Can I disable automatic IP enrichment for error events?** Set `dataCollection: { userInfo: false }`. User fields you explicitly supply through `setUser` are retained; filter these before capture when needed. When upgrading to 2.0, remove the old `sendDefaultPii` / `enableLogs` options and review your collection policy; retaining either option causes initialization to fail. To disable logs, use `beforeSendLog: () => null` or stop logging calls. See the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) (Chinese).
 - **Session Replay or H5 builds?** Mini programs have no DOM, so official Session Replay is not supported. For H5 builds, use official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); keep `sentry-miniapp` for mini program builds.
 
 > Full answers on the **[docs site · FAQ](https://sentry-miniapp.pages.dev/guide/faq)**.

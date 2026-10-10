@@ -12,7 +12,7 @@ Sentry.captureException(new Error('sentry test'));
 
 - **DSN / Project 是否可用**：确认 DSN 属于当前要看的 Sentry Project，且没有把测试事件发到其它环境或其它项目里。
 - **request 合法域名是否配置**：核对实际运行的 AppID 和实际上报地址，按[快速接入的域名检查](/guide/getting-started#_4-常见前置检查)填写完整域名；配置 `tunnel` 时检查 tunnel 地址。关闭手机调试和开发者工具的「不校验合法域名」后再验收。
-- **初始化位置是否太晚**：`Sentry.init` 必须在 `App()` 调用之前执行。放进 `App.onLaunch` 后，手动 `captureException` 仍可能可用，但启动阶段生命周期、Session、部分面包屑和冷启动耗时会降级。
+- **初始化位置是否太晚**：应在 `App()` 之前初始化；放进 `App.onLaunch` 无法补回已经发生的启动异常或本次 `onLaunch` 面包屑。原生前台与后台监听均可用时，仍可管理初始化后的 Session；用 `getDiagnostics()` 检查生命周期警告，详见[初始化时序](/guide/getting-started#_2-初始化)。
 - **是否只调用了 `addBreadcrumb`**：面包屑不会单独上报，只会随下一次 error / message 事件一起发送（core 11 的 span 只携带属性，不再附面包屑）。验证接入时请用 `captureException` 或 `captureMessage`。
 - **采样是否过滤了事件**：确认 `sampleRate` 没有被设得太低；如果只验证性能 span，还要确认 `tracesSampleRate` 或 `tracesSampler`。
 - **开发者工具与真机差异**：微信开发者工具某些环境的报错不触发底层 `wx.onError`，建议用真机预览验证自动异常捕获。
@@ -62,7 +62,7 @@ Taro React 的渲染期错误建议由 Error Boundary 捕获并转交 Sentry；�
 
 ```js
 Sentry.init({
-  dsn: 'https://your-dsn@o0.ingest.sentry.io/0',
+  dsn: 'YOUR_DSN', // 替换为 Sentry 项目中的完整 DSN
   requireConsent: true,
 });
 

@@ -67,8 +67,6 @@ Sentry.init({
   dsn: 'https://<key>@<org>.ingest.sentry.io/<project>',
   release: 'my-project@1.0.0', // 与上传 Source Map 时的 release 一致
   environment: 'production',
-  sampleRate: 1.0, // 异常采样率
-  tracesSampleRate: 1.0, // 性能采样率；开启后 API 请求作为 http.client span 上报
 });
 
 App({ onLaunch() {} });
@@ -81,6 +79,8 @@ Sentry.captureException(new Error('sentry test'));
 ```
 
 然后到 Sentry 的 Issues 列表查看事件。
+
+确认错误上报后，再按项目流量配置 `tracesSampleRate` 开启性能监控，见[性能与链路追踪](https://sentry-miniapp.pages.dev/guide/performance-and-tracing)。最小接入配置不启动性能采样。
 
 没看到事件时，优先确认 DSN、合法域名、初始化位置和采样配置；完整排查清单见 [文档站 · 快速接入](https://sentry-miniapp.pages.dev/guide/getting-started) 与 [FAQ](https://sentry-miniapp.pages.dev/guide/faq#no-events)。
 
@@ -132,7 +132,7 @@ console.log(Sentry.getDiagnostics());
 Sentry.setConsent(true);
 ```
 
-如需关闭错误事件的后台 IP 自动补充，设置 `dataCollection: { userInfo: false }`；业务显式提供的用户信息仍会保留。升级到 2.0 时应删除旧 `sendDefaultPii`／`enableLogs`，重新确认采集策略；旧开关不再生效，日志禁用应使用 `beforeSendLog: () => null` 或停止日志调用。具体改法见[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
+如需关闭错误事件的后台 IP 自动补充，设置 `dataCollection: { userInfo: false }`；业务显式提供的用户信息仍会保留。升级到 2.0 时应删除旧 `sendDefaultPii`／`enableLogs`，重新确认采集策略；保留旧开关会导致初始化报错。日志禁用应使用 `beforeSendLog: () => null` 或停止日志调用。具体改法见[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ---
 
