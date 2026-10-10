@@ -34,7 +34,7 @@ const platformContracts = [
   { globalName: 'swan', platform: 'swan', requestMethod: 'request', statusKey: 'statusCode' },
   { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', statusKey: 'statusCode' },
 ];
-const selfRequestRuntimeModes = ['missing-url', 'partial-url'];
+const hostRuntimeModes = ['missing-url', 'partial-url', 'missing-reflect', 'partial-reflect'];
 
 async function writeConsumer(file, source) {
   await writeFile(file, source, 'utf8');
@@ -77,6 +77,10 @@ if (runtimeMode === 'missing-url') {
   assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
 } else if (runtimeMode === 'partial-url') {
   globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
+} else if (runtimeMode === 'missing-reflect') {
+  globalThis.Reflect = undefined;
+} else if (runtimeMode === 'partial-reflect') {
+  globalThis.Reflect = {};
 }
 const sdk = await import('sentry-miniapp');`
       : `const assert = require('node:assert/strict');
@@ -87,6 +91,10 @@ if (runtimeMode === 'missing-url') {
   assert.equal(Reflect.deleteProperty(globalThis, 'URL'), true);
 } else if (runtimeMode === 'partial-url') {
   globalThis.URL = { createObjectURL() {}, revokeObjectURL() {} };
+} else if (runtimeMode === 'missing-reflect') {
+  globalThis.Reflect = undefined;
+} else if (runtimeMode === 'partial-reflect') {
+  globalThis.Reflect = {};
 }
 const sdk = require('sentry-miniapp');`;
 
@@ -126,7 +134,7 @@ const platformName = process.argv[2] || 'wechat';
 const contract = ${platforms}.find(candidate => candidate.platform === platformName);
 assert.ok(contract, \`Unknown platform contract: \${platformName}\`);
 assert.ok(
-  runtimeMode === 'standard' || ${JSON.stringify(selfRequestRuntimeModes)}.includes(runtimeMode),
+  runtimeMode === 'standard' || ${JSON.stringify(hostRuntimeModes)}.includes(runtimeMode),
   \`Unknown runtime mode: \${runtimeMode}\`,
 );
 
@@ -241,6 +249,7 @@ async function runUmdProbe(packageRoot, expectedVersion) {
     clearTimeout,
     console,
     setTimeout,
+    Reflect: undefined,
     wx: {
       request(options) {
         const headers = { ...(options.headers || {}), ...(options.header || {}) };
@@ -397,11 +406,17 @@ try {
   await writeConsumer(cjsConsumer, runtimeProbe('cjs'));
   await writeConsumer(esmConsumer, runtimeProbe('esm'));
 
-  const cjsExecution = await runNode(cjsConsumer, tempRoot, {
-    scriptArgs: ['wechat', 'missing-url'],
-  });
+  const cjsExecutions = [];
+  for (const runtimeMode of ['missing-url', 'missing-reflect', 'partial-reflect']) {
+    cjsExecutions.push(
+      await runNode(cjsConsumer, tempRoot, {
+        scriptArgs: ['wechat', runtimeMode],
+      }),
+    );
+  }
+  const cjsExecution = cjsExecutions[0];
   const esmScenarios = platformContracts.flatMap((contract) =>
-    selfRequestRuntimeModes.map((runtimeMode) => ({ contract, runtimeMode })),
+    hostRuntimeModes.map((runtimeMode) => ({ contract, runtimeMode })),
   );
   const esmExecutions = [];
   for (const { contract, runtimeMode } of esmScenarios) {
@@ -412,7 +427,12 @@ try {
       }),
     );
   }
-  assert.equal(cjsExecution.stderr, '', `CJS import emitted stderr:\n${cjsExecution.stderr}`);
+  for (const execution of cjsExecutions) {
+    assert.equal(execution.stderr, '', `CJS import emitted stderr:\n${execution.stderr}`);
+    const result = JSON.parse(execution.stdout);
+    assert.equal(result.envelopes, 1, `CJS ${result.runtimeMode} sent unexpected envelopes`);
+    assert.equal(result.requests, 2, `CJS ${result.runtimeMode} used unexpected host requests`);
+  }
   for (const [index, execution] of esmExecutions.entries()) {
     assert.equal(
       execution.stderr,
@@ -504,7 +524,7 @@ try {
   });
 
   console.log(
-    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${selfRequestRuntimeModes.length} URL modes), UMD, TypeScript (${cjsResult.keys.length} exports), and ${expectedBehaviorScenarios} behavior scenarios for each CJS/ESM entry.`,
+    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${hostRuntimeModes.length} host runtime modes), UMD, TypeScript (${cjsResult.keys.length} exports), and ${expectedBehaviorScenarios} behavior scenarios for each CJS/ESM entry.`,
   );
 } finally {
   if (suppliedTarball && process.env.DIAGNOSTICS_DIR) {

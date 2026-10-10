@@ -17,12 +17,13 @@ describe('共享函数 instrumentation', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it('缺少或不可用 Proxy 时保留普通调用，扩展函数及不可检查函数跳过观测', () => {
+  it('缺少透明代理能力时保留普通调用，扩展函数及不可检查函数跳过观测', () => {
     const NativeProxy = Proxy;
     const original = function (value: number) {
       return value + 1;
     };
     const extended = Object.assign(function () {}, { capability: true });
+    const symbolExtended = Object.assign(function () {}, { [Symbol('capability')]: true });
     const inherited = Object.setPrototypeOf(function () {}, { capability: true });
     const inaccessible = new NativeProxy(original, {
       ownKeys() {
@@ -52,7 +53,7 @@ describe('共享函数 instrumentation', () => {
     expect(Object.prototype.hasOwnProperty.call(original, '__sentry_original__')).toBe(false);
     unsubscribe();
     expect(source.run).toBe(original);
-    for (const run of [extended, inherited, inaccessible, badSignature]) {
+    for (const run of [extended, symbolExtended, inherited, inaccessible, badSignature]) {
       const host = { run };
       expect(ensureFunctionInstrumentation(host, 'run')).toBe(false);
       expect(host.run).toBe(run);
@@ -64,6 +65,30 @@ describe('共享函数 instrumentation', () => {
     vi.stubGlobal('Proxy', NativeProxy);
     expect(installed).toBe(false);
     expect(source.run).toBe(original);
+    const nativeReflect = Reflect;
+    for (const reflect of [undefined, { apply: nativeReflect.apply, ownKeys: nativeReflect.ownKeys }]) {
+      vi.stubGlobal('Reflect', reflect);
+      const host = { run: original };
+      const installed = ensureFunctionInstrumentation(host, 'run');
+      const result = host.run(2);
+      const markedOriginal = (host.run as any).__sentry_original__;
+      const extendedHost = { run: extended };
+      const extendedInstalled = ensureFunctionInstrumentation(extendedHost, 'run');
+      vi.stubGlobal('Reflect', nativeReflect);
+      expect(installed).toBe(true);
+      expect(result).toBe(3);
+      expect(markedOriginal).toBe(original);
+      expect(extendedInstalled).toBe(false);
+      expect(extendedHost.run).toBe(extended);
+    }
+    vi.stubGlobal('Reflect', {
+      get get() { throw new Error('Reflect inaccessible'); },
+    });
+    const guardedHost = { run: original };
+    const guardedInstalled = ensureFunctionInstrumentation(guardedHost, 'run');
+    vi.stubGlobal('Reflect', nativeReflect);
+    expect(guardedInstalled).toBe(false);
+    expect(guardedHost.run).toBe(original);
   });
 
   it('冻结函数仍可调用并遵守已有原函数标记的 Proxy 不变量', () => {

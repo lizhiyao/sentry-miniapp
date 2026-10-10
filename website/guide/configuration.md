@@ -61,7 +61,7 @@ tracesSampler: ({ attributes, inheritOrSampleWith }) => {
 
 `dataCollection.userInfo` 默认为 `true`。设为 `false` 可关闭错误事件的后台 IP 自动补充，但不会删除业务通过 `setUser` 显式提供的 id、邮箱或 IP；也不会自动清理自定义日志、span 属性或事件字段。需要移除这些数据时，在采集前删去字段，或用对应的过滤回调处理。各类回调的作用范围见[常用 API](/guide/api)。
 
-从 1.x 升级时应删除旧 `sendDefaultPii`，明确配置 `dataCollection`；保留旧值会导致初始化报错。旧 `sendDefaultPii: false` 如需继续关闭错误事件的后台 IP 自动补充，可改用 `dataCollection: { userInfo: false }`，但这不是旧版全部隐私行为的等价替换。完整改法与早期 beta 注意事项见[隐私配置迁移](/guide/migration-2.0#data-collection-migration)。
+使用 `dataCollection` 明确指定采集策略。`dataCollection: { userInfo: false }` 可关闭错误事件的后台 IP 自动补充；它不会删除业务显式提供的用户字段。不支持的 `sendDefaultPii` 配置会使初始化报错，以避免隐私设置被静默忽略。升级配置的改法见[隐私配置迁移](/guide/migration-2.0#data-collection-migration)。
 
 SDK 自动采集的键值数据都走 core 11 的 `CollectBehavior` 语义：键名保留，命中的值就地替换成 `[Filtered]`。
 
@@ -81,7 +81,7 @@ Sentry.init({
 
 2.0 仅采集可识别的 JSON object／array 或 form 正文，先按键脱敏再截断；此策略独立于 query 开关。请求／响应的 `header` 与 `headers` 中，大小写不敏感的 Content-Type 仅用于判断格式，不写入遥测。已声明的纯文本、multipart 等不支持格式，以及无法识别的正文、JSON 原始值、坏 form 编码和 binary 均省略 `request_body`／`response_body`。缺少 Content-Type 时只接受可确认的 JSON／URL-encoded 键值结构。
 
-大小可确认时仍记录 `*_body_size`：字符串按 UTF-8 字节数，ArrayBuffer／typed array 按实际视图 byteLength；JSON 对象按序列化后、过滤与截断前的大小。这是 SDK 可观察表示的大小，不是宿主最终 wire bytes；未知对象编码不猜测大小。1.x 的纯文本采集行为不延续到 2.0，敏感键过滤也不是任意正文的隐私保证。
+大小可确认时仍记录 `*_body_size`：字符串按 UTF-8 字节数，ArrayBuffer／typed array 按实际视图 byteLength；JSON 对象按序列化后、过滤与截断前的大小。这是 SDK 可观察表示的大小，不是宿主最终 wire bytes；未知对象编码不猜测大小。敏感键过滤不能替代业务自己的数据策略。
 
 SDK 自动产生的 HTTP、navigation/resource URL 名称去掉 query、fragment，并过滤明文 userinfo；HTTP `url.full` 可保留经过过滤的 query。User Timing 的业务名称不按 URL 处理。缺原生 `URLSearchParams` 的宿主使用 form 编码 polyfill，坏百分号不会抛错，非法 UTF-8 与孤立 surrogate 使用替换字符；SDK 自采 query 遇到不能安全解码的键时直接省略 query。
 
@@ -350,13 +350,13 @@ Sentry.init({
 ```
 
 每次 `init()` 都应创建新的有状态 integration 实例。不要跨多次初始化复用
-缓存后的 `getDefaultIntegrations()` 结果。2.0 删除旧 `defaultIntegrations` 静态数组、公共 class 和空 `showReportDialog`；使用 named factories，或 `Sentry.Integrations` 中相同的 factories。反馈由业务 UI 收集后调用 `captureFeedback()`。
+缓存后的 `getDefaultIntegrations()` 结果。使用 named factories，或 `Sentry.Integrations` 中相同的 factories，以便每次初始化取得独立的集成状态。反馈由业务 UI 收集后调用 `captureFeedback()`。
 
-旧 `defaultIntegrations: Sentry.defaultIntegrations` 可删除以使用默认集合，或改为每次初始化时调用 `Sentry.getDefaultIntegrations(options)`。路径工具 `Sentry.Integrations.normalizeMiniappFrameFilename()` 可继续使用；早期 beta 用户请看[迁移说明](/guide/migration-2.0)。
+未指定集成时使用默认集合；自定义时可在每次初始化调用 `Sentry.getDefaultIntegrations(options)`。路径工具由 `Sentry.Integrations.normalizeMiniappFrameFilename()` 提供。相关 API 的升级改法见[迁移说明](/guide/migration-2.0)。
 
-2.0 不再自动复制交互 `dataset`；自动 targetId／handler 限 128 个 UTF-16 code units，eventType 限 64 个，不改业务传参。业务需要时应构造显式白名单的 breadcrumb，避免复制整份模板数据。导航 API 的面包屑由 Page collector 提供，服从 `enableNavigationBreadcrumbs` 和 query 策略；跳转尝试不写 route tag，也不启动轮询。
+交互面包屑只记录必要的目标和处理器标识，避免自动复制整份 `dataset`；自动 targetId／handler 限 128 个 UTF-16 code units，eventType 限 64 个，不改业务传参。业务需要时应构造显式白名单的 breadcrumb，避免复制整份模板数据。导航 API 的面包屑由 Page collector 提供，服从 `enableNavigationBreadcrumbs` 和 query 策略；跳转尝试不写 route tag，也不启动轮询。
 
-## 2.0 的 client 关闭与切换契约
+## client 关闭与切换 {#_2-0-的-client-关闭与切换契约}
 
 `init()` 只保留一个活动 runtime。切换前，旧 client 停止持久缓存消费，同步执行 SDK finalizer 并启动 owner flush，再绑定新 client；内部收尾预算为 2000ms。同步 span/sampler/DSC hook 或 `beforeBreadcrumb` 中重入 `init()` 会返回 `undefined` 并诊断 `reentrant_init_unsupported`，业务应在 hook 返回后的独立控制流中切换。
 
@@ -376,9 +376,9 @@ Sentry.init({
 
 `close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。
 
-2.0 将 JS 未处理异常的 Session 状态从 `crashed` 改为 `unhandled`，不将可继续运行的异常当作宿主进程崩溃。Release Health 的统计与告警须重新建立基线，不能直接比较 1.x 的 crash-free 数据；没有真实原生崩溃证据时 SDK 不生成 `crashed`。
+JS 未处理异常的 Session 状态为 `unhandled`，因为它不能证明宿主进程已经崩溃。SDK 只有 JavaScript 异常证据时不生成 `crashed`；会话状态用于 Release Health 统计和告警，升级时的统计基线调整见[迁移说明](/guide/migration-2.0)。
 
-自动 Session 随每次前台运行开始。可包装的小程序 App 路径在业务同步 `onHide` 之后结束会话。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。SDK 自动捕获的定时器／业务 rAF 同步异常按调度时的会话统计；开始时没有活动会话，也不会计入随后开始的会话（该空会话归属修复自 `2.0.0-beta.6` 起提供）。网络请求的业务回调中手动捕获的异常，以及宿主随后独立报告的全局异常，仍使用捕获当时的活动会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
+自动 Session 随每次前台运行开始。可包装的小程序 App 路径在业务同步 `onHide` 之后结束会话。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。SDK 自动捕获的定时器／业务 rAF 同步异常按调度时的会话统计；开始时没有活动会话，也不会计入随后开始的会话。网络请求的业务回调中手动捕获的异常，以及宿主随后独立报告的全局异常，仍使用捕获当时的活动会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
 
 小游戏依赖宿主 `onShow`／`onHide`；小程序无法包装 App 时，使用可用的 `onAppShow`／`onAppHide`。两项监听均注册成功后自动管理前台会话；缺少或无法注册任一项监听时，跳过自动 Session，需要会话统计的项目可手动管理。SDK 与业务原生监听之间的执行顺序由宿主决定，业务处理器末尾应显式调用 `Sentry.flush()`，排出该处理器中产生的数据。
 

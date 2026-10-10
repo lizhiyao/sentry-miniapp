@@ -17,15 +17,13 @@
 
 正式支持一个当前 runtime 和 Core 的默认异步上下文策略。并行任务跨 `await` 的父 span 隔离不作保证；自定义 async context strategy、多个长期并行自动 client、任意临时 scope 内重新初始化不在支持范围。直接构造 `MiniappClient` 是自管 transport 的低层入口，不获得 `init()` 的自动 runtime 权限。
 
-### 版本与后台兼容的取舍
+### 上报模型与后台基线
 
-2.0 保持单一的 Core span streaming 管道，不恢复 v1 上报协议或新增 static 过渡模式。Core v11 本身仍有 static transaction 兼容入口；此处收窄支持范围是本 SDK 的设计取舍，不能描述为上游强制删除所有旧性能格式。
+SDK 只支持 Core 的 span streaming 管道，使采样、生命周期排空和缓存重放围绕同一遥测模型工作，避免维护两套性能协议及其转换规则。Core 自身仍有 static transaction 入口；选择单一管道是本 SDK 的职责范围。
 
-Core v11 的[官方自建后台支持基线](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x)为 Sentry 26.4.2 及以上。官方云服务与受支持的新自建后台可接收多个 SDK 版本；旧自建后台可以暂时沿用项目已验收的 1.x，用户入口保留 [v1 文档归档](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide)。1.x 已满足需求的项目无需仅为 Core 升级而迁移。
+Core v11 的[官方自建后台支持基线](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x)为 Sentry 26.4.2 及以上。部署兼容性须分别验证错误、span、Logs、Metrics 和 Session 的实际接收与展示；单次异常接收成功或关闭 tracing 不能证明完整兼容。用户的版本选择与归档入口集中在[迁移指南](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
 
-保留 static 并不能完整还原 v1：Core 已移除旧独立 span envelope，现有 HTTP root、小游戏／Performance attributes 不会自动恢复为原数据模型；Logs、Metrics、Session 也有独立的格式与语义。因此，一次旧后台异常接收成功或关闭 tracing 不能构成完整兼容证据。
-
-未来只有出现明确的旧后台版本、所需 v2 能力与可复现的用户需求，才单独评估有限的过渡支持。评估须覆盖实际接收与看板、生命周期排空、缓存跨模式重放和维护成本，优先复用 Core 现存能力，不自行重建已删除的 v1 序列化或复制遥测管道。相关用户选择见[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+增加另一种协议模式，须有明确的后台版本、所需能力和可复现需求，并评估生命周期排空、缓存跨模式重放与维护成本。优先复用 Core 现有能力，保持序列化和遥测管道只有一个实现来源。
 
 ## 2. 分层与模块职责
 
@@ -79,13 +77,13 @@ flowchart TD
 `init()` 的主要顺序是：
 
 1. 检查遥测同步临界区和默认持久 scope；临时 `withScope`／`withActiveSpan`、尚未完成的异步 span 上下文返回 `undefined`，并保留原 client。同步采集 hook 重入同样拒绝初始化。
-2. 校验只支持 `traceLifecycle: 'stream'`，并拒绝非 `undefined` 的旧 `sendDefaultPii`／`enableLogs` 配置，避免 Core 静默忽略后扩大采集。判断宿主环境后，装配全新的默认集成实例、用户集成、平台标签、stack parser 和 transport 配置；再校验实际配置快照和根 scope 身份。配置回调或 getter 改写成不支持的选项，或留下临时上下文时拒绝，尚不应用 `initialScope` 或退休旧 client。低层构造器在创建 client 资源前执行同一选项校验；不猜测旧隐私策略的等价映射。取舍与发布状态见[迁移成本专项审查](docs/core-v11-migration-cost-review.md)。
+2. 校验只支持 `traceLifecycle: 'stream'`，并拒绝非 `undefined` 的 `sendDefaultPii`／`enableLogs` 配置，避免 Core 静默忽略后扩大采集。判断宿主环境后，装配全新的默认集成实例、用户集成、平台标签、stack parser 和 transport 配置；再校验实际配置快照和根 scope 身份。配置回调或 getter 改写成不支持的选项，或留下临时上下文时拒绝，尚不应用 `initialScope` 或退休旧 client。低层构造器在创建 client 资源前执行同一选项校验；采集策略必须通过当前 `dataCollection` 明确表达，配置迁移见[迁移指南](website/guide/migration-2.0.md)。
 3. 若旧绑定是 `MiniappClient`，开始其有界退休；再通过 Core 的公开 `initAndBind` 应用 `initialScope`、构造和绑定新 client。局部构造器在 `super` 前后检查同一根 scope：`initialScope` 改变上下文时不构造，transport 构造改变上下文时立即 dispose 尚未绑定的新 client。该守卫不复制 Core 的 scope 栈或装配算法。
 4. Core 执行集成安装；client 自有环境、lifetime、consent 和 transport 控制闭包已经就绪。自动 runtime 的活动身份只授予 `init()` 构造的 client。
 
 旧 runtime 退休后，新构造失败或构造阶段的 scope 拒绝不会复活旧 runtime。Core 绑定完成后，集成 `setup` 可以启动自身的异步 span；它完成后返回的根仍绑定新 client。根初始化可正常替换 client，但业务入口应尽早、通常在 `App()` 注册前初始化；晚初始化不能补回已发生的宿主注册和启动异常。
 
-集成的公共形式是 factory，返回类型只承诺 Core `Integration`，不将内部 class 的清理方法作为公共 API。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
+集成的公共形式是 factory，返回类型只承诺 Core `Integration`，内部清理方法不作为公共 API。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
 
 默认装配显式包含 `spanStreamingIntegration()`：自定义 `Client` 不会自动获得其它官方宿主 SDK 的集成组合。移除它后，业务 span 和请求 span 都不会经默认 stream 管道发送。性能 Observer 和 FPS 属于可选宿主能力，不能成为基础 HTTP tracing 的前提。
 
@@ -136,7 +134,9 @@ Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业
 
 宿主重新赋值后可迁移包装状态；旧 wrapper 留在第三方链内部时透明转发，防止重复分发。API 不可读或不可写时跳过该观测点。请求观测准备失败透传原 options，宿主原调用的异常保留且不重试。
 
-共享函数和全局 App 入口使用同一个 Proxy apply helper，保留宿主函数的扩展成员、动态读写、name／length 与完整调用参数。原函数标记通过虚拟读取供 Core FunctionToString 使用，不写入宿主函数或其 prototype；已有不可配置标记遵守 Proxy 不变量。缺少 Proxy 时普通函数回退为调用包装，带扩展成员或不可检查的函数跳过自动观测，避免属性快照破坏框架的动态更新。不能建立代理时也只跳过该入口，基础 transport 仍直接使用可用宿主 API。
+共享函数和全局 App 入口使用同一个 Proxy apply helper，保留宿主函数的扩展成员、动态读写、name／length 与完整调用参数。原函数标记通过虚拟读取供 Core FunctionToString 使用，不写入宿主函数或其 prototype；已有不可配置标记遵守 Proxy 不变量。
+
+透明代理要求 Proxy 和 Reflect.get 均可用；缺少任一能力时普通函数回退为调用包装，带扩展成员或不可检查的函数跳过自动观测，避免属性快照破坏框架的动态更新。原函数通过 Function.prototype.apply.call 调用，保留被自有 apply 属性遮蔽的函数契约，也无需 Reflect.apply。请求字段枚举在缺少 Reflect.ownKeys 时回退 Object 的自有字符串／Symbol API。不能建立代理时只跳过该入口，基础 transport 仍直接使用可用宿主 API；不安装全局 Reflect／Proxy polyfill。
 
 Session／TryCatch 的资源清理由每个 client 的 lifetime stop 与公开 `registerCleanup()` 配对持有，不另设跨 client 的聚合清理入口或 Set。相应回归通过公开 `dispose()` 验证重复关闭、wrapper 恢复和迟到观测失效；内部清理闭包仍负责订阅与 owner 的实际释放。
 
@@ -244,7 +244,7 @@ UTF-8 编码与字节预算共用 `coreCompat` 的标量转换，缺少 TextEnco
 
 操作 Session 标记还依赖当前 Core 的 scope metadata 克隆、两层 merge 和最终 envelope 移除 `sdkProcessingMetadata` 的语义。holder 放在 merge 深度之外，不通过私有 scope 字段传播；升级 Core 时须重跑 [producer-session](test/producer-session.realcore.test.ts) 和 [client-capture](test/client-capture.realcore.test.ts) 的空会话、当前策略与最终 payload 回归。
 
-不以“零 protected”作为重构目标，也不恢复旧 class 集成、static transaction 管道或复制 Core buffer。评判替换实现的依据是：是否减少重复算法、能否保留可观察语义，以及是否缩小升级时需要复核的接缝。与同版本 Browser、Node、Deno、Cloudflare 的实践对照及本项目取舍见[官方 SDK 对照](docs/sdk-official-practices.md)。
+集成使用 factories，性能数据使用单一 stream 管道，buffer 由 Core 管理。评判替换实现的依据是：是否减少重复算法、能否保留可观察语义，以及是否缩小升级时需要复核的接缝。与同版本 Browser、Node、Deno、Cloudflare 的实践对照及本项目取舍见[官方 SDK 对照](docs/sdk-official-practices.md)。
 
 升级 Core 必须阅读候选源码的签名、调用顺序和实现差异，检查上述接缝、公开 hook、stream 格式、offline 行为与编码契约，并运行真实 Core 和实际发布包回归。类型检查通过不能替代行为验证；调整精确依赖和结论应一并写入升级 PR。
 

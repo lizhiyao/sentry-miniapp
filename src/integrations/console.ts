@@ -110,7 +110,7 @@ export class ConsoleBreadcrumbs implements Integration {
       /* SDK 格式化/采集故障不影响原 console。 */
     }
 
-    return Reflect.apply(original, thisArg ?? console, args);
+    return Function.prototype.apply.call(original, thisArg ?? console, args);
   }
 
   private _trackCleanup(cleanups: Array<() => void>): () => void {

@@ -2,7 +2,7 @@
 
 本文面向维护者，记录对官方 Browser、Node、Deno、Cloudflare SDK 的源码对照。上游基线固定为 `11.4.0`，提交 [`7f13c61336918fd727f473faa341b9a24f23718e`](https://github.com/getsentry/sentry-javascript/commit/7f13c61336918fd727f473faa341b9a24f23718e)，不以最新官网说明推断该版本行为。
 
-本项目基线为 `2.0.0-beta.6` / Core `11.4.0`。下述“本轮修复”属于 beta.6 发布后的工作，不能据此宣称 npm 上的 beta.6 已包含修复。模块职责和长期契约见 [ARCHITECTURE](../ARCHITECTURE.md)，开发与发布命令见 [DEVELOPMENT](../DEVELOPMENT.md)；本文不复制两份操作清单。
+本文描述当前源码的选择及其理由；依赖版本以 [package.json](../package.json) 为准。职责边界见 [ARCHITECTURE](../ARCHITECTURE.md)，版本复现、验证结果和发布状态见 [发布后审查](core-v11-postrelease-review.md)。
 
 ## 已采用的共同做法
 
@@ -10,94 +10,56 @@
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 平台 SDK 装配配置、stack parser、transport、集成，事件处理继续交给 Core。[Browser 初始化](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/sdk.ts#L113-L128)、[Deno 初始化](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/src/sdk.ts#L105-L126)                   | 保留 `initAndBind`、Core Scope、事件 pipeline 和原生 SpanStreaming。小程序层负责宿主输入、生命周期、网络与 Storage 能力，不复制采样、Session 状态算法或 span buffer。  |
 | 使用公开 hook 与 integration processor 补平台信息。[Node 日志 hook](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/node/src/sdk/client.ts#L64-L79)、[Deno Context](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/src/integrations/context.ts#L62-L73)                       | 环境数据属于 client，通过公开事件 processor 和 `preprocessSpan` 补缺失字段。操作创建时捕获 route/network，避免把结束时的新页面写入旧操作；用户覆盖与显式禁用仍须验证。 |
-| 公共集成以 factories 暴露，隐藏实现对象的内部方法。[Core `defineIntegration`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/integration.ts#L166-L173)                                                                                                                                                                          | named factories 与 `Integrations` namespace 是同一来源；不恢复旧公共 class。LinkedErrors、Dedupe 复用 Core 实现，不维护第二套算法。                                    |
+| 公共集成以 factories 暴露，隐藏实现对象的内部方法。[Core `defineIntegration`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/integration.ts#L166-L173)                                                                                                                                                                          | named factories 与 `Integrations` namespace 是同一来源；实现对象的内部方法不作为公共契约。LinkedErrors、Dedupe 复用 Core 实现，不维护第二套算法。                                    |
 | transport 保留 Core 的序列化、限流与 buffer，只适配宿主发送。[Cloudflare transport](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/cloudflare/src/transport.ts#L106-L147)、[Core offline](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/transports/offline.ts#L61-L95)  | 使用 `createTransport` 和一层 `makeOfflineTransport`。平台层处理请求槽位、超时、取消、同意门禁及有界持久化，不增加第二套重试状态机。                                   |
 | 验收公开入口、安装包与最终 envelope。[Node CJS/ESM 默认 stream 测试](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/dev-packages/node-integration-tests/suites/hono/test.ts#L23-L79)、[Deno 测试 transport](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/test/transport.ts#L17-L27) | 保留真实 Core 测试、构建产物和 CJS/ESM 消费门禁；不仅断言 mock 或 hook 调用。检查最终 span 容器、属性、错误事件和线上请求字节，区分宿主模拟、实际设备与后台证据。      |
 
-## 本轮确认并修复的两处缺口
+## 请求观察与 trace 传播
 
-### 被忽略的 HTTP 子 span 不能改变父 trace 的传播决策
+Core fetch 与 Browser XHR 在 HTTP span 被 `ignoreSpans` 忽略、且存在活动父 span 时，让 `getTraceData` 使用父 span。[Core fetch](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/fetch.ts#L105-L114)、[Browser XHR](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/tracing/request.ts#L404-L406)。本项目采用相同规则：忽略本地 HTTP 子 span 不应改变已采样父 trace 的下游传播决策；没有父 span 时，ignored HTTP segment 保留自身未采样决策。
 
-Core fetch 与 Browser XHR 在 HTTP span 被 `ignoreSpans` 忽略、且存在活动父 span 时，不使用该子 span 生成请求头，而让 `getTraceData` 使用活动父 span。[Core fetch](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/fetch.ts#L105-L114)、[Browser XHR](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/tracing/request.ts#L404-L406)。
+小程序没有可靠的浏览器同源基线，传播头必须匹配显式白名单。请求字段通过单次快照同时供观测和宿主调用使用，避免 URL getter 的不同返回值让白名单检查与实际发送错位。快照保留业务扩展字段，并补齐宿主会读取的非枚举／继承字段；读取失败时透传原输入一次。非字符串 URL 不根据 String 转换结果放行追踪头或正文采集。
 
-本项目原实现显式传入被忽略的 HTTP span，公开 CJS 产物探针已复现：父操作已采样，但请求传播变为未采样。这会把“省略本地请求 span”扩大成下游 trace 的采样变化。
+实现及回归见 [NetworkBreadcrumbs](../src/integrations/networkbreadcrumbs.ts)、[真实 Core 请求测试](../test/networkbreadcrumbs.realcore.test.ts)。
 
-修复仅调整请求头来源：有父时回落活动父 span；无父的 ignored HTTP segment 仍保留自身未采样决策。请求仍按原业务逻辑执行，本地 ignored span 仍不发送。相关实现和回归位于 [networkbreadcrumbs](../src/integrations/networkbreadcrumbs.ts) 与 [真实 Core 请求测试](../test/networkbreadcrumbs.realcore.test.ts)。验证记录见文末。
+## IP 推断与采集策略
 
-### 错误事件需要明确携带 IP 推断设置
+BrowserClient 按 `dataCollection.userInfo` 在 SDK metadata 写入 `settings.infer_ip`，Core 将设置合并进事件。[BrowserClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L128-L137)、[Core metadata](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/envelope.ts#L26-L45)。本项目同样对错误／消息事件明确表达该设置，因为在 SDK 内过滤用户字段不能阻止后台根据连接信息推断 IP。
 
-BrowserClient 根据 `getDataCollectionOptions().userInfo` 在 SDK metadata 写入 `settings.infer_ip`，Core 将该设置合并进事件；仅从 SDK 配置删除用户字段并不能替代这项协议设置。[BrowserClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L128-L137)、[Core metadata 合并](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/envelope.ts#L26-L45)。
+[`never` 的 Relay 语义](https://getsentry.github.io/relay/relay_event_schema/protocol/enum.AutoInferSetting.html)是禁止自动推断，客户端显式传入的值仍保留。正常配置使用 `dataCollection`；底层 `_metadata.sdk.settings.infer_ip` 可覆盖默认值。元数据在构造 Core 资源前读取并浅复制，不改写冻结输入；不可读配置直接失败，避免留下未绑定的 transport。
 
-本项目的真实 Core 最终事件探针已确认该字段缺失。本轮补齐错误／消息事件的 `sdk.settings.infer_ip`：按 Core 解析后的 `dataCollection.userInfo` 表达是否允许后台自动推断 IP，不把禁止推断解释为删除业务显式提供的 IP。与 Browser 一样，显式传入的底层 `_metadata.sdk.settings.infer_ip` 仍覆盖默认值；常规接入使用 `dataCollection`。日志和 metrics 已有独立的推断设置回归；不能用其中一条通道的通过结果证明所有通道都正确。相关回归见 [telemetry-user](../test/telemetry-user.realcore.test.ts)。
+错误、Logs、Metrics 和 Session 分别验证最终 payload，不能用一条通道代替其它通道。Session 不自动添加用于后台推断 IP 的 `{{auto}}` 标记。Browser 在允许 userInfo 时通过公开 hook 添加 `{{auto}}`，[见 Browser hook](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L163-L165)；小程序会话统计没有因此新增采集的需求。回归见 [telemetry-user](../test/telemetry-user.realcore.test.ts)。
 
-[Relay 协议](https://getsentry.github.io/relay/relay_event_schema/protocol/enum.AutoInferSetting.html)说明 `never` 禁止连接信息推断，但保留客户端传入值；缺省 legacy 规则可为 JavaScript 事件补充 IP。本轮确认的是字段遗漏及协议意义，不将它等同于目标部署上的实际推断结果。
+## 函数包装与运行时降级
 
-交叉复核发现候选修复的异常路径：若元数据内的 `infer_ip` getter 抛错，事后合并设置会发生在 transport 创建后，留下未绑定的 client。本轮改为在 Core 构造资源之前读取并浅复制 settings；不可读配置原样抛错，transport factory 不执行，正常冻结输入保持原样。这是候选实现的修正，不计为 beta.6 已发布缺陷。
+官方 Core fetch 使用 Proxy apply 保留 `fetch.preconnect` 等函数扩展，Browser XHR 也用代理保留调用参数和 receiver。[Core fetch](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/instrument/fetch.ts#L73-L82)、[Browser XHR](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser-utils/src/instrumentation/xhr.ts#L38-L66)。本项目的共享 instrumentation 和 App 使用同一个 helper，保留动态属性、descriptor、name／length、receiver、完整参数、返回值和原业务异常。
 
-Session 是另一条通道。Browser 仅在允许 userInfo 时通过公开 `beforeSendSession` hook 添加 `{{auto}}`，已有值和显式 `null` 保留。[Browser hook](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L163-L165)、[Session helper](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/utils/ipAddress.ts#L10-L21)。本项目不为了对齐 Browser 顺手增加 Session 自动 IP 采集；该差异不等于已证实的 Session 泄漏。
+原函数标记仅通过代理虚拟读取提供给 Core FunctionToString，不写入宿主函数；已有不可配置标记遵守 Proxy get 不变量。没有直接使用官方 `fill`，因为它没有本项目需要的 descriptor 恢复和按 owner 退订语义，且 [`markFunctionWrapped`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/utils/object.ts#L75-L83) 会写原函数 prototype／标记。复制扩展属性快照同样无法保留框架之后的动态更新。
+
+Proxy 和 Reflect 需分别检测。[微信小游戏官方文档](https://developers.weixin.qq.com/minigame/dev/guide/runtime/js-support.html)说明部分客户端无法使用 Proxy；[抖音小程序支持表](https://partner.open-douyin.com/docs/resource/zh-CN/mini-app/develop/tutorial/runtime)列出 Reflect 可用，但不能由此推断所有平台、客户端及适配器都具备完整实现。[MorJS 的跨端依赖规范](https://mor.ele.me/specifications/js/)也采用更保守的约束。
+
+原函数调用使用 `Function.prototype.apply.call`，既不要求 Reflect.apply，也不会被宿主函数自有的 `apply` 扩展遮蔽。只有 Proxy 和 Reflect.get 都可用时才安装透明代理，并持有安装时的 get 方法以保留 accessor receiver。缺少任一能力时，普通函数回退调用包装，带扩展成员或不可检查的函数保留原样并跳过自动观测。请求字段枚举在 Reflect.ownKeys 不可用时通过 Object 的自有字符串／Symbol API 完成。SDK 不安装全局 Reflect／Proxy polyfill。
+
+回归见 [instrumentation](../test/instrumentation.test.ts)、[跨端契约](../test/platform-contracts.realcore.test.ts)、[实际安装包消费](../scripts/internal/check-package-consumers.mjs)。模拟能力缺失验证降级行为，不等同于证明所有设备可用。
+
+## 生命周期和晚到批次
+
+Browser 在页面隐藏时用 microtask 等其它监听结束 span，[见 flush 时序](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L141-L158)。小程序可能同步冻结，因此采用同步 finalizer → Core flush 的次序，并按 client 管理订阅、owner 与 drain 预算；DOM keepalive、Node 进程退出和 Cloudflare waitUntil 都不是等价能力。
+
+Core 的 Logs／Metrics 属性转换发生在 beforeSend 回调之后，afterCapture 通知发生在写入 buffer 之后。[Logs](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/logs/internal.ts)、[Metrics](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/metrics/internal.ts)。本项目承诺退休后不再交付新采集的数据，故还须守住公开 afterCapture 边界：用公开 flush 排弃转换过程中关闭 client 后的晚到条目，只屏蔽 log／trace_metric 交付，保留关闭前已接受的错误和 span。该实现不复制 Core 序列化、timer 或私有 buffer；这一关闭契约也不能描述为所有官方 SDK 的共同保证。
+
+可选 Debug ID 桥接和诊断输出均隔离故障，告警失败不应丢弃原事件。不复制 Core 的 Debug ID 解析与缓存，也不承诺修复不可读的 Core 全局 map。回归见 [client-lifecycle](../test/client-lifecycle.realcore.test.ts)、[stacktrace](../test/stacktrace.realcore.test.ts)。
 
 ## 必须按小程序环境保留的取舍
 
 - **Scope 策略不同。** Node/Deno 使用 AsyncLocalStorage；Cloudflare 在调用入口建立隔离 Scope，并利用 `waitUntil` 延长发送寿命。[ALS 策略](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/server-utils/src/async-context.ts#L22-L52)、[Cloudflare 调用 Scope](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/cloudflare/src/utils/invocationScope.ts#L26-L58)。小程序没有等价能力，仍采用单活动 runtime，不承诺跨 `await` 的并发 Scope 隔离，也不照搬 isolate client 缓存。
-- **冻结与资源寿命不同。** Browser 在 `visibilitychange` 后用 microtask 等其他监听结束 span；小程序可能同步冻结，仍需生命周期阶段保证 finalizer／Session 入队后再 flush。[Browser flush 时序](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L141-L158)。Core 基类的 `registerCleanup`、`dispose` 本身是 no-op，平台 SDK 必须实现清理。[Core 清理契约](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/client.ts#L1303-L1325)。按页面寿命常驻的 `setupOnce` 不能替代小程序重复 init、退休和 dispose 的 per-client 资源管理。
+- **资源由 client 管理。** Core 基类的 `registerCleanup`、`dispose` 是 no-op，平台 SDK 必须实现清理。[Core 清理契约](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/client.ts#L1303-L1325)。进程级 `setupOnce` 管理宿主包装；重复 init、退休和 dispose 需要 per-client 订阅与资源回收。
 - **保留业务 span 层级。** Browser 默认 `parentSpanIsAlwaysRootSpan: true`；本项目默认保留直接父子关系，不把 `root → child → grandchild` 扁平化为全部挂 root。[Browser 默认值](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L203-L212)、[Core 选父逻辑](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/tracing/trace.ts#L603-L614)。
 - **SDK metadata 使用本项目身份。** 官方 `applySdkMetadata` 默认构造 `@sentry/*` 包名并使用 Core 的版本；本项目独立发布，必须保留 `sentry.javascript.miniapp`、`npm:sentry-miniapp` 和自身版本，不能直接套用。[官方 helper](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/utils/sdkMetadata.ts#L17-L27)、[本项目 metadata](../src/client.ts)。
 - **protected 接缝按必要性判断。** Core 在异步事件处理后才读取 Session，processing poll 又没有公开取消入口；本项目仍需选择捕获时 Session、并在 dispose 后结束无期限等待。[Core Session 更新](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/client.ts#L1554-L1556)、[Core processing poll](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/client.ts#L1376-L1395)。官方 Node 也保留 protected `_setupIntegrations` 适配，[见实现](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/node/src/sdk/client.ts#L213-L220)。不以“零 protected”为目标；本项目的理由、回归和移除条件统一维护在 [ARCHITECTURE](../ARCHITECTURE.md)。
 
-## 待评估项，不属于本轮改动
+## 演进所需的证据
 
-1. **HTTP span 低基数命名。** 官方 Browser 的 stream XHR 名称只保留方法和域名，把 URL 放在属性中，[见命名逻辑](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/tracing/request.ts#L382-L399)。本项目仍保留路径名称。后续应比较查询体验、分组基数和迁移影响，再决定默认命名；本轮不悄然改变现有名称。
+1. **HTTP span 低基数命名。** 官方 Browser 的 stream XHR 名称只保留方法和域名，把 URL 放在属性中，[见命名逻辑](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/tracing/request.ts#L382-L399)。本项目仍保留路径名称。后续应比较查询体验、分组基数和迁移影响，再决定默认命名；调整默认值需有消费构建与查询结果的对照。
 2. **仅错误监控的 tree-shaking。** 官方 Browser 的 [span API](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/tracing/browserSpanApi.ts#L13-L41) 在调用时安装 SpanStreaming，BrowserTracing 也负责装配；本项目默认 HTTP producer 需要默认 streaming。本项目须先测真实消费构建的体积和行为，再决定能否裁剪；不能为了减少体积移除仍需要的 SpanStreaming、编码或 transport 能力。
-3. **配置对象复用的默认集成回归。** Deno 特别测试同一 options 对象修改配置后再次 init 不沿用第一次的默认集合，[见测试](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/test/sdk.test.ts#L65-L73)。本项目已每次构造默认实例，可补实际集成开关的同类回归；这不是已复现的缺陷，也不应照搬 Deno 的 tracing 集成集合。
-
-## 验证记录
-
-已完成固定上游源码阅读；两处初始缺陷分别已有公开 CJS 传播探针和真实 Core 最终事件的 red 证据。已发布 beta.6 的 CJS/ESM 两个新场景共四次精确失败，当前源码构建的实际安装包同一场景全部通过：
-
-| 验证项                                                                    | 结果                                                                                                                        |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| ignored HTTP child：父 trace 采样、无父 ignored segment、W3C 与既有请求头 | 三条真实 Core 回归通过；实际 CJS/ESM 两种 W3C 配置、有父／无父控制及业务对象身份均通过                                      |
-| userInfo：错误／消息最终事件、显式业务 IP、Session 不新增自动 IP          | 九条真实 Core 回归通过，含冻结配置、默认值、显式底层覆盖及 getter 原错误；实际 CJS/ESM error 场景通过                       |
-| lint、typecheck、单测及覆盖率检查                                         | lint、源码／测试 typecheck 通过；76 文件、1302 测试全通过；语句 98.72%、分支 95.55%、函数 99.23%、行 99.44%，保留原门槛     |
-| 构建、实际包 CJS/ESM 消费与行为门禁                                       | CJS/ESM 各 19 场景通过；七平台各两种 URL 能力模式、UMD、68 个导出及类型入口通过；微信 bundle 与本地符号化通过；官网构建通过 |
-
-本次没有运行上游完整 suite，没有新增实际 Relay 接收或真机验证。源码／协议一致性、最终本地 payload、后台处理和目标设备行为是不同证据，不能互相替代。真实用户反馈仍由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。
-
-## 与 #473 整合后的复核
-
-在 #473 合入 `master 86c476a` 后，#472 同步最新 master，保留 async-stacktrace、error-infer-ip、ignored-http-parent-propagation 三个新增场景。此前的 1302／19 和 #473 的 1325／18 是各自独立阶段的结果；组合门禁为 CJS／ESM 各 20 个独立进程场景。
-
-测试增量按实际 Vitest 收集复核：1292 → 1335（+43，约 3.3%），来自 18 个测试定义，其中 12 个参数化。FPS 14 例、栈格式 13 例是不同输入边界，不能理解成新增了 43 个独立问题；SDK、client 和 consent 的断言强化没有增加数量。源码、最终 Core envelope 与安装包分别保护解析、管道和构建入口，按这些接缝判断是否重复，不以覆盖率或数量代替行为。
-
-独立审查删除了一段低价值断言：在最终 frame 已精确检查后，用手写 Source Map 再查询固定坐标只验证 fixture，不能额外检出 SDK 回归。两个有／无 Error header 的路径与 Debug ID 用例保留；实际生成 JS/map 的本地映射由现有微信和框架产物脚本检查。测试准则补入 CONTRIBUTING 与 AGENTS，要求优先强化已有用例、参数化独立边界并避免 fixture 自证。
-
-组合后的 lint、严格源码／测试 typecheck、完整 coverage 与 shuffle 均通过：78 文件、1335 用例；覆盖率为 statements 98.72%、branches 95.56%、functions 99.23%、lines 99.44%，95.5% 分支门槛保持。当前机器的完整 coverage／shuffle 分别约 3.2／3.9 秒，这只是单次本地观测，不承诺所有 CI 环境的耗时。
-
-标准构建、publint、真实 tarball 的七平台 × 两种 URL 模式、UMD、68 个导出、类型入口，以及 CJS／ESM 各 20 个行为场景通过；微信独立 bundle 的加载／本地映射与官网构建通过。组合复核没有新增手机、目标 Relay 后台或 npm 发布证据。
-
-## beta.7 后的请求与批处理边界对照
-
-本次继续使用上述固定上游提交，核对当前 `master 9c26592a` 后的候选修复。对照范围是请求包装、追踪头和关闭时的日志／指标批处理，并非重新运行上游全部 SDK 测试。
-
-| 对照入口 | 官方实现与本项目取舍 |
-| --- | --- |
-| [Core fetch instrumentation](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/instrument/fetch.ts)、[Browser XHR instrumentation](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser-utils/src/instrumentation/xhr.ts) | 上游用完整参数数组调用原函数；XHR 保留调用 receiver。本项目修复只转发一个 options 的遗漏，在正常包装、观测失败和零参数路径保留完整调用。上游 fetch 使用 Proxy 保留函数扩展属性；本轮没有据此整体替换小程序共享包装，因为需同时复核原型写入、旧宿主能力和退订语义。 |
-| [Core fetch tracing](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/fetch.ts)、[Browser 白名单](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/tracing/request.ts) | 继续复用 `getTraceData`、忽略子 span 的父 trace 回退和 `matchesTracePropagationTargets`；浅复制业务 options，避免污染或改写冻结输入。上游输入解析与 options 复制并不是通用的 getter 单读保证，本项目用真实反例约束宿主 options 快照，避免第一次 URL 通过白名单、第二次 URL 发向别处。小程序没有可靠同源基线，保留显式白名单，非字符串 URL 不用于放行追踪头或正文。 |
-| [Browser 隐藏时 flush](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts)、[Node close](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/node/src/sdk/client.ts) | 官方仍委托 Core 排空遥测，平台层管理监听、interval 或 trace provider。本项目保留同步 finalizer、有界 drain 和公开 flush，不照搬 DOM microtask／keepalive 或 Node process 生命周期。 |
-| [Core batch 调度](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/client.ts)、[Logs 转换顺序](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/logs/internal.ts)、[Metrics 转换顺序](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/metrics/internal.ts) | 属性转换在 beforeSend 回调之后，入 buffer 在 afterCapture 通知之前。本项目比基础 Core 额外承诺退休门禁，因此补守公开 afterCapture 边界并排弃晚到条目；只屏蔽 `log`／`trace_metric` 交付，不复制上游序列化、weight、timer 或私有 WeakMap，也不阻断关闭前接收的错误和 spans。不能把本项目较强的关闭契约描述为所有官方 SDK 已有的保证。 |
-
-另核对了 [DenoClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/src/client.ts) 和 [CloudflareClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/cloudflare/src/client.ts)：Deno 在 close 前解除退出监听，Cloudflare 在 dispose 解除 span 订阅并清空自身等待状态，均未另建 Logs／Metrics 序列化模型。Deno 的退出 hook 直接使用 Core 内部 flush helper，本项目有公开 flush hook 可用，无需增加内部接缝。Cloudflare 的调用隔离、缓存 client 和 `waitUntil` 依赖其运行时，不作为小程序多 client／跨 await 隔离的依据。
-
-此次修复与最终公开包验证记录见[发布后审查](core-v11-postrelease-review.md#请求快照与日志指标的晚到数据)。README 的安装和公共 API 未变；官网仅更新用户可以依赖的关闭行为，不把这些维护者实现细节放入接入流程。
-
-## beta.7 后的函数包装契约对照
-
-官方 Core fetch 使用 Proxy apply 保留 `fetch.preconnect` 等运行时扩展，Browser XHR 同样通过 Proxy 保留原函数与完整参数。[Core fetch](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/instrument/fetch.ts#L73-L82)、[Browser XHR](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser-utils/src/instrumentation/xhr.ts#L38-L66)。这项做法适用于小程序宿主函数，不依赖 DOM 或 fetch。
-
-本项目 `master 7bce47e3` 仍用普通闭包替换请求、Page、timer 等函数，丢失函数上的非枚举／Symbol 扩展和 name／length。默认 FunctionToString 集成也无法识别这些未标记的共享 wrapper；全局 App 的独立包装器有同样缺口，还截断注册参数并把零参数调用改成 `{}`。CJS／ESM 公开包探针确认了这些差异。
-
-共享 instrumentation 与 App 改用同一个 apply helper。Proxy 默认转发属性、descriptor、原型、构造能力和动态读写；仅在 Core 查询 `__sentry_original__` 时虚拟提供原函数，已有不可配置标记遵守 get 不变量。这样默认 FunctionToString 可保留源码字符串，又不会写入冻结或框架持有的原函数。没有 Proxy 时普通函数保留调用包装，扩展或不可检查函数跳过自动观测；复制扩展属性快照无法保留动态更新和清理后的写入。原函数调用使用 Reflect.apply，避免被同名扩展属性遮蔽。
-
-没有直接复用官方 `fill`：它不提供本项目所需的 descriptor 恢复与按 owner 退订，而且 [`markFunctionWrapped`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/utils/object.ts#L75-L83) 会写原函数 prototype／标记。本项目旧 `fill` 的 prototype 写入也移除，否则 Proxy 会把它转发到原函数，退订不能撤销这种变更。Core 的 scope、integration 装配和遥测管道保持复用。
-
-同时隔离 Debug ID 桥接失败后的 debug 告警异常：可选 alias 不可读且 `console.warn` 抛错时，原消息曾被 Core 丢弃。修复只阻断诊断故障传播，不复制 Core 的 Debug ID 解析、缓存或事件处理，也不承诺修复不可读的 Core 全局 map。验证和发布状态见[发布后审查](core-v11-postrelease-review.md#函数包装透明性与诊断故障)。
+3. **配置对象复用的默认集成回归。** Deno 特别测试同一 options 对象修改配置后再次 init 不沿用第一次的默认集合，[见测试](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/test/sdk.test.ts#L65-L73)。本项目已每次构造默认实例，调整装配方式时须验证实际集成开关，不能照搬 Deno 的 tracing 集合。
