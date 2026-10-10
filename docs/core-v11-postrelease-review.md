@@ -274,3 +274,13 @@ THIRD_PARTY_NOTICES.md 保留安装包中实际内联的 Core、core-js／core-j
 相同 gzip 设置的实际包对照：CJS 从 77,612 增至 84,118 bytes，ESM 从 87,692 增至 94,914 bytes，约增加 6.4／7.1 KiB；这是复用成熟实现、隔离宿主副作用并携带完整声明的体积代价。该取舍不等同于完整浏览器平台或任意 ES5 引擎支持。
 
 验证通过：immutable 安装、lint、严格类型、77 文件／1276 用例的 coverage 与 shuffle、SDK／微信 bundle／本地映射和文档站构建。覆盖率为 statements 98.72%、branches 95.66%、functions 99.20%、lines 99.44%。本轮不新增 npm 发布、设备或后台验收结论。
+
+## 查询参数依赖与宿主探测复核
+
+基线为 `master be97e52`（#486）。重新对照 Browser 11.4.0、React Native 初始化及四类替代库，具体版本、行为输入和选择理由见[查询参数依赖取舍](query-runtime-decision.md)。未修补的 core-js-pure 3.50.0 仍能复现冻结 Request 原型时导入失败及孤立 surrogate 输入保留原值；轻量候选存在解码／类型转换差异，完整 WHATWG 或 React Native 专用库需要额外运行时适配。因此保留限定范围的依赖补丁，未复制查询参数算法。
+
+实际 CJS 基线还复现两项宿主边界缺陷：完整 URL 缺失且正常 URLSearchParams 属性不可配置时，启动尝试覆写并抛错；完整 URL 可用、查询构造器缺少 keys() 时，不完整构造器会继续被保留。修复后，pure 入口只提供独立回退，不再探测完整 URL；`coreCompat` 按 Core 使用的 record／pair／字符串输入选择宿主能力。正常构造器保持身份和只读属性，不完整构造器及不可读 getter 使用独立回退。宿主请求、原型及无关浏览器 getter 保持原行为。
+
+加强现有启动测试与实际包检查，用例数仍为 1276；七平台 ESM 检查从 10 种扩展至 13 种宿主模式，增加正常独立查询能力、只读构造器及缺少 keys() 的部分实现。CJS 对应模式、独立 UMD、68 个导出／类型入口和各 20 项公开行为场景通过。最终 tarball 的七个小程序及微信／抖音小游戏、12 种能力组合、CJS／ESM 共 216 项遥测与生命周期探针全部通过。
+
+同设置 gzip 对照 #486 实际包，本轮 CJS 增加 158 bytes、ESM 增加 193 bytes。已通过 immutable 安装、lint、严格类型、coverage／shuffle、SDK 构建、微信独立 bundle／本地映射和文档站构建；覆盖率为 statements 98.72%、branches 95.67%、functions 99.20%、lines 99.44%。本轮没有新增 npm 发布、真实设备或后台验收结论。

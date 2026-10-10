@@ -46,7 +46,7 @@ yarn install
 
 Vite 的 ES2015 target 负责语法降级，其中 async 的降级会生成 generator；Babel 的 generator 转换因此仍是必要步骤，`check:build-output` 拒绝产物中残留的 generator／yield 和外部 Babel runtime。语法降级不补齐运行时 API；`polyfills-bootstrap` 的 core-js 按需模块负责 Core 与 SDK 使用的标准方法，URLSearchParams 通过 core-js-pure 的公开入口安装以保留宿主 fetch／Request，宿主接口仍须特性检测或降级。新增 API 前同时检查内联 Core 的调用及实际 tarball，不能仅根据 Node 单测或构建成功判断兼容。
 
-内联依赖的完整许可证保存在 `THIRD_PARTY_NOTICES.md`，构建同时把该内容放入每个独立 JS 的声明注释，覆盖 npm 安装和单文件下载两种分发。只列实际进入运行时的第三方代码，不列整个开发依赖树；新增内联依赖时核对所安装包的 LICENSE。core-js-pure 的版本补丁保存在 `.yarn/patches/`，跳过 pure URLSearchParams 入口对 fetch／Request／Headers 的探测与包装，并复用同库 String.toWellFormed 规范化查询参数输入；升级时复核上游实现并重跑冻结 Request 原型的消费探针，上游修复后移除对应 patch 和 resolution。
+内联依赖的完整许可证保存在 `THIRD_PARTY_NOTICES.md`，构建同时把该内容放入每个独立 JS 的声明注释，覆盖 npm 安装和单文件下载两种分发。只列实际进入运行时的第三方代码，不列整个开发依赖树；新增内联依赖时核对所安装包的 LICENSE。core-js-pure 的版本补丁保存在 `.yarn/patches/`：pure 入口提供独立查询参数回退，跳过完整 URL 和 fetch／Request／Headers 的探测与包装，并复用同库 String.prototype.toWellFormed 规范化输入。升级时在未修补版本上复核[退出条件](docs/query-runtime-decision.md#补丁范围与维护规则)，上游修复后移除对应 patch，不机械续接。实际包消费检查同时覆盖冻结 Request 原型、只读的正常查询构造器及缺少 keys() 的部分实现。
 
 ### 示例产物
 
