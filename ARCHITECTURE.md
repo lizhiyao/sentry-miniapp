@@ -210,6 +210,8 @@ Core `addBreadcrumb()` 写入共享 isolation scope，不会自行检查 Miniapp
 
 请求观测与宿主发送共用字段快照；URL、method、data、headers 和回调 getter 只读取一次，相关非枚举／继承字段也进入快照。业务扩展的可枚举字符串／Symbol 字段保留，`__proto__` 按自有数据字段处理；额外参数、零参数、receiver、task 和原回调语义不变。复制或读取失败时原样透传一次。getter、响应字段和正文转换可能执行业务代码，退休后停止后续观测读取；不因此取消原业务回调。非字符串 URL 不据其 String 转换结果放行追踪头或正文采集。
 
+追踪头按显式目标白名单注入。请求已有 `sentry-trace` 或 `traceparent` 时，整组传播由调用方负责，SDK 保留原 header／headers，不补入本地 trace 的标识或 baggage；头名不区分大小写。自动生成的一组标识与采样上下文来自同一 Core trace，本地 HTTP span 和面包屑的采集独立于是否注入。
+
 client 构造时选择 transport 组合，前三行适用于 `init()` 管理的 runtime：
 
 | 配置                         | SDK 装配的离线层                                                                                          |

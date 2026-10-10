@@ -745,6 +745,35 @@ async function runBoundaryScenario(pkg) {
           parentRequestHeaders['sentry-trace'],
           `${spans[0].trace_id}-${spans[0].span_id}-1`,
         );
+        // Manual trace identity owns the entire propagation set, even when W3C propagation is off.
+        const manualTrace = `${'a'.repeat(32)}-${'b'.repeat(16)}-1`;
+        const manualParent = `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`;
+        const field = propagateTraceparent ? 'headers' : 'header';
+        for (const manualHeaders of [
+          { 'Sentry-Trace': manualTrace, Baggage: 'tenant=demo' },
+          { Traceparent: manualParent, baggage: 'tenant=demo' },
+        ]) {
+          const headers = Object.freeze(manualHeaders);
+          const options = Object.freeze({
+            ...originalOptions,
+            header: undefined,
+            [field]: headers,
+          });
+          assert.equal(host.request.call(requestReceiver, options), task);
+          assert.equal(await client.flush(1000), true);
+          assert.equal(transmitted.at(-1)[field], headers);
+          assert.deepEqual(transmitted.at(-1)[field], manualHeaders);
+          assert.equal(options[field], headers);
+        }
+        assert.equal(
+          observed
+            .slice(envelopeStart)
+            .flatMap((envelope) => envelope[1])
+            .filter(([header]) => header.type === 'span')
+            .flatMap(([, container]) => container.items).length,
+          1,
+          'manual propagation must not re-enable ignored HTTP spans',
+        );
         evidence.controls.push({
           propagateTraceparent,
           parent: 'sampled',
@@ -753,7 +782,7 @@ async function runBoundaryScenario(pkg) {
         });
         client.dispose();
       }
-      assert.equal(businessCalls, 4);
+      assert.equal(businessCalls, 8);
     } else if (scenario === 'async-stacktrace') {
       const sourceFilename = 'pages/index/index.js';
       const codeFile = `app:///${sourceFilename}`;

@@ -20,6 +20,8 @@ Core fetch 与 Browser XHR 在 HTTP span 被 `ignoreSpans` 忽略、且存在活
 
 小程序没有可靠的浏览器同源基线，传播头必须匹配显式白名单。请求字段通过单次快照同时供观测和宿主调用使用，避免 URL getter 的不同返回值让白名单检查与实际发送错位。快照保留业务扩展字段，并补齐宿主会读取的非枚举／继承字段；读取失败时透传原输入一次。非字符串 URL 不根据 String 转换结果放行追踪头或正文采集。
 
+请求已有 `sentry-trace` 或 `traceparent` 时，由调用方管理整组传播头，SDK 不补入本地 trace 的 baggage 或另一种 trace 标识；本地 HTTP span 和面包屑继续采集。这里借鉴 [Browser XHR 遇到已有 sentry-trace 时整体跳过注入](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/browser/src/tracing/request.ts#L418-L423)，并把相同保护应用于 W3C 标识。[Core fetch](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/fetch.ts#L204-L277) 则按单个字段保留和补齐，不能宣称两者采用同一语义。小程序请求使用 `header`／`headers` 对象，按头名不区分大小写识别人工传播；这个适配避免同一个请求混用不同 trace 的标识与采样上下文，不新增浏览器 Headers／Request 前提。
+
 实现及回归见 [NetworkBreadcrumbs](../src/integrations/networkbreadcrumbs.ts)、[真实 Core 请求测试](../test/networkbreadcrumbs.realcore.test.ts)。
 
 ## IP 推断与采集策略

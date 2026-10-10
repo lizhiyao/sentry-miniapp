@@ -177,12 +177,6 @@ describe('NetworkBreadcrumbs tracing', () => {
   });
 
   it('should preserve existing traceparent when propagateTraceparent is enabled', () => {
-    mockGetTraceData.mockReturnValueOnce({
-      'sentry-trace': 'trace-id-span-id-1',
-      baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
-      traceparent: mockTraceparent,
-    } as any);
-
     const integration = new NetworkBreadcrumbs({
       propagateTraceparent: true,
       tracePropagationTargets: ['api.example.com'],
@@ -199,11 +193,10 @@ describe('NetworkBreadcrumbs tracing', () => {
 
     const requestOptions = requestMock.mock.calls[0]![0];
     expect(requestOptions.header).toEqual({
-      'sentry-trace': 'trace-id-span-id-1',
-      baggage: 'sentry-trace_id=trace-id,sentry-public_key=public-key,sentry-sampled=true',
       Traceparent: '00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01',
     });
     expect(requestOptions.header.traceparent).toBeUndefined();
+    expect(mockGetTraceData).not.toHaveBeenCalled();
   });
 
   it('preserves existing trace headers case-insensitively', () => {
@@ -221,10 +214,12 @@ describe('NetworkBreadcrumbs tracing', () => {
     });
 
     const forwarded = requestMock.mock.calls[0]![0];
-    expect(forwarded.header['Sentry-Trace']).toBe('existing-trace');
-    expect(forwarded.header['sentry-trace']).toBeUndefined();
-    expect(forwarded.header.Baggage).toBe('tenant=demo,sentry-trace_id=existing');
-    expect(forwarded.header.baggage).toBeUndefined();
+    expect(forwarded.headers).toEqual({
+      'Sentry-Trace': 'existing-trace',
+      Baggage: 'tenant=demo,sentry-trace_id=existing',
+    });
+    expect(forwarded.header).toBeUndefined();
+    expect(mockGetTraceData).not.toHaveBeenCalled();
   });
 
   it('should only inject trace headers for matching tracePropagationTargets', () => {
