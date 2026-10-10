@@ -8,7 +8,7 @@ import {
 } from '@sentry/core';
 import type { Client, Integration, Session } from '@sentry/core';
 import { subscribeMiniappLifecycle } from '../appLifecycle';
-import { getClientLifetime } from '../lifecycle';
+import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 
 /** 前台 episode 的 owner session；不通过全局 endSession 结束另一个 owner。 */
 export class SessionIntegration implements Integration {
@@ -22,9 +22,11 @@ export class SessionIntegration implements Integration {
     if ((lifetime && !lifetime.canCollectAutomatic()) || this._clients.has(client)) return;
     this._clients.add(client);
     let ownedSession: Session | undefined;
+    let pendingStart: object | undefined;
     let active = true;
     let ready = false;
     const end = (): void => {
+      pendingStart = undefined;
       const session = ownedSession;
       ownedSession = undefined;
       if (!session) return;
@@ -39,29 +41,40 @@ export class SessionIntegration implements Integration {
         if (isolation.getSession() === session) isolation.setSession();
       }
     };
-    const start = (): void => {
-      if (
-        !active ||
-        !ready ||
-        (lifetime && !lifetime.canCollectAutomatic()) ||
-        getClient() !== client ||
-        client.getOptions().enabled === false ||
-        ownedSession
-      )
-        return;
-      const session = makeSession({
-        ignoreDuration: true,
-        user: getCombinedScopeData(getIsolationScope(), getCurrentScope()).user,
+    const canStart = (): boolean =>
+      active &&
+      ready &&
+      (!lifetime || lifetime.canCollectAutomatic()) &&
+      getClient() === client &&
+      client.getOptions().enabled !== false;
+    const start = (): void =>
+      withTelemetryCritical(() => {
+        if (!canStart() || ownedSession || pendingStart) return;
+        const attempt = {};
+        pendingStart = attempt;
+        try {
+          const session = makeSession({
+            ignoreDuration: true,
+            user: getCombinedScopeData(getIsolationScope(), getCurrentScope()).user,
+          });
+          // 用户字段读取可触发 hide、嵌套 show 或 dispose；只提交仍有效的前台创建操作。
+          if (!canStart() || pendingStart !== attempt) return;
+          ownedSession = session;
+          getIsolationScope().setSession(session);
+          // scope 监听器可同步结束或替换会话，不能再次捕获已收尾的旧会话。
+          if (canStart() && pendingStart === attempt && ownedSession === session) {
+            client.captureSession(session);
+          }
+        } finally {
+          if (pendingStart === attempt) pendingStart = undefined;
+        }
       });
-      ownedSession = session;
-      getIsolationScope().setSession(session);
-      client.captureSession(session);
-    };
     const stops: Array<() => void> = [];
     let detachFinalizer: (() => void) | undefined;
     const cleanup = (): void => {
       if (!active) return;
       active = false;
+      pendingStart = undefined;
       detachFinalizer?.();
       detachFinalizer = undefined;
       for (const stop of stops.splice(0)) stop();

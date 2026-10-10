@@ -312,3 +312,15 @@ lint、严格类型、coverage、SDK 构建／实际包消费、微信独立 bun
 请求已有任一 trace 标识头时保留原 header／headers，头名不区分大小写；本地 HTTP span 和面包屑继续采集。仅有第三方 baggage 时仍正常自动传播；自动标识与最终请求 span 对齐。强化现有 mock、真实 Core 与实际安装包场景，未增加 Vitest 用例总数（仍为 1276）。最终 tarball 的七个小程序及微信／抖音小游戏模拟环境、CJS／ESM 共 18 组、108 次请求通过；检查冻结输入、回调 receiver／返回值／调用次数，以及最终请求 span。
 
 lint、严格类型、全量 coverage、SDK 构建／实际安装包消费、微信独立 bundle／本地映射和文档站构建通过，原覆盖率门槛保持。本轮未增加 polyfill 或依赖补丁；实际产物没有装配 Core 服务端请求体捕获或 envelope 解码路径，不能据上游文件中的 TextEncoder／TextDecoder 用法扩张本项目的兼容范围。以上为模拟宿主证据，未新增 npm 发布、设备或目标 Sentry 后台验收。
+
+## 自动 Session 创建的重入归属复核（2026-10-11）
+
+基线为已发布的 `v2.0.0-beta.8`（tag `7d995c86`，官方 npm tarball SHA-256 `b52bc68edee6c19020129d95c3fd6ddca089866b81b8633f645f391532bf1653`）。实际 CJS／ESM 入口均复现用户字段 getter 中嵌套 show 创建两份会话；hide 或 dispose 发生后，原创建仍可能向共享 scope 提交会话。App 路径的读取中 init 还能替换 runtime，旧操作随后写入共享 scope。另以 Core 公开 scope 监听器同步触发 hide，两种入口均发送两次 `exited`，可能重复累计 Release Health 终态。这些是受控同步回调的复现，未认定为具体设备故障。
+
+创建处先登记操作身份，复用现有同步临界区，用户读取后复查 client 与操作归属；hide／退休取消未提交的操作，finally 释放身份。提交 scope 会同步通知监听器，故初次 capture 前还需复查是否仍拥有该会话，监听器已结束的旧会话不再发送。hide 后嵌套 show 可以创建新的有效会话。仍使用 Core 的用户合并、makeSession、captureSession 和 closeSession，不新增 Session 状态算法、平台 API 或依赖补丁；官方源码与职责理由见[生命周期对照](sdk-official-practices.md#生命周期和晚到批次)。
+
+只新增一个真实 Core 测试定义，组合用户读取中的 show／hide／hide-show／dispose／init／抛错，以及 scope 通知中的 hide／hide-show；强化已有原生首会话退休测试。实际包增加一个公开行为场景，CJS／ESM 各由 20 增为 21；它同时检查业务回调、Session 最终 payload 和原生首会话取消，保护安装入口这一不同接缝。全量为 77 文件／1277 用例，coverage 门槛不变：statements 98.72%、branches 95.70%、functions 99.20%、lines 99.44%。
+
+修复候选 tarball 经七平台 App／原生入口的 CJS／ESM 复核通过；另在七个小程序原生通道和微信／抖音小游戏原生通道的 18 个独立进程中验证五类用户读取动作，全部通过。宿主通道选择也有断言。旧发布包的 scope 通知结果为 `exited, exited`，候选为单次 `exited`；后续 show 和新 SID 均恢复。候选仍沿用开发版本号 beta.8，不能据此当作已发布 beta.8 的修复。
+
+lint、源码／测试严格类型、全量 coverage、标准构建／真实 tarball 消费、微信独立 bundle／本地映射及官网构建通过。本轮未新增 npm 发布、真机或目标 Sentry 后台证据；用户设备反馈继续由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。

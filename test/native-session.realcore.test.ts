@@ -426,7 +426,7 @@ describe('原生 show/hide 与真实 core Session', () => {
     },
   );
 
-  it('Session 原生注册中 dispose 后返回，不建立会话或继续注册 hide', () => {
+  it('Session 原生注册或首会话读取中 dispose 后不建立会话，迟到回调失效', () => {
     const offShow = vi.fn();
     const onHide = vi.fn();
     vi.stubGlobal('wx', {
@@ -443,6 +443,29 @@ describe('原生 show/hide 与真实 core Session', () => {
     shows[0]!();
     expect(sessions()).toEqual([]);
     expect(getIsolationScope().getSession()).toBeUndefined();
+
+    const user = getIsolationScope().getUser();
+    getIsolationScope().setUser({
+      get id() {
+        getClient()!.dispose();
+        return 'retired-user';
+      },
+    });
+    vi.stubGlobal('wx', {
+      onShow: (handler: () => void) => shows.push(handler),
+      onHide: (handler: () => void) => hides.push(handler),
+    });
+    crossPlatform.resetPlatformCache();
+    try {
+      start([sessionIntegration()]);
+      expect(sessions()).toEqual([]);
+      expect(getIsolationScope().getSession()).toBeUndefined();
+      shows[1]!();
+      hides[0]!();
+      expect(getIsolationScope().getSession()).toBeUndefined();
+    } finally {
+      getIsolationScope().setUser(user ?? null);
+    }
   });
 
   it.each(['onShow', 'offShow'] as const)(

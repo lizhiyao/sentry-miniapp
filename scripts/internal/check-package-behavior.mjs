@@ -27,6 +27,7 @@ const boundaryScenarios = [
   'init-initialScope-scope',
   'init-transport-scope',
   'error-infer-ip',
+  'session-start-ownership',
   'ignored-http-parent-propagation',
   'async-stacktrace',
 ];
@@ -621,6 +622,119 @@ async function runBoundaryScenario(pkg) {
         sdkVersion: event.sdk.version,
       };
       evidence.hostCalls = transmitted.length;
+    } else if (scenario === 'session-start-ownership') {
+      let app;
+      global.App = (options) => (app = options);
+      host.onAppShow = host.onShow;
+      host.onAppHide = host.onHide;
+      const sessionOptions = {
+        ...common,
+        defaultIntegrations: [sdk.sessionIntegration()],
+        transport,
+      };
+      evidence.actions = [];
+      for (const action of ['show', 'hide', 'hide-show', 'dispose', 'init', 'throw']) {
+        client?.dispose();
+        sdk.setUser(null);
+        sdk.getIsolationScope().setSession();
+        observed.length = 0;
+        client = sdk.init(sessionOptions);
+        assert.ok(client);
+        const owner = client;
+        let businessCalls = 0;
+        global.App({ onLaunch: () => businessCalls++ });
+        let firstRead = true;
+        let replacement;
+        sdk.setUser({
+          get id() {
+            if (firstRead) {
+              firstRead = false;
+              if (action === 'show') app.onShow();
+              if (action === 'hide' || action === 'hide-show') app.onHide();
+              if (action === 'hide-show') app.onShow();
+              if (action === 'dispose') owner.dispose();
+              if (action === 'init') replacement = sdk.init(sessionOptions);
+              if (action === 'throw') throw new Error('user unavailable');
+            }
+            return `user-${action}`;
+          },
+        });
+        app.onLaunch();
+        assert.equal(businessCalls, 1, 'business lifecycle callback must still run once');
+        if (action === 'init') {
+          assert.equal(replacement, undefined, 'telemetry reentry must not replace runtime');
+          assert.equal(sdk.getClient(), owner);
+        }
+        const cancelled = ['hide', 'dispose', 'throw'].includes(action);
+        assert.equal(payloads('session').length, cancelled ? 0 : 1, action);
+        if (cancelled) assert.equal(sdk.getIsolationScope().getSession(), undefined, action);
+        app.onShow();
+        assert.equal(payloads('session').length, action === 'dispose' ? 0 : 1, action);
+        if (action !== 'dispose') {
+          assert.equal(payloads('session')[0].did, `user-${action}`);
+          app.onHide();
+          assert.deepEqual(
+            payloads('session').map(({ status }) => status),
+            ['ok', 'exited'],
+          );
+        }
+        assert.equal(sdk.getIsolationScope().getSession(), undefined, action);
+        evidence.actions.push({ action, sessions: payloads('session').length });
+      }
+      for (const showAgain of [false, true]) {
+        client.dispose();
+        sdk.setUser(null);
+        observed.length = 0;
+        client = sdk.init(sessionOptions);
+        global.App({});
+        let armed = true;
+        sdk.getIsolationScope().addScopeListener((scope) => {
+          if (!armed || !scope.getSession()) return;
+          armed = false;
+          app.onHide();
+          if (showAgain) app.onShow();
+        });
+        try {
+          app.onLaunch();
+          assert.deepEqual(
+            payloads('session').map(({ status }) => status),
+            showAgain ? ['exited', 'ok'] : ['exited'],
+          );
+          app.onShow();
+          assert.equal(payloads('session').length, 2);
+          assert.notEqual(payloads('session')[0].sid, payloads('session')[1].sid);
+          assert.equal(sdk.getIsolationScope().getSession().sid, payloads('session')[1].sid);
+          app.onHide();
+          assert.deepEqual(
+            payloads('session').map(({ status }) => status),
+            ['exited', 'ok', 'exited'],
+          );
+          assert.equal(sdk.getIsolationScope().getSession(), undefined);
+        } finally {
+          armed = false;
+        }
+      }
+      evidence.scopeListenerTerminalSentOnce = true;
+      client.dispose();
+      delete global.App;
+      observed.length = 0;
+      sdk.setUser({
+        get id() {
+          sdk.getClient().dispose();
+          return 'retired-native-user';
+        },
+      });
+      client = sdk.init(sessionOptions);
+      assert.ok(client);
+      assert.equal(shows.length, 1, 'native channel must be registered before initial session');
+      shows[0]();
+      hides[0]();
+      assert.equal(payloads('session').length, 0);
+      assert.equal(sdk.getIsolationScope().getSession(), undefined);
+      sdk.setUser(null);
+      client = sdk.init({ ...common, defaultIntegrations: false, transport });
+      await finishEvent('session start boundary recovered');
+      evidence.nativeInitialSessionDiscarded = true;
     } else if (scenario === 'error-infer-ip') {
       client = sdk.init({
         ...common,

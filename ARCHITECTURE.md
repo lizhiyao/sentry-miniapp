@@ -107,6 +107,8 @@ SDK 的操作快照通过 Core 公开的 scope processing metadata 保存明确�
 
 Session 的错误状态沿用 Core 的首次 errored／unhandled 语义，`errors` 不是 SDK 每条异常累加的计数器。已经结束的会话不会被迟到的错误重新打开，旧终态不重发，也不把该错误补计到新会话；错误事件自身仍按配置处理。
 
+自动 Session 的创建也有同步操作归属：先占用一次创建身份，再委托 Core 合并用户数据并调用 `makeSession`，提交到 isolation scope 前复查活动 client 和该身份。提交会触发 scope 监听器，因此初次捕获前还需确认仍拥有该会话，避免再次发送监听器已收尾的终态。重复 show 不重入创建；hide、finalizer 和 cleanup 取消未提交的操作，hide 后的新 show 可以开始另一份有效会话。用户字段 getter 与 Core hook 均可能执行应用代码，故创建处使用现有同步遥测临界区拒绝 `init()` 重入；dispose 仍立即生效。读取失败通过 finally 释放创建身份，后续 show 可恢复，不复制 Core 的 Session 状态算法。
+
 ### 延迟操作与长期 producer
 
 `OwnerToken` 固定安装／操作时的 client 与 scope 数据，并在执行时检查当前绑定、活动 runtime 和启用状态。正常回调在短暂的 Core scope 内完成遥测工作；不持有跨 `await` 的 SDK 全局锁。
