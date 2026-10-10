@@ -568,6 +568,27 @@ describe('NetworkBreadcrumbs Integration', () => {
         data: expect.objectContaining({ url: '42', method: 'GET' }),
       }),
     );
+    // 非字符串 URL 的宿主再次转换可以改变目标，不能用首次转换放行隐私边界。
+    const stringify = vi.fn()
+      .mockReturnValueOnce('https://allowed.example/work')
+      .mockReturnValue('https://outside.example/work');
+    const url = { toString: stringify };
+    const requestWithConversion = vi.fn((sent) => {
+      expect(sent.url).toBe(url);
+      expect(String(sent.url)).toBe('https://outside.example/work');
+      expect(sent.header?.['sentry-trace']).toBeUndefined();
+      expect(sent.headers?.['sentry-trace']).toBeUndefined();
+      sent.success({ statusCode: 200, data: { safe: 1 } });
+    });
+    vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: requestWithConversion });
+    setupIntegration(new NetworkBreadcrumbs({
+      traceNetworkBody: true, tracePropagationTargets: ['https://allowed.example'],
+    }));
+    crossPlatform.sdk().request({ url, data: { safe: 1 } } as any);
+    expect(stringify).toHaveBeenCalledTimes(2);
+    const data = (addBreadcrumb as Mock).mock.calls.at(-1)![0].data;
+    expect(data.request_body).toBeUndefined();
+    expect(data.response_body).toBeUndefined();
   });
 
   it('handles non-object responses and missing trace data', () => {

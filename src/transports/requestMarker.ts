@@ -10,10 +10,15 @@ export function markSentryRequest(options: object): void {
 
 export function isMarkedSentryRequest(options: unknown): boolean {
   if (!isObject(options)) return false;
-  if (sentryRequestOptions.has(options)) return true;
+  if (isMarkedSentryRequestOptions(options)) return true;
 
   const requestOptions = options as Record<string, unknown>;
   return isMarkedObject(requestOptions['header']) || isMarkedObject(requestOptions['headers']);
+}
+
+/** 不触发 options getter；原始 transport options 可以直接跳过观测。 */
+export function isMarkedSentryRequestOptions(options: unknown): boolean {
+  return isMarkedObject(options);
 }
 
 function markObject(value: unknown): void {

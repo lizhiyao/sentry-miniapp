@@ -174,6 +174,8 @@ close 的 `0`／未指定预算保留无期限 drain；非法预算会诊断并�
 
 dispose 能结束 SDK 等待，但不能强制取消用户 Promise 或任意自定义 transport 内部任务。Core hook 中 dispose 先关闭门禁，最外层 hook 返回后再完成清理，避免 hook 后续逻辑重新建立已退休资源。`flush()`／`close()` 返回 true 不证明 Sentry 后台已接收或完成符号化。
 
+Logs／Metrics 的属性转换发生在 `beforeSendLog`／`beforeSendMetric` 之后，getter 或 `toJSON` 也可能关闭 client。Core 在转换后才写入 buffer、触发 `afterCaptureLog`／`afterCaptureMetric` 并调度批处理。因此终态检查还覆盖这两个公开通知；晚到条目用公开 `flush` 排弃，期间只阻止 `log`／`trace_metric` envelope 交付，closing 的已有错误和 span 仍可排空。该门禁须位于离线入口之前，不复制 Core 序列化或直接访问其 buffer，也不重复发出 `close` 通知。同步 finalizer 的正常日志、指标保留。
+
 Core `addBreadcrumb()` 写入共享 isolation scope，不会自行检查 MiniappClient 的关闭状态。client 在公开 `beforeBreadcrumb` 回调前后检查 lifetime，回调中关闭后返回的条目也丢弃；同步 finalizer 仍可记录面包屑。console 格式化在每个参数与 JSON／String 用户代码边界检查 owner 活动状态，退休后不继续读取剩余参数，但原 console 仍执行一次并保留业务语义。关闭不清空已存在的 Core 面包屑，也不改写 Scope 或复制 Core 的 breadcrumb pipeline。
 
 对应回归见 [instrumentation](test/instrumentation.test.ts)、[lifecycle-coordinator](test/lifecycle-coordinator.realcore.test.ts)、[native-session](test/native-session.realcore.test.ts)和[client-lifecycle](test/client-lifecycle.realcore.test.ts)。
@@ -199,6 +201,8 @@ Core `addBreadcrumb()` 写入共享 isolation scope，不会自行检查 Miniapp
 - **持久化权限**：只有活动 runtime 可以使用 SDK store 和重放；目标、隐私策略、容量和 TTL 共同决定缓存可用性。
 
 自动网络采集通过 `collectUrlParts` 一次解析与脱敏生成 `url.full`、名称和 breadcrumb query，再复用到 span 和面包屑；每次按当前 client 策略计算，不缓存策略或原始 URL。自请求识别、追踪白名单和正文拒绝规则仍匹配业务原始 URL。`data:` URL 的正文裁剪复用 Core helper，并额外移除 MIME 区域的 query／fragment，防止这部分内容经名称、资源性能或最终 URL 属性泄漏。
+
+请求观测与宿主发送共用字段快照；URL、method、data、headers 和回调 getter 只读取一次，相关非枚举／继承字段也进入快照。业务扩展的可枚举字符串／Symbol 字段保留，`__proto__` 按自有数据字段处理；额外参数、零参数、receiver、task 和原回调语义不变。复制或读取失败时原样透传一次。getter、响应字段和正文转换可能执行业务代码，退休后停止后续观测读取；不因此取消原业务回调。非字符串 URL 不据其 String 转换结果放行追踪头或正文采集。
 
 client 构造时选择 transport 组合，前三行适用于 `init()` 管理的 runtime：
 

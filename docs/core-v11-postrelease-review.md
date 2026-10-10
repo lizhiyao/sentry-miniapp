@@ -158,3 +158,20 @@ URL 处理的本机受控对照覆盖 credentials、重复 query 键、追加敏
 实际 npm beta.7 的 CJS／ESM 入口共 20 个对照场景均复现问题。候选构建及实际候选 tarball 在七平台受控宿主下，CJS／ESM、五种边界、两种关闭方式的 140 个检查全部通过，最终新 client 事件没有旧条目。证据来自公开入口、真实 Core envelope 和宿主模拟，不是设备或 Sentry 后台验收。
 
 本地检查通过：lint、源码与测试严格类型、77 文件／1333 测试及原覆盖率门槛（statements 98.71%、branches 95.60%、functions 99.24%、lines 99.44%）、SDK 三种产物与实际包消费、微信独立 bundle 和本地映射检查、文档站构建。本轮源码修复尚未发包，真实设备反馈继续由 #457 跟踪。
+
+## 请求快照与日志指标的晚到数据
+
+基线为 `master 9c26592a`。本轮从公开入口追踪请求字段、Core 属性转换、批处理调度和关闭门禁，固定对照官方 `11.4.0` 的 Browser、Node、Deno、Cloudflare 与 Core 源码；取舍和直接上游链接补入[官方 SDK 对照](sdk-official-practices.md#beta7-后的请求与批处理边界对照)。
+
+| 确定问题 | 复现与修复 |
+| --- | --- |
+| 属性转换在采集回调之后关闭 client，Core 重建批处理资源 | Logs／Metrics 的属性 getter 在 `beforeSendLog`／`beforeSendMetric` 之后调用 dispose；之后 Core 入 buffer，再创建 5000ms timer。属性 getter 调用 close 后立即 flush，晚到条目还会发送。补守 `afterCaptureLog`／`afterCaptureMetric`，使用公开 flush 排弃，仅屏蔽 `log`／`trace_metric` 交付；同步 finalizer 和已有异步错误保留，close 通知不重复，不访问私有 buffer。 |
+| 请求包装丢失额外参数 | 宿主接收到的第二、第三参数消失，观测失败透传也受影响。改为保留完整参数数组；正常观测、失败降级和零参数调用均保留 receiver、task 和业务异常，只执行一次原请求。 |
+| 字段多读导致观测与实际发送不一致 | URL getter 第一次返回白名单域名、第二次返回其它域名，追踪头却注入到第二个域名；method、data、header 和 success getter 也多次读取。单次快照同时用于白名单、脱敏、span、回调包装与宿主发送，补齐相关非枚举／继承字段，保留可枚举 Symbol 与 `__proto__` 数据字段。无法读取时透传原 options。非字符串 URL 不根据其可能变化的转换结果放行头或正文。 |
+| 响应 getter 中退休后仍读后续字段 | statusCode 最多读三次，data 读两次；读取期间关闭 client 后仍可能继续读备用 headers／errorMessage。改为单读字段，并在用户代码边界检查活动状态。响应正文开关和业务 success／fail／complete 仍保留原语义，不能把观测退休变成业务回调取消。 |
+
+已发布 npm beta.7 的 CJS／ESM 两个公开入口在九种边界的 18 个对照检查中均失败，包含晚到 `log`／`trace_metric` 的实际 envelope。候选构建及实际候选 tarball 在七平台受控宿主下，两个入口各九种边界的 126 项检查全部通过；正常白名单／白名单外请求、已接受事件排空和原业务调用有正向对照。证据来自公开安装包、真实 Core payload 和宿主模拟，没有新增真实手机或目标 Sentry 后台验收。
+
+优先强化已有日志／指标、同步 finalizer、响应退休、请求降级和特殊输入用例，只新增两项独立测试定义，总数从 1333 到 1335。没有降低覆盖率门槛、排除新增代码或复制 Core 的批处理引擎。README 的接入 API 和版本未变；架构记录维护约束，官网只澄清处理过程中关闭 client 的用户行为。本轮修复尚未发包，真实设备反馈继续由 #457 跟踪。
+
+最终本地检查通过：lint、源码与测试严格类型、77 文件／1335 测试及 shuffle、原覆盖率门槛（statements 98.73%、branches 95.62%、functions 99.24%、lines 99.45%）、SDK 三种产物、publint 与实际包消费、微信独立 bundle 与本地符号化、文档站构建。Core 及其它依赖版本未改。

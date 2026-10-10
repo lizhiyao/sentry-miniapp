@@ -3,6 +3,7 @@ import {
   Scope,
   captureFeedback as captureFeedbackCore,
   createClientReportEnvelope,
+  envelopeContainsItemType,
   dsnToString,
   eventFromMessage as eventFromMessageCore,
   eventFromUnknownInput,
@@ -23,6 +24,7 @@ import type {
   Outcome,
   Event,
   EventHint,
+  Envelope,
   ParameterizedString,
   SeverityLevel,
   Session,
@@ -146,6 +148,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   private readonly _transportRuntime: TransportRuntimeHandle | undefined;
   private readonly _offlineStore: MiniappOfflineStore | undefined;
   private readonly _sessionCapture: SessionCapture;
+  private readonly _discardLateLogMetrics: () => void;
   // core 构造 transport 时即可调用 recorder；懒初始化且不在 super 返回后覆盖早期计数。
   declare private _clientReportOutcomes: Map<string, Outcome> | undefined;
   private readonly _pendingFlushStops = new Set<() => void>();
@@ -157,6 +160,14 @@ export class MiniappClient extends Client<MiniappClientOptions> {
 
   /** core hook 中 dispose 先关门，最外层 finally 再清理，避免 core 后续重建 bucket。 */
   public override emit: Client['emit'] = (hook: string, ...args: unknown[]): void => {
+    // Core 在属性序列化后才入 buffer 并通知；属性 getter 也可能关闭 client。
+    if (
+      !this._lifetime.acceptsTelemetry() &&
+      (hook === 'afterCaptureLog' || hook === 'afterCaptureMetric')
+    ) {
+      if (!this._finishPending) this._discardLateLogMetrics();
+      return;
+    }
     if (
       this._lifetime.state === 'closed' &&
       (hook === 'spanStart' || hook === 'afterSpanEnd' || hook === 'afterSegmentSpanEnd')
@@ -209,8 +220,13 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     const beforeSendSpan = options.beforeSendSpan;
     const beforeSend = options.beforeSend;
     const beforeBreadcrumb = options.beforeBreadcrumb;
+    let discardingLogMetrics = false;
+    const canSendEnvelope = (envelope: Envelope): boolean =>
+      lifetime.canSend() &&
+      (!discardingLogMetrics || !envelopeContainsItemType(envelope, ['log', 'trace_metric']));
     const guardTransport = (transport: Transport): Transport => ({
-      send: (envelope) => (lifetime.canSend() ? transport.send(envelope) : resolvedSyncPromise({})),
+      send: (envelope) =>
+        canSendEnvelope(envelope) ? transport.send(envelope) : resolvedSyncPromise({}),
       flush: (timeout) => transport.flush(timeout),
     });
     const managedOffline = (transport: Transport): Transport => {
@@ -316,7 +332,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
         }
         const baseTransport: Transport = {
           send: (envelope) => {
-            if (!lifetime.canSend()) return resolvedSyncPromise({});
+            if (!canSendEnvelope(envelope)) return resolvedSyncPromise({});
             if (!runtimeManaged && !consent.isGranted()) {
               lifetime.warnings.add('low_level_consent_blocking');
               return Promise.reject(
@@ -400,6 +416,18 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     this._transportRuntime = transportRuntime;
     this._offlineStore = offlineStore;
     this._sessionCapture = sessionCapture;
+    this._discardLateLogMetrics = () => {
+      if (discardingLogMetrics) return;
+      discardingLogMetrics = true;
+      try {
+        // 用公开 flush 清空 Core buffer / timer；closing 的在途错误和 spans 仍可排空。
+        this.emit('flush');
+      } catch (_error) {
+        /* 第三方 flush hook 故障不传播到日志／指标调用。 */
+      } finally {
+        discardingLogMetrics = false;
+      }
+    };
     const sdkMetadata = this.getSdkMetadata()?.sdk;
     if (sdkMetadata) {
       // 错误事件的 Relay IP 推断不会自动读取 dataCollection；通过 Core 元数据合并传达。

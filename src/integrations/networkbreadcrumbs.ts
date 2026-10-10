@@ -27,7 +27,7 @@ import {
   addFunctionInstrumentationHandler,
   ensureFunctionInstrumentation,
 } from '../instrumentation';
-import { isMarkedSentryRequest } from '../transports/requestMarker';
+import { isMarkedSentryRequest, isMarkedSentryRequestOptions } from '../transports/requestMarker';
 
 /**
  * Network Breadcrumbs Integration.
@@ -177,7 +177,8 @@ export class NetworkBreadcrumbs implements Integration {
     const propagateTraceparent = this._propagateTraceparent;
     const enableStandaloneHttpSpans = this._enableStandaloneHttpSpans;
 
-    return function (this: any, options: any): any {
+    return function (this: any, ...requestArgs: any[]): any {
+      const options = requestArgs[0];
       let preparedOptions = options;
       let pendingOwner: OwnerToken | undefined;
       let requestThrew: ((error: unknown) => void) | undefined;
@@ -187,31 +188,40 @@ export class NetworkBreadcrumbs implements Integration {
         }
 
         // 内置 transport 会标记 options 及 header 身份，常见浅拷贝 wrapper 也无需依赖全局 URL。
-        if (isMarkedSentryRequest(options)) {
+        if (isMarkedSentryRequestOptions(options)) {
           return;
         }
-
-        const url = normalizeUrl(options.url);
-
         const client = getClient();
+        if (!client) return;
+        const lifetime = getClientLifetime(client);
+        const ensureActive = (): void => {
+          if (
+            getClient() !== client ||
+            client.getOptions().enabled === false ||
+            (lifetime && !lifetime.canCollectAutomatic())
+          )
+            throw new Error('Request observation retired');
+        };
+        // getter、不可枚举／继承字段都只读取一次；发送与观测共用该快照。
+        const requestOptions = snapshotRequestOptions(options, ensureActive);
+        if (isMarkedSentryRequest(requestOptions)) return;
+        const url = normalizeUrl(requestOptions['url']);
+        ensureActive();
         // 使用 core 的 DSN/tunnel 规则识别 SDK 自身 envelope，避免将同域业务请求误排除。
         if (isSentryRequestUrl(url, client) || isSentryDsnRequestWithoutURL(url, client)) {
           return;
         }
 
-        if (!client) return;
-
-        // 浅拷贝 options，后续回调包装与 header 注入不污染调用方对象。
-        const requestOptions = { ...options };
-
         // 注入分布式追踪头
-        const method = normalizeMethod(options.method);
-        const requestData = options.data;
+        const method = normalizeMethod(requestOptions['method']);
+        const requestData = requestOptions['data'];
         const startTime = Date.now();
         // dataCollection.urlQueryParams 只管 SDK 自己采集的数据：span 与面包屑用过滤后的 URL，
         // 而 Sentry 自身请求识别、追踪头注入和 body 黑名单仍按原始 URL 匹配。
         const collected = collectUrlParts(url, client, sensitiveKeys);
-        const propagate = enableTracePropagation && shouldPropagateTrace(url);
+        // 宿主契约是字符串 URL；对象的重复 String 转换可能给出不同目标，不能据此放行。
+        const stableUrl = typeof requestOptions['url'] === 'string';
+        const propagate = stableUrl && enableTracePropagation && shouldPropagateTrace(url);
 
         // 面包屑的 url 只到 path（core 的 getSanitizedUrlString），query 单列成 url.query，
         // 与 core 的 fetch 集成同构；span 侧仍用带过滤后 query 的 url.full。
@@ -227,9 +237,13 @@ export class NetworkBreadcrumbs implements Integration {
         // traceNetworkBody 仍是本 SDK 的显式 opt-in，两者都放行才记录。
         const httpBodies = client?.getDataCollectionOptions?.().httpBodies;
         const traceRequestBody =
-          traceNetworkBody && (httpBodies === undefined || httpBodies.includes('outgoingRequest'));
+          stableUrl &&
+          traceNetworkBody &&
+          (httpBodies === undefined || httpBodies.includes('outgoingRequest'));
         const traceResponseBody =
-          traceNetworkBody && (httpBodies === undefined || httpBodies.includes('outgoingResponse'));
+          stableUrl &&
+          traceNetworkBody &&
+          (httpBodies === undefined || httpBodies.includes('outgoingResponse'));
 
         if (traceRequestBody && requestData && !shouldDenyBodyUrl(url)) {
           try {
@@ -237,7 +251,7 @@ export class NetworkBreadcrumbs implements Integration {
               requestData,
               maxBodyBytes,
               sensitiveKeys,
-              bodyContentType(options.header) ?? bodyContentType(options.headers),
+              readBodyContentType(requestOptions, ensureActive),
             );
             if (collected.body !== undefined) breadcrumbData['request_body'] = collected.body;
             if (collected.byteLength !== undefined)
@@ -247,9 +261,10 @@ export class NetworkBreadcrumbs implements Integration {
           }
         }
 
-        const originalSuccess = options.success;
-        const originalFail = options.fail;
-        const originalComplete = options.complete;
+        ensureActive();
+        const originalSuccess = requestOptions['success'];
+        const originalFail = requestOptions['fail'];
+        const originalComplete = requestOptions['complete'];
 
         // 先完成可失败的观测读取，再创建 span；失败时宿主仍收到原 options。
         const owner = new OwnerToken(client);
@@ -290,6 +305,7 @@ export class NetworkBreadcrumbs implements Integration {
         if (propagate) {
           owner.run(() => injectTraceHeaders(requestOptions, requestSpan, propagateTraceparent));
         }
+        ensureActive();
 
         // SDK 观察只占同步 owner 范围；业务回调保持宿主的 this/参数/返回值/throw。
         const observe = (callback: (ownerClient: Client) => void): void => {
@@ -308,10 +324,10 @@ export class NetworkBreadcrumbs implements Integration {
             owner.release();
           }
         };
-        requestOptions.success = function (this: any, ...args: any[]) {
+        requestOptions['success'] = function (this: any, ...args: any[]) {
           observe(() => {
             const res = args[0] || {};
-            const statusCode = getResponseStatusCode(res);
+            const statusCode = getResponseStatusCode(res, ensureActive);
             const duration = Date.now() - startTime;
             breadcrumbData['status_code'] = statusCode;
             breadcrumbData['duration'] = duration;
@@ -321,21 +337,27 @@ export class NetworkBreadcrumbs implements Integration {
               durationMs: duration,
             });
             if (!owner.isActive()) return;
-            if (traceResponseBody && res.data && !shouldDenyBodyUrl(url)) {
+            if (traceResponseBody && !shouldDenyBodyUrl(url)) {
               try {
-                const collected = collectBody(
-                  res.data,
-                  maxBodyBytes,
-                  sensitiveKeys,
-                  bodyContentType(res.header) ?? bodyContentType(res.headers),
-                );
-                if (collected.body !== undefined) breadcrumbData['response_body'] = collected.body;
-                if (collected.byteLength !== undefined)
-                  breadcrumbData['response_body_size'] = collected.byteLength;
+                const data = res.data;
+                ensureActive();
+                if (data) {
+                  const collected = collectBody(
+                    data,
+                    maxBodyBytes,
+                    sensitiveKeys,
+                    readBodyContentType(res, ensureActive),
+                  );
+                  if (collected.body !== undefined)
+                    breadcrumbData['response_body'] = collected.body;
+                  if (collected.byteLength !== undefined)
+                    breadcrumbData['response_body_size'] = collected.byteLength;
+                }
               } catch (_error) {
                 breadcrumbData['response_body'] = '[Cannot serialize response body]';
               }
             }
+            if (!owner.isActive()) return;
             addBreadcrumb({
               type: 'http',
               category: 'xhr',
@@ -346,11 +368,14 @@ export class NetworkBreadcrumbs implements Integration {
           if (typeof originalSuccess === 'function') return originalSuccess.apply(this, args);
         };
 
-        requestOptions.fail = function (this: any, ...args: any[]) {
+        requestOptions['fail'] = function (this: any, ...args: any[]) {
           observe(() => {
             const err = args[0] || {};
             const duration = Date.now() - startTime;
-            const errorMessage = err.errMsg || err.errorMessage || 'Network request failed';
+            const primaryMessage = err.errMsg;
+            ensureActive();
+            const errorMessage = primaryMessage || err.errorMessage || 'Network request failed';
+            ensureActive();
             breadcrumbData['error'] = errorMessage;
             breadcrumbData['duration'] = duration;
             finishSpanOnce({ status: 'error', errorMessage, durationMs: duration });
@@ -360,10 +385,10 @@ export class NetworkBreadcrumbs implements Integration {
           if (typeof originalFail === 'function') return originalFail.apply(this, args);
         };
 
-        requestOptions.complete = function (this: any, ...args: any[]) {
+        requestOptions['complete'] = function (this: any, ...args: any[]) {
           observe(() => {
             const res = args[0] || {};
-            const statusCode = getResponseStatusCode(res);
+            const statusCode = getResponseStatusCode(res, ensureActive);
             finishSpanOnce({
               statusCode,
               status: isErrorStatusCode(statusCode) ? 'error' : 'ok',
@@ -392,7 +417,8 @@ export class NetworkBreadcrumbs implements Integration {
       }
       // 宿主调用在降级边界之外，仅执行一次；业务异常不能触发请求重试。
       try {
-        return originalRequest.call(this, preparedOptions);
+        if (requestArgs.length) requestArgs[0] = preparedOptions;
+        return originalRequest.apply(this, requestArgs);
       } catch (error) {
         try {
           requestThrew?.(error);
@@ -422,6 +448,36 @@ export class NetworkBreadcrumbs implements Integration {
   private _shouldDenyBodyUrl(url: string): boolean {
     return this._denyUrls.some((pattern) => pattern.test(url));
   }
+}
+
+const requestFields = ['url', 'method', 'data', 'header', 'headers', 'success', 'fail', 'complete'];
+
+/** 保留业务扩展字段，补齐宿主会读取的非枚举／继承字段，避免重复触发 getter。 */
+function snapshotRequestOptions(
+  options: Record<PropertyKey, unknown>,
+  ensureActive: () => void,
+): Record<PropertyKey, unknown> {
+  const snapshot: Record<PropertyKey, unknown> = {};
+  const keys = Reflect.ownKeys(options);
+  ensureActive();
+  for (const key of new Set<PropertyKey>([...keys, ...requestFields])) {
+    const descriptor = Object.getOwnPropertyDescriptor(options, key);
+    ensureActive();
+    if (!descriptor?.enumerable && !(typeof key === 'string' && requestFields.includes(key)))
+      continue;
+    const present = key in options;
+    ensureActive();
+    if (!present) continue;
+    const value = options[key];
+    ensureActive();
+    Object.defineProperty(snapshot, key, {
+      value,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return snapshot;
 }
 
 type RequestSpanFinishOptions = {
@@ -599,16 +655,17 @@ function normalizeMethod(method: unknown): string {
   return typeof method === 'string' && method.trim() !== '' ? method.toUpperCase() : 'GET';
 }
 
-function getResponseStatusCode(response: any): unknown {
+function getResponseStatusCode(response: any, ensureActive: () => void): unknown {
   if (!response || typeof response !== 'object') {
     return undefined;
   }
 
-  if (response.statusCode !== undefined && response.statusCode !== null) {
-    return response.statusCode;
-  }
-
-  return response.status;
+  const statusCode = response.statusCode;
+  ensureActive();
+  if (statusCode !== undefined && statusCode !== null) return statusCode;
+  const status = response.status;
+  ensureActive();
+  return status;
 }
 
 function isErrorStatusCode(statusCode: unknown): boolean {
@@ -635,6 +692,20 @@ function bodyContentType(headers: unknown): string | undefined {
   const key = findHeaderKey(headers, 'content-type');
   const value: unknown = key === undefined ? undefined : headers[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+function readBodyContentType(
+  options: Record<string, unknown>,
+  ensureActive: () => void,
+): string | undefined {
+  for (const key of ['header', 'headers']) {
+    const headers = options[key];
+    ensureActive();
+    const contentType = bodyContentType(headers);
+    ensureActive();
+    if (contentType !== undefined) return contentType;
+  }
+  return undefined;
 }
 
 function mergeBaggageHeader(existingBaggage: unknown, sentryBaggage: string): string {

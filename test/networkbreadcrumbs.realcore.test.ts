@@ -138,13 +138,14 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
               },
             });
       const requestReceiver = {};
-      requestMock.mockImplementation(function (this: unknown, received) {
+      requestMock.mockImplementation(function (this: unknown, received, ...extra: unknown[]) {
         expect(this).toBe(requestReceiver);
         expect(received).toBe(options);
+        expect(extra).toEqual(['metadata', 17]);
         expect(received.success.call(callbackReceiver, response)).toBe('business result');
         return task;
       });
-      expect(g.tt.request.call(requestReceiver, options)).toBe(task);
+      expect(g.tt.request.call(requestReceiver, options, 'metadata', 17)).toBe(task);
       expect(requestMock).toHaveBeenCalledOnce();
       expect(success).toHaveBeenCalledOnce();
       captureException(new Error('event after unreadable options'));
@@ -153,6 +154,93 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       expect(collectEnvelopePayloads<Event>(captured, ['event'])).toHaveLength(1);
     },
   );
+
+  it('请求字段只读取一次，追踪白名单、正文和宿主发送使用同一快照', async () => {
+    for (const definition of ['enumerable', 'hidden', 'inherited'] as const) {
+      captured.length = 0;
+      getIsolationScope().clearBreadcrumbs();
+      const client = init({
+        dsn: 'https://test@example.com/1',
+        tracesSampleRate: 1,
+        defaultIntegrations: [
+          spanStreamingIntegration(),
+          new NetworkBreadcrumbs({
+            traceNetworkBody: true,
+            tracePropagationTargets: ['https://allowed.example'],
+          }),
+        ],
+        transport: createCapturingTransport(captured),
+      })!;
+      const success = vi.fn();
+      const replacedSuccess = vi.fn();
+      const getters = {
+        url: vi
+          .fn()
+          .mockReturnValueOnce('https://allowed.example/work')
+          .mockReturnValue('https://outside.example/work'),
+        method: vi.fn().mockReturnValueOnce('POST').mockReturnValue('GET'),
+        data: vi
+          .fn()
+          .mockReturnValueOnce({ safe: 1, token: 'secret-canary' })
+          .mockReturnValue({ different: 2 }),
+        header: vi
+          .fn()
+          .mockReturnValueOnce({ 'Content-Type': 'application/json' })
+          .mockReturnValue({}),
+        success: vi.fn().mockReturnValueOnce(success).mockReturnValue(replacedSuccess),
+      };
+      const fields = Object.fromEntries(
+        Object.entries(getters).map(([key, get]) => [
+          key,
+          {
+            configurable: true,
+            enumerable: definition === 'enumerable',
+            get,
+          },
+        ]),
+      );
+      const source = Object.defineProperties({}, fields);
+      const options = definition === 'inherited' ? Object.create(source) : source;
+      const symbol = Symbol('business metadata');
+      options[symbol] = 'opaque';
+      Object.defineProperty(options, '__proto__', { value: 'business field', enumerable: true });
+      const readOpaque = vi.fn(() => {
+        throw new Error('private non-enumerable field');
+      });
+      Object.defineProperty(options, 'opaque', { get: readOpaque });
+      const receiver = {};
+      const extra = {};
+      const task = {};
+      requestMock.mockImplementation(function (this: unknown, sent, ...args: unknown[]) {
+        expect(this).toBe(receiver);
+        expect(args).toEqual([extra, 17]);
+        expect(args[0]).toBe(extra);
+        expect(sent[symbol]).toBe('opaque');
+        expect(Object.getPrototypeOf(sent)).toBe(Object.prototype);
+        expect(Object.getOwnPropertyDescriptor(sent, '__proto__')?.value).toBe('business field');
+        expect(sent).toMatchObject({
+          url: 'https://allowed.example/work',
+          method: 'POST',
+          data: { safe: 1, token: 'secret-canary' },
+        });
+        expect(sent.header['sentry-trace']).toEqual(expect.any(String));
+        sent.success({ statusCode: 201 });
+        return task;
+      });
+      expect(g.tt.request.call(receiver, options, extra, 17)).toBe(task);
+      expect(success).toHaveBeenCalledOnce();
+      expect(replacedSuccess).not.toHaveBeenCalled();
+      for (const getter of Object.values(getters)) expect(getter).toHaveBeenCalledOnce();
+      expect(readOpaque).not.toHaveBeenCalled();
+      captureException(new Error('snapshot probe'));
+      await client.close();
+      const spans = collectSpans(captured);
+      expect(spans).toHaveLength(1);
+      expect(spanAttribute(spans[0]!, 'url.full')).toBe('https://allowed.example/work');
+      expect(spanAttribute(spans[0]!, 'http.request.method')).toBe('POST');
+      expect(xhrBreadcrumbData(captured).request_body).toBe('{"safe":1,"token":"[Filtered]"}');
+    }
+  });
 
   it('准备观测失败后的原宿主异常不重试，保持同一业务异常', () => {
     init({
@@ -458,51 +546,112 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(spanAttribute(collectSpans(captured)[0]!, 'error.message')).toBe('telemetry_error');
   });
 
-  it('span hook 重入 dispose 后不继续读取响应正文或写 breadcrumb', () => {
-    let pending: any;
-    requestMock.mockImplementation((options) => {
-      pending = options;
-      return {};
-    });
-    const owner = init({
-      dsn: 'https://test@example.com/1',
-      tracesSampleRate: 1,
-      defaultIntegrations: [
-        spanStreamingIntegration(),
-        new NetworkBreadcrumbs({ traceNetworkBody: true }),
-      ],
-      transport: createCapturingTransport(captured),
-      beforeSendSpan: (span) => {
-        owner.dispose();
-        return span;
-      },
-    })!;
-    const success = vi.fn((_response: unknown) => 'business success');
-    g.tt.request({ url: 'https://api.example.com/reentry', success });
-    const readBody = vi.fn(() => 'private body');
-    const response = Object.defineProperty({ statusCode: 200 }, 'data', { get: readBody });
-    expect(pending.success(response)).toBe('business success');
-    expect(readBody).not.toHaveBeenCalled();
-    expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
-    expect(captured).toEqual([]);
+  it('响应 getter 或 span hook 重入 dispose 后停止读取，保留业务回调', () => {
+    for (const phase of ['status', 'span', 'body', 'header', 'fail', 'fail-span'] as const) {
+      let pending: any;
+      requestMock.mockImplementation((options) => {
+        pending = options;
+        return {};
+      });
+      const owner = init({
+        dsn: 'https://test@example.com/1',
+        tracesSampleRate: 1,
+        defaultIntegrations: [
+          spanStreamingIntegration(),
+          new NetworkBreadcrumbs({ traceNetworkBody: true }),
+        ],
+        transport: createCapturingTransport(captured),
+        beforeSendSpan: (span) => {
+          if (phase === 'span' || phase === 'fail-span') owner.dispose();
+          return span;
+        },
+      })!;
+      const success = vi.fn((_response: unknown) => 'business success');
+      g.tt.request({ url: 'https://api.example.com/reentry', success, fail: success });
+      const readStatus = vi.fn(() => {
+        if (phase === 'status') owner.dispose();
+        return 200;
+      });
+      const readBody = vi.fn(() => {
+        if (phase === 'body') owner.dispose();
+        return { safe: 1 };
+      });
+      const readHeader = vi.fn(() => {
+        if (phase === 'header') owner.dispose();
+        return undefined;
+      });
+      const readFallback = vi.fn(() => {
+        throw new Error('late header read');
+      });
+      const readError = vi.fn(() => {
+        if (phase === 'fail') {
+          owner.dispose();
+          return undefined;
+        }
+        return 'network error';
+      });
+      const readFallbackError = vi.fn(() => {
+        throw new Error('late error read');
+      });
+      const response = Object.defineProperties(
+        {},
+        {
+          statusCode: { get: readStatus },
+          data: { get: readBody },
+          header: { get: readHeader },
+          headers: { get: readFallback },
+          errMsg: { get: readError },
+          errorMessage: { get: readFallbackError },
+        },
+      );
+      const failed = phase.startsWith('fail');
+      expect(pending[failed ? 'fail' : 'success'](response)).toBe('business success');
+      expect(success).toHaveBeenCalledOnce();
+      expect(success.mock.calls[0]![0]).toBe(response);
+      expect(readStatus).toHaveBeenCalledTimes(failed ? 0 : 1);
+      expect(readError).toHaveBeenCalledTimes(failed ? 1 : 0);
+      expect(readFallbackError).not.toHaveBeenCalled();
+      expect(readBody).toHaveBeenCalledTimes(phase === 'body' || phase === 'header' ? 1 : 0);
+      expect(readHeader).toHaveBeenCalledTimes(phase === 'header' ? 1 : 0);
+      expect(readFallback).not.toHaveBeenCalled();
+      expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
+      expect(captured).toEqual([]);
+    }
   });
 
-  it('sampler 内 dispose 后请求透明转发，不继续持有 span 或包装回调', () => {
-    const success = vi.fn();
-    const owner = init({
-      dsn: 'https://test@example.com/1',
-      defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
-      transport: createCapturingTransport(captured),
-      tracesSampler: () => {
-        owner.dispose();
-        return 1;
-      },
-    })!;
-    const options = { url: 'https://api.example.com/sampler-dispose', success };
-    g.tt.request(options);
-    expect(requestMock.mock.calls[0]![0]).toBe(options);
-    expect(success).toHaveBeenCalledOnce();
-    expect(captured).toEqual([]);
+  it('请求 getter 或 sampler 内 dispose 后透明转发，不继续读字段或包装回调', () => {
+    for (const phase of ['getter', 'sampler'] as const) {
+      requestMock.mockClear();
+      const success = vi.fn();
+      const owner = init({
+        dsn: 'https://test@example.com/1',
+        defaultIntegrations: [spanStreamingIntegration(), new NetworkBreadcrumbs()],
+        transport: createCapturingTransport(captured),
+        tracesSampler: () => {
+          owner.dispose();
+          return 1;
+        },
+      })!;
+      const readMetadata = vi.fn(() => 'business metadata');
+      const options = Object.defineProperties(
+        { success },
+        {
+          url: {
+            enumerable: true,
+            get() {
+              if (phase === 'getter') owner.dispose();
+              return 'https://api.example.com/sampler-dispose';
+            },
+          },
+          metadata: { enumerable: true, get: readMetadata },
+        },
+      );
+      g.tt.request(options);
+      expect(requestMock.mock.calls[0]![0]).toBe(options);
+      expect(success).toHaveBeenCalledOnce();
+      expect(readMetadata).toHaveBeenCalledTimes(phase === 'getter' ? 0 : 1);
+      expect(captured).toEqual([]);
+    }
   });
 
   it('低层 MiniappClient 手动绑定仍不获得自动 HTTP producer 权限', () => {

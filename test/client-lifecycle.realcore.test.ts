@@ -144,6 +144,10 @@ describe('真实 core client 关闭与发送边界', () => {
     client.registerFinalizer(() => {
       owned(client, () => addBreadcrumb({ message: 'finalizer breadcrumb' }));
       client.captureMessage('finalizer');
+      owned(client, () => {
+        logger.info('finalizer log');
+        metrics.count('finalizer metric', 1);
+      });
     });
     const closing = client.close(100);
     client.captureException(new Error('too late'));
@@ -158,10 +162,12 @@ describe('真实 core client 关闭与发送边界', () => {
     finish({ message: 'pending' });
     await vi.advanceTimersByTimeAsync(20);
     expect(await closing).toBe(true);
-    expect(envelopes.flatMap((env) => env[1].map((item) => (item[1] as any).message))).toEqual([
-      'finalizer',
-      'pending',
-    ]);
+    expect(
+      collectEnvelopePayloads<ErrorEvent>(envelopes, ['event']).map((event) => event.message),
+    ).toEqual(['finalizer', 'pending']);
+    for (const type of ['log', 'trace_metric'] as const) {
+      expect(collectEnvelopePayloads(envelopes, [type])).toHaveLength(1);
+    }
     expect((envelopes[0]![1][0]![1] as ErrorEvent).breadcrumbs).toEqual([
       expect.objectContaining({ message: 'finalizer breadcrumb' }),
     ]);
@@ -334,24 +340,79 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(envelopes).toEqual([]);
   });
 
-  it('用户日志/指标 callback 内 dispose 后不能重新填入 buffer', () => {
-    for (const kind of ['log', 'metric']) {
-      const callback = vi.fn((value) => {
-        client.dispose();
-        return value;
-      });
-      const client = make(
-        kind === 'log' ? { beforeSendLog: callback } : { beforeSendMetric: callback },
-      );
-      owned(client, () =>
-        kind === 'log' ? logger.info('reentrant') : metrics.count('reentrant', 1),
-      );
-      expect(callback).toHaveBeenCalledOnce();
-      owned(client, () => (kind === 'log' ? logger.info('closed') : metrics.count('closed', 1)));
-      expect(callback).toHaveBeenCalledOnce();
-    }
+  it('用户日志／指标回调或属性转换中 dispose 后不能重新填入 buffer', () => {
+    for (const kind of ['log', 'metric'])
+      for (const phase of ['callback', 'attribute', 'result']) {
+        const callback = vi.fn((value) => {
+          if (phase === 'callback') client.dispose();
+          return phase === 'result' ? { ...value, attributes } : value;
+        });
+        const attributes = {
+          probe: {
+            get value() {
+              client.dispose();
+              return 'retired-canary';
+            },
+          },
+        };
+        const client = make(
+          kind === 'log' ? { beforeSendLog: callback } : { beforeSendMetric: callback },
+        );
+        owned(client, () =>
+          kind === 'log'
+            ? logger.info('reentrant', phase === 'attribute' ? attributes : {})
+            : metrics.count('reentrant', 1, {
+                attributes: phase === 'attribute' ? attributes : {},
+              }),
+        );
+        expect(callback).toHaveBeenCalledOnce();
+        expect(vi.getTimerCount()).toBe(0);
+        owned(client, () => (kind === 'log' ? logger.info('closed') : metrics.count('closed', 1)));
+        expect(callback).toHaveBeenCalledOnce();
+      }
     expect(envelopes).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('属性序列化中 close 后，日志指标不能绕过关闭门禁或丢掉已有事件', async () => {
+    for (const kind of ['log', 'metric'] as const) {
+      envelopes.length = 0;
+      let finish!: () => void;
+      const client = make({
+        beforeSend: (event) =>
+          new Promise<ErrorEvent>((resolve) => {
+            finish = () => resolve(event);
+          }),
+      });
+      const closed = vi.fn();
+      client.on('close', closed);
+      client.captureMessage('accepted before close');
+      let closing!: Promise<boolean>;
+      const attributes = {
+        probe: {
+          get value() {
+            closing = client.close(100);
+            return 'retired-canary';
+          },
+        },
+      };
+      owned(client, () =>
+        kind === 'log'
+          ? logger.info('late log', attributes)
+          : metrics.count('late metric', 1, { attributes }),
+      );
+      const flushed = client.flush(100);
+      finish();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(await closing).toBe(true);
+      await flushed;
+      expect(collectEnvelopePayloads<ErrorEvent>(envelopes, ['event'])).toEqual([
+        expect.objectContaining({ message: 'accepted before close' }),
+      ]);
+      expect(collectEnvelopePayloads(envelopes, ['log', 'trace_metric'])).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(closed).toHaveBeenCalledOnce();
+    }
   });
 
   it('关闭后并发槽中的第二个 envelope 不调用宿主 request', async () => {
