@@ -6,7 +6,6 @@ import {
   getIsolationScope,
   type Envelope,
   type Event,
-  type EventHint,
   type ErrorEvent,
   makeSession,
   type SerializedSession,
@@ -18,17 +17,11 @@ import { automaticSpanAttributes } from '../src/spanDimensions';
 import { getClientEnvironment } from '../src/clientState';
 import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
-class PreparingClient extends MiniappClient {
-  public prepare(event: Event, hint: EventHint, scope: Scope, isolation: Scope) {
-    return this._prepareEvent(event, hint, scope, isolation);
-  }
-}
-
 describe('client 自有环境与真实 core 事件管道', () => {
   const clients: MiniappClient[] = [];
   const envelopes: Envelope[] = [];
   function client(enableSystemInfo = true, target = envelopes, overrides: MiniappOptions = {}) {
-    const result = new PreparingClient({
+    const result = new MiniappClient({
       dsn: 'https://test@o0.ingest.sentry.io/0',
       defaultIntegrations: false,
       transport: createCapturingTransport(target),
@@ -37,6 +30,19 @@ describe('client 自有环境与真实 core 事件管道', () => {
     });
     clients.push(result);
     return result;
+  }
+
+  /** 公开捕获一条事件并返回最终 envelope 负载。 */
+  async function captureFinalEvent(
+    owner: MiniappClient,
+    event: Event,
+    scope = new Scope(),
+  ): Promise<Event | undefined> {
+    owner.captureEvent(event, {}, scope);
+    await owner.flush(2000);
+    return collectEnvelopePayloads<Event>(envelopes, ['event']).find(
+      (item) => item.message === event.message,
+    );
   }
 
   beforeEach(() => {
@@ -75,7 +81,7 @@ describe('client 自有环境与真实 core 事件管道', () => {
       expect(event.contexts?.device).toMatchObject({ brand: 'Apple', model: 'business-model' });
       return event;
     });
-    const prepared = await owner.prepare({ message: 'prepared' }, {}, scope, new Scope());
+    const prepared = await captureFinalEvent(owner, { message: 'prepared' }, scope);
     expect(prepared?.contexts?.os).toEqual({ name: 'iOS', version: '17.4' });
     expect(prepared?.contexts?.device?.nested).toEqual({ a: '[Object]' });
     expect(getIsolationScope().getScopeData().contexts.device).toBeUndefined();
@@ -85,56 +91,58 @@ describe('client 自有环境与真实 core 事件管道', () => {
     const owner = client();
     const scope = new Scope();
     scope.setContext('device', null);
-    expect((await owner.prepare({}, {}, scope, new Scope()))?.contexts?.device?.model).toBe(
-      'iPhone',
-    );
+    expect(
+      (await captureFinalEvent(owner, { message: 'null-scope' }, scope))?.contexts?.device?.model,
+    ).toBe('iPhone');
     expect(
       (
-        await owner.prepare(
-          { contexts: { device: null } as unknown as NonNullable<Event['contexts']> },
-          {},
-          scope,
-          new Scope(),
-        )
+        await captureFinalEvent(owner, {
+          message: 'null-event',
+          contexts: { device: null } as unknown as NonNullable<Event['contexts']>,
+        })
       )?.contexts?.device,
     ).toBeNull();
   });
 
-  it('第四参数贡献用户、tags 和 attachment，processor drop/throw 不回退原文', async () => {
+  it('捕获 scope 贡献用户、tags 和 attachment，processor drop/throw 不回退原文', async () => {
     const owner = client();
-    const isolation = new Scope();
-    isolation.setUser({ id: 'explicit-isolation' });
-    isolation.setTag('from-isolation', 'yes');
-    isolation.addAttachment({ filename: 'owner.txt', data: 'owned' });
-    const hint: EventHint = {};
-    const prepared = await owner.prepare({ message: 'owner' }, hint, new Scope(), isolation);
-    expect(prepared?.user?.id).toBe('explicit-isolation');
-    expect(prepared?.tags?.['from-isolation']).toBe('yes');
-    expect(hint.attachments).toEqual([{ filename: 'owner.txt', data: 'owned' }]);
+    const scope = new Scope();
+    scope.setUser({ id: 'explicit-scope' });
+    scope.setTag('from-scope', 'yes');
+    scope.addAttachment({ filename: 'owner.txt', data: 'owned' });
     const dropped = new Scope();
     dropped.addEventProcessor(() => null);
-    expect(await owner.prepare({ message: 'drop-canary' }, {}, dropped, isolation)).toBeNull();
     const failing = new Scope();
     failing.addEventProcessor(() => {
       throw new Error('processor-failure');
     });
-    expect(await owner.prepare({ message: 'raw-canary' }, {}, failing, isolation)).toBeNull();
+    owner.captureEvent({ message: 'owner' }, {}, scope);
+    owner.captureEvent({ message: 'drop-canary' }, {}, dropped);
+    owner.captureEvent({ message: 'raw-canary' }, {}, failing);
+    await owner.flush(2000);
+    const events = collectEnvelopePayloads<Event>(envelopes, ['event']);
+    expect(events.map((event) => event.message)).toEqual(['owner']);
+    expect(events[0]?.user?.id).toBe('explicit-scope');
+    expect(events[0]?.tags?.['from-scope']).toBe('yes');
+    expect(collectEnvelopePayloads<Uint8Array>(envelopes, ['attachment'])).toEqual([
+      new TextEncoder().encode('owned'),
+    ]);
   });
 
   it('系统采集关闭不读取宿主，也不删除显式业务字段', async () => {
     const owner = client(false);
     expect((globalThis as any).wx.getSystemInfoSync).not.toHaveBeenCalled();
     expect((globalThis as any).wx.getAccountInfoSync).not.toHaveBeenCalled();
-    const prepared = await owner.prepare(
-      { contexts: { device: { model: 'business' } } },
-      {},
-      new Scope(),
-      new Scope(),
-    );
+    const prepared = await captureFinalEvent(owner, {
+      message: 'no-system-info',
+      contexts: { device: { model: 'business' } },
+    });
     expect(prepared?.contexts?.device).toEqual({ model: 'business' });
     expect(prepared?.contexts?.os).toBeUndefined();
     expect(prepared?.contexts?.app).toBeUndefined();
     expect(prepared?.contexts?.runtime).toEqual({ name: 'miniapp' });
+    expect((globalThis as any).wx.getSystemInfoSync).not.toHaveBeenCalled();
+    expect((globalThis as any).wx.getAccountInfoSync).not.toHaveBeenCalled();
   });
 
   it('不同实例最终 envelope 保留各自环境，SDK metadata 是 miniapp 身份', async () => {
@@ -339,7 +347,7 @@ describe('client 自有环境与真实 core 事件管道', () => {
       },
     });
     const owner = client();
-    const prepared = await owner.prepare({}, {}, new Scope(), new Scope());
+    const prepared = await captureFinalEvent(owner, { message: 'getter-probe' });
     expect(prepared?.contexts?.device?.brand).toBe('Apple');
     expect(prepared?.contexts?.device?.model).toBeUndefined();
     expect(prepared?.contexts?.os).toEqual({ name: 'iOS', version: '17.4' });

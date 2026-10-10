@@ -283,6 +283,35 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
     expect(input.touches[0]?.pageX).toEqual({ token: 'ot-1' });
     expect(JSON.stringify(event)).not.toContain('ot-1');
   });
+
+  it('enableUserInteractionBreadcrumbs=false 只关闭交互面包屑，页面生命周期仍采集', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      enableUserInteractionBreadcrumbs: false,
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    } as any);
+
+    const pageOptions: any = g.Page({ onLoad: vi.fn(), onTap: vi.fn() });
+    pageOptions.onLoad.call({ route: 'pages/index/index' }, {});
+    pageOptions.onTap.call(
+      { route: 'pages/index/index' },
+      { target: { id: 'pay-btn' }, type: 'tap' },
+    );
+
+    captureException(new Error('interaction switch probe'));
+    await flush(2000);
+
+    const event = collectEnvelopePayloads<Event>(captured, ['event']).at(-1)!;
+    const categories = (event.breadcrumbs ?? []).map((breadcrumb) => breadcrumb.category);
+    expect(categories).toContain('page.lifecycle');
+    expect(categories).not.toContain('user.interaction');
+  });
+
   it('交互标识 getter 退休 owner 后不追加 breadcrumb，业务调用仍保留', () => {
     const owner = init({
       dsn: 'https://key@example.com/1',

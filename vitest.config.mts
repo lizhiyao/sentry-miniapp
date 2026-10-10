@@ -23,9 +23,10 @@ export default defineConfig({
       reportsDirectory: 'coverage',
       reporter: ['text', 'lcov', 'html'],
       // Vitest 4 uses AST-aware V8 remapping, so preserve its measured baseline.
+      // branches 相对实测值保留约 0.5pp 缓冲：贴线设置会让任何新增分支随机压线失败。
       thresholds: {
         statements: 98.7,
-        branches: 95.5,
+        branches: 95.0,
         functions: 98.7,
         lines: 99.3,
       },

@@ -76,6 +76,38 @@ describe('miniappStackParser', () => {
       ]);
     });
 
+    it.each([
+      [
+        '    at eval (eval at handleTap (pages/index/index.js:42:13), <anonymous>:3:4)',
+        'pages/index/index.js',
+        'eval',
+        42,
+        13,
+      ],
+      [
+        '    at runScript (eval at compile (https://example.test/lib/helper.js:10:5), <anonymous>:1:20)',
+        'https://example.test/lib/helper.js',
+        'runScript',
+        10,
+        5,
+      ],
+    ])('eval frame resolves the inner source location: %s', (line, filename, fn, lineno, colno) => {
+      expect(miniappStackParser(line, 0)).toEqual([
+        { filename, function: fn, lineno, colno, in_app: true },
+      ]);
+    });
+
+    it.each([
+      // 真实文件名以 eval 开头但没有内层括号，保持原样
+      ['    at run (eval.js:8:3)', 'eval.js', 'run', 8, 3],
+      // eval 帧缺内层位置时保留外层匿名位置
+      ['    at eval (<anonymous>:1:1)', '<anonymous>', 'eval', 1, 1],
+    ])('eval-looking frame without an inner location stays unchanged: %s', (line, filename, fn, lineno, colno) => {
+      expect(miniappStackParser(line, 0)).toEqual([
+        { filename, function: fn, lineno, colno, in_app: true },
+      ]);
+    });
+
     it('should parse anonymous frames wrapped in parentheses', () => {
       const stack = [
         'TypeError: Cannot read property x of null',
