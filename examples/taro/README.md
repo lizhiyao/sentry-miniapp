@@ -40,6 +40,7 @@ class SentryBoundary extends Component {
 ```bash
 # 先在仓库根执行 yarn build，再到本目录
 npm install
+node ../../scripts/internal/check-example-dependencies.mjs package.json
 
 # 编译微信小程序（产出到 dist/，--watch 持续编译）
 npm run dev:weapp
@@ -82,4 +83,4 @@ node ../../scripts/internal/check-framework-sourcemaps.mjs \
 
 ## 说明
 
-仓库的 `Framework Examples` workflow 会在 SDK 源码、依赖、构建脚本或相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install、真实构建和业务异常位置映射检查。`node_modules/`、`dist/`、锁文件等已在 `.gitignore` 中忽略。
+仓库的 `Framework Examples` workflow 会在 SDK 源码、依赖、构建脚本或相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install、消费者实际依赖版本检查、真实构建和业务异常位置映射检查。`node_modules/`、`dist/`、锁文件等已在 `.gitignore` 中忽略。

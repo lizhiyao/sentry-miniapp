@@ -1309,5 +1309,518 @@
       "latestPublishedStable": "8.22.0",
       "registryVerificationError": null
     }
-  ]
+  ],
+  "scopedFollowup": {
+    "timestamp": "2026-10-10T01:47:13.473Z",
+    "example": "uniapp",
+    "framework": "3.0.0-5020620260917001",
+    "sdkSource": {
+      "source": "Official published npm tarball",
+      "version": "2.0.0-beta.6",
+      "core": "11.4.0",
+      "sha256": "6f08b0e217655e990bab307bcde44458ee20bc7bcca64f3cce2bd9a925f1632c"
+    },
+    "overrides": {
+      "vite": "$vite",
+      "@dcloudio/uni-nvue-styler@3.0.0-5020620260917001": {
+        "postcss": "8.5.29"
+      },
+      "@dcloudio/uni-mp-weixin@3.0.0-5020620260917001": {
+        "ws": "8.22.0"
+      },
+      "@dcloudio/uni-cli-shared@3.0.0-5020620260917001": {
+        "source-map-js": "1.2.2"
+      },
+      "@dcloudio/vite-plugin-uni@3.0.0-5020620260917001": {
+        "source-map-js": "1.2.2"
+      }
+    },
+    "actualConsumerVersions": [
+      {
+        "consumer": "@dcloudio/uni-nvue-styler",
+        "consumerVersion": "3.0.0-5020620260917001",
+        "dependency": "postcss",
+        "path": "node_modules/postcss/package.json",
+        "version": "8.5.29"
+      },
+      {
+        "consumer": "@dcloudio/uni-mp-weixin",
+        "consumerVersion": "3.0.0-5020620260917001",
+        "dependency": "ws",
+        "path": "node_modules/ws/package.json",
+        "version": "8.22.0"
+      },
+      {
+        "consumer": "@dcloudio/uni-cli-shared",
+        "consumerVersion": "3.0.0-5020620260917001",
+        "dependency": "source-map-js",
+        "path": "node_modules/source-map-js/package.json",
+        "version": "1.2.2"
+      },
+      {
+        "consumer": "@dcloudio/vite-plugin-uni",
+        "consumerVersion": "3.0.0-5020620260917001",
+        "dependency": "source-map-js",
+        "path": "node_modules/source-map-js/package.json",
+        "version": "1.2.2"
+      }
+    ],
+    "dependencyPathChanges": [
+      {
+        "path": "node_modules/@dcloudio/uni-nvue-styler/node_modules/picocolors",
+        "before": "1.1.1",
+        "after": null
+      },
+      {
+        "path": "node_modules/@dcloudio/uni-nvue-styler/node_modules/postcss",
+        "before": "8.5.6",
+        "after": null
+      },
+      {
+        "path": "node_modules/postcss/node_modules/source-map-js",
+        "before": "1.2.2",
+        "after": null
+      },
+      {
+        "path": "node_modules/source-map-js",
+        "before": "1.2.1",
+        "after": "1.2.2"
+      },
+      {
+        "path": "node_modules/ws",
+        "before": "8.18.0",
+        "after": "8.22.0"
+      },
+      {
+        "path": "node_modules/yaml",
+        "before": null,
+        "after": "2.9.1"
+      }
+    ],
+    "audit": {
+      "all": {
+        "before": {
+          "counts": {
+            "info": 0,
+            "low": 9,
+            "moderate": 12,
+            "high": 27,
+            "critical": 0,
+            "total": 48
+          },
+          "uniqueGHSAs": 35
+        },
+        "after": {
+          "counts": {
+            "info": 0,
+            "low": 9,
+            "moderate": 11,
+            "high": 24,
+            "critical": 0,
+            "total": 44
+          },
+          "uniqueGHSAs": 28
+        },
+        "removed": [
+          "https://github.com/advisories/GHSA-qx2v-qp2m-jg93",
+          "https://github.com/advisories/GHSA-6g55-p6wh-862q",
+          "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+          "https://github.com/advisories/GHSA-r28c-9q8g-f849",
+          "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+          "https://github.com/advisories/GHSA-58qx-3vcg-4xpx",
+          "https://github.com/advisories/GHSA-96hv-2xvq-fx4p"
+        ],
+        "added": []
+      },
+      "production": {
+        "before": {
+          "counts": {
+            "info": 0,
+            "low": 6,
+            "moderate": 10,
+            "high": 24,
+            "critical": 0,
+            "total": 40
+          },
+          "uniqueGHSAs": 26
+        },
+        "after": {
+          "counts": {
+            "info": 0,
+            "low": 6,
+            "moderate": 9,
+            "high": 21,
+            "critical": 0,
+            "total": 36
+          },
+          "uniqueGHSAs": 19
+        },
+        "removed": [
+          "https://github.com/advisories/GHSA-qx2v-qp2m-jg93",
+          "https://github.com/advisories/GHSA-6g55-p6wh-862q",
+          "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+          "https://github.com/advisories/GHSA-r28c-9q8g-f849",
+          "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+          "https://github.com/advisories/GHSA-58qx-3vcg-4xpx",
+          "https://github.com/advisories/GHSA-96hv-2xvq-fx4p"
+        ],
+        "added": []
+      }
+    },
+    "checks": {
+      "strictNpmInstall": "pass; scripts disabled, no legacy-peer-deps",
+      "nvueCss": "4 real parse fixtures equal to baseline output/diagnostics",
+      "vueSfc": "parse/script/template/scoped CSS and original .vue map pass",
+      "uniAutomator": "actual devtools.create + loopback open/message/send/result/dispose/close + closed reject pass",
+      "productionBuild": "pass",
+      "watch": "first successful compile; terminated after success",
+      "businessMaps": "3 real Error sites pass"
+    },
+    "staleLock": {
+      "initialInstall": "exit0; actual nested PostCSS8.5.6 remained",
+      "packageLockOnly": "exit0; old nested8.5.6 remained",
+      "freshResolve": "actual PostCSS8.5.29"
+    },
+    "permanentGate": "Framework Examples: check-example-dependencies.mjs runs after install and before both example builds; fresh consumers pass and stale nested PostCSS fails",
+    "remainingAffectedLeafPackages": [
+      {
+        "name": "@babel/core",
+        "severity": "low",
+        "nodes": [
+          {
+            "path": "node_modules/@babel/core",
+            "version": "7.25.2"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-4x5r-pxfx-6jf8",
+            "range": "<=7.29.0",
+            "title": "@babel/core: Arbitrary File Read via sourceMappingURL Comment"
+          }
+        ]
+      },
+      {
+        "name": "@intlify/core-base",
+        "severity": "high",
+        "nodes": [
+          {
+            "path": "node_modules/@intlify/core-base",
+            "version": "9.1.9"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-x8qp-wqqm-57ph",
+            "range": ">=9.0.0 <9.14.5",
+            "title": "vue-i18n's escapeParameterHtml does not prevent DOM-based XSS through its tag attributes"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-p2ph-7g93-hw3m",
+            "range": ">=9.1.0 <9.1.11",
+            "title": "Vue I18n Allows Prototype Pollution in `handleFlatJson`"
+          }
+        ]
+      },
+      {
+        "name": "@intlify/message-resolver",
+        "severity": "high",
+        "nodes": [
+          {
+            "path": "node_modules/@intlify/message-resolver",
+            "version": "9.1.9"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-p2ph-7g93-hw3m",
+            "range": ">=9.1.0 <9.1.11",
+            "title": "Vue I18n Allows Prototype Pollution in `handleFlatJson`"
+          }
+        ]
+      },
+      {
+        "name": "@vue/server-renderer",
+        "severity": "high",
+        "nodes": [
+          {
+            "path": "node_modules/@vue/server-renderer",
+            "version": "3.4.21"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-g2v6-rqmx-r4w6",
+            "range": "<3.5.42",
+            "title": "@vue/server-renderer: XSS via missing CR in attribute-name blacklist"
+          }
+        ]
+      },
+      {
+        "name": "adm-zip",
+        "severity": "high",
+        "nodes": [
+          {
+            "path": "node_modules/adm-zip",
+            "version": "0.5.16"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-xcpc-8h2w-3j85",
+            "range": "<0.6.0",
+            "title": "adm-zip: Crafted ZIP file triggers 4GB memory allocation"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-vwc7-r8mq-g2x9",
+            "range": ">=0.5.9 <=0.6.0",
+            "title": "adm-zip extraction follows destination symlinks, allowing arbitrary file overwrite"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-7q85-xj36-vmfc",
+            "range": "<0.6.1",
+            "title": "adm-zip: Uncontrolled memory allocation via the declared uncompressed size (DoS)"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-rcw4-f5rp-g42v",
+            "range": "<=0.6.0",
+            "title": "adm-zip: Decompression-bomb protection (fix for CVE-2026-39244) can be bypassed by declaring uncompressed size as 0"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-j5f4-cc29-5x44",
+            "range": "<=0.6.0",
+            "title": "adm-zip extraction preserves SUID/SGID bits from untrusted ZIPs -> local privilege escalation"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-p634-w6r4-rjp2",
+            "range": "<=0.6.0",
+            "title": "adm-zip: Duplicate ZIP entry names: getEntry() and extractAllTo() resolve to different content"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-c6fg-446q-cg94",
+            "range": "<=0.6.0",
+            "title": "adm-zip: getDataAsync() bypasses the maxOutputLength size guard enforced by the synchronous getData() path"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-8238-w5pm-2374",
+            "range": "<=0.6.0",
+            "title": "adm-zip: Unhandled error event in async DEFLATE decompression crashes Node.js process (DoS)"
+          }
+        ]
+      },
+      {
+        "name": "body-parser",
+        "severity": "moderate",
+        "nodes": [
+          {
+            "path": "node_modules/body-parser",
+            "version": "1.20.3"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-v422-hmwv-36x6",
+            "range": "<1.20.6",
+            "title": "body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement"
+          }
+        ]
+      },
+      {
+        "name": "braces",
+        "severity": "high",
+        "nodes": [
+          {
+            "path": "node_modules/braces",
+            "version": "3.0.3"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+            "range": "<=3.0.3",
+            "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns"
+          }
+        ]
+      },
+      {
+        "name": "cookie",
+        "severity": "low",
+        "nodes": [
+          {
+            "path": "node_modules/cookie",
+            "version": "0.6.0"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-pxg6-pf52-xh8x",
+            "range": "<0.7.0",
+            "title": "cookie accepts cookie name, path, and domain with out of bounds characters"
+          }
+        ]
+      },
+      {
+        "name": "esbuild",
+        "severity": "moderate",
+        "nodes": [
+          {
+            "path": "node_modules/esbuild",
+            "version": "0.20.2"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-67mh-4wv8-2f99",
+            "range": "<=0.24.2",
+            "title": "esbuild enables any website to send any requests to the development server and read the response"
+          }
+        ]
+      },
+      {
+        "name": "jpeg-js",
+        "severity": "high",
+        "nodes": [
+          {
+            "path": "node_modules/jpeg-js",
+            "version": "0.3.7"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-xvf7-4v9q-58w6",
+            "range": "<0.4.4",
+            "title": "Infinite loop in jpeg-js"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-w7q9-p3jq-fmhm",
+            "range": "<0.4.0",
+            "title": "Uncontrolled resource consumption in jpeg-js"
+          }
+        ]
+      },
+      {
+        "name": "path-to-regexp",
+        "severity": "high",
+        "nodes": [
+          {
+            "path": "node_modules/path-to-regexp",
+            "version": "0.1.10"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-rhx6-c78j-4q9w",
+            "range": "<0.1.12",
+            "title": "path-to-regexp contains a ReDoS"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-37ch-88jc-xwx2",
+            "range": "<0.1.13",
+            "title": "path-to-regexp vulnerable to Regular Expression Denial of Service via multiple route parameters"
+          }
+        ]
+      },
+      {
+        "name": "phin",
+        "severity": "moderate",
+        "nodes": [
+          {
+            "path": "node_modules/phin",
+            "version": "2.9.3"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-x565-32qp-m3vf",
+            "range": "<3.7.1",
+            "title": "phin may include sensitive headers in subsequent requests after redirect"
+          }
+        ]
+      },
+      {
+        "name": "postcss-selector-parser",
+        "severity": "moderate",
+        "nodes": [
+          {
+            "path": "node_modules/postcss-selector-parser",
+            "version": "6.1.2"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-w9m9-85wc-3x92",
+            "range": ">=6.1.0 <6.1.3",
+            "title": "postcss-selector-parser allows denial of service through uncontrolled AST recursion"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-rj75-hqrm-r3gf",
+            "range": "<7.1.6",
+            "title": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion"
+          }
+        ]
+      },
+      {
+        "name": "qs",
+        "severity": "moderate",
+        "nodes": [
+          {
+            "path": "node_modules/body-parser/node_modules/qs",
+            "version": "6.13.0"
+          },
+          {
+            "path": "node_modules/qs",
+            "version": "6.11.0"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-w7fw-mjwx-w883",
+            "range": ">=6.7.0 <=6.14.1",
+            "title": "qs's arrayLimit bypass in comma parsing allows denial of service"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-6rw7-vpxm-498p",
+            "range": "<6.14.1",
+            "title": "qs's arrayLimit bypass in its bracket notation allows DoS via memory exhaustion"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-q8mj-m7cp-5q26",
+            "range": ">=6.11.1 <=6.15.1",
+            "title": "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set"
+          },
+          {
+            "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+            "range": ">=2.2.5 <6.16.0",
+            "title": "qs: Denial of Service via Attacker Controlled isBuffer"
+          }
+        ]
+      },
+      {
+        "name": "send",
+        "severity": "low",
+        "nodes": [
+          {
+            "path": "node_modules/serve-static/node_modules/send",
+            "version": "0.18.0"
+          }
+        ],
+        "advisories": [
+          {
+            "url": "https://github.com/advisories/GHSA-m6fv-jmcg-4jfg",
+            "range": "<0.19.0",
+            "title": "send vulnerable to template injection that can lead to XSS"
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "Remaining advisories not dismissed or declared clean",
+      "Loopback needs localhost listen capability; no actual IDE/device claimed",
+      "Watch initial build only; no incremental edit/HMR or real device",
+      "nvue parser fixture tests do not establish Android/iOS nvue device compatibility",
+      "GitHub Dependabot alert bodies have not been reconciled",
+      "Taro audit results are carried from the earlier builder-fix phase, not rerun in this follow-up",
+      "Consumer version gate checks only the simple declarations used by these examples, not all duplicate package instances"
+    ]
+  }
 }
