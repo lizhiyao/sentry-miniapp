@@ -6,6 +6,7 @@ import {
   makeSession,
   type Envelope,
   type SerializedSession,
+  type User,
 } from '@sentry/core';
 import { SessionIntegration } from '../src/integrations/session';
 import { _resetAppLifecycle } from '../src/appLifecycle';
@@ -16,6 +17,7 @@ import { MiniappClient } from '../src/client';
 describe('Session owner 与前台 episode', () => {
   let app: { onLaunch: () => void; onShow: () => void; onHide: () => void };
   let savedApp: unknown;
+  let savedUser: User | null;
   let envelopes: Envelope[];
   const clients: MiniappClient[] = [];
   function start(integration = new SessionIntegration()) {
@@ -34,6 +36,7 @@ describe('Session owner 与前台 episode', () => {
   beforeEach(() => {
     _resetAppLifecycle();
     savedApp = (globalThis as { App?: unknown }).App;
+    savedUser = getIsolationScope().getUser() ?? null;
     envelopes = [];
     vi.stubGlobal('App', (options: typeof app) => {
       app = options;
@@ -43,6 +46,7 @@ describe('Session owner 与前台 episode', () => {
   afterEach(() => {
     clients.splice(0).forEach((client) => client.dispose());
     getIsolationScope().setSession();
+    getIsolationScope().setUser(savedUser);
     (globalThis as { App?: unknown }).App = savedApp;
     vi.unstubAllGlobals();
     _resetAppLifecycle();
@@ -194,6 +198,92 @@ describe('Session owner 与前台 episode', () => {
     app.onShow();
     expect(sessions()).toHaveLength(1);
     expect(getIsolationScope().getSession()).toBeUndefined();
+  });
+
+  it('自动 Session 创建在用户读取和 scope 通知重入时保持归属，后续 show 可恢复', () => {
+    for (const action of ['show', 'hide', 'hide-show', 'dispose', 'init', 'throw'] as const) {
+      getClient()?.dispose();
+      getIsolationScope().setSession();
+      getIsolationScope().setUser({});
+      envelopes = [];
+      const owner = start();
+      const business = vi.fn();
+      (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({
+        onLaunch: business,
+      });
+      let firstRead = true;
+      let replacement: MiniappClient | undefined;
+      getIsolationScope().setUser({
+        get id() {
+          if (firstRead) {
+            firstRead = false;
+            if (action === 'show') app.onShow();
+            if (action === 'hide' || action === 'hide-show') app.onHide();
+            if (action === 'hide-show') app.onShow();
+            if (action === 'dispose') owner.dispose();
+            if (action === 'init') {
+              replacement = init({
+                dsn: 'https://test@example.com/0',
+                release: 'replacement@2.0',
+                defaultIntegrations: [],
+                transport: createCapturingTransport(envelopes),
+              });
+              if (replacement) clients.push(replacement);
+            }
+            if (action === 'throw') throw new Error('user unavailable');
+          }
+          return `user-${action}`;
+        },
+      });
+      expect(() => app.onLaunch(), action).not.toThrow();
+      expect(business, action).toHaveBeenCalledOnce();
+      if (action === 'init') {
+        expect(replacement).toBeUndefined();
+        expect(getClient()).toBe(owner);
+      }
+      const cancelled = ['hide', 'dispose', 'throw'].includes(action);
+      expect(sessions(), action).toHaveLength(cancelled ? 0 : 1);
+      if (cancelled) expect(getIsolationScope().getSession(), action).toBeUndefined();
+      else expect(getIsolationScope().getSession()?.sid).toBe(sessions()[0]?.sid);
+      app.onShow();
+      expect(sessions(), action).toHaveLength(action === 'dispose' ? 0 : 1);
+      if (action !== 'dispose') {
+        expect(sessions()[0]?.did).toBe(`user-${action}`);
+        app.onHide();
+        expect(sessions().map(({ status }) => status)).toEqual(['ok', 'exited']);
+      }
+      expect(getIsolationScope().getSession(), action).toBeUndefined();
+      getIsolationScope().setUser({});
+    }
+    for (const showAgain of [false, true]) {
+      getClient()?.dispose();
+      envelopes = [];
+      start();
+      (globalThis as typeof globalThis & { App: (options: unknown) => void }).App({});
+      let armed = true;
+      getIsolationScope().addScopeListener((scope) => {
+        if (!armed || !scope.getSession()) return;
+        armed = false;
+        app.onHide();
+        if (showAgain) app.onShow();
+      });
+      try {
+        app.onLaunch();
+        expect(sessions().map(({ status }) => status)).toEqual(
+          showAgain ? ['exited', 'ok'] : ['exited'],
+        );
+        if (showAgain) {
+          expect(getIsolationScope().getSession()?.sid).toBe(sessions()[1]?.sid);
+          expect(sessions()[1]?.sid).not.toBe(sessions()[0]?.sid);
+        } else expect(getIsolationScope().getSession()).toBeUndefined();
+        app.onShow();
+        expect(sessions()).toHaveLength(2);
+        app.onHide();
+        expect(sessions().map(({ status }) => status)).toEqual(['exited', 'ok', 'exited']);
+      } finally {
+        armed = false;
+      }
+    }
   });
 
   it('session capture hook 失败仍解除自己的引用，业务回调仍运行', () => {
