@@ -324,3 +324,15 @@ lint、严格类型、全量 coverage、SDK 构建／实际安装包消费、微
 修复候选 tarball 经七平台 App／原生入口的 CJS／ESM 复核通过；另在七个小程序原生通道和微信／抖音小游戏原生通道的 18 个独立进程中验证五类用户读取动作，全部通过。宿主通道选择也有断言。旧发布包的 scope 通知结果为 `exited, exited`，候选为单次 `exited`；后续 show 和新 SID 均恢复。候选仍沿用开发版本号 beta.8，不能据此当作已发布 beta.8 的修复。
 
 lint、源码／测试严格类型、全量 coverage、标准构建／真实 tarball 消费、微信独立 bundle／本地映射及官网构建通过。本轮未新增 npm 发布、真机或目标 Sentry 后台证据；用户设备反馈继续由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。
+
+## Core 会话发送回调与关闭交错复核（2026-10-11）
+
+基线为 `master c2b5a3d`（#492）。该基线和官方 npm beta.8 的实际 CJS／ESM 包均复现：`beforeSendSession` 中同步 hide 或 close，发送同一 SID 的两次 `exited`；`beforeEnvelope` 中发生 close，先发送 `exited` 再发送 `ok`，两条均带 `init: true`；transport 的同步发送回调中 close 虽保留状态次序，却仍发送两次 `init: true`。这些是受控回调证据，不归因为特定设备或 Core 升级独有缺陷，也未以本地 payload 推断后台实际计数。
+
+对照固定 Core 11.4.0 的公开捕获顺序：beforeSendSession → 创建 envelope → sendEnvelope／同步 transport 回调 → 更新 init。Client 在现有 captureSession／emit 接缝按 Session 对象记录同步操作。序列化前的嵌套捕获合入当前发送；序列化后的嵌套捕获等当前 Core 调用完成再捕获，沿用 Core 的 init 更新和状态算法。另一份 Session 可独立发送；finally 释放操作，dispose 或预算耗尽后停止追加。候选在发送前回调中只发一次 exited，在 envelope／transport 回调中依次发送 ok(init=true)、exited(init=false)，close 的 transport drain 能看到完整收尾。
+
+强化已有 Session hook 故障及微信／抖音原生 Session 用例，未新增测试定义，总数保持 77 文件／1277 用例。覆盖三种同步回调时机下的 hide、hide-show、close、dispose，抛错后同一对象重试、手动嵌套捕获合并与正常独立更新，以及真实 Core 错误更新中的原生 hide／自动 flush。检查 SID、终态次数、init、错误计数和 drain 时数据，而非仅断言 mock 被调用。
+
+实际包的公开行为场景保持 CJS／ESM 各 21 个，扩展现有 Session 场景覆盖上述发送与原生错误更新。七平台两种入口复核通过；另在七个小程序及微信／抖音小游戏原生通道的 18 个隔离进程中执行 216 项发送回调动作，全部通过，通道选择与新会话恢复也有断言。所有矩阵为模拟宿主；没有新增真机或目标后台证据。
+
+lint、源码／测试严格类型、全量 coverage／shuffle、SDK 标准构建／实际包消费、微信独立 bundle／本地映射及官网构建通过。覆盖率门槛保持，statements 98.73%、branches 95.72%、functions 99.20%、lines 99.44%。本轮没有发布新 npm 版本，架构和官网只描述当前行为与理由，设备反馈继续由 #457 跟踪。

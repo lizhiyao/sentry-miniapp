@@ -715,6 +715,99 @@ async function runBoundaryScenario(pkg) {
         }
       }
       evidence.scopeListenerTerminalSentOnce = true;
+      evidence.sendHookCases = [];
+      for (const phase of ['session', 'envelope', 'transport']) {
+        for (const action of ['hide', 'hide-show', 'close', 'dispose']) {
+          client.dispose();
+          sdk.setUser(null);
+          observed.length = 0;
+          let closing;
+          let firstSid;
+          let armed = true;
+          const flushed = [];
+          const act = () => {
+            if (!armed) return;
+            armed = false;
+            if (action === 'close') closing = client.close(1000);
+            else if (action === 'dispose') client.dispose();
+            else {
+              app.onHide();
+              if (action === 'hide-show') app.onShow();
+            }
+          };
+          client = sdk.init({
+            ...sessionOptions,
+            transport: () => ({
+              send(envelope) {
+                observed.push(envelope);
+                if (phase === 'transport' && envelope[1].some(([h]) => h.type === 'session')) act();
+                return Promise.resolve({ statusCode: 200 });
+              },
+              flush() {
+                flushed.push(payloads('session'));
+                return Promise.resolve(true);
+              },
+            }),
+          });
+          assert.ok(client);
+          client.on('beforeSendSession', (session) => {
+            if (!('sid' in session)) return;
+            firstSid ??= session.sid;
+            if (phase === 'session') act();
+          });
+          client.on('beforeEnvelope', (envelope) => {
+            if (phase === 'envelope' && envelope[1].some(([h]) => h.type === 'session')) act();
+          });
+          let businessCalls = 0;
+          global.App({ onLaunch: () => businessCalls++ });
+          app.onLaunch();
+          assert.equal(businessCalls, 1);
+          if (closing) assert.equal(await closing, true);
+          const first = payloads('session').filter(({ sid }) => sid === firstSid);
+          if (action === 'dispose') {
+            assert.deepEqual(
+              first.map(({ status }) => status),
+              phase === 'transport' ? ['ok'] : [],
+            );
+            assert.equal(sdk.getIsolationScope().getSession(), undefined);
+          } else {
+            assert.deepEqual(
+              first.map(({ status }) => status),
+              phase === 'session' ? ['exited'] : ['ok', 'exited'],
+              `${phase}/${action}`,
+            );
+            assert.deepEqual(
+              first.map(({ init }) => init),
+              phase === 'session' ? [true] : [true, false],
+            );
+            if (action === 'close') {
+              assert.deepEqual(
+                flushed.at(-1).filter(({ sid }) => sid === firstSid),
+                first,
+              );
+              assert.equal(sdk.getIsolationScope().getSession(), undefined);
+            } else {
+              if (action === 'hide') assert.equal(sdk.getIsolationScope().getSession(), undefined);
+              app.onShow();
+              const nextSid = sdk.getIsolationScope().getSession().sid;
+              assert.notEqual(nextSid, firstSid);
+              app.onHide();
+              assert.deepEqual(
+                payloads('session')
+                  .filter(({ sid }) => sid === nextSid)
+                  .map(({ status }) => status),
+                ['ok', 'exited'],
+              );
+              assert.equal(sdk.getIsolationScope().getSession(), undefined);
+            }
+          }
+          evidence.sendHookCases.push({
+            phase,
+            action,
+            statuses: first.map(({ status }) => status),
+          });
+        }
+      }
       client.dispose();
       delete global.App;
       observed.length = 0;
@@ -732,6 +825,58 @@ async function runBoundaryScenario(pkg) {
       assert.equal(payloads('session').length, 0);
       assert.equal(sdk.getIsolationScope().getSession(), undefined);
       sdk.setUser(null);
+      observed.length = 0;
+      client = sdk.init({
+        ...sessionOptions,
+        defaultIntegrations: sdk
+          .getDefaultIntegrations({ ...common, enableAutoSessionTracking: true })
+          .filter(({ name }) => name === 'Session' || name === 'MiniappLifecycle'),
+      });
+      const show = shows.at(-1);
+      const hide = hides.at(-1);
+      for (const phase of ['session', 'envelope']) {
+        const currentSid = sdk.getIsolationScope().getSession().sid;
+        let armed = true;
+        const act = () => {
+          if (!armed) return;
+          armed = false;
+          hide();
+        };
+        const stop =
+          phase === 'session'
+            ? client.on('beforeSendSession', (session) => {
+                if ('sid' in session && session.sid === currentSid && session.errors === 1) act();
+              })
+            : client.on('beforeEnvelope', (envelope) => {
+                if (
+                  envelope[1].some(
+                    ([header, payload]) =>
+                      header.type === 'session' &&
+                      payload.sid === currentSid &&
+                      payload.errors === 1,
+                  )
+                )
+                  act();
+              });
+        try {
+          client.captureException(new Error(`native handled error with ${phase} hide`));
+          assert.equal(await client.flush(1000), true);
+          const updates = payloads('session').filter(({ sid }) => sid === currentSid);
+          assert.deepEqual(
+            updates.map(({ status }) => status),
+            phase === 'session' ? ['ok', 'exited'] : ['ok', 'ok', 'exited'],
+          );
+          assert.equal(updates.filter(({ init }) => init).length, 1);
+          assert.equal(updates.at(-1).errors, 1);
+          assert.equal(sdk.getIsolationScope().getSession(), undefined);
+        } finally {
+          armed = false;
+          stop();
+        }
+        show();
+      }
+      evidence.nativeErrorSessionTransitions = 2;
+      client.dispose();
       client = sdk.init({ ...common, defaultIntegrations: false, transport });
       await finishEvent('session start boundary recovered');
       evidence.nativeInitialSessionDiscarded = true;

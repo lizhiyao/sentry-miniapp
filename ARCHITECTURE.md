@@ -109,6 +109,8 @@ Session 的错误状态沿用 Core 的首次 errored／unhandled 语义，`error
 
 自动 Session 的创建也有同步操作归属：先占用一次创建身份，再委托 Core 合并用户数据并调用 `makeSession`，提交到 isolation scope 前复查活动 client 和该身份。提交会触发 scope 监听器，因此初次捕获前还需确认仍拥有该会话，避免再次发送监听器已收尾的终态。重复 show 不重入创建；hide、finalizer 和 cleanup 取消未提交的操作，hide 后的新 show 可以开始另一份有效会话。用户字段 getter 与 Core hook 均可能执行应用代码，故创建处使用现有同步遥测临界区拒绝 `init()` 重入；dispose 仍立即生效。读取失败通过 finally 释放创建身份，后续 show 可恢复，不复制 Core 的 Session 状态算法。
 
+Client 对同一个 Session 对象的同步捕获重入保留短暂操作上下文。`beforeSendSession` 返回后 Core 才序列化，回调内的结束状态直接合入当前发送；`beforeEnvelope`／transport 的同步回调发生在 payload 已生成之后，这时的重入先登记待捕获，等 Core 完成本次 `captureSession` 并更新 `init` 后，再委托 Core 捕获后续状态。这样同一会话的起始、终态保持顺序，终态不会因嵌套发送重复上报；另一份 Session 仍可独立捕获。该上下文不持有异步锁，在 finally 中释放，关闭或预算耗尽后不追加发送。Core 仍负责状态更新、序列化和 envelope，不读取私有 buffer，也不复制协议或 Session 算法。
+
 ### 延迟操作与长期 producer
 
 `OwnerToken` 固定安装／操作时的 client 与 scope 数据，并在执行时检查当前绑定、活动 runtime 和启用状态。正常回调在短暂的 Core scope 内完成遥测工作；不持有跨 `await` 的 SDK 全局锁。
