@@ -13,7 +13,7 @@ Core 的[请求数据规范化集成](https://github.com/getsentry/sentry-javasc
 
 Core 没有公开的查询参数构造器注入接缝。只设置 tunnel 可以绕开鉴权地址构造，不能补齐实际使用的查询参数过滤；自行复制 endpoint 或过滤算法也会扩大 Core 升级时需要维护的实现范围。
 
-SDK 在 `coreCompat.ensureURLSearchParams` 中独立检查 record 和字符串输入，并以 pair、Unicode／非法 UTF-8 输入检查所安装构造器的行为一致性；这些额外检查不代表 SDK 使用了 Core 的请求数据规范化集成。可用的宿主构造器保持原身份，即使没有完整 `URL` 或构造器属性不可改写。该检测只验证能力，不实现解析、编码或迭代算法。缺失或不完整时安装依赖的回退构造器。不会补完整 URL，也不会包装 fetch／Request／Headers。
+SDK 在 `coreCompat.ensureURLSearchParams` 中只检查实际路径需要的 record 编码与字符串参数名称解码，覆盖百分号编码、`+` 空格与正常 Unicode 名称。`get()`、pair 输入和孤立 surrogate 的完整标准行为不作为宿主可用性的启动条件。满足 SDK 需求的构造器保持原身份，即使没有完整 `URL` 或属性不可改写；回退构造器的额外输入一致性另由包消费检查保护。该检测不实现解析、编码或迭代算法，也不补完整 URL 或包装 fetch／Request／Headers。
 
 ## 必要性与取舍的证据
 
@@ -23,7 +23,9 @@ SDK 在 `coreCompat.ensureURLSearchParams` 中独立检查 record 和字符串�
 
 当前补丁的两类依据也须分开：宿主隔离修正的是引入 core-js-pure 后的无关 URL／请求探测与原型改写风险；USVString 修正的是回退构造器的输入行为一致性。冻结 Request 原型、不可读 getter 和只读查询构造器的结果来自模拟宿主的实际包检查，尚无对应的设备故障证据。USVString 补丁复用现有标准方法，未增加一套转换算法，也不是普通 ASCII 上报能够工作的前提。另以所有浏览器 API 均缺失的环境验证，未修补的 pure 包也能生成正常 endpoint；原型改写故障需要实际存在可调用的 Headers／Request。隔离补丁保护的是这些 API 由宿主或框架提供的组合，而非证明每个小程序都存在该故障。
 
-因此当前方案是有维护成本的折中，不能宣称已经证明它是所有候选中的长期最优方案。保持补丁范围稳定，以实际 SDK 路径、宿主副作用、包体积和升级成本评估后续替换；无需补丁的独立查询实现若满足这些约束，应优先考虑。构造器的额外一致性探针用于防止已有行为倒退，不能独立充当增加新补丁的理由。
+因此当前方案是有维护成本的折中，不能宣称已经证明它是所有候选中的长期最优方案。保持补丁范围稳定，以实际 SDK 路径、宿主副作用、包体积和升级成本评估后续替换；无需补丁的独立查询实现若满足这些约束，应优先考虑。回退实现的额外一致性探针用于防止其行为倒退，不能独立充当增加新补丁的理由，也不能迫使替换本来满足 SDK 需求的宿主构造器。
+
+已有全局数据属性安装回退时只更新值，保留属性约束：不可配置但可写的数据属性仍可替换；可配置的只读数据属性更新后仍保持只读。首次创建的属性可配置、可写；可配置的不可用 getter 转为可写的数据属性。如果必需方法不可用且属性同时不可配置、不可写，SDK 无法安装 Core 所需的全局能力；这类宿主须先由运行环境补齐，不能靠吞掉安装异常宣称支持。
 
 ## 官方 SDK 提供的参考
 
@@ -58,10 +60,10 @@ SDK 在 `coreCompat.ensureURLSearchParams` 中独立检查 record 和字符串�
 
 - 缺少 URLSearchParams 且 Request 原型冻结时，导入成功；fetch／Request 的身份及 Request.prototype.constructor 不变。
 - fetch／Request／Headers 的不可读 getter 不被访问。
-- 没有完整 URL 时仍保留可用的原生查询构造器；完整 URL 可用但查询构造器缺少 keys() 时能够独立回退。
+- 没有完整 URL 时仍保留满足 SDK 需求的查询构造器；缺少 get()／pair 输入不能触发替换。缺少必用 keys() 时能独立回退；不可配置但可写的属性能安装回退并保留约束。
 - record、pair 和字符串的孤立 surrogate 转为 U+FFFD，null／undefined 值保留字符串语义，Symbol 拒绝。
 - 非法百分号编码、重复键、live iterator 和回调 receiver 保持已验证行为。
 
-这些边界由[实际安装包消费检查](../scripts/internal/check-package-consumers.mjs)约束，覆盖 CJS／ESM、七个平台和独立 UMD；[启动测试](../test/polyfills.test.ts)验证 SDK 装配和宿主能力选择。immutable 安装也保证补丁与固定版本一致。若候选库无需源码补丁且通过相同边界，再结合实际包体积和宿主依赖考虑替换；不预先承诺任意 Web IDL 输入或完整 ES5 引擎支持。
+这些边界由[实际安装包消费检查](../scripts/internal/check-package-consumers.mjs)约束，覆盖 CJS／ESM、七个平台和独立 UMD；[启动测试](../test/polyfills.test.ts)验证 SDK 装配和宿主能力选择。immutable 安装也保证补丁与固定版本一致。候选库先按实际 SDK 路径和宿主副作用评估，再单独评估回退输入行为、实际包体积和依赖成本；不预先承诺任意 Web IDL 输入或完整 ES5 引擎支持。
 
 修补的 pure 包仅作为本 SDK 构建时的 URLSearchParams 回退来源，不用于完整 URL 或其它浏览器 API。代码内联到 SDK 产物，消费项目无需安装该包或应用 Yarn patch。
