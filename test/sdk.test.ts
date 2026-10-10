@@ -30,17 +30,6 @@ describe('SDK', () => {
       expect(client?.getOptions().dsn).toBe('https://test@sentry.io/123456');
     });
 
-    it('帧率细调通过 minigameFrameRateOptions 透传给自动追加的集成', () => {
-      const client = init({
-        dsn: 'https://test@sentry.io/123456',
-        enableMinigameFrameRate: true,
-        minigameFrameRateOptions: { fpsWarningThreshold: 45 },
-      });
-      const integ: any = client?.getIntegrationByName?.('MinigameFrameRate');
-      expect(integ).toBeDefined();
-      expect(integ._options.fpsWarningThreshold).toBe(45);
-    });
-
     it('用户已传入同名帧率集成时不重复追加，保留用户配置', () => {
       const userInteg = new MinigameFrameRateIntegration({ fpsWarningThreshold: 50 });
       const client = init({
@@ -49,9 +38,9 @@ describe('SDK', () => {
         integrations: [userInteg],
       });
       const integ: any = client?.getIntegrationByName?.('MinigameFrameRate');
-      // 仍是用户实例，未被自动追加的默认实例覆盖
+      // 仍是用户实例，未被自动追加的默认实例覆盖。
+      // 选项生效的行为证据由 minigame-framerate.realcore.test.ts 经 init 接线验证。
       expect(integ).toBe(userInteg);
-      expect(integ._options.fpsWarningThreshold).toBe(50);
     });
 
     it('should initialize with full configuration', () => {
@@ -251,42 +240,6 @@ describe('SDK', () => {
       expect(client?.getIntegrationByName?.('PageBreadcrumbs')).toBeDefined();
     });
 
-    it('should keep lifecycle breadcrumbs when only user interaction breadcrumbs are disabled', () => {
-      const client = init({
-        dsn: 'https://test@sentry.io/123',
-        integrations: [],
-        enableUserInteractionBreadcrumbs: false,
-      });
-      const pageBreadcrumbs = client
-        ?.getOptions()
-        .integrations?.find((integration: any) => integration.name === 'PageBreadcrumbs') as any;
-
-      expect(pageBreadcrumbs).toBeDefined();
-      expect(pageBreadcrumbs._options).toEqual({
-        enableLifecycle: true,
-        enableUserInteraction: false,
-        sensitiveKeys: [],
-      });
-    });
-
-    it('顶层 sensitiveKeys / maxRequestBodySize 下发到采集类集成', () => {
-      const client = init({
-        dsn: 'https://test@sentry.io/123',
-        sensitiveKeys: ['memberNo'],
-        maxRequestBodySize: 'small',
-        traceNetworkBody: true,
-      });
-      const find = (name: string): any =>
-        client?.getOptions().integrations?.find((integration: any) => integration.name === name);
-
-      expect(find('PageBreadcrumbs')._options.sensitiveKeys).toEqual(['memberNo']);
-
-      const network = find('NetworkBreadcrumbs');
-      // small = 1 KB，与其它 Sentry SDK 的 maxRequestBodySize 档位一致。
-      expect(network._maxBodyBytes).toBe(1000);
-      expect(network._sensitiveKeys).toEqual(['memberno']);
-    });
-
     it('should skip PageBreadcrumbs when lifecycle and user interaction breadcrumbs are disabled', () => {
       const client = init({
         dsn: 'https://test@sentry.io/123',
@@ -324,30 +277,8 @@ describe('SDK', () => {
         integrations: [],
         traceNetworkBody: true,
       });
-      const networkBreadcrumbs = client?.getIntegrationByName?.('NetworkBreadcrumbs') as any;
-      expect(networkBreadcrumbs).toBeDefined();
-      expect(networkBreadcrumbs._traceNetworkBody).toBe(true);
-    });
-
-    it('should pass trace propagation options to NetworkBreadcrumbs', () => {
-      const client = init({
-        dsn: 'https://test@sentry.io/123',
-        integrations: [],
-        enableTracePropagation: false,
-        enableStandaloneHttpSpans: false,
-        tracePropagationTargets: [/api\.example\.com/],
-        propagateTraceparent: true,
-      });
-
-      const networkBreadcrumbs = client
-        ?.getOptions()
-        .integrations?.find((integration: any) => integration.name === 'NetworkBreadcrumbs') as any;
-
-      expect(networkBreadcrumbs).toBeDefined();
-      expect(networkBreadcrumbs._propagateTraceparent).toBe(true);
-      expect(networkBreadcrumbs._enableTracePropagation).toBe(false);
-      expect(networkBreadcrumbs._enableStandaloneHttpSpans).toBe(false);
-      expect(networkBreadcrumbs._tracePropagationTargets).toEqual([/api\.example\.com/]);
+      // 选项生效的行为证据由 networkbreadcrumbs.realcore.test.ts 的正文采集用例验证。
+      expect(client?.getIntegrationByName?.('NetworkBreadcrumbs')).toBeDefined();
     });
 
     it('passes all inbound filter options to the default EventFilters integration', () => {

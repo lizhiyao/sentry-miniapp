@@ -15,7 +15,7 @@
 | 5. console undefined | 已确认并修复。JSON.stringify 返回 undefined 时使用 String 回退 | 最终事件保留 `undefined` 文字；原 console 的 receiver、参数、返回值、异常身份与调用次数不变；观测 hook／格式化 getter 失败仍透传原宿主调用 |
 | 6. URLSearchParams stub | 删除内部 SDK 接口字段、无平台 fallback stub 及旧 optional-call 断言 | 没有生产消费者；实际全局 URLSearchParams polyfill 与启动安装路径保留，包消费仍覆盖缺失构造器的宿主 |
 | 7. SDK 断言 | 原断言过弱，但不是逻辑上恒真；已改为具体行为 | 实际捕获 ID 与最终事件一致；无 client 的 flush 返回 false；公开 API 委托原 timeout 和结果；wrap 捕获 mechanism 并重抛同一异常 |
-| 8. protected 测试入口 | `client.test.ts` 的环境／Debug ID 用例改走公开 captureEvent + flush，移除私有 spy | 最终事件、显式 context／scope 优先级、Debug ID 与 processor 拒收。不声称全仓消除 protected 测试：`client-state.realcore.test.ts` 仍用于登记的 Core 准备接缝契约 |
+| 8. protected 测试入口 | `client.test.ts` 的环境／Debug ID 用例改走公开 captureEvent + flush，移除私有 spy；后续复审进一步把 `client-state.realcore.test.ts` 的 `_prepareEvent` 测试子类改走公开 captureEvent 与最终 envelope，测试侧不再持有 protected 入口 | 最终事件、显式 context／scope 优先级、Debug ID 与 processor 拒收。注意默认 stack strategy 下两参 `withIsolationScope` 不安装给定 scope（Core 的 `withSetIsolationScope` 忽略参数），涉及 isolation 贡献的断言须用真实 isolation scope 或捕获 scope |
 | 9. 旧 coverage 目录 | 本轮读取时已无旧 system/router 页面；完整覆盖率检查再次生成当前报告 | lifecycle、owner、sessionCapture 等当前模块包含在报告中；coverage 是忽略的生成目录，不提交产物 |
 | 10. 覆盖率／PR 包门禁 | 分支门槛 93.4 → 95.5，保持其它门槛与源码测量范围；“PR CI 不检查安装包”不成立 | CI 的 Quality、Node 20／22 jobs 已通过 yarn build 执行隔离 tarball 消费。该独立修复新增 async-stacktrace 后要求 CJS／ESM 各 18 场景，不再追加一套 CI |
 | 11. 场景数文档 | 移除文档中的 16／17 固定计数，以可执行清单为准；#472 也有相同的文档收尾 | 该独立修复阶段硬断言 18 场景；与 #472 整合后为 20，PR 和发布消费继续使用同一门禁 |
@@ -29,7 +29,7 @@
 
 新 `async-stacktrace` 包场景仅从安装包公共入口调用 captureException 与 flush；已发布 beta.6 的 CJS／ESM 都输出错误的 `app:///async pages/index/index.js` 并失败。修复后的真实 tarball 两种入口通过，保留另外 17 个场景。未复制 parser 或导入 Core 私有模块来制造绿色结果。
 
-FPS／console 的真实 Core 控制组在修复前共有 12 项失败、8 项通过；修复后全部通过。全量测试揭示两项 Session 用例仍用旧 `reportInterval: 0` 触发窗口。两项改为合法 40ms 并完整执行两帧，增加未到窗口不报告的控制，保留 A 终态／B 引用、错误计数及最终 envelope 的全部断言，没有用关闭 FPS 消除失败。
+FPS／console 的真实 Core 控制组在修复前共有 12 项失败、8 项通过（其中 reportInterval 参数化仅 `0` 在旧代码上失败，`-1`／`NaN`／`Infinity` 在旧的非负整数回落下本就是通过的行为锁定；失败主要集中在 fpsWarningThreshold／longFrameThresholdMs 两组与 console 文本）；修复后全部通过。全量测试揭示两项 Session 用例仍用旧 `reportInterval: 0` 触发窗口。两项改为合法 40ms 并完整执行两帧，增加未到窗口不报告的控制，保留 A 终态／B 引用、错误计数及最终 envelope 的全部断言，没有用关闭 FPS 消除失败。
 
 两路独立复核又找到正向“系统信息为空”用例未保证事件存在，以及开发 Node 范围误等同 Core 范围。前者补最终消息身份，并清除空对象循环的无效检查；Debug ID getter 故障也验证独立事件仍可发送。后者按实际 Core、Vite、Vitest、ESLint 的共同范围更新四处开发说明。这些问题在交付前修正。
 

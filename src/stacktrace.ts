@@ -10,8 +10,15 @@ import type { StackFrame, StackParser } from '@sentry/core';
  *   at (filename:line:col)
  *   at functionName (app-service.js:123:45)
  *   at Object.handleTap (pages/index/index.js:42:13)
+ *   at eval (eval at handleTap (pages/index/index.js:42:13), <anonymous>:3:4)
  */
 const V8_STACK_LINE_REGEX = /^\s*at\s+(?:(.*?)\s*\((.+):(\d+):(\d+)\)|(.+):(\d+):(\d+))\s*$/;
+
+/**
+ * 提取 eval 帧内层的真实源码位置（与官方 chrome 解析器的 chromeEvalRegex 一致）。
+ * eval 帧的外层位置指向宿主包装，没有映射意义；内层 `(...:line:col)` 才是 eval 代码的来源。
+ */
+const V8_EVAL_LOCATION_REGEX = /\((\S*):(\d+):(\d+)\)/;
 
 /**
  * 匹配 Safari/JavaScriptCore 风格的堆栈帧（iOS WebView 环境）
@@ -67,14 +74,21 @@ function v8StackLineParser(line: string): StackFrame | undefined {
     bareColnoStr,
   ] = match;
   // V8 的 async 裸帧没有函数名；修饰词不是源码路径，wrapped 函数名仍保持原样。
-  const filename = wrappedFilename || bareFilename?.replace(/^async\s+/, '');
+  let filename = wrappedFilename || bareFilename?.replace(/^async\s+/, '');
+  let linenoStr = wrappedLinenoStr || bareLinenoStr;
+  let colnoStr = wrappedColnoStr || bareColnoStr;
+  // eval 帧改用内层真实源码位置；真实文件名（如 eval.js）不含内层括号，不会误匹配。
+  if (wrappedFilename?.startsWith('eval')) {
+    const evalMatch = V8_EVAL_LOCATION_REGEX.exec(wrappedFilename);
+    if (evalMatch) {
+      [, filename, linenoStr, colnoStr] = evalMatch;
+    }
+  }
   const frame: StackFrame = {
     filename: filename || '<anonymous>',
     function: wrappedFilename ? functionName || UNKNOWN_FUNCTION : UNKNOWN_FUNCTION,
     in_app: isInApp(filename),
   };
-  const linenoStr = wrappedLinenoStr || bareLinenoStr;
-  const colnoStr = wrappedColnoStr || bareColnoStr;
   const lineno = parseIntSafe(linenoStr);
   const colno = parseIntSafe(colnoStr);
   if (lineno) frame.lineno = lineno;

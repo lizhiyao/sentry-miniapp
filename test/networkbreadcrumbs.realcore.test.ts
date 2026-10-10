@@ -578,9 +578,10 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     // stream 生命周期不产出 transaction 事件，beforeSendTransaction 由 core 忽略。
     expect(collectEnvelopePayloads(captured, ['transaction'])).toEqual([]);
     expect(beforeSendSpan).toHaveBeenCalledOnce();
+    // 独立 segment 的传播头必须锚定请求 span 自身，而不是回落到别的 span。
     expect(requestMock.mock.calls[0]?.[0].header).toEqual(
       expect.objectContaining({
-        'sentry-trace': expect.any(String),
+        'sentry-trace': `${span.trace_id}-${span.span_id}-1`,
         baggage: expect.stringContaining('sentry-'),
       }),
     );
@@ -1167,6 +1168,31 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(options.header).toEqual(expect.objectContaining({ 'sentry-trace': expect.any(String) }));
   });
 
+  it('enableTracePropagation=false 时匹配目标也不注入 trace 头，请求 span 照常上报', async () => {
+    init({
+      dsn: 'https://test@o0.ingest.sentry.io/0',
+      platform: 'bytedance',
+      tracesSampleRate: 1,
+      enableTracePropagation: false,
+      tracePropagationTargets: ['api.example.com'],
+      enableOfflineCache: false,
+      enableAutoSessionTracking: false,
+      enableMinigameLifecycle: false,
+      enableMinigameFrameRate: false,
+      transport: createCapturingTransport(captured),
+    });
+
+    g.tt.request({ url: 'https://api.example.com/v1/users' });
+    await flush(2000);
+
+    // 首个调用是业务请求；envelope 发送在其后。
+    const [options] = requestMock.mock.calls.map(([arg]) => arg);
+    expect(options.header ?? {}).not.toHaveProperty('sentry-trace');
+    expect(options.header ?? {}).not.toHaveProperty('baggage');
+    expect(options.header ?? {}).not.toHaveProperty('traceparent');
+    expect(collectSpans(captured)).toHaveLength(1);
+  });
+
   it('正则目标独立生效，且带 g 标志连续命中不丢注入', async () => {
     init({
       dsn: 'https://test@o0.ingest.sentry.io/0',
@@ -1207,6 +1233,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       dsn: 'https://test@o0.ingest.sentry.io/0',
       platform: 'bytedance',
       tracesSampleRate: 1,
+      tracePropagationTargets: ['api.example.com'],
       enableOfflineCache: false,
       enableAutoSessionTracking: false,
       enableMinigameLifecycle: false,
@@ -1229,6 +1256,13 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(child.parent_span_id).toBe(root.span_id);
     expect(spanAttribute(child, 'sentry.op')).toBe('http.client');
     expect(spanAttribute(child, 'sentry.origin')).toBe('auto.http.miniapp');
+    // 非 ignored 子 span 的传播头必须锚定子 span 自身；误回落到父 span 时
+    // traceId/sampled 位不变，只有下游 parent_span_id 链接会静默退化。
+    expect(requestMock.mock.calls[0]?.[0].header).toEqual(
+      expect.objectContaining({
+        'sentry-trace': `${child.trace_id}-${child.span_id}-1`,
+      }),
+    );
     // 请求 span 归到业务 trace 里，不再另发独立 segment；stream 下也没有 transaction 事件。
     expect(spans.filter((span) => span.is_segment)).toHaveLength(1);
     expect(collectEnvelopePayloads(captured, ['transaction'])).toEqual([]);
