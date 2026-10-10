@@ -63,7 +63,7 @@ tracesSampler: ({ attributes, inheritOrSampleWith }) => {
 
 Core v10 未配置 `sendDefaultPii` 时默认为 `false`；Core v11 已删除它，`dataCollection.userInfo` 改为默认 `true`。旧 `sendDefaultPii: false` 配置应移除旧键，改用 `dataCollection: { userInfo: false }`；这是关闭错误事件 IP 自动补充的最小改法，不是旧版全部隐私行为的等价替换。正文仍需 `traceNetworkBody` 放行，默认关闭。完整改法见[隐私配置迁移](/guide/migration-2.0#data-collection-migration)。
 
-已发布的 beta.6 会忽略 `sendDefaultPii` 和 `enableLogs`，不能依赖旧值控制采集。后续版本会显式拒绝任何非 `undefined` 的旧值，混用新旧配置也会拒绝；`init()` 会在替换当前 client 前检查，直接构造 `MiniappClient` 同样拒绝，`undefined` 等同未配置。
+已发布的 beta.6 会忽略 `sendDefaultPii` 和 `enableLogs`，不能依赖旧值控制采集。自 beta.7 起显式拒绝任何非 `undefined` 的旧值，混用新旧配置也会拒绝；`init()` 会在替换当前 client 前检查，直接构造 `MiniappClient` 同样拒绝，`undefined` 等同未配置。
 
 SDK 自动采集的键值数据都走 core 11 的 `CollectBehavior` 语义：键名保留，命中的值就地替换成 `[Filtered]`。
 
@@ -89,7 +89,7 @@ SDK 自动产生的 HTTP、navigation/resource URL 名称去掉 query、fragment
 
 ## Logs
 
-2.0 删除 `enableLogs`；beta.6 忽略旧值，后续版本会对非 `undefined` 旧值报迁移错误。`Sentry.logger.trace/debug/info/warn/error/fatal` 按调用即采集，由 core 批量发送。迁移时移除 `enableLogs: true`；原先依赖 `enableLogs: false` 的应用，应停止调用 logger／安装日志集成，或配置 `beforeSendLog: () => null`。SDK 不默认安装 console 到 Logs 的集成。
+2.0 删除 `enableLogs`；beta.6 忽略旧值，自 beta.7 起对非 `undefined` 旧值报迁移错误。`Sentry.logger.trace/debug/info/warn/error/fatal` 按调用即采集，由 core 批量发送。迁移时移除 `enableLogs: true`；原先依赖 `enableLogs: false` 的应用，应停止调用 logger／安装日志集成，或配置 `beforeSendLog: () => null`。SDK 不默认安装 console 到 Logs 的集成。
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
@@ -354,7 +354,7 @@ Sentry.init({
 每次 `init()` 都应创建新的有状态 integration 实例。不要跨多次初始化复用
 缓存后的 `getDefaultIntegrations()` 结果。2.0 删除旧 `defaultIntegrations` 静态数组、公共 class 和空 `showReportDialog`；使用 named factories，或 `Sentry.Integrations` 中相同的 factories。反馈由业务 UI 收集后调用 `captureFeedback()`。
 
-旧 `defaultIntegrations: Sentry.defaultIntegrations` 可删除以使用默认集合，或改为每次初始化时调用 `Sentry.getDefaultIntegrations(options)`。后续版本会保留原工具出口 `Sentry.Integrations.normalizeMiniappFrameFilename()`；beta.6 暂缺该出口，使用它的项目需更新至包含修复的版本后再沿用旧调用。
+旧 `defaultIntegrations: Sentry.defaultIntegrations` 可删除以使用默认集合，或改为每次初始化时调用 `Sentry.getDefaultIntegrations(options)`。自 beta.7 起恢复原工具出口 `Sentry.Integrations.normalizeMiniappFrameFilename()`；beta.6 暂缺该出口，使用它的项目升级至 beta.7 后可沿用旧调用。
 
 2.0 不再自动复制交互 `dataset`；自动 targetId／handler 限 128 个 UTF-16 code units，eventType 限 64 个，不改业务传参。业务需要时应构造显式白名单的 breadcrumb，避免复制整份模板数据。导航 API 的面包屑由 Page collector 提供，服从 `enableNavigationBreadcrumbs` 和 query 策略；跳转尝试不写 route tag，也不启动轮询。
 
