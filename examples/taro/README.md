@@ -49,6 +49,8 @@ npm run build:weapp
 
 然后用**微信开发者工具**导入本目录（`project.config.json` 的 `miniprogramRoot` 指向 `dist/`），即可预览。点按钮后到 Sentry「Issues」/「Performance」查看事件与面包屑。
 
+示例固定使用 webpack `5.104.1`，通过 npm `overrides` 统一 Taro 声明的旧版本；保留该配置并使用 npm 安装。当前验证目标是微信小程序构建和 watch，其他目标需另行验证。示例框架依赖仍有上游安全公告，具体范围与处理记录见[示例依赖审查](../../docs/example-dependency-security.md)。
+
 > `project.config.json` 里 `es6` / `minified` 设为 `false`：交给 Taro 编译，避免微信开发者工具二次压缩导致 Source Map 错位（见[文档站 · Source Map 配置](https://sentry-miniapp.pages.dev/guide/sourcemap)）。
 
 ## DSN 配置

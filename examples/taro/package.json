@@ -38,7 +38,6 @@
     "@babel/preset-react": "^7.24.1",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.5",
     "@tarojs/cli": "4.2.1",
-    "@tarojs/plugin-generator": "4.2.1",
     "@tarojs/taro-loader": "4.2.1",
     "@tarojs/webpack5-runner": "4.2.1",
     "@types/node": "^18",
@@ -50,6 +49,9 @@
     "sass": "^1.75.0",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "typescript": "^5.4.5",
-    "webpack": "5.91.0"
+    "webpack": "5.104.1"
+  },
+  "overrides": {
+    "webpack": "$webpack"
   }
 }

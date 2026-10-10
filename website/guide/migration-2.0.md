@@ -2,9 +2,11 @@
 
 2.0 使用 `@sentry/core v11`，部分 API 和默认行为与 1.x 不同。本页说明需要修改的代码和配置；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
 
-通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.5` 固定版本。默认安装仍获取 1.x 稳定版。升级前先确认实际安装版本。
+通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.6` 固定版本。默认安装仍获取 1.x 稳定版。升级前先确认实际安装版本。
 
 已使用早期 beta 的项目也应更新：beta.1 修复 `lastEventId()` 未更新的问题；beta.2 起，开启正文采集也会省略无法识别格式的正文；beta.3 修复自定义 transport 忽略超时时，`dispose()` 无法结束正在等待的 `flush()` 的问题。
+
+beta.6 修复会话错误统计的边界问题，以及部分宿主 API 不可读或只读时导致 SDK 初始化失败的问题。
 
 ## 试用前需要确认
 

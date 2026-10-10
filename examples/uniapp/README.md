@@ -31,6 +31,8 @@ npm run build:mp-weixin
 
 然后用**微信开发者工具**导入产物目录（`dist/dev/mp-weixin` 或 `dist/build/mp-weixin`），即可预览。
 
+示例固定使用 Vite `6.4.3`，通过 npm `overrides` 统一 uni-app 插件声明的旧版本；保留该配置并使用 npm 安装。当前验证目标是微信小程序构建和 watch，其他目标需另行验证。示例框架依赖仍有上游安全公告，具体范围与处理记录见[示例依赖审查](../../docs/example-dependency-security.md)。
+
 ## DSN 配置
 
 `src/utils/sentry.js` 里的 `DSN` 与 `examples/wxapp` **共用同一个演示 Sentry 项目**，开箱即可上报——点击实验室按钮后，可在后台按 `demo_trigger_id` 看到事件。换成你自己项目的 DSN 即可在你的后台观察数据。
@@ -41,7 +43,7 @@ npm run build:mp-weixin
 
 ## 验证当前仓库的 2.0 契约
 
-当前固定 uni-app 工具链的生产插件会覆盖普通 build.sourcemap。示例用 --sourcemap 和提前执行的 Vite 公共 configResolved hook，在 Vue 插件读取配置前保留 hidden map 与 sourcesContent；只在输出阶段打开 map 会丢失 `.vue` 业务映射。JS 在 dist/build/mp-weixin，map 在 dist/build/.sourcemap/mp-weixin。先验证实际业务异常位置，再合成上传目录，不把 map 发布进小程序包：
+当前固定 uni-app 工具链的生产插件会覆盖普通 build.sourcemap。示例用 --sourcemap、Vite 公共 configEnvironment 和 configResolved hook，同步实际构建环境及 Vue 插件读取的根配置，保留 hidden map 与 sourcesContent；只在输出阶段打开 map 会丢失 `.vue` 业务映射。JS 在 dist/build/mp-weixin，map 在 dist/build/.sourcemap/mp-weixin。先验证实际业务异常位置，再合成上传目录，不把 map 发布进小程序包：
 
 ```bash
 node ../../scripts/internal/check-framework-sourcemaps.mjs \
