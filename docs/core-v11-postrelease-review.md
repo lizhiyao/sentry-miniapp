@@ -261,7 +261,7 @@ Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能
 
 删除 320 行 `polyfills.ts`：String.prototype.isWellFormed／toWellFormed 交给 core-js 按需模块；URLSearchParams 使用同版本 core-js-pure 的公开入口及其能力检测，保留正常原生构造器。SDK 不再维护另一套 String 修复、表单编解码、查询参数迭代与全局对象发现算法。精确依赖及版本补丁以 package.json／yarn.lock／.yarn/patches 为准，所有选中模块继续内联，生产消费不需要安装 core-js。
 
-成熟实现也经过边界复核。未修补的 pure URLSearchParams 模块会读取 fetch／Request／Headers 并写 Request.prototype.constructor；冻结原型时直接导入失败。最小 Yarn patch 在 pure 模式跳过这段无关 transport 探测与包装。该版本对原始孤立 surrogate 的输入转换还不完整，补丁在参数输入处先执行同库 ToString，再复用公开 String.prototype.toWellFormed 完成 USVString 转换，保留 null／undefined 键值的字符串语义与 Symbol 拒绝，避免替换后 get／迭代与已有规范化行为不同；解析、百分号编码、排序与迭代算法仍由上游维护。可空值对照采用 SDK endpoint 所用的 record／pair 输入，不把宿主对整个 null 构造参数的差异误判为 SDK 故障。真实包检查同时约束原生身份、冻结原型、不可读浏览器 API、Unicode 键值与最终 wire。升级依赖时须复核上游是否修复，并移除已无必要的补丁。
+成熟实现也经过边界复核。未修补的 pure URLSearchParams 模块会读取 fetch／Request／Headers 并写 Request.prototype.constructor；冻结原型时直接导入失败。最小 Yarn patch 在 pure 模式跳过这段无关 transport 探测与包装。该版本对原始孤立 surrogate 的输入转换还不完整，补丁在参数输入处先执行同库 ToString，再复用公开 String.prototype.toWellFormed 完成 USVString 转换，保留 null／undefined 键值的字符串语义与 Symbol 拒绝，避免替换后 get／迭代与已有规范化行为不同；解析、百分号编码、排序与迭代算法仍由上游维护。可空值对照采用 SDK endpoint 所用的 record 输入及额外 pair 一致性检查，不把宿主对整个 null 构造参数的差异误判为 SDK 故障。真实包检查同时约束原生身份、冻结原型、不可读浏览器 API、Unicode 键值与最终 wire。升级依赖时须复核上游是否修复，并移除已无必要的补丁。
 
 保留的共用 UTF-8 标量转换服务于 Core 编码回退和无需分配编码结果的字节预算，core-js 不提供 TextEncoder。精确 ArrayBuffer 复制是宿主请求能力适配，离线 codec 的类型、长度、规范化 base64 和预算校验属于存储协议；不能用宽松全局 polyfill 替换这些约束。Babel generator 转换也仍必要：实际产物检查发现，Vite 降级 async 时会生成 generator，源码没有 generator 并不足以删除转换。
 
@@ -284,3 +284,13 @@ THIRD_PARTY_NOTICES.md 保留安装包中实际内联的 Core、core-js／core-j
 加强现有启动测试与实际包检查，用例数仍为 1276；七平台 ESM 检查从 10 种扩展至 13 种宿主模式，增加正常独立查询能力、只读构造器及缺少 keys() 的部分实现。CJS 对应模式、独立 UMD、68 个导出／类型入口和各 20 项公开行为场景通过。最终 tarball 的七个小程序及微信／抖音小游戏、12 种能力组合、CJS／ESM 共 216 项遥测与生命周期探针全部通过。
 
 同设置 gzip 对照 #486 实际包，本轮 CJS 增加 158 bytes、ESM 增加 193 bytes。已通过 immutable 安装、lint、严格类型、coverage／shuffle、SDK 构建、微信独立 bundle／本地映射和文档站构建；覆盖率为 statements 98.72%、branches 95.67%、functions 99.20%、lines 99.44%。本轮没有新增 npm 发布、真实设备或后台验收结论。
+
+## 查询参数补丁的必要性复核（2026-10-11）
+
+基线为 `master 34a1756`（#487）。检查实际 ESM／CJS 产物，Core 的 URLSearchParams 使用路径为 endpoint record 编码，以及网络 span 经 `getHttpSpanDetailsFromUrlObject` 的字符串参数过滤；requestDataIntegration 没有装配／重导出，也不在产物中。pair 输入属于额外行为一致性检查，不能写成 SDK endpoint 或必用的 Core 路径。
+
+从 `v1.20.4` 提取生产 polyfill，以真实 Core 11.4.0 执行普通 DSN endpoint 和 `safe=a+b&token=secret&dup=1&dup=2` 的 span 查询过滤，二者通过。Core 10.74.0 的 endpoint 同样使用 URLSearchParams record；不能将更换回退实现表述为 Core 升级本身的必然要求。旧实现的独立输入标准差异与普通 SDK 上报故障分别判断。
+
+当前保留小范围依赖补丁，未修改运行时代码或增加测试用例。宿主隔离是采用该依赖后的适配要求；USVString 是已有输入行为一致性保护。冻结原型、不可读 getter 等证据来自模拟宿主，未声称设备故障复现。长期选择按实际调用、宿主副作用、体积和维护成本复核，不因候选未通过所有构造器探针就宣称其必然无法用于 SDK；详见[查询参数依赖取舍](query-runtime-decision.md)。
+
+本轮 lint、1276 项现有单测和文档站构建通过；未新增 SDK 构建、发布、后台或设备验收结论。
