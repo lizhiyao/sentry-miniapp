@@ -199,7 +199,8 @@ assert.equal(unicodeParams.get('\\ud800'), '�');
 assert.equal(unicodeParams.get('added'), '�');
 assert.equal(unicodeParams.get('set'), '�');
 
-for (const input of [null, undefined, { empty: null, absent: undefined, numeric: 123 }, [['key', null], ['absent', undefined]]]) {
+// Core 构造 endpoint 使用 record；检查可空键值，不强求宿主构造器所有重载相同。
+for (const input of [undefined, { empty: null, absent: undefined, numeric: 123 }, [['key', null], ['absent', undefined]]]) {
   const actual = new URLSearchParams(input);
   const expected = new nativeURLSearchParams(input);
   assert.deepEqual([...actual], [...expected]);

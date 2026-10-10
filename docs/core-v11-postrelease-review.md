@@ -261,7 +261,7 @@ Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能
 
 删除 320 行 `polyfills.ts`：String.prototype.isWellFormed／toWellFormed 交给 core-js 按需模块；URLSearchParams 使用同版本 core-js-pure 的公开入口及其能力检测，保留正常原生构造器。SDK 不再维护另一套 String 修复、表单编解码、查询参数迭代与全局对象发现算法。精确依赖及版本补丁以 package.json／yarn.lock／.yarn/patches 为准，所有选中模块继续内联，生产消费不需要安装 core-js。
 
-成熟实现也经过边界复核。未修补的 pure URLSearchParams 模块会读取 fetch／Request／Headers 并写 Request.prototype.constructor；冻结原型时直接导入失败。最小 Yarn patch 在 pure 模式跳过这段无关 transport 探测与包装。该版本对原始孤立 surrogate 的输入转换还不完整，补丁在参数输入处先执行同库 ToString，再复用公开 String.prototype.toWellFormed 完成 USVString 转换，保留 null／undefined 键值的字符串语义与 Symbol 拒绝，避免替换后 get／迭代与已有规范化行为不同；解析、百分号编码、排序与迭代算法仍由上游维护。真实包检查同时约束原生身份、冻结原型、不可读浏览器 API、Unicode 键值与最终 wire。升级依赖时须复核上游是否修复，并移除已无必要的补丁。
+成熟实现也经过边界复核。未修补的 pure URLSearchParams 模块会读取 fetch／Request／Headers 并写 Request.prototype.constructor；冻结原型时直接导入失败。最小 Yarn patch 在 pure 模式跳过这段无关 transport 探测与包装。该版本对原始孤立 surrogate 的输入转换还不完整，补丁在参数输入处先执行同库 ToString，再复用公开 String.prototype.toWellFormed 完成 USVString 转换，保留 null／undefined 键值的字符串语义与 Symbol 拒绝，避免替换后 get／迭代与已有规范化行为不同；解析、百分号编码、排序与迭代算法仍由上游维护。可空值对照采用 SDK endpoint 所用的 record／pair 输入，不把宿主对整个 null 构造参数的差异误判为 SDK 故障。真实包检查同时约束原生身份、冻结原型、不可读浏览器 API、Unicode 键值与最终 wire。升级依赖时须复核上游是否修复，并移除已无必要的补丁。
 
 保留的共用 UTF-8 标量转换服务于 Core 编码回退和无需分配编码结果的字节预算，core-js 不提供 TextEncoder。精确 ArrayBuffer 复制是宿主请求能力适配，离线 codec 的类型、长度、规范化 base64 和预算校验属于存储协议；不能用宽松全局 polyfill 替换这些约束。Babel generator 转换也仍必要：实际产物检查发现，Vite 降级 async 时会生成 generator，源码没有 generator 并不足以删除转换。
 
