@@ -1,27 +1,38 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getConfiguredDefaultIntegrationsMode, MiniappClient } from '../src/client';
 import { MiniappOptions } from '../src/types';
 import { resetPlatformCache } from '../src/crossPlatform';
 import {
-  Client,
   SeverityLevel,
   getCurrentScope,
-  getIsolationScope,
   parameterize,
+  type Envelope,
   type Event,
   type EventHint,
 } from '@sentry/core';
 import { miniappStackParser } from '../src/stacktrace';
+import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
+
+const clients = new Set<MiniappClient>();
+const capturedEnvelopes = new WeakMap<MiniappClient, Envelope[]>();
 
 function createClient(options: MiniappOptions = {}): MiniappClient {
-  return new MiniappClient({
-    transport: () => ({ send: () => Promise.resolve({}), flush: () => Promise.resolve(true) }),
+  const envelopes: Envelope[] = [];
+  const client = new MiniappClient({
+    transport: createCapturingTransport(envelopes),
     ...options,
   });
+  clients.add(client);
+  capturedEnvelopes.set(client, envelopes);
+  return client;
 }
 
-function prepare(client: MiniappClient, event: Event, hint: EventHint) {
-  return client['_prepareEvent'](event, hint, getCurrentScope(), getIsolationScope());
+async function captureFinalEvent(client: MiniappClient, event: Event, hint: EventHint) {
+  const id = client.captureEvent(event, hint, getCurrentScope());
+  expect(await client.flush(100)).toBe(true);
+  return collectEnvelopePayloads<Event>(capturedEnvelopes.get(client)!, ['event']).find(
+    (captured) => captured.event_id === id,
+  );
 }
 
 describe('MiniappClient', () => {
@@ -37,6 +48,11 @@ describe('MiniappClient', () => {
     };
     client = createClient(options);
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    for (const owned of clients) owned.dispose();
+    clients.clear();
   });
 
   describe('eventFromException', () => {
@@ -167,10 +183,10 @@ describe('MiniappClient', () => {
     });
   });
 
-  describe('_prepareEvent', () => {
+  describe('public capture event pipeline', () => {
     it('should add miniapp context', async () => {
       const event = { message: 'test' };
-      const preparedEvent = await prepare(client, event, {});
+      const preparedEvent = await captureFinalEvent(client, event, {});
 
       expect(preparedEvent?.contexts).toBeDefined();
       expect(preparedEvent?.contexts?.['miniapp']).toBeDefined();
@@ -180,7 +196,7 @@ describe('MiniappClient', () => {
 
     it('should add system information', async () => {
       const event = { message: 'test' };
-      const preparedEvent = await prepare(client, event, {});
+      const preparedEvent = await captureFinalEvent(client, event, {});
 
       expect(preparedEvent?.contexts?.['device']).toBeDefined();
       expect(preparedEvent?.contexts?.['os']).toBeDefined();
@@ -192,7 +208,7 @@ describe('MiniappClient', () => {
         dsn: 'https://test@sentry.io/123',
         enableSystemInfo: false,
       });
-      const event = await prepare(client, { message: 'test' }, {});
+      const event = await captureFinalEvent(client, { message: 'test' }, {});
 
       expect(event?.contexts?.['miniapp']).toBeDefined();
       expect(event?.contexts?.['device']).toBeUndefined();
@@ -227,7 +243,7 @@ describe('MiniappClient', () => {
       resetPlatformCache();
 
       const client = createClient({ dsn: 'https://test@sentry.io/123' });
-      const event = await prepare(client, { message: 'test' }, {});
+      const event = await captureFinalEvent(client, { message: 'test' }, {});
 
       expect(event?.contexts?.device).toEqual({
         brand: 'Apple',
@@ -280,7 +296,7 @@ describe('MiniappClient', () => {
       resetPlatformCache();
 
       const client = createClient({ dsn: 'https://test@sentry.io/123' });
-      const event = await prepare(client, { message: 'test' }, {});
+      const event = await captureFinalEvent(client, { message: 'test' }, {});
 
       expect(event?.contexts?.device).toEqual({
         model: 'iPhone',
@@ -291,12 +307,6 @@ describe('MiniappClient', () => {
       expect(event?.contexts?.os).toBeUndefined();
 
       expect(event?.contexts?.app).toBeUndefined();
-
-      // Ensure no undefined values exist
-      const deviceContext = event?.contexts?.device;
-      Object.values(deviceContext || {}).forEach((value) => {
-        expect(value).not.toBeUndefined();
-      });
     });
 
     it('should provide fallback values when system info is null', async () => {
@@ -306,19 +316,12 @@ describe('MiniappClient', () => {
       resetPlatformCache();
 
       const client = createClient({ dsn: 'https://test@sentry.io/123' });
-      const event = await prepare(client, { message: 'test' }, {});
+      const event = await captureFinalEvent(client, { message: 'test' }, {});
 
+      expect(event).toMatchObject({ message: 'test' });
       expect(event?.contexts?.device).toBeUndefined();
       expect(event?.contexts?.os).toBeUndefined();
       expect(event?.contexts?.app).toBeUndefined();
-
-      // Ensure no undefined values exist
-      const allContexts = [event?.contexts?.device, event?.contexts?.os, event?.contexts?.app];
-      allContexts.forEach((context) => {
-        Object.values(context || {}).forEach((value) => {
-          expect(value).not.toBeUndefined();
-        });
-      });
     });
 
     it('should preserve existing contexts', async () => {
@@ -329,7 +332,7 @@ describe('MiniappClient', () => {
           miniapp: { environment: 'custom-environment', tenant: 'tenant-a' },
         },
       };
-      const preparedEvent = await prepare(client, event, {});
+      const preparedEvent = await captureFinalEvent(client, event, {});
 
       expect(preparedEvent?.contexts?.['custom']).toEqual({ data: 'value' });
       expect(preparedEvent?.contexts?.['miniapp']).toEqual(
@@ -368,7 +371,7 @@ describe('MiniappClient', () => {
           integrations: [],
           stackParser: miniappStackParser,
         } as any);
-        const event = await prepare(
+        const event = await captureFinalEvent(
           c,
           {
             exception: {
@@ -431,11 +434,14 @@ describe('MiniappClient', () => {
       try {
         resetPlatformCache();
         const c = createClient({
+          dsn: 'https://test@sentry.io/123',
           debug: true,
           integrations: [],
           stackParser: miniappStackParser,
         });
-        await prepare(c, { message: 'test' }, {});
+        expect(await captureFinalEvent(c, { message: 'test' }, {})).toMatchObject({
+          message: 'test',
+        });
       } finally {
         if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
         else Reflect.deleteProperty(globalThis, 'window');
@@ -447,30 +453,23 @@ describe('MiniappClient', () => {
       );
     });
 
-    it('normalizes direct client construction so event preparation does not need a fallback', async () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    it('normalizes direct construction for public capture without calling init', async () => {
       resetPlatformCache();
-      const c = createClient({ debug: true });
+      const c = createClient({ dsn: 'https://test@sentry.io/123' });
 
-      const event = await prepare(c, { message: 'test' }, {});
+      const event = await captureFinalEvent(c, { message: 'test' }, {});
 
       expect(event?.message).toBe('test');
-      expect(consoleSpy).not.toHaveBeenCalledWith(
-        '[sentry-miniapp] _prepareEvent 兜底（scope 未就绪）:',
-        expect.anything(),
-      );
+      expect(event?.sdk?.name).toBe('sentry.javascript.miniapp');
     });
 
-    it('core 准备失败不回退为未经处理的原事件', () => {
-      const error = new Error('scope unavailable');
-      const mocked = vi.spyOn(Client.prototype as any, '_prepareEvent').mockImplementation(() => {
-        throw error;
+    it('processor 失败不发送未经处理的原事件', async () => {
+      client.addEventProcessor(() => {
+        throw new Error('processor unavailable');
       });
-      try {
-        expect(() => prepare(client, { message: 'raw-canary' }, {})).toThrow(error);
-      } finally {
-        mocked.mockRestore();
-      }
+
+      expect(await captureFinalEvent(client, { message: 'raw-canary' }, {})).toBeUndefined();
+      expect(collectEnvelopePayloads<Event>(capturedEnvelopes.get(client)!, ['event'])).toEqual([]);
     });
 
     // F3：SDK 的 device/os/app 应为「缺省填充」，不得覆盖用户显式设置。
@@ -485,7 +484,7 @@ describe('MiniappClient', () => {
       };
       resetPlatformCache();
       const c = createClient({ dsn: 'https://test@sentry.io/123', integrations: [] });
-      const event = await prepare(
+      const event = await captureFinalEvent(
         c,
         { message: 'test', contexts: { os: { name: 'CustomOS', version: '99' } } },
         {},
@@ -512,7 +511,7 @@ describe('MiniappClient', () => {
       const scope = getCurrentScope();
       scope.setContext('os', { name: 'ScopeOS', version: '1' });
       try {
-        const event = await prepare(c, { message: 'test' }, {});
+        const event = await captureFinalEvent(c, { message: 'test' }, {});
         // scope 上用户设的 os 经 core 合并后应胜出，不被 SDK 自动值覆盖
         expect(event?.contexts?.os).toEqual({ name: 'ScopeOS', version: '1' });
         expect(event?.contexts?.device?.brand).toBe('Apple');

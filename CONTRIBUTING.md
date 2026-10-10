@@ -10,6 +10,8 @@ For development setup, commands, project structure, and debugging workflow, see 
 
 Quick start:
 
+For repository development, use Node.js 20.19+ on the 20.x line, 22.13+ on the 22.x line, or 24+. This satisfies the current Core, Vite, Vitest and ESLint requirements; CI uses 20.x, 22.x and 24.x. The published package's `engines.node` describes the SDK/Core dependency range, which is broader than the development tools' range. Yarn is pinned by `packageManager`.
+
 ```bash
 git clone https://github.com/<your-username>/sentry-miniapp.git
 cd sentry-miniapp

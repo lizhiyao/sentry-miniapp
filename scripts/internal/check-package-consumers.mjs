@@ -465,7 +465,7 @@ try {
     assert.equal(summary.passed, true, `${moduleSyntax} packaged behavior failed`);
     assert.equal(summary.module, moduleSyntax);
     assert.equal(summary.version, packageJson.version);
-    assert.equal(summary.scenarios, 17);
+    assert.equal(summary.scenarios, 18);
     assert.equal(results.length, summary.scenarios);
     assert.ok(results.every((result) => result.passed && result.version === packageJson.version));
   }
@@ -492,7 +492,7 @@ try {
   });
 
   console.log(
-    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${selfRequestRuntimeModes.length} URL modes), UMD, TypeScript (${cjsResult.keys.length} exports), and 17 behavior scenarios for each CJS/ESM entry.`,
+    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${selfRequestRuntimeModes.length} URL modes), UMD, TypeScript (${cjsResult.keys.length} exports), and 18 behavior scenarios for each CJS/ESM entry.`,
   );
 } finally {
   if (suppliedTarball && process.env.DIAGNOSTICS_DIR) {

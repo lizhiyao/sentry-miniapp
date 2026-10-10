@@ -48,7 +48,7 @@ cp -r .agents/skills/sentry-miniapp-sdk ~/.agents/skills/sentry-miniapp-sdk
 
 ## 常用命令
 
-> 环境要求：Node ≥ 20.19、Yarn 4（由 `package.json` 的 `packageManager` 固定）。首次先跑 `corepack enable`，让仓库内的 `yarn` 自动对齐到固定版本。
+> 开发环境要求：Node 20.x ≥ 20.19、22.x ≥ 22.13 或 ≥ 24，满足当前 Core、Vite、Vitest、ESLint 的共同范围；Yarn 4（由 `package.json` 的 `packageManager` 固定）。发布包 `engines.node` 的 SDK 依赖范围另与固定的 Core 一致。首次先跑 `corepack enable`，让仓库内的 `yarn` 自动对齐到固定版本。
 
 - `yarn install` - 安装依赖
 - `yarn run lint` - 代码检查

@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { SDK_VERSION, SDK_NAME } from '../src/version';
 import pkg from '../package.json';
+import corePkg from '@sentry/core/package.json';
 
 describe('Version', () => {
+  it('实际安装的 Core 版本与支持的 Node 范围必须匹配发布声明', () => {
+    expect(corePkg.version).toBe(pkg.dependencies['@sentry/core']);
+    expect(pkg.engines.node).toBe(corePkg.engines.node);
+  });
+
   describe('SDK_VERSION', () => {
     it('should export a valid version string', () => {
       expect(typeof SDK_VERSION).toBe('string');

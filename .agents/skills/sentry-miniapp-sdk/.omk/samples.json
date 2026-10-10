@@ -56,8 +56,8 @@
   {
     "sample_id": "s003",
     "prompt": "以下项目事实已经确认，不需要执行探测。请为字节跳动小程序设计分布式追踪配置：启用性能采样，只向 api.example.com 传播追踪上下文，并兼容后端使用的 W3C Trace Context。说明前后端如何验证同一条 trace。",
-    "context": "app.ts 已调用 Sentry.init，但尚未设置 tracesSampleRate。小程序请求 api.example.com，Node.js 后端已接入支持 tracing 的 Sentry SDK。README 说明可通过 tracePropagationTargets 限制传播目标，propagateTraceparent 控制 W3C traceparent。",
-    "rubric": "评分维度：（1）明确 tracing 需要大于 0 的 tracesSampleRate 或 tracesSampler，且二者同时存在时 tracesSampler 优先；（2）使用 enableTracePropagation、tracePropagationTargets 和 propagateTraceparent；（3）仅匹配 api.example.com，不向所有第三方传播；（4）说明目标请求应包含 sentry-trace、baggage 和 traceparent，并验证前端 transaction 与后端 span 关联。",
+    "context": "app.ts 已调用 Sentry.init，但尚未设置 tracesSampleRate。小程序请求 api.example.com，Node.js 后端已接入支持 tracing 的 Sentry SDK。使用 sentry-miniapp 2.0 的 stream 契约。README 说明可通过 tracePropagationTargets 限制传播目标，propagateTraceparent 控制 W3C traceparent。",
+    "rubric": "评分维度：（1）明确 tracing 需要大于 0 的 tracesSampleRate 或 tracesSampler，且二者同时存在时 tracesSampler 优先；（2）使用 enableTracePropagation、tracePropagationTargets 和 propagateTraceparent；（3）仅匹配 api.example.com，不向所有第三方传播；（4）说明目标请求应包含 sentry-trace、baggage 和 traceparent，并验证小程序请求 span/segment 与后端 span 的 trace_id 一致，不要求 transaction envelope。",
     "assertions": [
       {
         "type": "contains_all",

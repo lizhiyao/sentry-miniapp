@@ -24,7 +24,7 @@ export interface MinigameJankLevels {
   severe?: number;
 }
 
-/** 小游戏帧率／卡顿监控的细调选项。 */
+/** 小游戏帧率／卡顿监控的细调选项。FPS／时间须为有限正数（可含小数），非法值回落默认。 */
 export interface MinigameFrameRateOptions {
   /** FPS 低于该值时，周期上报标记为 warning。默认 30。 */
   fpsWarningThreshold?: number;
@@ -32,7 +32,7 @@ export interface MinigameFrameRateOptions {
   longFrameThresholdMs?: number;
   /** 周期性上报 FPS 的间隔（毫秒）。默认 10000。 */
   reportInterval?: number;
-  /** 每个上报窗口内最多产出多少条 jank 面包屑（防刷屏）；超出仅计数不再打面包屑。默认 3。 */
+  /** 每个上报窗口最多产出的 jank 面包屑数；非负安全整数，0 禁用，非法值回落默认 3。 */
   maxJankBreadcrumbsPerWindow?: number;
   /**
    * 分级卡顿阈值（ms）。提供后切换为分级统计：每帧按命中的最高档计入，

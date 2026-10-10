@@ -25,6 +25,11 @@ interface JankTier {
 }
 const JANK_TIER_NAMES: JankTierName[] = ['minor', 'major', 'severe'];
 
+/** FPS／毫秒是连续物理量；保留正小数，非法值回落默认。 */
+function resolvePositiveFiniteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 /**
  * 收集有效分级档（有限正数）并校验「阈值随严重度严格递增」（minor < major < severe）。
  *
@@ -133,9 +138,9 @@ export class MinigameFrameRateIntegration implements Integration {
 
   constructor(options: MinigameFrameRateOptions = {}) {
     this._options = {
-      fpsWarningThreshold: options.fpsWarningThreshold ?? 30,
-      longFrameThresholdMs: options.longFrameThresholdMs ?? 50,
-      reportInterval: resolveNonNegativeInteger(options.reportInterval, 10000),
+      fpsWarningThreshold: resolvePositiveFiniteNumber(options.fpsWarningThreshold, 30),
+      longFrameThresholdMs: resolvePositiveFiniteNumber(options.longFrameThresholdMs, 50),
+      reportInterval: resolvePositiveFiniteNumber(options.reportInterval, 10000),
       maxJankBreadcrumbsPerWindow: resolveNonNegativeInteger(
         options.maxJankBreadcrumbsPerWindow,
         3,
