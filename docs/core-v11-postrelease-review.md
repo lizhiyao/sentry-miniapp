@@ -176,4 +176,6 @@ URL 处理的本机受控对照覆盖 credentials、重复 query 键、追加敏
 
 Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能返回不同结果的 `has` trap；继承的已知字段才检查存在性。快照回归同时检查普通、非枚举、继承和 Proxy 输入，防止候选适配自身改变业务参数。
 
+最终资源复核发现候选实现新增的门禁闭包仍持有 client／lifetime：即使 OwnerToken 已释放，宿主保留未完成请求的回调时，退休 client 仍不可回收。公开包的 Node GC 对照中，beta.7 不保留、修正前候选保留；改为随 owner release 清空两个引用后，候选不再保留。该修正属于候选审查，不计为已发布 beta.7 的缺陷，也不是对目标设备 GC 时机的承诺。
+
 最终本地检查通过：lint、源码与测试严格类型、77 文件／1335 测试及 shuffle、原覆盖率门槛（statements 98.73%、branches 95.63%、functions 99.24%、lines 99.45%）、SDK 三种产物、publint 与实际包消费、微信独立 bundle 与本地符号化、文档站构建。Core 及其它依赖版本未改。

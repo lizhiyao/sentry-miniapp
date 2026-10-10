@@ -191,11 +191,12 @@ export class NetworkBreadcrumbs implements Integration {
         if (isMarkedSentryRequestOptions(options)) {
           return;
         }
-        const client = getClient();
+        let client = getClient();
         if (!client) return;
-        const lifetime = getClientLifetime(client);
+        let lifetime = getClientLifetime(client);
         const ensureActive = (): void => {
           if (
+            !client ||
             getClient() !== client ||
             client.getOptions().enabled === false ||
             (lifetime && !lifetime.canCollectAutomatic())
@@ -284,6 +285,9 @@ export class NetworkBreadcrumbs implements Integration {
         });
         owner.onRelease(() => {
           requestSpan = null;
+          // 业务请求可以长期持有包装回调，门禁闭包不能因此保留整个退休 client。
+          client = undefined;
+          lifetime = undefined;
         });
         if (!owner.isActive()) {
           owner.release();
