@@ -372,7 +372,7 @@ Sentry.init({
 
 反馈的两个 SDK 入口也在关闭开始后停止执行 `beforeSendFeedback`。Session 更新在排空期间继续处理，以保留已有事件的错误统计和同步收尾；`dispose()` 或关闭完成后，`client.captureSession(session)` 不再执行发送回调或修改传入的 Session。
 
-关闭后日志／指标不再执行用户采集回调或进入发送队列。在采集回调中关闭 client 后返回的数据也不会发送。
+关闭后日志／指标不再执行用户采集回调或进入发送队列。如果在采集回调或属性转换过程中关闭 client，本次日志／指标也不会发送；关闭前已经接收的事件仍可在收尾预算内排空。
 
 `close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。
 

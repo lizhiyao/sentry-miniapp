@@ -473,6 +473,11 @@ describe('NetworkBreadcrumbs tracing', () => {
 
     expect(crossPlatform.sdk().request(null as any)).toBeNull();
     expect(passthroughRequest).toHaveBeenCalledWith(null);
+    passthroughRequest.mockClear();
+    const receiver = {};
+    expect(crossPlatform.sdk().request.call(receiver)).toBeUndefined();
+    expect(passthroughRequest.mock.calls[0]).toEqual([]);
+    expect(passthroughRequest.mock.contexts[0]).toBe(receiver);
     expect(mockStartInactiveSpan).not.toHaveBeenCalled();
     expect(addBreadcrumb).not.toHaveBeenCalled();
   });

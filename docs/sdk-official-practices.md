@@ -74,3 +74,18 @@ Session 是另一条通道。Browser 仅在允许 userInfo 时通过公开 `befo
 组合后的 lint、严格源码／测试 typecheck、完整 coverage 与 shuffle 均通过：78 文件、1335 用例；覆盖率为 statements 98.72%、branches 95.56%、functions 99.23%、lines 99.44%，95.5% 分支门槛保持。当前机器的完整 coverage／shuffle 分别约 3.2／3.9 秒，这只是单次本地观测，不承诺所有 CI 环境的耗时。
 
 标准构建、publint、真实 tarball 的七平台 × 两种 URL 模式、UMD、68 个导出、类型入口，以及 CJS／ESM 各 20 个行为场景通过；微信独立 bundle 的加载／本地映射与官网构建通过。组合复核没有新增手机、目标 Relay 后台或 npm 发布证据。
+
+## beta.7 后的请求与批处理边界对照
+
+本次继续使用上述固定上游提交，核对当前 `master 9c26592a` 后的候选修复。对照范围是请求包装、追踪头和关闭时的日志／指标批处理，并非重新运行上游全部 SDK 测试。
+
+| 对照入口 | 官方实现与本项目取舍 |
+| --- | --- |
+| [Core fetch instrumentation](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/instrument/fetch.ts)、[Browser XHR instrumentation](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser-utils/src/instrumentation/xhr.ts) | 上游用完整参数数组调用原函数；XHR 保留调用 receiver。本项目修复只转发一个 options 的遗漏，在正常包装、观测失败和零参数路径保留完整调用。上游 fetch 使用 Proxy 保留函数扩展属性；本轮没有据此整体替换小程序共享包装，因为需同时复核原型写入、旧宿主能力和退订语义。 |
+| [Core fetch tracing](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/fetch.ts)、[Browser 白名单](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/tracing/request.ts) | 继续复用 `getTraceData`、忽略子 span 的父 trace 回退和 `matchesTracePropagationTargets`；浅复制业务 options，避免污染或改写冻结输入。上游输入解析与 options 复制并不是通用的 getter 单读保证，本项目用真实反例约束宿主 options 快照，避免第一次 URL 通过白名单、第二次 URL 发向别处。小程序没有可靠同源基线，保留显式白名单，非字符串 URL 不用于放行追踪头或正文。 |
+| [Browser 隐藏时 flush](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts)、[Node close](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/node/src/sdk/client.ts) | 官方仍委托 Core 排空遥测，平台层管理监听、interval 或 trace provider。本项目保留同步 finalizer、有界 drain 和公开 flush，不照搬 DOM microtask／keepalive 或 Node process 生命周期。 |
+| [Core batch 调度](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/client.ts)、[Logs 转换顺序](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/logs/internal.ts)、[Metrics 转换顺序](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/metrics/internal.ts) | 属性转换在 beforeSend 回调之后，入 buffer 在 afterCapture 通知之前。本项目比基础 Core 额外承诺退休门禁，因此补守公开 afterCapture 边界并排弃晚到条目；只屏蔽 `log`／`trace_metric` 交付，不复制上游序列化、weight、timer 或私有 WeakMap，也不阻断关闭前接收的错误和 spans。不能把本项目较强的关闭契约描述为所有官方 SDK 已有的保证。 |
+
+另核对了 [DenoClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/src/client.ts) 和 [CloudflareClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/cloudflare/src/client.ts)：Deno 在 close 前解除退出监听，Cloudflare 在 dispose 解除 span 订阅并清空自身等待状态，均未另建 Logs／Metrics 序列化模型。Deno 的退出 hook 直接使用 Core 内部 flush helper，本项目有公开 flush hook 可用，无需增加内部接缝。Cloudflare 的调用隔离、缓存 client 和 `waitUntil` 依赖其运行时，不作为小程序多 client／跨 await 隔离的依据。
+
+此次修复与最终公开包验证记录见[发布后审查](core-v11-postrelease-review.md#请求快照与日志指标的晚到数据)。README 的安装和公共 API 未变；官网仅更新用户可以依赖的关闭行为，不把这些维护者实现细节放入接入流程。
