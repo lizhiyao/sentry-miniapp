@@ -465,7 +465,7 @@ function snapshotRequestOptions(
     ensureActive();
     if (!descriptor?.enumerable && !(typeof key === 'string' && requestFields.includes(key)))
       continue;
-    const present = key in options;
+    const present = descriptor !== undefined || key in options;
     ensureActive();
     if (!present) continue;
     const value = options[key];

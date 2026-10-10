@@ -174,4 +174,6 @@ URL 处理的本机受控对照覆盖 credentials、重复 query 键、追加敏
 
 优先强化已有日志／指标、同步 finalizer、响应退休、请求降级和特殊输入用例，只新增两项独立测试定义，总数从 1333 到 1335。没有降低覆盖率门槛、排除新增代码或复制 Core 的批处理引擎。README 的接入 API 和版本未变；架构记录维护约束，官网只澄清处理过程中关闭 client 的用户行为。本轮修复尚未发包，真实设备反馈继续由 #457 跟踪。
 
-最终本地检查通过：lint、源码与测试严格类型、77 文件／1335 测试及 shuffle、原覆盖率门槛（statements 98.73%、branches 95.62%、functions 99.24%、lines 99.45%）、SDK 三种产物、publint 与实际包消费、微信独立 bundle 与本地符号化、文档站构建。Core 及其它依赖版本未改。
+Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能返回不同结果的 `has` trap；继承的已知字段才检查存在性。快照回归同时检查普通、非枚举、继承和 Proxy 输入，防止候选适配自身改变业务参数。
+
+最终本地检查通过：lint、源码与测试严格类型、77 文件／1335 测试及 shuffle、原覆盖率门槛（statements 98.73%、branches 95.63%、functions 99.24%、lines 99.45%）、SDK 三种产物、publint 与实际包消费、微信独立 bundle 与本地符号化、文档站构建。Core 及其它依赖版本未改。

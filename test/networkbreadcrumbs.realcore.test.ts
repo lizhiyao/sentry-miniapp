@@ -156,7 +156,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
   );
 
   it('请求字段只读取一次，追踪白名单、正文和宿主发送使用同一快照', async () => {
-    for (const definition of ['enumerable', 'hidden', 'inherited'] as const) {
+    for (const definition of ['enumerable', 'hidden', 'inherited', 'proxy'] as const) {
       captured.length = 0;
       getIsolationScope().clearBreadcrumbs();
       const client = init({
@@ -194,13 +194,18 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
           key,
           {
             configurable: true,
-            enumerable: definition === 'enumerable',
+            enumerable: definition === 'enumerable' || definition === 'proxy',
             get,
           },
         ]),
       );
       const source = Object.defineProperties({}, fields);
-      const options = definition === 'inherited' ? Object.create(source) : source;
+      const options =
+        definition === 'inherited'
+          ? Object.create(source)
+          : definition === 'proxy'
+            ? new Proxy(source, { has: () => false })
+            : source;
       const symbol = Symbol('business metadata');
       options[symbol] = 'opaque';
       Object.defineProperty(options, '__proto__', { value: 'business field', enumerable: true });
