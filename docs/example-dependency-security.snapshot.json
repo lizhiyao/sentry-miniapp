@@ -1,0 +1,1313 @@
+{
+  "timestamp": "2026-10-10T01:16:48.688Z",
+  "baseline": {
+    "taro": {
+      "all": {
+        "info": 0,
+        "low": 0,
+        "moderate": 27,
+        "high": 32,
+        "critical": 4,
+        "total": 63
+      },
+      "production": {
+        "info": 0,
+        "low": 0,
+        "moderate": 7,
+        "high": 12,
+        "critical": 3,
+        "total": 22
+      },
+      "uniqueGHSAs": 42
+    },
+    "uniapp": {
+      "all": {
+        "info": 0,
+        "low": 9,
+        "moderate": 12,
+        "high": 28,
+        "critical": 0,
+        "total": 49
+      },
+      "production": {
+        "info": 0,
+        "low": 6,
+        "moderate": 10,
+        "high": 25,
+        "critical": 0,
+        "total": 41
+      },
+      "uniqueGHSAs": 50
+    }
+  },
+  "candidate": {
+    "taro": {
+      "sdk": "2.0.0-beta.6",
+      "core": "11.4.0",
+      "generatorInstalled": false,
+      "all": {
+        "info": 0,
+        "low": 0,
+        "moderate": 26,
+        "high": 29,
+        "critical": 4,
+        "total": 59
+      },
+      "production": {
+        "info": 0,
+        "low": 0,
+        "moderate": 6,
+        "high": 12,
+        "critical": 3,
+        "total": 21
+      },
+      "directAffectedPackages": 18,
+      "uniqueGHSAs": 39,
+      "webpackFlag": false,
+      "viteFlag": false,
+      "sentryFlag": [],
+      "productionBuild": "pass",
+      "watchFirstCompilation": "pass; stopped after first success",
+      "businessErrorSourceMappings": 3
+    },
+    "uniapp": {
+      "sdk": "2.0.0-beta.6",
+      "core": "11.4.0",
+      "vue": "3.4.21",
+      "generatorInstalled": false,
+      "all": {
+        "info": 0,
+        "low": 9,
+        "moderate": 12,
+        "high": 27,
+        "critical": 0,
+        "total": 48
+      },
+      "production": {
+        "info": 0,
+        "low": 6,
+        "moderate": 10,
+        "high": 24,
+        "critical": 0,
+        "total": 40
+      },
+      "directAffectedPackages": 18,
+      "uniqueGHSAs": 35,
+      "webpackFlag": false,
+      "viteFlag": false,
+      "sentryFlag": [],
+      "productionBuild": "pass",
+      "watchFirstCompilation": "pass; stopped after first success",
+      "businessErrorSourceMappings": 3
+    }
+  },
+  "validatedChanges": {
+    "taro": {
+      "webpack": "5.104.1",
+      "override": {
+        "webpack": "$webpack"
+      },
+      "remove": "@tarojs/plugin-generator dependency and config.plugins entry"
+    },
+    "uniapp": {
+      "vite": "6.4.3",
+      "override": {
+        "vite": "$vite"
+      },
+      "config": "retain configResolved for Vue root config; add public configEnvironment build.hidden sourcemap and sourcesContent"
+    }
+  },
+  "scope": "Fresh strict-peer installs from the official npm registry for repository WeChat examples, using the beta.6 candidate tarball with Core 11.4.0",
+  "limitations": [
+    "npm package severity counts include propagated parent entries; distinct GHSA counts computed separately",
+    "production audit classification does not prove miniapp runtime exploitability",
+    "not a reconciliation of the inaccessible 18 GitHub Dependabot alert bodies",
+    "remaining major or fork changes require dedicated upstream/compatibility work; npm audit fix --force not validated",
+    "source-map presence checks support absence of selected helper modules in this WeChat build, not whole-framework/H5 safety",
+    "0.x same major does not establish compatible semver update",
+    "beta.6 input is candidate tarball, not an npm-downloaded publication"
+  ],
+  "affectedLeafPackages": [
+    {
+      "package": "adm-zip",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/adm-zip",
+          "version": "0.5.18",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-xcpc-8h2w-3j85",
+          "title": "adm-zip: Crafted ZIP file triggers 4GB memory allocation",
+          "range": "<0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-vwc7-r8mq-g2x9",
+          "title": "adm-zip extraction follows destination symlinks, allowing arbitrary file overwrite",
+          "range": ">=0.5.9 <=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-7q85-xj36-vmfc",
+          "title": "adm-zip: Uncontrolled memory allocation via the declared uncompressed size (DoS)",
+          "range": "<0.6.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-rcw4-f5rp-g42v",
+          "title": "adm-zip: Decompression-bomb protection (fix for CVE-2026-39244) can be bypassed by declaring uncompressed size as 0",
+          "range": "<=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-j5f4-cc29-5x44",
+          "title": "adm-zip extraction preserves SUID/SGID bits from untrusted ZIPs -> local privilege escalation",
+          "range": "<=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-p634-w6r4-rjp2",
+          "title": "adm-zip: Duplicate ZIP entry names: getEntry() and extractAllTo() resolve to different content",
+          "range": "<=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-c6fg-446q-cg94",
+          "title": "adm-zip: getDataAsync() bypasses the maxOutputLength size guard enforced by the synchronous getData() path",
+          "range": "<=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-8238-w5pm-2374",
+          "title": "adm-zip: Unhandled error event in async DEFLATE decompression crashes Node.js process (DoS)",
+          "range": "<=0.6.0"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/cli",
+        "version": "1.3.8",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "0.6.1",
+      "firstSameMajorOutsideAllRanges": "0.6.1",
+      "latestPublishedStable": "0.6.1",
+      "registryVerificationError": null
+    },
+    {
+      "package": "braces",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/braces",
+          "version": "3.0.3",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+          "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+          "range": "<=3.0.3"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/plugin-framework-react",
+        "version": "3.6.5",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": null,
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "3.0.3",
+      "registryVerificationError": null
+    },
+    {
+      "package": "decode-uri-component",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/decode-uri-component",
+          "version": "0.2.2",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr",
+          "title": "decode-uri-component: Denial of service via exponential decoding of malformed percent-encoded input",
+          "range": "<=0.4.2"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/cli",
+        "version": "1.3.8",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "0.5.0",
+      "firstSameMajorOutsideAllRanges": "0.5.0",
+      "latestPublishedStable": "0.5.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "decompress",
+      "severity": "critical",
+      "nodes": [
+        {
+          "path": "node_modules/decompress",
+          "version": "4.2.1",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-mp2f-45pm-3cg9",
+          "title": "Decompress: Archive extraction can create files and links outside of the target directory",
+          "range": "<=4.2.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-h39j-r5qq-r9mm",
+          "title": "decompress: Arbitrary File Write via Archive Extraction (Zip Slip)",
+          "range": "<=4.2.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-jwp9-9v96-94mx",
+          "title": "decompress allows arbitrary hardlink creation during archive extraction",
+          "range": "<=4.2.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-hrh2-vp3x-79xf",
+          "title": "@xhmikosr/decompress: Path traversal via symlink chain",
+          "range": "<=4.2.1"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/cli",
+        "version": "1.3.8",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": null,
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "4.2.1",
+      "registryVerificationError": null
+    },
+    {
+      "package": "esbuild",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/esbuild",
+          "version": "0.21.5",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-67mh-4wv8-2f99",
+          "title": "esbuild enables any website to send any requests to the development server and read the response",
+          "range": "<=0.24.2"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/plugin-framework-react",
+        "version": "3.6.5",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "0.25.0",
+      "firstSameMajorOutsideAllRanges": "0.25.0",
+      "latestPublishedStable": "0.28.2",
+      "registryVerificationError": null
+    },
+    {
+      "package": "git-clone",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/git-clone",
+          "version": "0.1.0",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-8jmw-wjr8-2x66",
+          "title": "Command injection in git-clone",
+          "range": "<=0.2.0"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/cli",
+        "version": "1.3.8",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": null,
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "0.2.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "glob",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/glob",
+          "version": "10.2.6",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-5j98-mcp5-4vw2",
+          "title": "glob CLI: Command injection via -c/--cmd executes matches with shell:true",
+          "range": ">=10.2.0 <10.5.0"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/cli",
+        "version": "1.3.8",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "10.5.0",
+      "firstSameMajorOutsideAllRanges": "10.5.0",
+      "latestPublishedStable": "13.0.6",
+      "registryVerificationError": null
+    },
+    {
+      "package": "got",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/got",
+          "version": "8.3.2",
+          "dev": true
+        },
+        {
+          "path": "node_modules/package-json/node_modules/got",
+          "version": "9.6.0",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-pfrx-2q88-qq97",
+          "title": "Got allows a redirect to a UNIX socket",
+          "range": "<11.8.5"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/cli",
+        "version": "1.3.8",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "11.8.5",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "16.0.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "html-minifier",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/html-minifier",
+          "version": "4.0.0",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-pfq8-rq6v-vf5m",
+          "title": "kangax html-minifier REDoS vulnerability",
+          "range": "<=4.0.0"
+        }
+      ],
+      "fixAvailable": false,
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": null,
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "4.0.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "http-cache-semantics",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/http-cache-semantics",
+          "version": "3.8.1",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-rc47-6667-2j5j",
+          "title": "http-cache-semantics vulnerable to Regular Expression Denial of Service",
+          "range": "<4.1.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-ch52-4w7c-c8xp",
+          "title": "http-cache-semantics max-stale handling can disclose cross-user cached responses",
+          "range": "<=4.2.0"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/cli",
+        "version": "1.3.8",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "4.3.0",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "4.3.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "node-forge",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/node-forge",
+          "version": "1.4.0",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+          "title": "node-forge RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements",
+          "range": "<=1.4.0"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/taro",
+        "version": "3.6.40",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": null,
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "1.4.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "postcss",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/miniprogram-simulate/node_modules/postcss",
+          "version": "7.0.39",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-7fh5-64p2-3v2j",
+          "title": "PostCSS line return parsing error",
+          "range": "<8.4.31"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-qx2v-qp2m-jg93",
+          "title": "PostCSS has XSS via Unescaped </style> in its CSS Stringify Output",
+          "range": "<8.5.10"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-6g55-p6wh-862q",
+          "title": "PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments",
+          "range": "<=8.5.11"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+          "title": "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+          "range": "<=8.5.22"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-r28c-9q8g-f849",
+          "title": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
+          "range": "<=8.5.17"
+        }
+      ],
+      "fixAvailable": false,
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "8.5.23",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "8.5.29",
+      "registryVerificationError": null
+    },
+    {
+      "package": "postcss-selector-parser",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/postcss-selector-parser",
+          "version": "6.1.4",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-rj75-hqrm-r3gf",
+          "title": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion",
+          "range": "<7.1.6"
+        }
+      ],
+      "fixAvailable": false,
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "7.1.6",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "7.1.6",
+      "registryVerificationError": null
+    },
+    {
+      "package": "serialize-javascript",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/serialize-javascript",
+          "version": "6.0.2",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-5c6j-r48x-rmvq",
+          "title": "Serialize JavaScript is Vulnerable to RCE via RegExp.flags and Date.prototype.toISOString()",
+          "range": "<=7.0.2"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-qj8w-gfj5-8c6v",
+          "title": "Serialize JavaScript has CPU Exhaustion Denial of Service via crafted array-like objects",
+          "range": ">=5.0.0 <7.0.5"
+        }
+      ],
+      "fixAvailable": false,
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "7.0.5",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "7.1.2",
+      "registryVerificationError": null
+    },
+    {
+      "package": "swiper",
+      "severity": "critical",
+      "nodes": [
+        {
+          "path": "node_modules/swiper",
+          "version": "11.1.15",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-hmx5-qpq5-p643",
+          "title": "Prototype pollution in swiper",
+          "range": ">=6.5.1 <12.1.2"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/components",
+        "version": "3.2.16",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "12.1.2",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "14.3.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "uuid",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/uuid",
+          "version": "8.3.2",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+          "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+          "range": "<11.1.1"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/taro",
+        "version": "3.6.40",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "11.1.1",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "14.0.3",
+      "registryVerificationError": null
+    },
+    {
+      "package": "webpack-dev-middleware",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/webpack-dev-middleware",
+          "version": "5.3.4",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-g84c-rxfj-3j2c",
+          "title": "webpack-dev-middleware vulnerable to Path Traversal via non-slash-terminated publicPath",
+          "range": "<7.4.5"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/taro",
+        "version": "3.6.40",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "7.4.5",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "8.3.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "webpack-dev-server",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/webpack-dev-server",
+          "version": "4.15.2",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-9jgg-88mc-972h",
+          "title": "webpack-dev-server users' source code may be stolen when they access a malicious web site with non-Chromium based browser",
+          "range": "<=5.2.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-4v9v-hfq4-rm2v",
+          "title": "webpack-dev-server users' source code may be stolen when they access a malicious web site",
+          "range": "<=5.2.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-79cf-xcqc-c78w",
+          "title": "webpack-dev-server vulnerable to cross-origin source code exposure on non-HTTPS origins",
+          "range": "<=5.2.3"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-mx8g-39q3-5c79",
+          "title": "webpack-dev-server vulnerable to HMR WebSocket interception via permissive user proxies",
+          "range": "<5.2.5"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-f5vj-f2hx-8m93",
+          "title": "webpack-dev-server vulnerable to cross-site request forgery via internal developer endpoints",
+          "range": "<=5.2.5"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-m28w-2pqf-7qgj",
+          "title": "webpack-dev-server vulnerable to denial of service via a malformed Host or Origin header",
+          "range": "<=5.2.5"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@tarojs/taro",
+        "version": "3.6.40",
+        "isSemVerMajor": true
+      },
+      "example": "taro",
+      "firstPublishedVersionOutsideAllRanges": "5.2.6",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "6.0.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "@babel/core",
+      "severity": "low",
+      "nodes": [
+        {
+          "path": "node_modules/@babel/core",
+          "version": "7.25.2",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-4x5r-pxfx-6jf8",
+          "title": "@babel/core: Arbitrary File Read via sourceMappingURL Comment",
+          "range": "<=7.29.0"
+        }
+      ],
+      "fixAvailable": {
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "7.29.6",
+      "firstSameMajorOutsideAllRanges": "7.29.6",
+      "latestPublishedStable": "8.0.7",
+      "registryVerificationError": null
+    },
+    {
+      "package": "@intlify/core-base",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/@intlify/core-base",
+          "version": "9.1.9",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-x8qp-wqqm-57ph",
+          "title": "vue-i18n's escapeParameterHtml does not prevent DOM-based XSS through its tag attributes",
+          "range": ">=9.0.0 <9.14.5"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-p2ph-7g93-hw3m",
+          "title": "Vue I18n Allows Prototype Pollution in `handleFlatJson`",
+          "range": ">=9.1.0 <9.1.11"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-cli-shared",
+        "version": "0.2.994",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "9.14.5",
+      "firstSameMajorOutsideAllRanges": "9.14.5",
+      "latestPublishedStable": "11.4.13",
+      "registryVerificationError": null
+    },
+    {
+      "package": "@intlify/message-resolver",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/@intlify/message-resolver",
+          "version": "9.1.9",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-p2ph-7g93-hw3m",
+          "title": "Vue I18n Allows Prototype Pollution in `handleFlatJson`",
+          "range": ">=9.1.0 <9.1.11"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-cli-shared",
+        "version": "0.2.994",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "9.1.11",
+      "firstSameMajorOutsideAllRanges": "9.1.11",
+      "latestPublishedStable": "9.1.11",
+      "registryVerificationError": null
+    },
+    {
+      "package": "@vue/server-renderer",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/@vue/server-renderer",
+          "version": "3.4.21",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-g2v6-rqmx-r4w6",
+          "title": "@vue/server-renderer: XSS via missing CR in attribute-name blacklist",
+          "range": "<3.5.42"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-cli-shared",
+        "version": "0.2.994",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "3.5.42",
+      "firstSameMajorOutsideAllRanges": "3.5.42",
+      "latestPublishedStable": "3.5.43",
+      "registryVerificationError": null
+    },
+    {
+      "package": "adm-zip",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/adm-zip",
+          "version": "0.5.16",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-xcpc-8h2w-3j85",
+          "title": "adm-zip: Crafted ZIP file triggers 4GB memory allocation",
+          "range": "<0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-vwc7-r8mq-g2x9",
+          "title": "adm-zip extraction follows destination symlinks, allowing arbitrary file overwrite",
+          "range": ">=0.5.9 <=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-7q85-xj36-vmfc",
+          "title": "adm-zip: Uncontrolled memory allocation via the declared uncompressed size (DoS)",
+          "range": "<0.6.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-rcw4-f5rp-g42v",
+          "title": "adm-zip: Decompression-bomb protection (fix for CVE-2026-39244) can be bypassed by declaring uncompressed size as 0",
+          "range": "<=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-j5f4-cc29-5x44",
+          "title": "adm-zip extraction preserves SUID/SGID bits from untrusted ZIPs -> local privilege escalation",
+          "range": "<=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-p634-w6r4-rjp2",
+          "title": "adm-zip: Duplicate ZIP entry names: getEntry() and extractAllTo() resolve to different content",
+          "range": "<=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-c6fg-446q-cg94",
+          "title": "adm-zip: getDataAsync() bypasses the maxOutputLength size guard enforced by the synchronous getData() path",
+          "range": "<=0.6.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-8238-w5pm-2374",
+          "title": "adm-zip: Unhandled error event in async DEFLATE decompression crashes Node.js process (DoS)",
+          "range": "<=0.6.0"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-cli-shared",
+        "version": "0.2.994",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "0.6.1",
+      "firstSameMajorOutsideAllRanges": "0.6.1",
+      "latestPublishedStable": "0.6.1",
+      "registryVerificationError": null
+    },
+    {
+      "package": "body-parser",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/body-parser",
+          "version": "1.20.3",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-v422-hmwv-36x6",
+          "title": "body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement",
+          "range": "<1.20.6"
+        }
+      ],
+      "fixAvailable": {
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "1.20.6",
+      "firstSameMajorOutsideAllRanges": "1.20.6",
+      "latestPublishedStable": "2.3.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "braces",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/braces",
+          "version": "3.0.3",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+          "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+          "range": "<=3.0.3"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-cli-shared",
+        "version": "0.2.994",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": null,
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "3.0.3",
+      "registryVerificationError": null
+    },
+    {
+      "package": "cookie",
+      "severity": "low",
+      "nodes": [
+        {
+          "path": "node_modules/cookie",
+          "version": "0.6.0",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-pxg6-pf52-xh8x",
+          "title": "cookie accepts cookie name, path, and domain with out of bounds characters",
+          "range": "<0.7.0"
+        }
+      ],
+      "fixAvailable": {
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "0.7.0",
+      "firstSameMajorOutsideAllRanges": "0.7.0",
+      "latestPublishedStable": "2.0.1",
+      "registryVerificationError": null
+    },
+    {
+      "package": "esbuild",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/esbuild",
+          "version": "0.20.2",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-67mh-4wv8-2f99",
+          "title": "esbuild enables any website to send any requests to the development server and read the response",
+          "range": "<=0.24.2"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-cli-shared",
+        "version": "0.2.994",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "0.25.0",
+      "firstSameMajorOutsideAllRanges": "0.25.0",
+      "latestPublishedStable": "0.28.2",
+      "registryVerificationError": null
+    },
+    {
+      "package": "jpeg-js",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/jpeg-js",
+          "version": "0.3.7",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-xvf7-4v9q-58w6",
+          "title": "Infinite loop in jpeg-js",
+          "range": "<0.4.4"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-w7q9-p3jq-fmhm",
+          "title": "Uncontrolled resource consumption in jpeg-js",
+          "range": "<0.4.0"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-mp-weixin",
+        "version": "0.0.973",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "0.4.4",
+      "firstSameMajorOutsideAllRanges": "0.4.4",
+      "latestPublishedStable": "0.4.4",
+      "registryVerificationError": null
+    },
+    {
+      "package": "path-to-regexp",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/path-to-regexp",
+          "version": "0.1.10",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-rhx6-c78j-4q9w",
+          "title": "path-to-regexp contains a ReDoS",
+          "range": "<0.1.12"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-37ch-88jc-xwx2",
+          "title": "path-to-regexp vulnerable to Regular Expression Denial of Service via multiple route parameters",
+          "range": "<0.1.13"
+        }
+      ],
+      "fixAvailable": {
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "0.1.13",
+      "firstSameMajorOutsideAllRanges": "0.1.13",
+      "latestPublishedStable": "8.4.2",
+      "registryVerificationError": null
+    },
+    {
+      "package": "phin",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/phin",
+          "version": "2.9.3",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-x565-32qp-m3vf",
+          "title": "phin may include sensitive headers in subsequent requests after redirect",
+          "range": "<3.7.1"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-mp-weixin",
+        "version": "0.0.973",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "3.7.1",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "4.0.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "postcss",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/@dcloudio/uni-nvue-styler/node_modules/postcss",
+          "version": "8.5.6",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-qx2v-qp2m-jg93",
+          "title": "PostCSS has XSS via Unescaped </style> in its CSS Stringify Output",
+          "range": "<8.5.10"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-6g55-p6wh-862q",
+          "title": "PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments",
+          "range": "<=8.5.11"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+          "title": "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+          "range": "<=8.5.22"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-r28c-9q8g-f849",
+          "title": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
+          "range": "<=8.5.17"
+        }
+      ],
+      "fixAvailable": {
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "8.5.23",
+      "firstSameMajorOutsideAllRanges": "8.5.23",
+      "latestPublishedStable": "8.5.29",
+      "registryVerificationError": null
+    },
+    {
+      "package": "postcss-selector-parser",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/postcss-selector-parser",
+          "version": "6.1.2",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-w9m9-85wc-3x92",
+          "title": "postcss-selector-parser allows denial of service through uncontrolled AST recursion",
+          "range": ">=6.1.0 <6.1.3"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-rj75-hqrm-r3gf",
+          "title": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion",
+          "range": "<7.1.6"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-cli-shared",
+        "version": "0.2.994",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "7.1.6",
+      "firstSameMajorOutsideAllRanges": null,
+      "latestPublishedStable": "7.1.6",
+      "registryVerificationError": null
+    },
+    {
+      "package": "qs",
+      "severity": "moderate",
+      "nodes": [
+        {
+          "path": "node_modules/body-parser/node_modules/qs",
+          "version": "6.13.0",
+          "dev": true
+        },
+        {
+          "path": "node_modules/qs",
+          "version": "6.11.0",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-w7fw-mjwx-w883",
+          "title": "qs's arrayLimit bypass in comma parsing allows denial of service",
+          "range": ">=6.7.0 <=6.14.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-6rw7-vpxm-498p",
+          "title": "qs's arrayLimit bypass in its bracket notation allows DoS via memory exhaustion",
+          "range": "<6.14.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-q8mj-m7cp-5q26",
+          "title": "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set",
+          "range": ">=6.11.1 <=6.15.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+          "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+          "range": ">=2.2.5 <6.16.0"
+        }
+      ],
+      "fixAvailable": {
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "6.16.0",
+      "firstSameMajorOutsideAllRanges": "6.16.0",
+      "latestPublishedStable": "6.16.0",
+      "registryVerificationError": null
+    },
+    {
+      "package": "send",
+      "severity": "low",
+      "nodes": [
+        {
+          "path": "node_modules/serve-static/node_modules/send",
+          "version": "0.18.0",
+          "dev": true
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-m6fv-jmcg-4jfg",
+          "title": "send vulnerable to template injection that can lead to XSS",
+          "range": "<0.19.0"
+        }
+      ],
+      "fixAvailable": {
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "0.19.0",
+      "firstSameMajorOutsideAllRanges": "0.19.0",
+      "latestPublishedStable": "1.2.1",
+      "registryVerificationError": null
+    },
+    {
+      "package": "source-map-js",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/source-map-js",
+          "version": "1.2.1",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+          "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+          "range": ">=1.0.0 <1.2.2"
+        }
+      ],
+      "fixAvailable": {
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "1.2.2",
+      "firstSameMajorOutsideAllRanges": "1.2.2",
+      "latestPublishedStable": "1.2.2",
+      "registryVerificationError": null
+    },
+    {
+      "package": "ws",
+      "severity": "high",
+      "nodes": [
+        {
+          "path": "node_modules/ws",
+          "version": "8.18.0",
+          "dev": false
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-58qx-3vcg-4xpx",
+          "title": "ws: Uninitialized memory disclosure",
+          "range": ">=8.0.0 <8.20.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-96hv-2xvq-fx4p",
+          "title": "ws: Memory exhaustion DoS from tiny fragments and data chunks",
+          "range": ">=8.0.0 <8.21.0"
+        }
+      ],
+      "fixAvailable": {
+        "name": "@dcloudio/uni-mp-weixin",
+        "version": "0.0.973",
+        "isSemVerMajor": true
+      },
+      "example": "uniapp",
+      "firstPublishedVersionOutsideAllRanges": "8.21.0",
+      "firstSameMajorOutsideAllRanges": "8.21.0",
+      "latestPublishedStable": "8.22.0",
+      "registryVerificationError": null
+    }
+  ]
+}
