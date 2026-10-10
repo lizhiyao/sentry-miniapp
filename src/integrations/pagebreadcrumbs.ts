@@ -178,18 +178,18 @@ function instrumentPageOptions(pageOptions: unknown): void {
     ) {
       continue;
     }
-    const wrapped = function (this: any, event: any, ...rest: any[]): any {
+    const wrapped = function (this: any, ...args: any[]): any {
       const active = getActivePageEntry();
       if (active) {
         try {
           withTelemetryCritical(() =>
-            recordUserInteraction(active.client, active.subscriber, key, this, event),
+            recordUserInteraction(active.client, active.subscriber, key, this, args[0]),
           );
         } catch (_error) {
           /* 保留原业务回调。 */
         }
       }
-      return original.apply(this, [event, ...rest]);
+      return original.apply(this, args);
     };
     Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
     options[key] = wrapped;
@@ -214,7 +214,6 @@ export class PageBreadcrumbs implements Integration {
   public name: string = PageBreadcrumbs.id;
 
   private readonly _options: Required<PageBreadcrumbsOptions>;
-  private readonly _cleanupCallbacks = new Set<() => void>();
 
   constructor(options: PageBreadcrumbsOptions = {}) {
     this._options = {
@@ -259,10 +258,6 @@ export class PageBreadcrumbs implements Integration {
     if (!canContinue()) return;
     const globalObject = globalThis as Record<PropertyKey, unknown>;
     adopt(addFunctionInstrumentationHandler(globalObject, 'Page', client, invokePage));
-  }
-
-  public cleanup(): void {
-    for (const cleanup of [...this._cleanupCallbacks]) cleanup();
   }
 
   private _createSubscriber(): PageSubscriber {
@@ -370,9 +365,7 @@ export class PageBreadcrumbs implements Integration {
           /* 继续解除其余订阅。 */
         }
       }
-      this._cleanupCallbacks.delete(cleanup);
     };
-    this._cleanupCallbacks.add(cleanup);
     return cleanup;
   }
 }

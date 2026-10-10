@@ -23,7 +23,7 @@
 |---|---|
 | **不支持 Session Replay** | Sentry 官方 Replay 依赖浏览器 DOM（rrweb），小程序双线程、无开放 DOM，无法复用。用**丰富面包屑**还原现场。 |
 | **SDK 会占用包体积** | 包含 `@sentry/core` 与平台适配，大小以最终构建和平台包体积分析为准；在意的话评估[分包异步加载](/guide/bundle-size)及启动监控的取舍。 |
-| **不支持函数级 Profiling / 火焰图** | 小程序无底层栈采样 API。已有页面 / 组件级性能监控覆盖大部分场景。 |
+| **不支持函数级 Profiling / 火焰图** | 小程序无底层栈采样 API。可通过实际宿主性能条目、HTTP 与业务 span 排查耗时；可选性能数据取决于宿主 API。 |
 | **小游戏帧率监控依赖全局 `requestAnimationFrame`** | 默认关闭，需手动开启；缺少该 API 时跳过。普通小程序逻辑层通常不提供该能力。 |
 | **框架组件内错误需接框架错误处理** | Vue（uni-app）会吞组件错误，需接 `errorHandler`；React（Taro）建议加错误边界。详见各[接入指南](/guide/taro)。 |
 

@@ -216,33 +216,49 @@ const inferPlatformFromAppId = (appId: unknown): AppName | null => {
   return null;
 };
 
+/** 单个候选或信号不可读时，只跳过该字段，不丢弃其它可用的平台证据。 */
+const readPlatformField = (source: unknown, key: string): unknown => {
+  try {
+    return (source as Record<string, unknown> | null | undefined)?.[key];
+  } catch (_error) {
+    return undefined;
+  }
+};
+
 /**
  * 从宿主 API 返回值推断真实平台，仅识别有稳定、平台专属格式的信号。
  * 该推断只在多个平台全局对象共存时使用，失败时由 detectPlatform 保留历史 first-match。
  */
 const inferPlatformFromRuntime = (platformSdk: SDK): AppName | null => {
   const envInfo = callPlatformInfo(platformSdk, 'getEnvInfoSync');
-  const envPlatform = inferPlatformFromAppId(envInfo?.['microapp']?.['appId']);
+  const envPlatform = inferPlatformFromAppId(
+    readPlatformField(readPlatformField(envInfo, 'microapp'), 'appId'),
+  );
   if (envPlatform) return envPlatform;
 
-  const userDataPath = envInfo?.['common']?.['USER_DATA_PATH'];
+  const userDataPath = readPlatformField(readPlatformField(envInfo, 'common'), 'USER_DATA_PATH');
   if (typeof userDataPath === 'string') {
     if (userDataPath.startsWith('ttfile://')) return 'bytedance';
     if (userDataPath.startsWith('wxfile://')) return 'wechat';
   }
 
   const systemInfo = callPlatformInfo(platformSdk, 'getSystemInfoSync');
-  const hostName = systemInfo?.['appName'] ?? systemInfo?.['hostName'];
+  const hostName =
+    readPlatformField(systemInfo, 'appName') ?? readPlatformField(systemInfo, 'hostName');
   if (typeof hostName === 'string' && BYTEDANCE_HOST_NAMES.has(hostName.toLowerCase())) {
     return 'bytedance';
   }
 
   const accountInfo = callPlatformInfo(platformSdk, 'getAccountInfoSync');
-  const accountPlatform = inferPlatformFromAppId(accountInfo?.['miniProgram']?.['appId']);
+  const accountPlatform = inferPlatformFromAppId(
+    readPlatformField(readPlatformField(accountInfo, 'miniProgram'), 'appId'),
+  );
   if (accountPlatform) return accountPlatform;
 
   const launchOptions = callPlatformInfo(platformSdk, 'getLaunchOptionsSync');
-  const launchPlatform = inferPlatformFromAppId(launchOptions?.['extra']?.['appId']);
+  const launchPlatform = inferPlatformFromAppId(
+    readPlatformField(readPlatformField(launchOptions, 'extra'), 'appId'),
+  );
   if (launchPlatform) return launchPlatform;
 
   return null;
@@ -256,7 +272,7 @@ export const detectPlatform = (): DetectedPlatform | null => {
   const g = globalThis as Record<string, unknown>;
   const candidates: DetectedPlatform[] = [];
   for (const platform of PLATFORMS) {
-    const platformSdk = g[platform.global];
+    const platformSdk = readPlatformField(g, platform.global);
     if (typeof platformSdk === 'object' && platformSdk !== null) {
       candidates.push({ sdk: platformSdk as SDK, name: platform.name });
     }

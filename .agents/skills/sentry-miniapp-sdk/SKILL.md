@@ -224,14 +224,14 @@ Walk through features one at a time. Load the corresponding reference file:
 | `tracesSampler` | `function` | — | Dynamic sampling function (overrides tracesSampleRate) |
 | `enableSourceMap` | `boolean` | `true` | Auto-normalize stack trace paths for source map resolution |
 | `stackParser` | `StackParser` | `miniappStackParser` | Custom stack parser for private runtimes or special stack formats |
-| `enableOfflineCache` | `boolean` | `true` | Cache events when offline, retry when back online |
-| `offlineCacheLimit` | `number` | `30` | Max events to store in offline cache |
-| `offlineCacheMaxAge` | `number` | `86400000` | Drop cached events older than this (ms); default 24h |
+| `enableOfflineCache` | `boolean` | `true` | Controls the built-in transport's weak-network cache when requireConsent is false; custom transport manages its own cache/retry |
+| `offlineCacheLimit` | `number` | `30` | Max envelope records in the built-in weak-network cache when requireConsent is false |
+| `offlineCacheMaxAge` | `number` | `86400000` | Weak-network record TTL when requireConsent is false (ms); default 24h |
 | `requireConsent` | `boolean` | `false` | Gate outbound Sentry network sends until `Sentry.setConsent(true)` |
-| `consentCacheLimit` | `number` | `100` | Max events buffered before consent; preserves oldest cold-start data |
-| `consentCacheMaxBytes` | `number` | `921600` | Configured consent-buffer bytes; actual container budget is 180 KiB on Alipay/DingTalk and 900 KiB elsewhere |
-| `consentCacheMaxAge` | `number` | `86400000` | Drop consent-buffered events older than this (ms); default 24h |
-| `onConsentCacheDrop` | `function` | — | Called with `{ reason, dropped }` when consent buffer drops events |
+| `consentCacheLimit` | `number` | `100` | Max shared-cache envelope records before and after consent when requireConsent is true; preserves oldest records |
+| `consentCacheMaxBytes` | `number` | `921600` | Shared-cache byte limit before and after consent; actual container budget is 180 KiB on Alipay/DingTalk and 900 KiB elsewhere |
+| `consentCacheMaxAge` | `number` | `86400000` | Shared-cache record TTL before and after consent (ms); default 24h |
+| `onConsentCacheDrop` | `function` | — | Called with `{ reason, dropped }` for shared-cache drops, including weak-network failures after consent; dropped counts envelope records |
 | `enableTracePropagation` | `boolean` | `true` | Inject distributed tracing headers (`sentry-trace`/`baggage`, plus optional `traceparent`) in outgoing requests |
 | `enableStandaloneHttpSpans` | `boolean` | `true` | Send parentless API requests as standalone segment spans; set false for child-only request tracing |
 | `tracePropagationTargets` | `Array` | `[]` | URL allowlist for trace header injection; empty means no injection because mini programs have no reliable same-origin baseline |
@@ -283,6 +283,8 @@ Sentry.setConsent(false);
 ```
 
 `requireConsent` implies local buffering even when `enableOfflineCache` is `false`; custom `transport` functions are wrapped by the consent gate too. The whole encoded container, including metadata, uses an SDK budget of 180 KiB on Alipay/DingTalk and 900 KiB on other supported runtimes; a lower configured byte limit still applies. These are SDK policy budgets, not guarantees of available host storage. There is one active persistent target; DSN/tunnel or incompatible policy changes drop old data with diagnostics. Retrying does not renew TTL. Capacity changes only trim compatible records. A replacement client does not inherit consent. Cache is best-effort, not a durable ACK or no-loss guarantee.
+
+With `requireConsent: true`, the same store uses `consentCache*` limits and preserves the oldest records before and after grant, including weak-network retries. `setConsent(true)` does not switch to `offlineCache*`. Limits count envelope records, which may contain batches of logs, metrics or spans. Revocation and client shutdown do not automatically erase saved records.
 
 ### Platform Compatibility
 

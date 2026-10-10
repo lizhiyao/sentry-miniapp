@@ -152,11 +152,17 @@ export class MinigameIntegration implements Integration {
       const request = (globalThis as any).requestAnimationFrame;
       if (typeof request !== 'function') return;
       raf = request;
-      const cancel = (globalThis as any).cancelAnimationFrame;
-      if (typeof cancel === 'function') this._cancelFrame = cancel;
     } catch (_error) {
       return;
     }
+    if (!owner.isActive()) return;
+    try {
+      const cancel = (globalThis as any).cancelAnimationFrame;
+      if (owner.isActive() && typeof cancel === 'function') this._cancelFrame = cancel;
+    } catch (_error) {
+      /* 可选取消能力不可读时，迟到帧仍由 owner 门禁拒绝。 */
+    }
+    if (!owner.isActive()) return;
     const cancel = this._cancelFrame;
     const id = raf.call(globalThis, () =>
       this._observe(() => {

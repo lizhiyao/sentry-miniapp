@@ -9,7 +9,6 @@ export class NetworkStatusIntegration implements Integration {
   public static id = 'NetworkStatus';
   public name = NetworkStatusIntegration.id;
   private readonly _owners = new WeakSet<Client>();
-  private readonly _cleanups = new Set<() => void>();
 
   public setup(client: Client): void {
     if (this._owners.has(client)) return;
@@ -60,7 +59,6 @@ export class NetworkStatusIntegration implements Integration {
       owner = undefined;
       lastConnected = null;
       this._owners.delete(held);
-      this._cleanups.delete(cleanup);
       const host = source;
       source = undefined;
       try {
@@ -70,7 +68,6 @@ export class NetworkStatusIntegration implements Integration {
         /* 缺 off 或 off 失败时，旧回调也已失效。 */
       }
     };
-    this._cleanups.add(cleanup);
     const detach = lifetime?.registerStop(cleanup);
     client.registerCleanup(() => {
       detach?.();
@@ -86,21 +83,20 @@ export class NetworkStatusIntegration implements Integration {
     try {
       const host = source;
       const on = host?.onNetworkStatusChange;
-      const off = host?.offNetworkStatusChange;
       if (typeof on === 'function' && isActive()) {
         try {
           on.call(host, handler);
         } finally {
-          if (!isActive() && typeof off === 'function') off.call(host, handler);
+          // 可选 off 不作为注册前提；注册中退休后才尝试解除迟到保存的监听。
+          if (!isActive()) {
+            const off = host?.offNetworkStatusChange;
+            if (typeof off === 'function') off.call(host, handler);
+          }
         }
       }
     } catch (_error) {
       /* 已登记 cleanup，部分注册成功仍能退休。 */
     }
-  }
-
-  public cleanup(): void {
-    for (const cleanup of [...this._cleanups]) cleanup();
   }
 }
 

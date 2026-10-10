@@ -124,7 +124,7 @@ export default defineConfig({
 
 ### uni-app
 
-Vue CLI 项目可设置 productionSourceMap 与 devtool；Vite／uni-app 的最终行为取决于插件。当前仓库示例固定的工具链会在生产配置阶段关闭 map，使用 --sourcemap 和公共 configResolved hook 保留 hidden map／sourcesContent。map 在 dist/build/.sourcemap/mp-weixin，与 dist/build/mp-weixin 的 JS 合成上传目录；参考[uni-app 示例](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。不能仅凭 build.sourcemap 配置存在宣称产物已生成。
+Vue CLI 项目可设置 productionSourceMap 与 devtool；Vite／uni-app 的最终行为取决于插件。当前仓库示例使用 Vite 6，通过公共 `configEnvironment` hook 配置实际构建环境，同时在 `configResolved` 中保留 Vue 插件需要的 hidden map／sourcesContent。构建命令仍需 `--sourcemap`；map 在 `dist/build/.sourcemap/mp-weixin`，与 `dist/build/mp-weixin` 的 JS 合成上传目录，完整配置见[uni-app 示例](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。不能仅凭 `build.sourcemap` 配置存在宣称产物已生成。
 
 `hidden-source-map` 会生成独立 map，但不会在生产 JS 中留下可公开加载的 `sourceMappingURL`。上传完成后，不要把 `.map` 发布进小程序包。
 

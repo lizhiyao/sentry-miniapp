@@ -313,7 +313,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
           const store = createMiniappOfflineStore(
             {
               ...storeIdentity,
-              // 同意前缓存用独立上限 + 冷启动优先（保留最旧）淘汰，区别于弱网那套默认值。
+              // 授权前后共用 consent 配置和保留最旧的淘汰策略，不切换到 offlineCache 默认值。
               offlineCacheLimit: consent.config.cacheLimit ?? 100,
               ...(consent.config.cacheMaxAge !== undefined && {
                 offlineCacheMaxAge: consent.config.cacheMaxAge,

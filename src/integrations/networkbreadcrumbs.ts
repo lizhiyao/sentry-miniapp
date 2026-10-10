@@ -55,7 +55,6 @@ export class NetworkBreadcrumbs implements Integration {
   private readonly _tracePropagationTargets: Array<string | RegExp>;
   private readonly _propagateTraceparent: boolean;
   private readonly _enableStandaloneHttpSpans: boolean;
-  private readonly _cleanupCallbacks = new Set<() => void>();
   private readonly _requestWrappers = new WeakMap<Function, Function>();
 
   public constructor(
@@ -69,7 +68,7 @@ export class NetworkBreadcrumbs implements Integration {
       denyBodyUrls?: Array<string | RegExp>;
       /** 是否启用分布式追踪头注入（默认 true） */
       enableTracePropagation?: boolean;
-      /** 追踪目标 URL 白名单，匹配的请求才注入追踪头 */
+      /** 追踪头 URL 匹配规则；字符串匹配完整 URL 子串，匹配的请求才注入追踪头。 */
       tracePropagationTargets?: Array<string | RegExp>;
       /** 是否额外注入 W3C traceparent 头（默认 false） */
       propagateTraceparent?: boolean;
@@ -125,13 +124,6 @@ export class NetworkBreadcrumbs implements Integration {
     });
   }
 
-  /**
-   * 清理集成，恢复原始网络请求方法
-   */
-  public cleanup(): void {
-    for (const cleanup of [...this._cleanupCallbacks]) cleanup();
-  }
-
   private _ensureInstrumentation(
     miniappSdk: Partial<Record<'request' | 'httpRequest', unknown>>,
     name: 'request' | 'httpRequest',
@@ -160,9 +152,7 @@ export class NetworkBreadcrumbs implements Integration {
           /* 继续解除其余订阅。 */
         }
       }
-      this._cleanupCallbacks.delete(cleanup);
     };
-    this._cleanupCallbacks.add(cleanup);
     return cleanup;
   }
 

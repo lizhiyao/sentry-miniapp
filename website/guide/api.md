@@ -167,7 +167,7 @@ console.log(Sentry.getDiagnostics());
 | `Integrations` | 小程序集成命名空间 |
 | `Transports` | 内置 transport 与离线 store 命名空间 |
 | `miniappStackParser` | 默认小程序堆栈解析器 |
-| `wrap(fn)` | 包裹函数，捕获后继续抛出异常 |
+| `wrap(fn)` | 包裹函数，捕获同步抛出的异常后重新抛出；不处理返回 Promise 的 rejection |
 
 2.0 的顶层与 `Integrations` namespace 仅提供同一组 named factories，删除公共 class 与共享默认数组。迁移清单见[升级到 2.0](/guide/migration-2.0)。
 

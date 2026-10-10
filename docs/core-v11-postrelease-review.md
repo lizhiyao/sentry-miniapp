@@ -105,6 +105,6 @@ Performance 的 `mark` 分支原本恢复 delivery scope，参数化同一旧 ti
 
 上述 beta.5 发布后的清理和修复纳入 beta.6。发布包检查增加 CJS／ESM 各 8 个独立进程场景，通过安装包声明的公共入口验证空会话的迟到 timer／rAF／request／wrap，以及冻结 my／dd、只读 request 和不可读 Storage。断言最终事件、Session 终态、持久缓存重放和业务对象身份；普通 `startSession`／`captureException` 的统计是正向对照，最终 envelope 不含内部归属引用。相同检查在已发布 beta.5 两个入口均为 8 个失败，在 beta.6 候选包均通过，避免只检查源码而遗漏 CJS 严格模式差异。
 
-beta.6 候选 tarball 的真实生产依赖通过官方 npm registry 安装与审计，未命中安全公告。Taro／uni-app 的实际依赖审计仍有剩余公告；构建器修补、peer 兼容取舍、两套微信生产构建／watch 首轮／各 3 处业务映射证据见[示例依赖审查](./example-dependency-security.md)，剩余项由 [#467](https://github.com/lizhiyao/sentry-miniapp/issues/467) 跟踪。
+beta.6 候选 tarball 的真实生产依赖通过官方 npm registry 安装与审计，未命中安全公告。Taro／uni-app 的实际依赖审计仍有剩余公告；构建器修补、peer 兼容取舍、两套微信生产构建／watch 首轮／各 3 处业务映射证据见[示例依赖审查](./example-dependency-security.md)。[#467](https://github.com/lizhiyao/sentry-miniapp/issues/467) 已按维护者决定关闭，剩余示例依赖警告暂缓处理，不作为 SDK 升级或发布阻塞；关闭不表示全部警告已修复。
 
 此处记录发布准备证据，实际发版是否成功以对应 GitHub Release 和 npm registry 为准；真实设备及后台矩阵仍待 #457 用户证据。

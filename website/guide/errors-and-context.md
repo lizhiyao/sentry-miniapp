@@ -61,7 +61,7 @@ Sentry.setContext('order', {
 - `setTag` / `setTags`：适合可筛选、可聚合的短值。
 - `setContext` / `setExtra`：适合辅助理解问题的结构化数据。
 
-不要写入密码、访问令牌、完整身份证号等敏感信息。需要全局脱敏时使用 `beforeSend`。
+不要写入密码、访问令牌、完整身份证号等敏感信息。`beforeSend` 只处理错误与消息事件；独立日志、span 和 metrics 分别使用 `beforeSendLog`、`beforeSendSpan` 和 `beforeSendMetric`。用户反馈应在调用 `captureFeedback` 前过滤输入。
 
 ### 面包屑
 

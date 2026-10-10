@@ -7,7 +7,7 @@ Sentry.init({
   dsn: 'YOUR_DSN',
   tracesSampleRate: 0.2,
   integrations: [Sentry.performanceIntegration({ enableResource: true })],
-  tracePropagationTargets: ['api.example.com'],
+  tracePropagationTargets: [/^https:\/\/api\.example\.com\//],
 });
 ```
 
@@ -33,7 +33,7 @@ Automatic SDK operations supply dynamic dimensions before creation. Stable devic
 
 Default host request instrumentation creates child spans under an active parent, otherwise native root/segment spans. enableStandaloneHttpSpans: false keeps child-only tracing without removing breadcrumbs. Do not add a duplicate manual http.client span around an automatically instrumented request.
 
-Headers are injected only for explicitly matching tracePropagationTargets; an empty list injects none. Case-insensitive matching and g/y regex handling follow core. enableTracePropagation: false only stops propagation. propagateTraceparent: true is for a backend explicitly needing W3C/OTel headers; keep native sentry-trace/baggage otherwise. Unsampled decisions are still propagated.
+Headers are injected only for explicitly matching tracePropagationTargets; an empty list injects none. String targets match substrings of the entire URL, including its query, so use anchored origin regexes to limit propagation to backends you control. Case-insensitive matching and g/y regex handling follow core. enableTracePropagation: false only stops propagation. propagateTraceparent: true is for a backend explicitly needing W3C/OTel headers; keep native sentry-trace/baggage otherwise. Unsampled decisions are still propagated.
 
 Core SpanStreaming sends finite batches on its own timer/capacity thresholds; unfinished roots do not prevent children from being sent. Keep spanStreamingIntegration when replacing defaults. Hide/close/runtime replacement are explicit drain boundaries, not proof of server receipt.
 
