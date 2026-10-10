@@ -161,7 +161,7 @@ export class NetworkBreadcrumbs implements Integration {
       wrapper = this._createRequestWrapper(original);
       this._requestWrappers.set(original, wrapper);
     }
-    return Reflect.apply(wrapper, thisArg, args);
+    return Function.prototype.apply.call(wrapper, thisArg, args);
   }
 
   /**
@@ -369,7 +369,8 @@ export class NetworkBreadcrumbs implements Integration {
               level: isErrorStatusCode(statusCode) || duration > 3000 ? 'warning' : 'info',
             });
           });
-          if (typeof originalSuccess === 'function') return Reflect.apply(originalSuccess, this, args);
+          if (typeof originalSuccess === 'function')
+            return Function.prototype.apply.call(originalSuccess, this, args);
         };
 
         requestOptions['fail'] = function (this: any, ...args: any[]) {
@@ -386,7 +387,8 @@ export class NetworkBreadcrumbs implements Integration {
             if (!owner.isActive()) return;
             addBreadcrumb({ type: 'http', category: 'xhr', data: breadcrumbData, level: 'error' });
           });
-          if (typeof originalFail === 'function') return Reflect.apply(originalFail, this, args);
+          if (typeof originalFail === 'function')
+            return Function.prototype.apply.call(originalFail, this, args);
         };
 
         requestOptions['complete'] = function (this: any, ...args: any[]) {
@@ -399,7 +401,8 @@ export class NetworkBreadcrumbs implements Integration {
               durationMs: Date.now() - startTime,
             });
           });
-          if (typeof originalComplete === 'function') return Reflect.apply(originalComplete, this, args);
+          if (typeof originalComplete === 'function')
+            return Function.prototype.apply.call(originalComplete, this, args);
         };
 
         requestThrew = (error) =>
@@ -422,7 +425,7 @@ export class NetworkBreadcrumbs implements Integration {
       // 宿主调用在降级边界之外，仅执行一次；业务异常不能触发请求重试。
       try {
         if (requestArgs.length) requestArgs[0] = preparedOptions;
-        return Reflect.apply(originalRequest, this, requestArgs);
+        return Function.prototype.apply.call(originalRequest, this, requestArgs);
       } catch (error) {
         try {
           requestThrew?.(error);
@@ -462,7 +465,10 @@ function snapshotRequestOptions(
   ensureActive: () => void,
 ): Record<PropertyKey, unknown> {
   const snapshot: Record<PropertyKey, unknown> = {};
-  const keys = Reflect.ownKeys(options);
+  const keys =
+    typeof Reflect !== 'undefined' && typeof Reflect.ownKeys === 'function'
+      ? Reflect.ownKeys(options)
+      : [...Object.getOwnPropertyNames(options), ...Object.getOwnPropertySymbols(options)];
   ensureActive();
   for (const key of new Set<PropertyKey>([...keys, ...requestFields])) {
     const descriptor = Object.getOwnPropertyDescriptor(options, key);

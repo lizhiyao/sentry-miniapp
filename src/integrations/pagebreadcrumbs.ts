@@ -163,7 +163,8 @@ function instrumentPageOptions(pageOptions: unknown): void {
           /* 保留原业务回调。 */
         }
       }
-      if (typeof original === 'function') return Reflect.apply(original, this, args);
+      if (typeof original === 'function')
+        return Function.prototype.apply.call(original, this, args);
     };
     Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
     options[method] = wrapped;
@@ -189,7 +190,7 @@ function instrumentPageOptions(pageOptions: unknown): void {
           /* 保留原业务回调。 */
         }
       }
-      return Reflect.apply(original, this, args);
+      return Function.prototype.apply.call(original, this, args);
     };
     Object.defineProperty(wrapped, '__sentryPageCallbackWrapper', { value: true });
     options[key] = wrapped;
@@ -202,7 +203,7 @@ function invokePage(original: Function, thisArg: unknown, args: unknown[]): unkn
   } catch (_error) {
     /* 冻结或不可读定义不阻断宿主 Page 注册。 */
   }
-  return Reflect.apply(original, thisArg, args);
+  return Function.prototype.apply.call(original, thisArg, args);
 }
 
 /**
@@ -336,7 +337,7 @@ export class PageBreadcrumbs implements Integration {
           } catch (_error) {
             /* getter、collector 或用户 hook 失败不能改变宿主调用。 */
           }
-          return Reflect.apply(original, thisArg, args);
+          return Function.prototype.apply.call(original, thisArg, args);
         }),
       );
     }

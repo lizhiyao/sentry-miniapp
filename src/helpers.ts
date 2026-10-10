@@ -41,7 +41,7 @@ export function wrap(
 
   const sentryWrapped: WrappedFunction = function (this: any, ...args: any[]): any {
     try {
-      return Reflect.apply(fn, this, args);
+      return Function.prototype.apply.call(fn, this, args);
     } catch (ex) {
       const capture = (): void => {
         // 用 withScope 临时 fork 一个 scope：事件处理器只作用于本次 captureException，用完即弃。
@@ -366,37 +366,41 @@ export function createFunctionWrapper(
 ): Function | undefined {
   if (typeof Proxy === 'function') {
     try {
-      return new Proxy(original, {
-        apply: invoke,
-        get(target, key, receiver) {
-          if (key === '__sentry_original__') {
-            // Core FunctionToString 用这个公开标记识别原函数。虚拟读取避免写入
-            // 宿主函数；已有不可配置属性仍须遵守 Proxy 的 get 不变量。
-            const descriptor = Object.getOwnPropertyDescriptor(target, key);
-            if (
-              !descriptor ||
-              descriptor.configurable ||
-              ('value' in descriptor ? descriptor.writable : descriptor.get)
-            ) {
-              return target;
+      const reflectGet = typeof Reflect !== 'undefined' ? Reflect.get : undefined;
+      if (typeof reflectGet === 'function') {
+        return new Proxy(original, {
+          apply: invoke,
+          get(target, key, receiver) {
+            if (key === '__sentry_original__') {
+              // Core FunctionToString 用这个公开标记识别原函数。虚拟读取避免写入
+              // 宿主函数；已有不可配置属性仍须遵守 Proxy 的 get 不变量。
+              const descriptor = Object.getOwnPropertyDescriptor(target, key);
+              if (
+                !descriptor ||
+                descriptor.configurable ||
+                ('value' in descriptor ? descriptor.writable : descriptor.get)
+              ) {
+                return target;
+              }
             }
-          }
-          return Reflect.get(target, key, receiver);
-        },
-      });
+            return reflectGet(target, key, receiver);
+          },
+        });
+      }
     } catch (_error) {
       // 无法建立透明代理时只跳过这个观测点。
       return undefined;
     }
   }
 
-  // 缺 Proxy 时保留普通函数的调用包装。带扩展成员的宿主函数须原样保留，
+  // 缺透明代理能力时保留普通函数的调用包装。带扩展成员的宿主函数须原样保留，
   // 复制属性快照无法保留动态更新、setter 和退订后的业务写入。
   try {
     const standardKeys = ['name', 'length', 'prototype', 'arguments', 'caller'];
     if (
       Object.getPrototypeOf(original) !== Function.prototype ||
-      Reflect.ownKeys(original).some((key) => !standardKeys.includes(key as string))
+      Object.getOwnPropertyNames(original).some((key) => !standardKeys.includes(key)) ||
+      Object.getOwnPropertySymbols(original).length > 0
     ) {
       return undefined;
     }

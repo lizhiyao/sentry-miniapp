@@ -89,7 +89,7 @@ function patchApp(): boolean {
             broadcast(eventSubscribers, 'before', method, args[0]);
             try {
               if (typeof userHandler === 'function') {
-                return Reflect.apply(userHandler, this, args);
+                return Function.prototype.apply.call(userHandler, this, args);
               }
             } finally {
               broadcast(eventSubscribers, 'after', method, args[0]);
@@ -101,7 +101,7 @@ function patchApp(): boolean {
         }
       }
     }
-    return Reflect.apply(original, receiver, args);
+    return Function.prototype.apply.call(original, receiver, args);
   }) as AppPatch['wrapper'] | undefined;
   if (!wrapper) return false;
   const registration: AppPatch = { original: currentOriginalApp, wrapper, active: true };

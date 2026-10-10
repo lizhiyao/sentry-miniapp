@@ -156,7 +156,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
   );
 
   it('请求字段只读取一次，追踪白名单、正文和宿主发送使用同一快照', async () => {
-    for (const definition of ['enumerable', 'hidden', 'inherited', 'proxy'] as const) {
+    for (const definition of ['enumerable', 'hidden', 'inherited', 'proxy', 'missing-reflect', 'partial-reflect'] as const) {
       captured.length = 0;
       getIsolationScope().clearBreadcrumbs();
       const client = init({
@@ -194,7 +194,7 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
           key,
           {
             configurable: true,
-            enumerable: definition === 'enumerable' || definition === 'proxy',
+            enumerable: definition !== 'hidden' && definition !== 'inherited',
             get,
           },
         ]),
@@ -216,23 +216,35 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
       const receiver = {};
       const extra = {};
       const task = {};
+      let observed: { receiver: unknown; options: any; args: unknown[] } | undefined;
       requestMock.mockImplementation(function (this: unknown, sent, ...args: unknown[]) {
-        expect(this).toBe(receiver);
-        expect(args).toEqual([extra, 17]);
-        expect(args[0]).toBe(extra);
-        expect(sent[symbol]).toBe('opaque');
-        expect(Object.getPrototypeOf(sent)).toBe(Object.prototype);
-        expect(Object.getOwnPropertyDescriptor(sent, '__proto__')?.value).toBe('business field');
-        expect(sent).toMatchObject({
-          url: 'https://allowed.example/work',
-          method: 'POST',
-          data: { safe: 1, token: 'secret-canary' },
-        });
-        expect(sent.header['sentry-trace']).toEqual(expect.any(String));
+        observed = { receiver: this, options: sent, args };
         sent.success({ statusCode: 201 });
         return task;
       });
-      expect(g.tt.request.call(receiver, options, extra, 17)).toBe(task);
+      const nativeReflect = Reflect;
+      let returned: unknown;
+      try {
+        if (definition === 'missing-reflect') vi.stubGlobal('Reflect', undefined);
+        if (definition === 'partial-reflect') vi.stubGlobal('Reflect', {});
+        returned = g.tt.request.call(receiver, options, extra, 17);
+      } finally {
+        vi.stubGlobal('Reflect', nativeReflect);
+      }
+      expect(returned).toBe(task);
+      expect(observed?.receiver).toBe(receiver);
+      expect(observed?.args).toEqual([extra, 17]);
+      expect(observed?.args[0]).toBe(extra);
+      const sent = observed?.options;
+      expect(sent[symbol]).toBe('opaque');
+      expect(Object.getPrototypeOf(sent)).toBe(Object.prototype);
+      expect(Object.getOwnPropertyDescriptor(sent, '__proto__')?.value).toBe('business field');
+      expect(sent).toMatchObject({
+        url: 'https://allowed.example/work',
+        method: 'POST',
+        data: { safe: 1, token: 'secret-canary' },
+      });
+      expect(sent.header['sentry-trace']).toEqual(expect.any(String));
       expect(success).toHaveBeenCalledOnce();
       expect(replacedSuccess).not.toHaveBeenCalled();
       for (const getter of Object.values(getters)) expect(getter).toHaveBeenCalledOnce();

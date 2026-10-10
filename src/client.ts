@@ -175,7 +175,9 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       return;
     this._hookDepth++;
     try {
-      withTelemetryCritical(() => Reflect.apply(Client.prototype.emit, this, [hook, ...args]));
+      withTelemetryCritical(() =>
+        Function.prototype.apply.call(Client.prototype.emit, this, [hook, ...args]),
+      );
     } finally {
       this._hookDepth--;
       if (this._hookDepth === 0 && this._finishPending && !this._finishing) this._finishClosed();

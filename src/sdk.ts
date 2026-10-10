@@ -266,7 +266,7 @@ export function wrap<T extends (...args: any[]) => any>(fn: T): T {
     setOwnedScopeSession(captured, resolveScopeSession(captured), 'capture');
     try {
       // 业务执行不持有 SDK fork；原 Promise 身份和业务 init 的绑定均保留。
-      return Reflect.apply(fn, this, args);
+      return Function.prototype.apply.call(fn, this, args);
     } catch (error) {
       try {
         withScope(captured, () => {

@@ -161,7 +161,7 @@ URL 处理的本机受控对照覆盖 credentials、重复 query 键、追加敏
 
 ## 请求快照与日志指标的晚到数据
 
-基线为 `master 9c26592a`。本轮从公开入口追踪请求字段、Core 属性转换、批处理调度和关闭门禁，固定对照官方 `11.4.0` 的 Browser、Node、Deno、Cloudflare 与 Core 源码；取舍和直接上游链接补入[官方 SDK 对照](sdk-official-practices.md#beta7-后的请求与批处理边界对照)。
+基线为 `master 9c26592a`。本轮从公开入口追踪请求字段、Core 属性转换、批处理调度和关闭门禁，固定对照官方 `11.4.0` 的 Browser、Node、Deno、Cloudflare 与 Core 源码；取舍和直接上游链接补入[官方 SDK 对照](sdk-official-practices.md#生命周期和晚到批次)。
 
 | 确定问题 | 复现与修复 |
 | --- | --- |
@@ -182,7 +182,7 @@ Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能
 
 ## 函数包装透明性与诊断故障
 
-继续对照固定的官方 Core／Browser `11.4.0` 源码，基线为 `master 7bce47e3`，重点检查函数包装、集成装配与可选诊断对业务调用和原事件的影响。直接上游链接与没有照搬官方 fill 的原因见[官方 SDK 对照](sdk-official-practices.md#beta7-后的函数包装契约对照)。
+继续对照固定的官方 Core／Browser `11.4.0` 源码，基线为 `master 7bce47e3`，重点检查函数包装、集成装配与可选诊断对业务调用和原事件的影响。直接上游链接与没有照搬官方 fill 的原因见[官方 SDK 对照](sdk-official-practices.md#函数包装与运行时降级)。
 
 | 确定问题 | 修复与验证 |
 | --- | --- |
@@ -197,3 +197,44 @@ Proxy options 的自有字段按实际 descriptor 复制，不额外依赖可能
 缺 Proxy 时普通函数继续包装；带自有／继承扩展或不可检查的函数保持原样并跳过该自动观测点，避免快照复制破坏框架更新。平台 transport 仍可用；不把一项可选观测失败扩大为初始化失败。
 
 主要强化现有 App、fill 与七平台契约测试，只新增三个独立定义（debug 的两个参数合计四个用例），总数由 1335 到 1339。lint、严格类型、77 文件全量 coverage／shuffle、SDK 三种产物、publint／实际包消费、微信独立 bundle 与本地映射、官网构建全部通过。覆盖率门槛未改：statements 98.71%、branches 95.69%、functions 99.25%、lines 99.45%。架构、官网平台降级说明与维护者对照记录已更新；README 安装及公共 API 未变。本轮未发 npm，真实设备反馈继续由 #457 跟踪。
+
+## 官方 SDK 对照的阶段验证记录
+
+以下保留 beta.6 发布后与 #473 整合时的验证证据；当前设计理由统一见[官方 SDK 对照](sdk-official-practices.md)。
+
+### beta.6 发布后的对照
+
+已完成固定上游源码阅读；两处初始缺陷分别已有公开 CJS 传播探针和真实 Core 最终事件的 red 证据。已发布 beta.6 的 CJS/ESM 两个新场景共四次精确失败，当前源码构建的实际安装包同一场景全部通过：
+
+| 验证项                                                                    | 结果                                                                                                                        |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| ignored HTTP child：父 trace 采样、无父 ignored segment、W3C 与既有请求头 | 三条真实 Core 回归通过；实际 CJS/ESM 两种 W3C 配置、有父／无父控制及业务对象身份均通过                                      |
+| userInfo：错误／消息最终事件、显式业务 IP、Session 不新增自动 IP          | 九条真实 Core 回归通过，含冻结配置、默认值、显式底层覆盖及 getter 原错误；实际 CJS/ESM error 场景通过                       |
+| lint、typecheck、单测及覆盖率检查                                         | lint、源码／测试 typecheck 通过；76 文件、1302 测试全通过；语句 98.72%、分支 95.55%、函数 99.23%、行 99.44%，保留原门槛     |
+| 构建、实际包 CJS/ESM 消费与行为门禁                                       | CJS/ESM 各 19 场景通过；七平台各两种 URL 能力模式、UMD、68 个导出及类型入口通过；微信 bundle 与本地符号化通过；官网构建通过 |
+
+本次没有运行上游完整 suite，没有新增实际 Relay 接收或真机验证。源码／协议一致性、最终本地 payload、后台处理和目标设备行为是不同证据，不能互相替代。真实用户反馈仍由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。
+
+### 与 #473 整合后的复核
+
+在 #473 合入 `master 86c476a` 后，#472 同步最新 master，保留 async-stacktrace、error-infer-ip、ignored-http-parent-propagation 三个新增场景。此前的 1302／19 和 #473 的 1325／18 是各自独立阶段的结果；组合门禁为 CJS／ESM 各 20 个独立进程场景。
+
+测试增量按实际 Vitest 收集复核：1292 → 1335（+43，约 3.3%），来自 18 个测试定义，其中 12 个参数化。FPS 14 例、栈格式 13 例是不同输入边界，不能理解成新增了 43 个独立问题；SDK、client 和 consent 的断言强化没有增加数量。源码、最终 Core envelope 与安装包分别保护解析、管道和构建入口，按这些接缝判断是否重复，不以覆盖率或数量代替行为。
+
+独立审查删除了一段低价值断言：在最终 frame 已精确检查后，用手写 Source Map 再查询固定坐标只验证 fixture，不能额外检出 SDK 回归。两个有／无 Error header 的路径与 Debug ID 用例保留；实际生成 JS/map 的本地映射由现有微信和框架产物脚本检查。测试准则补入 CONTRIBUTING 与 AGENTS，要求优先强化已有用例、参数化独立边界并避免 fixture 自证。
+
+组合后的 lint、严格源码／测试 typecheck、完整 coverage 与 shuffle 均通过：78 文件、1335 用例；覆盖率为 statements 98.72%、branches 95.56%、functions 99.23%、lines 99.44%，95.5% 分支门槛保持。当前机器的完整 coverage／shuffle 分别约 3.2／3.9 秒，这只是单次本地观测，不承诺所有 CI 环境的耗时。
+
+标准构建、publint、真实 tarball 的七平台 × 两种 URL 模式、UMD、68 个导出、类型入口，以及 CJS／ESM 各 20 个行为场景通过；微信独立 bundle 的加载／本地映射与官网构建通过。组合复核没有新增手机、目标 Relay 后台或 npm 发布证据。
+
+## Reflect 能力缺失与文档职责复核
+
+基线为 `master 97c31e72`。用户提出小程序／小游戏的 Reflect 兼容性后，使用该基线的实际 CJS 产物，在导入 SDK 前移除 Reflect，复现业务请求抛出 `Cannot read properties of undefined (reading 'apply')`。这是能力缺失模拟，尚无特定设备故障证据。官方环境资料和降级理由集中在[官方 SDK 对照](sdk-official-practices.md#函数包装与运行时降级)。
+
+原函数委托统一使用 `Function.prototype.apply.call`，保留自有 `apply` 扩展的调用契约；client hook 也不再要求 Reflect.apply。透明代理仅在 Proxy 和 Reflect.get 可用时安装，get 方法单次读取并持有，读取或创建失败只跳过该观测点。普通函数在缺代理能力时回退包装，扩展函数保持原样。请求快照在 Reflect.ownKeys 不可用时通过 Object API 取得自有字符串与 Symbol 字段，不安装全局 Reflect／Proxy polyfill。
+
+强化已有 instrumentation 和真实 Core 请求快照用例，覆盖缺少／不完整 Reflect、不可读 get、Symbol 扩展、字段单读和完整业务参数；未增加测试定义或 Vitest 用例数量。实际 tarball 的 CJS／ESM 入口，在七个小程序宿主及微信／抖音小游戏模拟中，分别验证 Reflect 缺失、缺 get、缺 apply、缺 ownKeys，以及普通／带扩展函数，共 144 项全部通过。检查业务 receiver、完整参数、原异常、回调、task、错误／日志／指标／span 最终 envelope 和退休后的函数恢复；扩展函数降级时确认自动 HTTP 观测跳过，手动遥测仍工作。
+
+现有安装包消费门禁增加 Reflect 缺失／不完整模式：七平台 ESM、微信 CJS 及无 Reflect 的 UMD 完成初始化、请求和上报验证；保留 CJS／ESM 各 20 项生命周期行为及类型检查。lint、严格类型、77 文件／1339 用例的 coverage 与 shuffle、SDK 构建、微信独立 bundle／本地映射和官网构建均通过，覆盖率门槛不变：statements 98.71%、branches 95.71%、functions 99.25%、lines 99.45%。这些检查不替代真实设备或目标后台验收，也没有新增 npm 发布。
+
+架构与官方 SDK 对照只说明当前实现及理由，阶段复现与验证数字移入本审查记录；README 与官网删除重复的 beta 修复历史，保留影响用户选择的发布通道、后台要求和迁移说明。配置页标题保留原链接锚点，避免已有链接失效。
