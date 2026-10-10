@@ -208,6 +208,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     const tracesSampler = options.tracesSampler;
     const beforeSendSpan = options.beforeSendSpan;
     const beforeSend = options.beforeSend;
+    const beforeBreadcrumb = options.beforeBreadcrumb;
     const guardTransport = (transport: Transport): Transport => ({
       send: (envelope) => (lifetime.canSend() ? transport.send(envelope) : resolvedSyncPromise({})),
       flush: (timeout) => transport.flush(timeout),
@@ -276,6 +277,14 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       beforeSendMetric: (metric) => {
         if (!lifetime.acceptsTelemetry()) return null;
         const result = options.beforeSendMetric ? options.beforeSendMetric(metric) : metric;
+        return lifetime.acceptsTelemetry() ? result : null;
+      },
+      beforeBreadcrumb: (breadcrumb, hint) => {
+        if (!lifetime.acceptsTelemetry()) return null;
+        const result = beforeBreadcrumb
+          ? withTelemetryCritical(() => beforeBreadcrumb(breadcrumb, hint))
+          : breadcrumb;
+        // Core 随后写入共享 isolation scope；回调退休 client 时不能留下旧数据。
         return lifetime.acceptsTelemetry() ? result : null;
       },
       ...(tracesSampler

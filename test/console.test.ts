@@ -15,7 +15,7 @@ function setupIntegration(integration: ConsoleBreadcrumbs): () => void {
   const registerCleanup = vi.fn((cleanup: () => void) => {
     activeCleanups.add(cleanup);
   });
-  const client = { registerCleanup } as any;
+  const client = { registerCleanup, getOptions: () => ({}) } as any;
   vi.mocked(getClient).mockReturnValue(client);
   integration.setup(client);
   return registerCleanup.mock.calls[0]![0];
@@ -223,7 +223,7 @@ describe('ConsoleBreadcrumbs Integration', () => {
       (console as any).error = undefined;
       (console as any).warn = original;
       const registerCleanup = vi.fn();
-      const client = { registerCleanup } as any;
+      const client = { registerCleanup, getOptions: () => ({}) } as any;
       vi.mocked(getClient).mockReturnValue(client);
       const integration = new ConsoleBreadcrumbs({ levels: ['error', 'warn'] });
       integration.setup(client);

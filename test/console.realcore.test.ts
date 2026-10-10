@@ -46,6 +46,12 @@ describe('Console 面包屑（真实 Core）', () => {
         message: 'before undefined null {"value":1} after',
       }),
     );
+    client.getOptions().enabled = false;
+    const unread = { toJSON: vi.fn(() => 'disabled-canary') };
+    expect(console.log.call(receiver, unread)).toBe(result);
+    expect(unread.toJSON).not.toHaveBeenCalled();
+    expect(original).toHaveBeenLastCalledWith(unread);
+    expect(original).toHaveBeenCalledTimes(2);
   });
 
   it.each([false, true])(
@@ -83,6 +89,67 @@ describe('Console 面包屑（真实 Core）', () => {
       expect(breadcrumbs.map((breadcrumb) => breadcrumb.message)).toEqual(
         hookThrows ? [] : ['undefined'],
       );
+    },
+  );
+
+  it.each(['dispose', 'close'] as const)(
+    '%s 在格式化或 beforeBreadcrumb 中发生时，不继续读取或污染下一个 client',
+    async (stop) => {
+      const receiver = {};
+      const result = {};
+      const original = vi.fn(function (this: unknown) {
+        expect(this).toBe(receiver);
+        return result;
+      });
+      vi.spyOn(console, 'log').mockImplementation(original);
+      for (const phase of ['json', 'json-throw', 'string', 'hook'] as const) {
+        getIsolationScope().clearBreadcrumbs();
+        captured.length = 0;
+        original.mockClear();
+        let closing: Promise<boolean> | undefined;
+        const retire = () => {
+          if (stop === 'dispose') client.dispose();
+          else closing = client.close(2000);
+        };
+        const client = init({
+          dsn: 'https://test@example.com/1',
+          defaultIntegrations: [consoleBreadcrumbsIntegration({ levels: ['log'] })],
+          beforeBreadcrumb: (breadcrumb) => {
+            if (phase === 'hook') retire();
+            return breadcrumb;
+          },
+          transport: createCapturingTransport(captured),
+        })!;
+        const input = {
+          toJSON() {
+            if (phase === 'string') return undefined;
+            if (phase !== 'hook') retire();
+            if (phase === 'json-throw') throw new Error('serializer retired client');
+            return { value: 'retired-canary' };
+          },
+          toString: vi.fn(() => {
+            if (phase === 'string') retire();
+            return 'retired-canary';
+          }),
+        };
+        const later = { toJSON: vi.fn(() => 'later-canary') };
+        expect(console.log.call(receiver, input, later)).toBe(result);
+        expect(original).toHaveBeenCalledExactlyOnceWith(input, later);
+        expect(later.toJSON).toHaveBeenCalledTimes(phase === 'hook' ? 1 : 0);
+        expect(input.toString).toHaveBeenCalledTimes(phase === 'string' ? 1 : 0);
+        if (closing) expect(await closing).toBe(true);
+
+        const next = init({
+          dsn: 'https://next@example.com/2',
+          defaultIntegrations: false,
+          transport: createCapturingTransport(captured),
+        })!;
+        next.captureMessage('new client');
+        await next.close(2000);
+        expect(collectEnvelopePayloads<Event>(captured, ['event'])).toEqual([
+          expect.objectContaining({ message: 'new client', breadcrumbs: undefined }),
+        ]);
+      }
     },
   );
 });

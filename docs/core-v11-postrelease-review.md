@@ -146,3 +146,15 @@ URL 处理的本机受控对照覆盖 credentials、重复 query 键、追加敏
 实际 npm beta.7 的 CJS／ESM 公开入口各复现五个失败场景：监听部分注册、宿主 API 与不可用／抛错控制台组合，以及 FPS 非法分档与两种控制台故障。候选 CJS／ESM 在七平台受控宿主下的 70 个对应检查通过，最终各保留一个独立事件与一个 HTTP span，失败监听不产生性能 span。此证据来自安装包入口和宿主模拟，不是设备或 Sentry 后台验收。
 
 本地检查通过：lint、源码与测试类型、77 文件／1331 测试及原覆盖率门槛（statements 98.73%、branches 95.61%、functions 99.23%、lines 99.44%）、SDK 三种产物、实际 tarball 消费与七平台 URL 降级、微信独立 bundle 和本地映射检查、文档站构建。本轮源码修复尚未发包，真实设备反馈继续由 #457 跟踪。
+
+## 面包屑关闭边界与跨 client 归属
+
+基线为 `master ab3dd9e`。本轮检查数据采集、生命周期与资源释放的交叉边界，复现了关闭过程中向共享 scope 写入旧面包屑的问题：console 参数的 `toJSON`／`toString` 或 `beforeBreadcrumb` 调用 `dispose()`／`close()` 后，原条目仍进入 Core isolation scope，随后出现在新 client 的事件里；格式化还会继续读取后续参数。对已关闭 client 手动调用 `addBreadcrumb()` 也会执行用户过滤回调并留下条目。
+
+- 在 Core 公开 `beforeBreadcrumb` 回调前后使用既有 lifetime 采集门禁，关闭后不执行用户回调，回调中关闭后返回的条目丢弃；同步 finalizer 仍可生成有效面包屑。回调执行使用现有同步临界区，拒绝在其中重入 `init()`。没有覆写 protected 方法、改写 Scope 或另建 breadcrumb 管道。
+- console 按安装时的 client 检查当前绑定、启用状态及自动采集权限；在每个参数与 JSON／String 用户代码边界重新检查，退休后不读取后续参数或执行额外的字符串回退。观测仍不改变原 console 的 receiver、参数、返回身份和业务异常。
+- 加强已有关闭、同步收尾、重入和正常 console 回归，新增两个关闭方式的真实 Core 用例，共覆盖八种中途退休组合。修复前五个用例失败，修复后通过；正常记录、返回 `null` 的过滤和同步收尾保留正向对照。关闭不自动清空此前已记录的面包屑，官网配置指南说明了关闭与显式清空的区别；README 的接入 API 未变，无需增加维护历史。
+
+实际 npm beta.7 的 CJS／ESM 入口共 20 个对照场景均复现问题。候选构建及实际候选 tarball 在七平台受控宿主下，CJS／ESM、五种边界、两种关闭方式的 140 个检查全部通过，最终新 client 事件没有旧条目。证据来自公开入口、真实 Core envelope 和宿主模拟，不是设备或 Sentry 后台验收。
+
+本地检查通过：lint、源码与测试严格类型、77 文件／1333 测试及原覆盖率门槛（statements 98.71%、branches 95.60%、functions 99.24%、lines 99.44%）、SDK 三种产物与实际包消费、微信独立 bundle 和本地映射检查、文档站构建。本轮源码修复尚未发包，真实设备反馈继续由 #457 跟踪。
