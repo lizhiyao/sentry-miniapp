@@ -85,7 +85,7 @@ export class ConsoleBreadcrumbs implements Integration {
             .map((arg) => {
               if (typeof arg === 'string') return arg;
               try {
-                return JSON.stringify(arg);
+                return JSON.stringify(arg) ?? String(arg);
               } catch (_e) {
                 return String(arg);
               }

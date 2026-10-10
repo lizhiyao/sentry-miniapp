@@ -22,7 +22,7 @@ Core fetch 与 Browser XHR 在 HTTP span 被 `ignoreSpans` 忽略、且存在活
 
 本项目原实现显式传入被忽略的 HTTP span，公开 CJS 产物探针已复现：父操作已采样，但请求传播变为未采样。这会把“省略本地请求 span”扩大成下游 trace 的采样变化。
 
-修复仅调整请求头来源：有父时回落活动父 span；无父的 ignored HTTP segment 仍保留自身未采样决策。请求仍按原业务逻辑执行，本地 ignored span 仍不发送。相关实现和回归位于 [networkbreadcrumbs](../src/integrations/networkbreadcrumbs.ts) 与 [真实 Core 请求测试](../test/networkbreadcrumbs.realcore.test.ts)。修复后的完整验证结果留在文末填写。
+修复仅调整请求头来源：有父时回落活动父 span；无父的 ignored HTTP segment 仍保留自身未采样决策。请求仍按原业务逻辑执行，本地 ignored span 仍不发送。相关实现和回归位于 [networkbreadcrumbs](../src/integrations/networkbreadcrumbs.ts) 与 [真实 Core 请求测试](../test/networkbreadcrumbs.realcore.test.ts)。验证记录见文末。
 
 ### 错误事件需要明确携带 IP 推断设置
 
@@ -62,3 +62,15 @@ Session 是另一条通道。Browser 仅在允许 userInfo 时通过公开 `befo
 | 构建、实际包 CJS/ESM 消费与行为门禁                                       | CJS/ESM 各 19 场景通过；七平台各两种 URL 能力模式、UMD、68 个导出及类型入口通过；微信 bundle 与本地符号化通过；官网构建通过 |
 
 本次没有运行上游完整 suite，没有新增实际 Relay 接收或真机验证。源码／协议一致性、最终本地 payload、后台处理和目标设备行为是不同证据，不能互相替代。真实用户反馈仍由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。
+
+## 与 #473 整合后的复核
+
+在 #473 合入 `master 86c476a` 后，#472 同步最新 master，保留 async-stacktrace、error-infer-ip、ignored-http-parent-propagation 三个新增场景。此前的 1302／19 和 #473 的 1325／18 是各自独立阶段的结果；组合门禁为 CJS／ESM 各 20 个独立进程场景。
+
+测试增量按实际 Vitest 收集复核：1292 → 1335（+43，约 3.3%），来自 18 个测试定义，其中 12 个参数化。FPS 14 例、栈格式 13 例是不同输入边界，不能理解成新增了 43 个独立问题；SDK、client 和 consent 的断言强化没有增加数量。源码、最终 Core envelope 与安装包分别保护解析、管道和构建入口，按这些接缝判断是否重复，不以覆盖率或数量代替行为。
+
+独立审查删除了一段低价值断言：在最终 frame 已精确检查后，用手写 Source Map 再查询固定坐标只验证 fixture，不能额外检出 SDK 回归。两个有／无 Error header 的路径与 Debug ID 用例保留；实际生成 JS/map 的本地映射由现有微信和框架产物脚本检查。测试准则补入 CONTRIBUTING 与 AGENTS，要求优先强化已有用例、参数化独立边界并避免 fixture 自证。
+
+组合后的 lint、严格源码／测试 typecheck、完整 coverage 与 shuffle 均通过：78 文件、1335 用例；覆盖率为 statements 98.72%、branches 95.56%、functions 99.23%、lines 99.44%，95.5% 分支门槛保持。当前机器的完整 coverage／shuffle 分别约 3.2／3.9 秒，这只是单次本地观测，不承诺所有 CI 环境的耗时。
+
+标准构建、publint、真实 tarball 的七平台 × 两种 URL 模式、UMD、68 个导出、类型入口，以及 CJS／ESM 各 20 个行为场景通过；微信独立 bundle 的加载／本地映射与官网构建通过。组合复核没有新增手机、目标 Relay 后台或 npm 发布证据。

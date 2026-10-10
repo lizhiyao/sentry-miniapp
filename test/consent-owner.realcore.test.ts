@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { logger, getCurrentScope, type ErrorEvent, type Envelope } from '@sentry/core';
+import {
+  logger,
+  getCurrentScope,
+  parseEnvelope,
+  type ClientReport,
+  type ErrorEvent,
+  type Envelope,
+} from '@sentry/core';
 import { getDiagnostics } from '../src/diagnostics';
 import { MiniappClient } from '../src/client';
 import { init, getConsent, setConsent } from '../src/sdk';
@@ -180,7 +187,7 @@ describe('client consent 归属（真实 core）', () => {
     expect(JSON.stringify(getDiagnostics())).not.toContain('memory-only');
   });
 
-  it('撤回取消 SDK 在途请求、拒绝排队请求；迟到成功不能启动新网络，两条仅入库一次', async () => {
+  it('撤回取消在途并拒绝排队；重授后两事件重放成功，但报告仍记录两次发送失败', async () => {
     const abort = vi.fn(() => request.mock.calls[0]![0].fail({ errMsg: 'aborted' }));
     request.mockReturnValue({ abort });
     const owner = init({
@@ -206,6 +213,38 @@ describe('client consent 归属（真实 core）', () => {
     await vi.advanceTimersByTimeAsync(6000);
     expect(request).toHaveBeenCalledOnce();
     expect([...disk.values()].join('')).toBe(stored);
+
+    const successfulEnvelopes: Envelope[] = [];
+    request.mockImplementation((options) => {
+      successfulEnvelopes.push(parseEnvelope(options.data));
+      options.success({ statusCode: 200 });
+      return {};
+    });
+    owner.setConsent(true);
+    await vi.advanceTimersByTimeAsync(6000);
+    const flushing = owner.flush(1000);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await flushing).toBe(true);
+
+    const items = successfulEnvelopes.flatMap<Envelope[1][number]>((envelope) => envelope[1]);
+    const events = items
+      .filter(([header]) => header.type === 'event')
+      .map(([, payload]) => payload as ErrorEvent);
+    expect(events.map((event) => event.event_id).sort()).toEqual(['inflight', 'queued']);
+    const reports = items
+      .filter(([header]) => header.type === 'client_report')
+      .map(([, payload]) => payload as ClientReport);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]!.discarded_events).toEqual([
+      { reason: 'network_error', category: 'error', quantity: 2 },
+    ]);
+    expect(items.map(([header]) => header.type).sort()).toEqual([
+      'client_report',
+      'event',
+      'event',
+    ]);
+    expect([...disk.values()].join('')).not.toContain('inflight');
+    expect([...disk.values()].join('')).not.toContain('queued');
   });
 
   it('实例授权排 core 日志缓冲；新 runtime 不继承旧授权，旧实例 API 不授权新实例', () => {

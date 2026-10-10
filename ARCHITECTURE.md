@@ -130,6 +130,8 @@ Session／TryCatch 的资源清理由每个 client 的 lifetime stop 与公开 `
 
 无法包装 `App()` 时，可回退到宿主 `onAppShow`／`onAppHide` 原生通道；仍不能补回先前已发生的启动事件。
 
+`getApp()` 返回已注册实例时，late-init 使用原生通道。初始化早于 `App()` 注册时，`getApp()` 可能抛错或没有实例，这时保留 App 包装，以覆盖之后的完整业务 handler 次序。当前无法仅凭失败返回区分“尚未注册”和“已注册但 getApp 异常”；不强行把两者都改为 late-init。后者尚无正常宿主复现，作为 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 的设备反馈检查点；不将模拟的异常 getter 当成已验证的平台故障。
+
 小游戏由 `isMinigame()` 判断，Session、可见性与 Minigame／FPS producers 使用原生 show／hide 共享通道，即使宿主存在第三方 App／Page shim 也不改变这些生命周期订阅的原生路径。它们共用 SDK 内部的 `before`／`after`／`flush` 次序；与其它原生业务监听器的先后仍由宿主决定。PageBreadcrumbs 单独检测实际 App／Page／导航 API，原生通道不提供页面或路由模型。
 
 原生自动 Session 要求 show 和 hide 都能注册。两者成功后，在 Core `afterAllSetup` 建立初始前台会话；安装时已观察到 hide 则等待下一次 show。缺少任一方向则跳过自动会话并诊断，业务可显式管理 Session。
@@ -192,6 +194,8 @@ client 构造时选择 transport 组合，前三行适用于 `init()` 管理的 
 | 直接构造低层 client          | 不装配自动 store／replay；未授权发送直接阻止并诊断                                                        |
 
 SDK 复用 `makeOfflineTransport` 管理入库和重试，只补 `shouldSend`／`shouldStore`、受控 store 与重放句柄。重放在授权、前台恢复、网络恢复或 flush 入口唤醒；不另写第二个 backoff 引擎，也不把 offline 重放当成持久 ACK。
+
+Core 默认 transport 将发送 Promise 拒绝记为 `network_error` client report；撤回同意导致在途／排队请求取消时也沿用这一语义。符合缓存策略的原 envelope 可同时入库，重新同意后仍可能送达。因此该计数不能解释成最终永久丢失条数，也不能仅凭它判断 consent 失效。SDK 不拦截或重写 Core outcome 管道；回归检查取消后的缓存、重放事件和最终 client report 三者，而不是消除这个计数。
 
 typed records 保存目标／策略身份、最初 `createdAt` 和编码后的 envelope；重试保持记录身份与最初时间，按当前配置的 TTL 裁剪，不续期。Storage 不可用时可降级内存，不能承诺跨进程保留；读取重放记录必须先提交删除，再交付 transport。提交删除后中断仍可能丢失，重试也可能重复，故整体为 best-effort，不保证 durable ACK 或恰好一次。client reports 与明确不支持的 binary 请求不进入离线缓存。
 

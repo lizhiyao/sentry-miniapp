@@ -25,7 +25,7 @@ export default defineConfig({
       // Vitest 4 uses AST-aware V8 remapping, so preserve its measured baseline.
       thresholds: {
         statements: 98.7,
-        branches: 93.4,
+        branches: 95.5,
         functions: 98.7,
         lines: 99.3,
       },

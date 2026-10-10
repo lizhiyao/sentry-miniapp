@@ -34,7 +34,7 @@ console.log(Sentry.getDiagnostics());
 
 **会，且默认开启。** SDK 默认启用 `NetworkBreadcrumbs`，自动劫持 `wx.request` / `my.httpRequest`，把每个网络请求记成 `category: xhr` 的面包屑，随**下一个被捕获的错误事件**一起上报（与 `@sentry/browser` 默认行为一致）。
 
-- **默认字段**：`url`（只到路径）/ `url.query`（按 `dataCollection.urlQueryParams` 过滤）/ `method` / `status_code` / `duration`；失败请求标 `error` 级、慢请求（>3s）标 `warning` 级。
+- **默认字段**：`url`（只到路径）/ `url.query`（按 `dataCollection.urlQueryParams` 过滤）/ `method` / `status_code` / `duration`；请求进入宿主 `fail` 回调时标 `error` 级，进入 `success` 回调但 HTTP 状态为 4xx／5xx 时标 `warning` 级，慢请求（>3s）也标 `warning` 级。
 - **默认不带请求 / 响应体**，需要 body 时开启 `traceNetworkBody: true`：体先按敏感键片段脱敏（core 内置名单 + 本 SDK 的支付／证件片段，可用顶层 `sensitiveKeys` 追加），再按 `maxRequestBodySize`（默认 1 MB）截断；按 URL 排除仍可在 `beforeBreadcrumb` 里二次处理。
 - **uni-app / Taro 无需额外配置**：`uni.request` / `Taro.request` 最终会走到对应小程序端被包裹的全局请求 API（如微信 `wx.request`、支付宝 `my.httpRequest`）。
 

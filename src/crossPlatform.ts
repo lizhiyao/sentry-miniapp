@@ -30,7 +30,6 @@ interface SDK {
   getAccountInfoSync?: Function;
   getUpdateManager?: Function;
   showModal?: Function;
-  URLSearchParams?: Function;
   // Performance API
   getPerformance?: Function; // 获取性能管理器
   // Storage API
@@ -360,7 +359,6 @@ const getSDK = (): SDK => {
       request: () => {},
       httpRequest: () => {},
       getSystemInfoSync: () => ({}),
-      URLSearchParams: () => {},
     };
   }
 

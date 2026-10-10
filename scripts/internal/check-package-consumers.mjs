@@ -321,7 +321,7 @@ miniappStackParser;
 
 const suppliedTarball = process.argv[2] ? resolve(process.argv[2]) : undefined;
 const tempRoot = await mkdtemp(join(tmpdir(), 'sentry-miniapp-package-consumers-'));
-const expectedBehaviorScenarios = 19;
+const expectedBehaviorScenarios = 20;
 
 try {
   const tarball =

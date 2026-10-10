@@ -234,7 +234,7 @@ Sentry.startInactiveSpan({
 
 ## 运行环境与自建 Sentry
 
-- 构建与测试环境要求 Node.js ≥ 20.19（与 core 11 的最低要求一致）。
+- npm 包的 Node.js 依赖范围为 `>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0`，与固定的 core 11 版本一致；22.0–22.11 和 23.0–23.1 不在范围内。开发本 SDK 仓库还须满足构建、测试、lint 工具的共同要求，请用 20.x ≥ 20.19、22.x ≥ 22.13 或 ≥ 24。Node 要求不是小程序宿主版本要求。
 - core v11 的[官方迁移说明](https://github.com/getsentry/sentry-javascript/blob/3e02c87cd51066b147ab37c5c33b44bfe69ae3cd/MIGRATION.md)要求自建 Sentry 26.4.2 及以上。升级后仍须在目标环境验收 span/v2 与其他遥测接收；2.0 不支持 static，不能用它作为旧后台的降级路径。
 - 删除项、数据采集与统计迁移见[升级到 2.0](/guide/migration-2.0)。
 
@@ -265,6 +265,8 @@ Sentry.startInactiveSpan({
 | `minigameFrameRateOptions` | `object` | 见下 | 帧率监控细调，仅 `enableMinigameFrameRate` 生效时使用 |
 
 `minigameFrameRateOptions` 子项：`fpsWarningThreshold`（默认 `30`）、`longFrameThresholdMs`（默认 `50`）、`reportInterval`（默认 `10000`）、`maxJankBreadcrumbsPerWindow`（默认 `3`）、`jankLevels`（可选，分级卡顿阈值）。使用方法与数据去向见[小游戏接入与性能](/guide/minigame)。
+
+前三项须为有限正数，可使用小数；0、负数、NaN、Infinity 或非数值回落对应默认值。`maxJankBreadcrumbsPerWindow` 是非负安全整数，0 表示禁用卡顿面包屑，非法值回落默认 3。
 
 `jankLevels` 为 `{ minor?, major?, severe? }`（毫秒，各档全可选）。提供后切换为**分级统计**：每帧卡顿按命中的最高档归类，面包屑带 `jankLevel`，会话汇总包含 `jank.minor` / `jank.major` / `jank.severe` 属性（仅启用的档），总次数为 `jank.count`。不提供时沿用 `longFrameThresholdMs` 单档；两者同时提供时 `jankLevels` 优先。
 
