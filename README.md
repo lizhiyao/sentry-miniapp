@@ -11,7 +11,7 @@
 
 简体中文 | [English](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/README.en.md)
 
-> 本文适用于 2.0 beta，试用请安装 `sentry-miniapp@next`；默认安装仍获取 1.x 稳定版。升级前阅读[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。不同平台的真机验证尚在进行，请先在测试项目中确认数据上报、错误源码定位和隐私授权行为；遇到问题可提交 [beta 反馈](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
+> 本文适用于 2.0 beta，试用请安装 `sentry-miniapp@next`；默认安装仍获取 1.x 稳定版。已稳定使用 1.x 的项目可以继续使用，先按下方场景选择版本。不同平台的真机验证尚在进行，请先在测试项目中确认数据上报、错误源码定位和隐私授权行为；遇到问题可提交 [beta 反馈](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
@@ -33,11 +33,21 @@
 
 ---
 
+## 选择版本与 Sentry 后台
+
+| 当前场景 | 版本选择 |
+| --- | --- |
+| 1.x 已满足需求且运行稳定 | 可以继续使用 1.x，无需仅为 Core 版本升级而迁移 |
+| 自建 Sentry 低于 26.4.2，暂时无法升级后台 | 保持项目已验收的 1.x 版本；参考 [1.20.4 README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/README.md) 与 [v1 文档归档](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide) |
+| 使用官方云服务或受支持的自建后台，需要流式性能监控或业务 Metrics | 可在测试项目中试用 2.0 beta，先阅读[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) |
+
+官方云服务（sentry.io）与受支持的新自建后台均可接收 v1、v2 数据，项目和 DSN 可以沿用。2.0 所依赖的 Core v11 以自建 Sentry **26.4.2 及以上**为[官方支持基线](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x)；更旧版本可能部分可用，但不受支持。2.0 只支持流式性能上报，没有旧性能格式的兼容开关；仅收到异常或关闭 tracing 不能证明旧后台完整兼容。
+
 ## 🚀 5 分钟跑通
 
 **接入前确认**：
 
-- 已有可用的 Sentry 服务（Sentry SaaS 或自托管实例均可），并在 Sentry 中创建好项目、复制该项目的 DSN。
+- 已按上面的版本选择确认 Sentry 后台，创建好项目并复制该项目的 DSN。
 - 小程序后台已把 Sentry 上报域名加入 `request` 合法域名。
 
 安装：

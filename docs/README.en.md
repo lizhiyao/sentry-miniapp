@@ -11,7 +11,7 @@
 
 [简体中文](../README.md) | English
 
-> This README covers the 2.0 beta. Install `sentry-miniapp@next` to try it; an unqualified install still selects the stable 1.x release. Read the [2.0 migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. Device testing across platforms is still in progress. Start with a test project and check data delivery, original source locations in errors, and consent behavior. Report problems through the [beta feedback issue](https://github.com/lizhiyao/sentry-miniapp/issues/457).
+> This README covers the 2.0 beta. Install `sentry-miniapp@next` to try it; an unqualified install still selects the stable 1.x release. Projects running reliably on 1.x can keep using it; choose a version below before installing. Device testing across platforms is still in progress. Start with a test project and check data delivery, original source locations in errors, and consent behavior. Report problems through the [beta feedback issue](https://github.com/lizhiyao/sentry-miniapp/issues/457).
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 
@@ -37,11 +37,21 @@ Mini program runtimes may expose a window alias without DOM or browser request A
 
 ---
 
+## Choose an SDK Version and Sentry Deployment
+
+| Your situation | Version choice |
+| --- | --- |
+| 1.x meets your needs and runs reliably | Keep using 1.x; a Core version change alone does not require migration |
+| Your self-hosted Sentry is older than 26.4.2 and cannot be upgraded yet | Keep the 1.x version already verified with your deployment; see the [1.20.4 README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/docs/README.en.md) and [v1 documentation archive](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide) (Chinese) |
+| You use Sentry SaaS or a supported self-hosted deployment and need streamed tracing or business Metrics | Try the 2.0 beta in a test project after reading the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese) |
+
+Sentry SaaS (sentry.io) and supported newer self-hosted deployments can receive data from v1 and v2; you can keep your project and DSN. Core v11, used by 2.0, has an [official self-hosted support baseline](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x) of **Sentry 26.4.2 or higher**. Older deployments may partially work but are unsupported. Version 2.0 only supports streamed tracing and has no legacy tracing mode. Receiving an error or disabling tracing does not establish full compatibility with an older deployment.
+
 ## 🚀 Get It Working In 5 Minutes
 
 Before you start:
 
-- Have access to a working Sentry service (Sentry SaaS or self-hosted), then create a project in Sentry and copy its DSN.
+- Choose an SDK version supported by your Sentry deployment as described above, then create a project and copy its DSN.
 - Add your Sentry endpoint domain to the `request` trusted-domain list in your mini program console.
 
 Install:

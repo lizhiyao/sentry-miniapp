@@ -1,8 +1,25 @@
 # 从 1.x 升级到 2.0
 
-2.0 使用 `@sentry/core v11`，部分 API 和默认行为与 1.x 不同。本页说明需要修改的代码和配置；1.x 历史行为见[1.19 迁移记录](/guide/migration-1.19)。
+2.0 使用 `@sentry/core v11`，部分 API 和默认行为与 1.x 不同。本页先说明如何选择版本，再列出升级所需的代码和配置变更。
 
-通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.6` 固定版本。默认安装仍获取 1.x 稳定版。升级前先确认实际安装版本。
+## 如何选择版本 {#version-choice}
+
+1.x 是稳定版，2.0 仍处于 beta。使用官方 Sentry SaaS，或达到 Core v11 官方支持基线的自建 Sentry（26.4.2 及以上）时，可以按项目需要选择 v1 或 v2；已稳定运行的 1.x 项目无须为了版本号升级。
+
+| 项目情况 | 建议 |
+| --- | --- |
+| 已使用 1.x，现有监控满足需要 | 保留已经验收的 1.x 配置和版本 |
+| 新项目优先使用稳定版 | 接入 1.x，并使用下方的 1.x 文档归档 |
+| 需要 Metrics 或流式性能数据，且可接受 beta 变更 | 先在测试项目试用 2.0，再按本页迁移和验证 |
+| 自建 Sentry 低于 26.4.2，暂时不能升级后台 | 继续使用该后台已经验收过的 v1；不能据此保证任意旧后台都兼容 v1 |
+
+错误监控、网络面包屑、离线缓存、Source Map 和链路追踪在 1.x 已有。2.0 可用 Metrics 记录业务计数和数值分布；性能数据采用流式 span，长流程尚未结束时，也能按批次发送已完成的子操作，减少等待整个流程收尾的时间。实际展示与接收仍取决于目标 Sentry 的能力和配置。
+
+Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/MIGRATION.md#upgrading-from-10x-to-11x)。更早版本可能部分可用，但不受支持；关闭性能采集也不能保证其与 v2 兼容。sentry-miniapp v2 仅支持流式 span，暂不提供旧 transaction 协议作为兼容选项。
+
+1.x 用户请查阅固定在 `v1.20.4` tag 的 [README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/README.md)、[官网源码归档](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website)和[接入指南目录](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide)。当前官网的接入与配置示例对应 2.0，不应直接用于 1.x；更早的 1.x 变更见归档中的 `migration-1.19.md`。
+
+选定 2.0 后，通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.6` 固定版本。默认安装仍获取 1.x 稳定版。升级前先确认实际安装版本。
 
 已使用早期 beta 的项目也应更新：beta.1 修复 `lastEventId()` 未更新的问题；beta.2 起，开启正文采集也会省略无法识别格式的正文；beta.3 修复自定义 transport 忽略超时时，`dispose()` 无法结束正在等待的 `flush()` 的问题。
 
