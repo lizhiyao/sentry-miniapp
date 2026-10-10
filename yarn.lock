@@ -2928,6 +2928,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"core-js-pure@npm:3.50.0":
+  version: 3.50.0
+  resolution: "core-js-pure@npm:3.50.0"
+  checksum: 10c0/e882678bec8dfb1d58371b4645d77f071b9c5989478e5c74c981e553b480a49cad48255377331ec60589338069d529a222af9e4e957c0af80c1b865f8a298fb6
+  languageName: node
+  linkType: hard
+
+"core-js-pure@patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch":
+  version: 3.50.0
+  resolution: "core-js-pure@patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch::version=3.50.0&hash=b970b9"
+  checksum: 10c0/9928b42c38161c0f52f12446436d5e3ded750c08df6703fa6aa412d24012abcd01934bf9915d2be2ec180e177172a3b1d86ce66c90ba0e709a34250b9d14698b
+  languageName: node
+  linkType: hard
+
 "core-js@npm:3.50.0":
   version: 3.50.0
   resolution: "core-js@npm:3.50.0"
@@ -5622,6 +5636,7 @@ __metadata:
     "@vitest/coverage-v8": "npm:^4.1.11"
     commit-and-tag-version: "npm:^12.7.3"
     core-js: "npm:3.50.0"
+    core-js-pure: "patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch"
     eslint: "npm:^10.10.0"
     globals: "npm:^17.12.0"
     husky: "npm:^9.1.7"

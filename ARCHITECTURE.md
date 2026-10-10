@@ -59,7 +59,7 @@ flowchart TD
 | 模块                 | 入口与作用                                                                                                                                  |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | 公共契约与初始化     | [index.ts](src/index.ts)、[sdk.ts](src/sdk.ts)、[types.ts](src/types.ts)：Core API 重导出、factories、选项和 runtime 装配                   |
-| 启动兼容             | [polyfills-bootstrap.ts](src/polyfills-bootstrap.ts)、[polyfills.ts](src/polyfills.ts)：先于其它 SDK 静态依赖安装缺失能力                   |
+| 启动兼容             | [polyfills-bootstrap.ts](src/polyfills-bootstrap.ts)：先于其它 SDK 静态依赖安装标准能力                                                     |
 | 宿主能力             | [crossPlatform.ts](src/crossPlatform.ts)：真实平台探测、API 与字段适配、小游戏识别                                                          |
 | Client 与生命周期    | [client.ts](src/client.ts)、[lifecycle.ts](src/lifecycle.ts)：Core client 扩展、采集／发送／存储门禁、关闭资源                              |
 | 操作和会话归属       | [owner.ts](src/owner.ts)、[sessionCapture.ts](src/sessionCapture.ts)：延迟操作 owner 与捕获时 Session 关联                                  |
@@ -72,9 +72,9 @@ flowchart TD
 
 ## 3. 初始化与集成装配
 
-公共入口先加载 `polyfills-bootstrap`，先于 Core 和其它 SDK 模块补齐所需的运行时能力。构建目标 ES2015 只约束语法，不能保证宿主具备更新的标准方法：入口按需内联 `core-js` 的 globalThis、Array.includes、Object.entries／values／fromEntries、Promise.allSettled 模块，覆盖 Core 实际调用的接缝，不引入完整 Promise polyfill 或替换宿主 Promise 构造器。标准方法的迭代、Symbol 键、getter 和 thenable 语义由该依赖维护；全局模块也使用 core-js 的共享注册与函数源码标记机制。能力按进程安装，不随 client 关闭卸载；这不是对任意 ES5 引擎的支持承诺，Promise、Symbol、Map／Set、WeakMap／WeakSet、typed arrays 等基础能力仍由宿主提供。
+公共入口先加载 `polyfills-bootstrap`，先于 Core 和其它 SDK 模块补齐所需的运行时能力。构建目标 ES2015 只约束语法，不能保证宿主具备更新的标准方法：入口按需内联 `core-js` 的 globalThis、Array.includes、Object.entries／values／fromEntries、Promise.allSettled、String.isWellFormed／toWellFormed 模块，覆盖 Core 实际调用的接缝，不引入完整 Promise polyfill 或替换宿主 Promise 构造器。URLSearchParams 使用同版本 `core-js-pure` 的公开入口及其能力检测，只安装查询参数构造器，不连带改写宿主 fetch／Request，也不补完整 URL。固定版本的最小 Yarn patch 跳过 pure 入口对 fetch／Request／Headers 的探测与包装，并在查询参数输入处复用同库 String.toWellFormed 完成 USVString 转换，保留孤立 surrogate 的规范化；冻结 Request 原型的真实包探针约束这条边界；升级依赖时须复核补丁是否仍需要。标准方法的迭代、Symbol 键、getter 和 thenable 语义由依赖维护，不另写字符串修复、表单编码和全局发现算法；全局模块也使用 core-js 的共享注册与函数源码标记机制。能力按进程安装，不随 client 关闭卸载；这不是对任意 ES5 引擎的支持承诺，Promise、Symbol、Map／Set、WeakMap／WeakSet、typed arrays 等基础能力仍由宿主提供。
 
-自身的 flush 清理通过成功／失败两条 then 分支完成，不依赖 Promise.finally。TextEncoder 则经过构造及 UTF-8 标量编码检查；缺失、空壳或编码失败时，通过 Core 公开 singleton 注册现有 UTF-8 回退，保留已有编码 singleton，不改写宿主 TextEncoder。构建语法转换、标准库补齐和宿主 API 检测分别解决不同层面的兼容性，不能相互替代。
+自身的 flush 清理通过成功／失败两条 then 分支完成，不依赖 Promise.finally。core-js 不提供 TextEncoder，SDK 的字节预算也需要无需分配编码结果的长度计算，因此 `coreCompat` 保留共用 UTF-8 标量转换；精确 ArrayBuffer 复制属于宿主请求适配。TextEncoder 经过构造及 UTF-8 标量编码检查；缺失、空壳或编码失败时，通过 Core 公开 singleton 注册现有 UTF-8 回退，保留已有编码 singleton，不改写宿主 TextEncoder。构建语法转换、标准库补齐和宿主 API 检测分别解决不同层面的兼容性，不能相互替代。
 
 `init()` 的主要顺序是：
 

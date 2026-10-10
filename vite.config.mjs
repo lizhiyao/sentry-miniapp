@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'path';
 import { transformAsync } from '@babel/core';
 import transformRegenerator from '@babel/plugin-transform-regenerator';
@@ -60,6 +61,23 @@ function transformGenerators() {
   };
 }
 
+// 独立下载 JS 时也携带内联依赖的完整声明；npm 包同时提供独立 notices 文件。
+const thirdPartyNotice = `/*!\n${readFileSync(new URL('./THIRD_PARTY_NOTICES.md', import.meta.url), 'utf8')}\n*/`;
+
+function bundledNotices() {
+  return {
+    name: 'sentry-miniapp-bundled-notices',
+    generateBundle(_options, bundle) {
+      for (const output of Object.values(bundle)) {
+        if (output.type === 'chunk') {
+          // 在最终压缩后追加，避免声明被删除；尾部注释不移动现有 source map 位置。
+          output.code += `\n${thirdPartyNotice}\n`;
+        }
+      }
+    },
+  };
+}
+
 // 通用构建配置
 const baseConfig = {
   build: {
@@ -100,7 +118,7 @@ export default defineConfig(({ mode }) => {
       define: {
         __DEV__: mode === 'development'
       },
-      plugins: [transformGenerators()],
+      plugins: [transformGenerators(), bundledNotices()],
     };
   }
 
@@ -139,6 +157,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       transformGenerators(),
+      bundledNotices(),
       // 生成 TypeScript 类型定义文件
       dts({
         include: ['src/**/*'],

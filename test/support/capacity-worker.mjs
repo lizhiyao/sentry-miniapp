@@ -8,7 +8,11 @@ process.env.NODE_ENV = 'production';
 // 仅在独立 worker 内装载生产 TS；父线程可在业务死循环时强制结束它。
 require.extensions['.ts'] = (module, filename) => {
   const { outputText } = ts.transpileModule(readFileSync(filename, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
     fileName: filename,
   });
   module._compile(outputText, filename);

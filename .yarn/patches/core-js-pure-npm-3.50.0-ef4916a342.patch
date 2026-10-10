@@ -1,0 +1,49 @@
+diff --git a/modules/web.url-search-params.constructor.js b/modules/web.url-search-params.constructor.js
+index e873e7f54de38bdd209c4eb8870ae74caffcf23b..3988fb8f9ec604bb5453177e50f3b0717a09f119 100644
+--- a/modules/web.url-search-params.constructor.js
++++ b/modules/web.url-search-params.constructor.js
+@@ -7,6 +7,7 @@ var safeGetBuiltIn = require('../internals/safe-get-built-in');
+ var call = require('../internals/function-call');
+ var uncurryThis = require('../internals/function-uncurry-this');
+ var DESCRIPTORS = require('../internals/descriptors');
++var IS_PURE = require('../internals/is-pure');
+ var USE_NATIVE_URL = require('../internals/url-constructor-detection');
+ var percentCoding = require('../internals/url-percent-coding');
+ var defineBuiltIn = require('../internals/define-built-in');
+@@ -22,7 +23,8 @@ var bind = require('../internals/function-bind-context');
+ var classof = require('../internals/classof');
+ var anObject = require('../internals/an-object');
+ var isObject = require('../internals/is-object');
+-var $toString = require('../internals/to-string');
++// URLSearchParams uses USVString; reuse the standard conversion for lone surrogates.
++var $toString = require('../es/string/to-well-formed');
+ var create = require('../internals/object-create');
+ var createPropertyDescriptor = require('../internals/create-property-descriptor');
+ var getIterator = require('../internals/get-iterator-internal');
+@@ -41,9 +43,10 @@ var getInternalIteratorState = InternalStateModule.getterFor(URL_SEARCH_PARAMS_I
+ var percentDecode = percentCoding.decode;
+ var percentEncode = percentCoding.encode;
+ 
+-var nativeFetch = safeGetBuiltIn('fetch');
+-var NativeRequest = safeGetBuiltIn('Request');
+-var Headers = safeGetBuiltIn('Headers');
++// The pure query-parameter export must not probe or patch host transports.
++var nativeFetch = !IS_PURE && safeGetBuiltIn('fetch');
++var NativeRequest = !IS_PURE && safeGetBuiltIn('Request');
++var Headers = !IS_PURE && safeGetBuiltIn('Headers');
+ var RequestPrototype = NativeRequest && NativeRequest.prototype;
+ var HeadersPrototype = Headers && Headers.prototype;
+ var TypeError = globalThis.TypeError;
+@@ -139,10 +142,11 @@ URLSearchParamsState.prototype = {
+         push(entries, { key: $toString(first.value), value: $toString(second.value) });
+       }
+     } else for (var key in object) if (hasOwn(object, key)) {
+-      push(entries, { key: key, value: $toString(object[key]) });
++      push(entries, { key: $toString(key), value: $toString(object[key]) });
+     }
+   },
+   parseQuery: function (query) {
++    query = $toString(query);
+     if (query) {
+       var entries = this.entries;
+       var attributes = split(query, '&');

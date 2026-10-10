@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   createMiniappTransport,
   shutdownMiniappTransport,
+  revokeMiniappTransport,
   DEFAULT_TRANSPORT_MAX_CONCURRENT_REQUESTS,
   DEFAULT_TRANSPORT_REQUEST_TIMEOUT,
 } from '../src/transports/xhr';
@@ -139,7 +140,13 @@ describe('Transport', () => {
         await vi.advanceTimersByTimeAsync(DEFAULT_TRANSPORT_REQUEST_TIMEOUT);
 
         await rejection;
+        shutdownMiniappTransport(transport);
+        shutdownMiniappTransport(transport);
+        revokeMiniappTransport(transport);
         expect(abort).toHaveBeenCalledTimes(1);
+        expect(mockRequest).toHaveBeenCalledTimes(1);
+        expect(await transport.flush(10)).toBe(true);
+        expect(vi.getTimerCount()).toBe(0);
       } finally {
         vi.runOnlyPendingTimers();
         vi.useRealTimers();

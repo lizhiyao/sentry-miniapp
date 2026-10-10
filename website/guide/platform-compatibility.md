@@ -50,7 +50,7 @@ Sentry.init({
 
 默认网络面包屑和 tracing 也会包裹对应平台的请求 API。使用 `Taro.request` 或 `uni.request` 时，它们在小程序端最终仍会调用宿主平台请求 API，因此通常无需重复埋点。
 
-SDK 入口会补齐所需的 `globalThis`、`Array.includes`、`Object.entries/values/fromEntries` 和 `Promise.allSettled`，无需业务另行补充这些方法。宿主仍需提供 Promise、Symbol、Map/Set、WeakMap/WeakSet 和 typed arrays 等基础能力；仅开启 Babel 语法转换不能补齐运行时 API。缺少或不完整的 `TextEncoder` 使用 SDK 编码回退，附件发送还需宿主支持二进制请求，见[二进制请求配置](./configuration)。
+SDK 入口会补齐所需的 `globalThis`、`Array.includes`、`Object.entries/values/fromEntries`、`Promise.allSettled`、`String.isWellFormed/toWellFormed` 和 `URLSearchParams`，无需业务另行补充这些方法。宿主仍需提供 Promise、Symbol、Map/Set、WeakMap/WeakSet 和 typed arrays 等基础能力；仅开启 Babel 语法转换不能补齐运行时 API。缺少或不完整的 `TextEncoder` 使用 SDK 编码回退，附件发送还需宿主支持二进制请求，见[二进制请求配置](./configuration)。
 
 包装会保留请求函数上的扩展属性及其动态更新。若运行时缺少 `Proxy` 或 `Reflect.get`，而请求函数带有框架扩展成员，SDK 会保留原函数并跳过该入口的自动面包屑和 tracing；错误上报仍使用可用的宿主请求 API。
 
