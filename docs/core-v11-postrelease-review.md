@@ -336,3 +336,15 @@ lint、源码／测试严格类型、全量 coverage、标准构建／真实 tar
 实际包的公开行为场景保持 CJS／ESM 各 21 个，扩展现有 Session 场景覆盖上述发送与原生错误更新。七平台两种入口复核通过；另在七个小程序及微信／抖音小游戏原生通道的 18 个隔离进程中执行 216 项发送回调动作，全部通过，通道选择与新会话恢复也有断言。所有矩阵为模拟宿主；没有新增真机或目标后台证据。
 
 lint、源码／测试严格类型、全量 coverage／shuffle、SDK 标准构建／实际包消费、微信独立 bundle／本地映射及官网构建通过。覆盖率门槛保持，statements 98.73%、branches 95.72%、functions 99.20%、lines 99.44%。本轮没有发布新 npm 版本，架构和官网只描述当前行为与理由，设备反馈继续由 #457 跟踪。
+
+## 在途请求取消与重新授权复核（2026-10-11）
+
+基线为官方 npm `2.0.0-beta.9`（tag `09efe04a`，tarball SHA-256 `6da23727b9763593f298246b47b3e5cb5be50f48f1dc259cdab93908153974f8`）。实际 CJS／ESM 包在宿主 request 调用内同步撤回再重新同意时，原 task 返回后没有收到 abort，同一事件已进入 Core 离线重放；持续撤回的对照能够取消原 task。API getter 中发生同一授权交错时，已经取消的发送仍会启动，随后同一 event ID 再重放一次。这是受控宿主回调证据，未归因为特定设备、Core 升级独有缺陷或后台重复计数。
+
+transport 为每个请求保留取消决定。API 读取后发现该请求已取消就不启动；宿主调用中取消则在返回 task 后仍尝试 abort，立即重新同意不能消除原决定。原 Promise 的一次性结算、超时清理、Core network_error 计数和唯一 offline 层保持原职责；没有新增平台 API、依赖补丁、重试或持久化算法。缺少或抛错的 abort 仍不能保证物理请求停止，整体发送与缓存保持 best-effort。理由及固定 Core 源码见[官方实践](sdk-official-practices.md#生命周期和晚到批次)。
+
+强化既有真实 Core 同意用例，覆盖 task 返回前取消、abort 触发 fail／抛错、API getter 取消、原请求迟到成功／失败，以及最终重放事件、缓存删除和单次 client report。强化既有支付宝／钉钉冻结宿主实际包场景，同时保护 httpRequest receiver、原生业务方法和对象式 Storage；CJS／ESM 各仍为 21 个场景。未新增 Vitest 测试定义，全量仍为 77 文件／1277 用例。
+
+七平台、两种入口和两类回调时机的独立进程矩阵中，发布基线的 28 项均复现取消缺口，候选的 28 项均通过；另有 CJS／ESM 各一项持续撤回对照。检查实际 request／httpRequest 选择及相同 event ID 的最终 envelope；原请求调用中取消会尝试 abort 一次，API 读取中取消不启动原请求，缓存由 Core 重放后移除。关闭／dispose、离线失败与存储故障、策略／目标／owner 替换的 136 项相关现有回归通过；这一复核范围没有发现额外可复现缺陷。
+
+lint、源码／测试严格类型和全量 coverage／shuffle 通过；覆盖率门槛不变，statements 98.73%、branches 95.72%、functions 99.20%、lines 99.44%。SDK 构建、候选 tarball 实际 npm 安装后的七平台 × 15 能力模式／UMD／68 个类型导出／公开行为消费、微信独立 bundle／本地映射及官网构建通过。候选仍沿用开发版本号 beta.9，不能当作已发布 beta.9 的修复；本轮未新增 npm 发布、设备或目标后台验收，#457 保持用户反馈跟踪。

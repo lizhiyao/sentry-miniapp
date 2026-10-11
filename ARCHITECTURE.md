@@ -207,7 +207,7 @@ Core `addBreadcrumb()` 写入共享 isolation scope，不会自行检查 Miniapp
 这三个边界需要分别判断：
 
 - **采集策略**：`dataCollection` 与正文开关约束 SDK 自动观察的数据；正文先识别 JSON／form 并过滤，再按 UTF-8 字节预算截断。未知文本、无法解析内容或 binary 不伪装成已脱敏正文。用户显式日志、extra 等内容仍需业务自己的数据策略。
-- **网络授权**：`requireConsent` 控制实际发送，不等同于停止采集。`isEnabled()` 只表示 SDK 启用，授权使用 `getConsent()` 判断。默认请求在排队和执行前均检查同意与 lifetime，撤回后阻止新请求；在途取消依赖宿主能力。
+- **网络授权**：`requireConsent` 控制实际发送，不等同于停止采集。`isEnabled()` 只表示 SDK 启用，授权使用 `getConsent()` 判断。默认请求在排队和执行前均检查同意与 lifetime，撤回后阻止新请求。每个请求保留自己的取消决定：读取宿主 API 期间已取消就不启动，调用中取消则在 task 返回后仍尝试 abort；立即重新同意不能恢复原请求。在途取消依赖宿主能力，缺少或失败的 abort 不能保证物理请求停止。
 - **持久化权限**：只有活动 runtime 可以使用 SDK store 和重放；目标、隐私策略、容量和 TTL 共同决定缓存可用性。
 
 自动网络采集通过 `collectUrlParts` 一次解析与脱敏生成 `url.full`、名称和 breadcrumb query，再复用到 span 和面包屑；每次按当前 client 策略计算，不缓存策略或原始 URL。自请求识别、追踪白名单和正文拒绝规则仍匹配业务原始 URL。`data:` URL 的正文裁剪复用 Core helper，并额外移除 MIME 区域的 query／fragment，防止这部分内容经名称、资源性能或最终 URL 属性泄漏。
