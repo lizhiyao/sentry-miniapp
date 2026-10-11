@@ -12,6 +12,8 @@ interface NativeEventChannel {
   installing: boolean;
   detaching: boolean;
   registered: boolean;
+  startedAt: number;
+  lastDelivery: number;
 }
 
 function subscriberActive(subscriber: Subscriber): boolean {
@@ -23,6 +25,29 @@ function subscriberActive(subscriber: Subscriber): boolean {
 }
 
 const channels = new WeakMap<object, Map<string, NativeEventChannel>>();
+let deliverySequence = 0;
+
+/** 只信任所有方向持续监听期间的最近事件，不保留或回放旧 payload。 */
+export function getLastNativeEvent(
+  host: object | undefined,
+  keys: readonly string[],
+): string | undefined {
+  const source = host && channels.get(host);
+  if (!source || !keys.length) return;
+  let startedAt = 0;
+  let lastDelivery = 0;
+  let latest: string | undefined;
+  for (const key of keys) {
+    const channel = source.get(key);
+    if (!channel?.listener) return;
+    startedAt = Math.max(startedAt, channel.startedAt);
+    if (channel.lastDelivery > lastDelivery) {
+      lastDelivery = channel.lastDelivery;
+      latest = key;
+    }
+  }
+  return lastDelivery > startedAt ? latest : undefined;
+}
 
 function releaseIdleChannel(channel: NativeEventChannel): void {
   if (channel.subscribers.size || channel.installing || channel.detaching || !channel.listener)
@@ -33,7 +58,7 @@ function releaseIdleChannel(channel: NativeEventChannel): void {
     const off = (channel.host as Record<string, unknown>)[channel.offKey];
     // getter 可以同步安装新的订阅；此时原监听仍须保留。
     if (!channel.subscribers.size && typeof off === 'function') {
-      off.call(channel.host, channel.listener);
+      Function.prototype.apply.call(off, channel.host, [channel.listener]);
       removed = true;
     }
   } catch (_error) {
@@ -56,7 +81,10 @@ function installChannel(channel: NativeEventChannel): void {
     const on = (channel.host as Record<string, unknown>)[channel.onKey];
     if (typeof on !== 'function' || !channel.subscribers.size) return;
     const listener = (...args: any[]): void => {
-      if (channel.listener !== listener || channel.detaching) return;
+      if (channel.listener !== listener) return;
+      // 空通道也观察方向；client 退休或暂停采集不代表宿主已回到前台。
+      channel.lastDelivery = ++deliverySequence;
+      if (channel.detaching) return;
       // 分发中退出的订阅不再调用，新加入的订阅不接管本次事件。
       const snapshot = [...channel.subscribers].filter(subscriberActive);
       for (const subscriber of snapshot) {
@@ -67,8 +95,10 @@ function installChannel(channel: NativeEventChannel): void {
         }
       }
     };
+    channel.startedAt = deliverySequence;
+    channel.lastDelivery = 0;
     channel.listener = listener;
-    on.call(channel.host, listener);
+    Function.prototype.apply.call(on, channel.host, [listener]);
     channel.registered = true;
   } catch (_error) {
     // on 可能先保存 callback 再抛错；无法解除时不重试，能力按失败降级。
@@ -112,6 +142,8 @@ export function subscribeNativeEvent(
       installing: false,
       detaching: false,
       registered: false,
+      startedAt: 0,
+      lastDelivery: 0,
     };
     sourceChannels.set(onKey, channel);
   }

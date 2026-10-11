@@ -56,6 +56,9 @@ export function miniappLifecycleIntegration(): Integration {
         onHide: hide,
       });
       adopt(lifecycle.stop);
+      if (active() && lifetime && lifecycle.mode === 'native' && lifecycle.complete) {
+        lifetime.visibility = lifecycle.initialForeground ? 'foreground' : 'background';
+      }
       let installed = lifecycle.available;
       if (lifecycle.lateInit) lifetime?.warnings.add('late_init');
       if (active()) {

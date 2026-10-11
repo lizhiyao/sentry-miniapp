@@ -14,7 +14,7 @@
 import { getClient } from '@sentry/core';
 import type { Client } from '@sentry/core';
 import { isMinigame, sdk } from './crossPlatform';
-import { subscribeNativeEvent } from './nativeEvents';
+import { getLastNativeEvent, subscribeNativeEvent } from './nativeEvents';
 import { getClientLifetime } from './lifecycle';
 import type { ClientLifetime } from './lifecycle';
 import { createFunctionWrapper } from './helpers';
@@ -52,8 +52,10 @@ function broadcast(
   method: keyof AppLifecycleHandlers,
   arg?: unknown,
   currentSubscribers = subscribers,
+  isCurrent?: () => boolean,
 ): void {
   for (const subscription of eventSubscribers) {
+    if (isCurrent && !isCurrent()) return;
     if (subscription.phase !== phase || !currentSubscribers.has(subscription)) continue;
     const fn = subscription.handlers[method];
     if (typeof fn === 'function') {
@@ -172,6 +174,9 @@ interface NativeChannel {
   active: boolean;
   registeredShow: boolean;
   registeredHide: boolean;
+  source?: object | undefined;
+  onKeys?: readonly [string, string] | undefined;
+  event?: object | undefined;
   lastEvent?: 'onShow' | 'onHide';
   detachStop?: (() => void) | undefined;
   stop: () => void;
@@ -193,17 +198,29 @@ function channelActive(channel: NativeChannel): boolean {
 function installNativeChannel(channel: NativeChannel): void {
   const host = sdk();
   const game = isMinigame();
+  channel.source = host;
+  channel.onKeys = game ? ['onShow', 'onHide'] : ['onAppShow', 'onAppHide'];
   for (const [method, onKey, offKey] of [
     ['onShow', game ? 'onShow' : 'onAppShow', game ? 'offShow' : 'offAppShow'],
     ['onHide', game ? 'onHide' : 'onAppHide', game ? 'offHide' : 'offAppHide'],
   ] as const) {
     if (!channelActive(channel)) break;
     const handler = (options?: unknown): void => {
+      const event = {};
+      channel.event = event;
       channel.lastEvent = method;
       // Session 收尾与最终 flush 的顺序不取决于集成安装顺序。
+      // 同步钩子可触发新的 show/hide，已被取代的事件不能再改变当前状态。
       const snapshot = [...channel.subscribers];
       for (const phase of ['before', 'after', 'flush'] as const) {
-        broadcast(snapshot, phase, method, options, channel.subscribers);
+        broadcast(
+          snapshot,
+          phase,
+          method,
+          options,
+          channel.subscribers,
+          () => channel.event === event && channelActive(channel),
+        );
       }
     };
     const registered = subscribeNativeEvent(
@@ -291,6 +308,9 @@ export function subscribeMiniappLifecycle(
         const owner = created.owner;
         created.owner = undefined;
         created.lifetime = undefined;
+        created.source = undefined;
+        created.onKeys = undefined;
+        created.event = undefined;
         created.subscribers.clear();
         if (owner) nativeChannels.delete(owner);
         activeNativeChannels.delete(created);
@@ -316,6 +336,8 @@ export function subscribeMiniappLifecycle(
     available: channel.active && (channel.registeredShow || channel.registeredHide),
     complete: channel.active && channel.registeredShow && channel.registeredHide,
     get initialForeground() {
+      const last = getLastNativeEvent(subscribedChannel.source, subscribedChannel.onKeys ?? []);
+      if (last) return last === subscribedChannel.onKeys?.[0];
       return subscribedChannel.lastEvent !== 'onHide';
     },
     lateInit,

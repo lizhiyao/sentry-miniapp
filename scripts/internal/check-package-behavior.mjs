@@ -923,6 +923,13 @@ async function runBoundaryScenario(pkg) {
       });
       const show = shows.at(-1);
       const hide = hides.at(-1);
+      assert.equal(
+        sdk.getIsolationScope().getSession(),
+        undefined,
+        'a continuously observed hide must survive client replacement',
+      );
+      assert.equal(payloads('session').length, 0);
+      show();
       for (const phase of ['session', 'envelope']) {
         const currentSid = sdk.getIsolationScope().getSession().sid;
         let armed = true;
