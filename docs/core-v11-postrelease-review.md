@@ -348,3 +348,15 @@ transport 为每个请求保留取消决定。API 读取后发现该请求已取
 七平台、两种入口和两类回调时机的独立进程矩阵中，发布基线的 28 项均复现取消缺口，候选的 28 项均通过；另有 CJS／ESM 各一项持续撤回对照。检查实际 request／httpRequest 选择及相同 event ID 的最终 envelope；原请求调用中取消会尝试 abort 一次，API 读取中取消不启动原请求，缓存由 Core 重放后移除。关闭／dispose、离线失败与存储故障、策略／目标／owner 替换的 136 项相关现有回归通过；这一复核范围没有发现额外可复现缺陷。
 
 lint、源码／测试严格类型和全量 coverage／shuffle 通过；覆盖率门槛不变，statements 98.73%、branches 95.72%、functions 99.20%、lines 99.44%。SDK 构建、候选 tarball 实际 npm 安装后的七平台 × 15 能力模式／UMD／68 个类型导出／公开行为消费、微信独立 bundle／本地映射及官网构建通过。候选仍沿用开发版本号 beta.9，不能当作已发布 beta.9 的修复；本轮未新增 npm 发布、设备或目标后台验收，#457 保持用户反馈跟踪。
+
+## beta.10 未处理 Promise 拒绝的来源复核（2026-10-11）
+
+基线为官方 npm `2.0.0-beta.10`（tag 提交 `57441dba710cef2965c4bf67bf1a107b8b3e62fd`，tarball SHA-256 `3dc6424f3b32d3465d184c714901c8804a638ec60d019240ef3aea8205a4770f`）及同树 `master 03443665`。实际 CJS／ESM 包复现字符串拒绝在监听器中被新建为 Error：`hint.originalException` 不再是业务传入值，stack 指向 SDK 监听器。Symbol 拒绝在 Core 通用异常转换中抛错，被宿主监听守卫隔离后没有事件。其它原始值虽然发送，也没有业务来源栈，不能用监听器捕获位置表示拒绝来源。
+
+对照固定 Browser 11.4.0 的全局拒绝监听和原始值事件：平台入口使用 Core `isPrimitive` 区分输入，原始值构造最小 `UnhandledRejection` 事件，显式 String 转换兼容 Symbol，保留原值 hint 并标记 synthetic，不附加 stack。真实 Error 和对象仍交给 Core `captureException`；最小事件用公开 `captureEvent` 经过相同 scope、processors、beforeSend、Session 和 envelope 管道，不复制 eventbuilder 或改动主动上报的契约。理由及固定源码见[官方实践](sdk-official-practices.md#未处理-promise-拒绝的来源)。
+
+七平台两种实际包入口、八种原始值的 112 项对照中，发布包丢失 14 项 Symbol，14 组字符串原因被替换；修复候选的 112 项均保留原值、发送一次且不伪造来源栈。强化既有真实 Core 回归与包消费中的异常来源场景，覆盖空字符串、数字、boolean、null、undefined、BigInt、Symbol，以及真实 Error 帧和对象的 Core serialized extras。默认集成的实际安装包仍保留业务 Error 帧与 Debug ID 关联。新增断言在修复前源码和发布包均失败，在候选通过；测试定义数量保持 77 文件／1277 用例，CJS／ESM 各仍为 21 个公开行为场景。
+
+同时复核请求 baggage 策略、单层 Core offline 重放及关闭门禁：保留业务已有 Sentry baggage 与固定 Browser XHR／Core fetch 的原始值策略一致，本轮未据算法差异更换合并方式；相关取消／离线／关闭现有回归通过，该范围未确认额外缺陷。lint、源码／测试严格类型、全量单测、标准构建／真实 npm 安装消费、微信独立 bundle／本地映射及官网构建通过。
+
+候选沿用开发版本号 beta.10，不能当作已发布 beta.10 包的修复。本轮未新增 npm 发布、真机或目标 Sentry 后台证据，设备反馈仍由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。

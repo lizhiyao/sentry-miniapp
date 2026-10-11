@@ -1174,6 +1174,71 @@ async function runBoundaryScenario(pkg) {
         assert.equal(event.sdkProcessingMetadata, undefined);
       }
       assert.equal(payloads('event').length, 2);
+      client.dispose();
+      let rejectionHandler;
+      host.onUnhandledRejection = function (callback) {
+        assert.equal(this, host);
+        rejectionHandler = callback;
+      };
+      const originalReasons = [];
+      client = sdk.init({
+        ...common,
+        enableSystemInfo: false,
+        transport,
+        beforeSend(event, hint) {
+          originalReasons.push(hint.originalException);
+          return event;
+        },
+      });
+      assert.ok(client);
+      assert.equal(typeof rejectionHandler, 'function');
+      const reasons = [
+        'string rejection',
+        '',
+        42,
+        false,
+        null,
+        undefined,
+        BigInt(123),
+        Symbol('failed'),
+      ];
+      for (const reason of reasons) {
+        const count = payloads('event').length;
+        rejectionHandler({ reason, promise: Promise.resolve() });
+        assert.equal(await client.flush(1000), true);
+        assert.equal(
+          payloads('event').length,
+          count + 1,
+          'each primitive rejection must reach Core',
+        );
+        assert.equal(originalReasons.at(-1), reason, 'beforeSend must receive the original reason');
+        const exception = payloads('event').at(-1).exception.values[0];
+        assert.equal(exception.type, 'UnhandledRejection');
+        assert.equal(
+          exception.value,
+          `Non-Error promise rejection captured with value: ${String(reason)}`,
+        );
+        assert.equal(exception.mechanism.handled, false);
+        assert.equal(exception.mechanism.synthetic, true);
+        assert.equal(exception.stacktrace, undefined, 'a primitive has no rejection source stack');
+      }
+      const rejectionError = new Error('business rejection with source');
+      rejectionError.stack = `Error: ${rejectionError.message}\n    at submitOrder (${sourceFilename}:42:13)`;
+      rejectionHandler({ reason: rejectionError, promise: Promise.resolve() });
+      assert.equal(await client.flush(1000), true);
+      assert.equal(originalReasons.at(-1), rejectionError);
+      const rejectionEvent = payloads('event').at(-1);
+      assert.equal(rejectionEvent.exception.values[0].value, rejectionError.message);
+      assert.equal(rejectionEvent.exception.values[0].stacktrace.frames[0].filename, codeFile);
+      assert.equal(rejectionEvent.exception.values[0].stacktrace.frames[0].lineno, 42);
+      assert.equal(rejectionEvent.exception.values[0].mechanism.handled, false);
+      assert.equal(rejectionEvent.exception.values[0].mechanism.synthetic, undefined);
+      assert.deepEqual(rejectionEvent.debug_meta.images, [
+        { type: 'sourcemap', code_file: codeFile, debug_id: debugId },
+      ]);
+      assert.equal(payloads('event').length, 3 + reasons.length);
+      evidence.primitiveRejections = reasons.length;
+      evidence.businessRejectionSourcePreserved = true;
     } else if (scenario === 'network-off-getter') {
       let handler;
       host.onNetworkStatusChange = function (callback) {
