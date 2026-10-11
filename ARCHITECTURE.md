@@ -186,13 +186,17 @@ client 的 `open / closing / closed` 与宿主的前台／后台可见性是两�
 
 close 的 `0`／未指定预算保留无期限 drain；非法预算会诊断并保守回落。closing 阶段拒收 exception／message／event／feedback、breadcrumbs 和 logs／metrics 的新采集，同步 finalizer 除外。`captureSession` 仅在 closed 时拒收，closing 仍接受该公共路径，以保留在途 Core 事件的会话更新；它不能区分这类更新与新的手动调用。业务须先停止创建新的手动 Session 和 trace：Core 公共 tracing 在 drain 期间仍可能触发 hooks／batch，发送最终受预算与关闭门禁限制。
 
-dispose 能结束 SDK 等待，但不能强制取消用户 Promise 或任意自定义 transport 内部任务。Core hook 中 dispose 先关闭门禁，最外层 hook 返回后再完成清理，避免 hook 后续逻辑重新建立已退休资源。`flush()`／`close()` 返回 true 不证明 Sentry 后台已接收或完成符号化。
+dispose 结算 SDK 与 Core-facing transport 的发送／flush 等待，不再调用已关闭 transport 的 flush；等待闭包只持有结算句柄和 lifetime，避免悬挂的用户任务通过 SDK 等待留住整个 client。自定义 transport 的内部任务仍不能被强制取消，关闭后的迟到结果不触发 `afterEnvelope`。Core hook 中 dispose 先关闭门禁，最外层 hook 返回后再完成清理，避免 hook 后续逻辑重新建立已退休资源。`flush()`／`close()` 返回 true 不证明 Sentry 后台已接收或完成符号化。
+
+同步采集临界区包含 `beforeSendLog`／`beforeSendMetric`，与 sampler、span 和 breadcrumb 回调一致；这些回调中的 `init()` 返回 undefined 并诊断，避免当前采集交付到一半时替换 runtime。用户回调的错误、过滤及序列化仍委托 Core。
 
 Logs／Metrics 的属性转换发生在 `beforeSendLog`／`beforeSendMetric` 之后，getter 或 `toJSON` 也可能关闭 client。Core 在转换后才写入 buffer、触发 `afterCaptureLog`／`afterCaptureMetric` 并调度批处理。因此终态检查还覆盖这两个公开通知；晚到条目用公开 `flush` 排弃，期间只阻止 `log`／`trace_metric` envelope 交付，closing 的已有错误和 span 仍可排空。该门禁须位于离线入口之前，不复制 Core 序列化或直接访问其 buffer，也不重复发出 `close` 通知。同步 finalizer 的正常日志、指标保留。
 
 Core `addBreadcrumb()` 写入共享 isolation scope，不会自行检查 MiniappClient 的关闭状态。client 在公开 `beforeBreadcrumb` 回调前后检查 lifetime，回调中关闭后返回的条目也丢弃；同步 finalizer 仍可记录面包屑。console 格式化在每个参数与 JSON／String 用户代码边界检查 owner 活动状态，退休后不继续读取剩余参数，但原 console 仍执行一次并保留业务语义。关闭不清空已存在的 Core 面包屑，也不改写 Scope 或复制 Core 的 breadcrumb pipeline。
 
 对应回归见 [instrumentation](test/instrumentation.test.ts)、[lifecycle-coordinator](test/lifecycle-coordinator.realcore.test.ts)、[native-session](test/native-session.realcore.test.ts)和[client-lifecycle](test/client-lifecycle.realcore.test.ts)。
+
+宿主缺少或无法执行 off 时，已注册的原生回调只能失效并释放 client／scope；宿主仍可能保留惰性回调，频繁重新初始化时监听数量不保证有界。这里保留退休回调不读取参数、不接管新 client 的归属契约；共享回调重绑定会改变晚到事件归属，须作为独立设计取舍评估。常规接入在应用入口初始化一次。
 
 ## 6. 跨端能力与隐私发送边界
 
@@ -231,9 +235,13 @@ client 构造时选择 transport 组合，前三行适用于 `init()` 管理的 
 
 SDK 复用 `makeOfflineTransport` 管理入库和重试，只补 `shouldSend`／`shouldStore`、受控 store 与重放句柄。重放在授权、前台恢复、网络恢复或 flush 入口唤醒；不另写第二个 backoff 引擎，也不把 offline 重放当成持久 ACK。
 
+Core 11.4 没有公开的 offline timer 取消接口。永久 shutdown 先关闭重放／存储门禁，再用公开无参数 transport flush 将长退避替换为一次最短 tick（当前 100ms）；该 tick 不读盘、不发网。已关闭的底层 flush 门禁避免清理时再启动用户任务；晚到发送的 SDK 等待已结算，不会把原响应的 Retry-After 重新带回重试。临时 stopReplay 保留暂停／恢复语义，不当作永久关闭。
+
 Core 默认 transport 将发送 Promise 拒绝记为 `network_error` client report；撤回同意导致在途／排队请求取消时也沿用这一语义。符合缓存策略的原 envelope 可同时入库，重新同意后仍可能送达。因此该计数不能解释成最终永久丢失条数，也不能仅凭它判断 consent 失效。SDK 不拦截或重写 Core outcome 管道；回归检查取消后的缓存、重放事件和最终 client report 三者，而不是消除这个计数。
 
 typed records 保存目标／策略身份、最初 `createdAt` 和编码后的 envelope；重试保持记录身份与最初时间，按当前配置的 TTL 裁剪，不续期。Storage 不可用时可降级内存，不能承诺跨进程保留；读取重放记录必须先提交删除，再交付 transport。提交删除后中断仍可能丢失，重试也可能重复，故整体为 best-effort，不保证 durable ACK 或恰好一次。client reports 与明确不支持的 binary 请求不进入离线缓存。
+
+store.shift 的 Promise 交付后再检查 owner，并用 WeakSet 标识重放 envelope，在 Core shouldSend 的实际发送边界再次确认存储权：退休记录不能在 closing 的正常发送窗口内启动旧重放，也不能回填新 client 的存储。这个身份不写入线上 payload，不阻止 closing 的新鲜 drain。仅同意状态改变而 owner 仍活动时，保留 envelope 交给 Core shouldSend／unshift，沿用原身份与过期时间。
 
 SDK 自请求通过 [requestMarker.ts](src/transports/requestMarker.ts)识别，并配合 DSN／tunnel 目标检查跳过业务请求观测，避免上报再次触发上报。应保留标记在外层复制 options、缺少或残缺 `URL` 能力时的消费回归；不能仅靠 URL 字符串猜测所有自请求。
 

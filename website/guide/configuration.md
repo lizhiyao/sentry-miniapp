@@ -374,6 +374,8 @@ Sentry.init({
 
 关闭后日志／指标不再执行用户采集回调或进入发送队列。如果在采集回调或属性转换过程中关闭 client，本次日志／指标也不会发送；关闭前已经接收的事件仍可在收尾预算内排空。
 
+不要在 `beforeSendLog`、`beforeSendMetric`、`beforeSendSpan` 等同步采集回调中重新 `init()`；需要切换配置时，在当前采集调用返回后执行。回调内的初始化会被拒绝并记录 `reentrant_init_unsupported`。
+
 `close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。
 
 JS 未处理异常的 Session 状态为 `unhandled`，因为它不能证明宿主进程已经崩溃。SDK 只有 JavaScript 异常证据时不生成 `crashed`；会话状态用于 Release Health 统计和告警，升级时的统计基线调整见[迁移说明](/guide/migration-2.0)。
@@ -388,7 +390,7 @@ JS 未处理异常的 Session 状态为 `unhandled`，因为它不能证明宿�
 
 SDK 可以包装 App 时，会在业务同步 `onHide` 执行后收尾并 flush；不会等待该处理器返回的 Promise。业务在 `await` 后才产生数据时，需自行调用 `Sentry.flush()`。App 已注册、入口无法包装或 App 定义被冻结时，自动收尾取决于宿主原生监听是否可用；无法监听时，业务应显式管理 hide/show 边界。缺少 `getApp` 时，SDK 无法可靠判断 App 是否已注册，因此应始终在 `App()` 前初始化。
 
-关闭完成或调用 `dispose()` 后，默认 transport 会清空等待队列，并在宿主提供能力时尝试取消在途请求。第三方 transport 的私有队列与取消能力由其实现负责。
+关闭完成或调用 `dispose()` 后，默认 transport 会清空等待队列，并在宿主提供能力时尝试取消在途请求。SDK 会结束等待中的发送／flush，即使第三方 transport 一直没有完成；迟到结果不会恢复该 client。第三方 transport 的私有队列与取消能力由其实现负责。
 
 `getDiagnostics().warnings` 可查询 `late_init`、`lifecycle_unavailable`、`reentrant_init_unsupported`、`init_scope_unsupported` 和 `invalid_close_timeout`。这些诊断只保留有界的状态代码，不发送事件；禁用默认集成时，生命周期与 hide/show 边界由业务显式管理。
 

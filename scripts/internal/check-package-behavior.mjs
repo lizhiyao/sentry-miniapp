@@ -1726,6 +1726,76 @@ async function runBoundaryScenario(pkg) {
         ...(warningFailureControls.length > 0 && { warningFailureControls }),
         finalEvents: payloads('event').length,
       };
+      if (phase === 'integrations') {
+        client.dispose();
+        const attempts = [];
+        const attempt = () => {
+          const replacement = sdk.init({ ...common, defaultIntegrations: false, transport });
+          attempts.push(replacement);
+        };
+        client = sdk.init({
+          ...common,
+          defaultIntegrations: false,
+          transport,
+          beforeSendLog(log) {
+            attempt();
+            return log;
+          },
+          beforeSendMetric(metric) {
+            attempt();
+            return metric;
+          },
+        });
+        const owner = client;
+        const logs = payloads('log').length;
+        const metrics = payloads('trace_metric').length;
+        sdk.logger.info('packaged log reentry');
+        sdk.metrics.count('packaged metric reentry', 1);
+        assert.equal(await client.flush(1000), true);
+        assert.deepEqual(attempts, [undefined, undefined]);
+        assert.equal(sdk.getClient(), owner);
+        assert.equal(payloads('log').length - logs, 1);
+        assert.equal(payloads('trace_metric').length - metrics, 1);
+        client.dispose();
+        let settleSend;
+        let settleFlush;
+        let flushCalls = 0;
+        const pendingSend = new Promise((resolve) => {
+          settleSend = resolve;
+        });
+        const pendingFlush = new Promise((resolve) => {
+          settleFlush = resolve;
+        });
+        client = sdk.init({
+          ...common,
+          defaultIntegrations: false,
+          transport: () => ({
+            send: () => pendingSend,
+            flush: () => {
+              flushCalls++;
+              return pendingFlush;
+            },
+          }),
+        });
+        let afterEnvelope = 0;
+        client.on('afterEnvelope', () => {
+          afterEnvelope++;
+        });
+        const sending = client.sendEnvelope([{}, [[{ type: 'event' }, { message: 'pending' }]]]);
+        const flushing = client.flush(1000);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.equal(flushCalls, 1);
+        client.dispose();
+        assert.deepEqual(await sending, {});
+        assert.equal(await flushing, false);
+        settleSend({ statusCode: 200 });
+        settleFlush(true);
+        await Promise.resolve();
+        assert.equal(afterEnvelope, 0);
+        assert.equal(flushCalls, 1);
+        evidence.controls.batchInitRejected = true;
+        evidence.controls.customTransportWaitsStopped = true;
+      }
     }
     return { ...evidence, passed: true };
   } catch (error) {

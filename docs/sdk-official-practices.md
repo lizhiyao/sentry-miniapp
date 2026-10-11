@@ -80,6 +80,10 @@ Browser 在页面隐藏时用 microtask 等其它监听结束 span，[见 flush 
 
 Core 的 Logs／Metrics 属性转换发生在 beforeSend 回调之后，afterCapture 通知发生在写入 buffer 之后。[Logs](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/logs/internal.ts)、[Metrics](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/metrics/internal.ts)。本项目承诺退休后不再交付新采集的数据，故还须守住公开 afterCapture 边界：用公开 flush 排弃转换过程中关闭 client 后的晚到条目，只屏蔽 log／trace_metric 交付，保留关闭前已接受的错误和 span。该实现不复制 Core 序列化、timer 或私有 buffer；这一关闭契约也不能描述为所有官方 SDK 的共同保证。
 
+同步 `beforeSendLog`／`beforeSendMetric` 在 Core emit 之外执行，平台的同步临界区须显式包含它们，才能落实采集中不切换 runtime 的约定。回调返回 null／抛错的处理仍委托 Core；[`beforeSendSpan`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/tracing/spans/beforeSendSpan.ts) 则不允许返回 null 丢弃，回调抛错时保留原 span，不能统一改成日志的过滤语义。
+
+Core [`sendEnvelope`／`flush`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/client.ts) 会 await transport；只让 SDK 外层 Promise 提前返回仍会留下 Core 等待。平台在已有 transport 适配接缝结算终态等待，并隔离等待闭包，不复制 Core promise buffer。固定 [`offline transport`](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/transports/offline.ts) 的无参数 flush 可以替换现有退避 timer，因此永久 shutdown 通过这个公开入口安排一次受门禁阻止的空 tick。存储 Promise 交付后检查 owner，并以弱引用集合标识重放 envelope，在 Core shouldSend 再次确认归属，保护交付与发送之间的 microtask；新鲜 closing 数据仍可排空，授权撤回仍由 Core 回填。Core 若提供 shutdown／取消句柄，可替换这项接缝。
+
 可选 Debug ID 桥接和诊断输出均隔离故障，告警失败不应丢弃原事件。不复制 Core 的 Debug ID 解析与缓存，也不承诺修复不可读的 Core 全局 map。回归见 [client-lifecycle](../test/client-lifecycle.realcore.test.ts)、[stacktrace](../test/stacktrace.realcore.test.ts)。
 
 ## 必须按小程序环境保留的取舍

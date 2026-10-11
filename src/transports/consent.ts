@@ -1,5 +1,5 @@
 import { envelopeContainsItemType, makeOfflineTransport } from '@sentry/core';
-import type { BaseTransportOptions, OfflineStore, Transport } from '@sentry/core';
+import type { BaseTransportOptions, Envelope, OfflineStore, Transport } from '@sentry/core';
 import { UnsupportedBinaryRequestError } from './xhr';
 
 /** 宿主控制句柄独立于 core Transport，不伪装成公开 flush/持久化 ACK。 */
@@ -24,9 +24,10 @@ export function createConsentAwareOfflineTransport(
 ): Transport {
   let replayEnabled = true;
   let stopped = false;
+  const replayed = new WeakSet<Envelope>();
   const transport = makeOfflineTransport(() => baseTransport)({
     ...options,
-    shouldSend: () => !stopped && hasConsent(),
+    shouldSend: (envelope) => !stopped && hasConsent() && (!replayed.has(envelope) || canStore()),
     shouldStore: (envelope, error) =>
       !(error instanceof UnsupportedBinaryRequestError) &&
       !stopped &&
@@ -35,31 +36,41 @@ export function createConsentAwareOfflineTransport(
     createStore: () => ({
       push: (envelope) => store.push(envelope),
       unshift: (envelope) => store.unshift(envelope),
-      // 已安排的单次 timer 可空转，但未授权或退休 owner 不消费磁盘记录。
-      shift: () =>
-        !stopped && replayEnabled && hasConsent() && canStore()
-          ? store.shift()
-          : Promise.resolve(undefined),
+      shift: async () => {
+        if (stopped || !replayEnabled || !hasConsent() || !canStore()) return undefined;
+        const envelope = await store.shift();
+        // 删除提交后的 Promise 交付仍可能退休 owner；撤权则交由 Core unshift 保留原记录。
+        if (stopped || !canStore()) return undefined;
+        // Core await 此交付后才调用 shouldSend；发送门禁须识别重放，不能阻止 closing 的新鲜 drain。
+        if (envelope) replayed.add(envelope);
+        return envelope;
+      },
     }),
     flushAtStartup,
   });
+  const wakeRetry = (): void => {
+    try {
+      // Core 的公开无参数 flush 将已有退避替换为一次最短 tick，不复制或访问其 timer。
+      void Promise.resolve(transport.flush()).catch(() => {});
+    } catch (_error) {
+      /* 不让底层 flush 故障逃逸宿主恢复或清理入口。 */
+    }
+  };
   runtimes.set(transport, {
     requestReplay: () => {
       if (stopped || !hasConsent() || !canStore()) return;
       replayEnabled = true;
-      try {
-        // 只有 undefined 调用才会触发 core 的 MIN_DELAY 重试，正 timeout 不会。
-        void Promise.resolve(transport.flush()).catch(() => {});
-      } catch (_error) {
-        /* 不让底层 flush 故障逃逸宿主恢复入口。 */
-      }
+      wakeRetry();
     },
     stopReplay: () => {
       replayEnabled = false;
     },
     shutdown: () => {
+      if (stopped) return;
       stopped = true;
       replayEnabled = false;
+      // 退休门禁使该 tick 空转，尽早释放长退避持有的闭包；不再读盘或发送。
+      wakeRetry();
     },
   });
   return transport;

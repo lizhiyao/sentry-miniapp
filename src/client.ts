@@ -133,6 +133,33 @@ export function setConfiguredDefaultIntegrationsMode(
   clientDefaultIntegrationsModes.set(client, resolveDefaultIntegrationsMode(configured));
 }
 
+/** 等待闭包仅持有结算句柄与 lifetime；未完成的用户任务不会经 SDK 等待留住退休 client。 */
+function waitForTransport<T>(
+  pending: PromiseLike<T>,
+  stops: Set<() => void>,
+  lifetime: ClientLifetime,
+  stoppedResult: T,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const stop = (): void => {
+      stops.delete(stop);
+      resolve(stoppedResult);
+    };
+    stops.add(stop);
+    void Promise.resolve(pending).then(
+      (result) => {
+        stops.delete(stop);
+        resolve(result);
+      },
+      (error) => {
+        stops.delete(stop);
+        reject(error);
+      },
+    );
+    if (lifetime.state === 'closed') stop();
+  });
+}
+
 /**
  * The Sentry Miniapp SDK Client.
  *
@@ -155,7 +182,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   private readonly _discardLateLogMetrics: () => void;
   // core 构造 transport 时即可调用 recorder；懒初始化且不在 super 返回后覆盖早期计数。
   declare private _clientReportOutcomes: Map<string, Outcome> | undefined;
-  private readonly _pendingFlushStops = new Set<() => void>();
+  private readonly _pendingOperationStops: Set<() => void>;
   private _closePromise: Promise<boolean> | undefined;
   private _stopClose: (() => void) | undefined;
   private _hookDepth = 0;
@@ -174,7 +201,10 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     }
     if (
       this._lifetime.state === 'closed' &&
-      (hook === 'spanStart' || hook === 'afterSpanEnd' || hook === 'afterSegmentSpanEnd')
+      (hook === 'spanStart' ||
+        hook === 'afterSpanEnd' ||
+        hook === 'afterSegmentSpanEnd' ||
+        hook === 'afterEnvelope')
     )
       return;
     const sessionSend =
@@ -219,6 +249,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     ensureEnvelopeEncoding();
     const environment = new EnvironmentState(options);
     const lifetime = new ClientLifetime();
+    const pendingOperationStops = new Set<() => void>();
     const sessionCapture = new SessionCapture();
     const dsn = options.dsn ? makeDsn(options.dsn) : undefined;
     const storeIdentity = {
@@ -240,7 +271,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     const guardTransport = (transport: Transport): Transport => ({
       send: (envelope) =>
         canSendEnvelope(envelope) ? transport.send(envelope) : resolvedSyncPromise({}),
-      flush: (timeout) => transport.flush(timeout),
+      flush: (timeout) =>
+        lifetime.state === 'closed' ? Promise.resolve(false) : transport.flush(timeout),
     });
     const managedOffline = (transport: Transport): Transport => {
       transportRuntime = getTransportRuntime(transport);
@@ -300,12 +332,16 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       },
       beforeSendLog: (log) => {
         if (!lifetime.acceptsTelemetry()) return null;
-        const result = options.beforeSendLog ? options.beforeSendLog(log) : log;
+        const result = options.beforeSendLog
+          ? withTelemetryCritical(() => options.beforeSendLog!(log))
+          : log;
         return lifetime.acceptsTelemetry() ? result : null;
       },
       beforeSendMetric: (metric) => {
         if (!lifetime.acceptsTelemetry()) return null;
-        const result = options.beforeSendMetric ? options.beforeSendMetric(metric) : metric;
+        const result = options.beforeSendMetric
+          ? withTelemetryCritical(() => options.beforeSendMetric!(metric))
+          : metric;
         return lifetime.acceptsTelemetry() ? result : null;
       },
       beforeBreadcrumb: (breadcrumb, hint) => {
@@ -352,9 +388,19 @@ export class MiniappClient extends Client<MiniappClientOptions> {
                 new Error('Low-level client consent blocked; no SDK offline store is available'),
               );
             }
-            return underlyingTransport.send(envelope);
+            return waitForTransport(
+              underlyingTransport.send(envelope),
+              pendingOperationStops,
+              lifetime,
+              {},
+            );
           },
-          flush: (timeout) => underlyingTransport.flush(timeout),
+          flush: (timeout) => {
+            if (lifetime.state === 'closed') return Promise.resolve(false);
+            const flushed = underlyingTransport.flush(timeout);
+            // 用户 flush 可同步 dispose；Core 的等待也须结算，不能仅中断 SDK 外层 Promise。
+            return waitForTransport(flushed, pendingOperationStops, lifetime, false);
+          },
         };
         if (!runtimeManaged) return baseTransport;
 
@@ -423,6 +469,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     // JS 未处理异常不是宿主进程崩溃证据。
     this._unhandledSessionStatus = 'unhandled';
     this._lifetime = lifetime;
+    this._pendingOperationStops = pendingOperationStops;
     this._consent = consent;
     this._shutdownTransport = shutdownTransport;
     this._revokeTransport = revokeTransport;
@@ -662,24 +709,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       // 授权/show/reconnect 都经过此入口；不等 processing drain 才唤醒磁盘重放。
       this._transportRuntime?.requestReplay();
     }
-    return new Promise<boolean>((resolve, reject) => {
-      const stop = (): void => resolve(false);
-      this._pendingFlushStops.add(stop);
-      void Promise.resolve(flushed).then(
-        (result) => {
-          this._pendingFlushStops.delete(stop);
-          resolve(result);
-        },
-        (error) => {
-          this._pendingFlushStops.delete(stop);
-          reject(error);
-        },
-      );
-      if (this._lifetime.state === 'closed') {
-        this._pendingFlushStops.delete(stop);
-        stop();
-      }
-    });
+    return waitForTransport(flushed, this._pendingOperationStops, this._lifetime, false);
   }
 
   public getOfflineStoreDiagnostics(): OfflineStoreDiagnostics | null {
@@ -691,8 +721,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     if (this._lifetime.state === 'closed') return;
     this._lifetime.finish();
     this._clientReportOutcomes?.clear();
-    for (const stop of this._pendingFlushStops) stop();
-    this._pendingFlushStops.clear();
+    for (const stop of this._pendingOperationStops) stop();
+    this._pendingOperationStops.clear();
     this.getOptions().enabled = false;
     this._transportRuntime?.shutdown();
     this._shutdownTransport();
