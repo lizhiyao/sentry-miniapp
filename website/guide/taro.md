@@ -1,6 +1,19 @@
-# Taro 接入指南
+---
+title: Taro 小程序接入 Sentry：初始化与 React 错误上报
+description: 在 Taro 4 + React 微信小程序中接入 sentry-miniapp，完成入口初始化、React 错误边界、合法域名检查和 Source Map 验证，并与 H5 分端配置。
+---
 
-Taro 默认使用 **React**（也可通过 `framework` 配置切换到 Vue3 / Vue）。本页以最常见的 **Taro 4 + React + TypeScript、编译到微信小程序**为例，给出从安装到组件错误上报的完整接入。可运行示例见 [`examples/taro`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/taro)。
+# Taro 小程序接入 Sentry：初始化与 React 错误上报 {#taro-接入指南}
+
+**Taro 小程序端使用 `sentry-miniapp` 接入 Sentry。** 在业务模块加载前初始化，再将 React 组件错误交给错误边界上报；同时构建 H5 时，按端选择 SDK。
+
+本页以 **Taro 4 + React + TypeScript 编译到微信小程序**为例。Taro 也支持 Vue，Vue 项目的组件错误需接入 `errorHandler`，见 [Vue 错误处理](/guide/uniapp#_3-main-js-尽早初始化-接-vue-errorhandler-关键)。可运行示例见 [`examples/taro`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/taro)。
+
+## 接入前确认
+
+- 已创建 Sentry 项目并复制完整 DSN；按[版本选择](/guide/migration-2.0#version-choice)确认后台兼容性。
+- 微信小程序后台已配置实际上报地址的 `request` 合法域名，见[域名检查](/guide/getting-started#_4-常见前置检查)。
+- 需要定位到 `.tsx` 源码时，准备上传同一构建的 JS 与 Source Map，见[上线指南](/guide/sourcemap)。
 
 ## 为什么不能直接用 `@sentry/browser`
 
@@ -116,7 +129,7 @@ if (process.env.TARO_ENV === 'h5') {
 
 - **网络**：`Taro.request` 最终走对应小程序端被包裹的全局请求 API，请求会自动记成 `xhr` 面包屑、随错误事件上报，无需额外配置。
 - **性能与追踪**：需要独立性能数据时再设置采样率，见[性能与链路追踪](/guide/performance-and-tracing)。
-- **Source Map**：Taro 经过编译，错误栈是编译后代码，需上传 Source Map 才能还原。配置见 [Source Map 上线指南](/guide/sourcemap)。
+- **Source Map**：Taro 经过编译，错误栈是编译后代码，需上传 Source Map 才能还原。配置见 [Source Map 上线指南](/guide/sourcemap)；真机堆栈出现 `appservice.app.js` 时，继续看[微信两层映射](/guide/sourcemap-advanced#微信真机的两层-source-map)。
 
 ## 下一步
 

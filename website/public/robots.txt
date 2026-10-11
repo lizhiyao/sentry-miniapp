@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sentry-miniapp.pages.dev/sitemap.xml

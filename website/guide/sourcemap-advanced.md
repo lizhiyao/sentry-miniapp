@@ -1,6 +1,13 @@
-# Source Map 进阶与排障
+---
+title: 微信小程序 Sentry Source Map 排障与两层映射
+description: 排查小程序 Sentry Source Map 上传后仍无法还原源码的问题，检查 release 与运行文件匹配，处理微信 appservice.app.js 两层映射、Cocos game.js 和 Debug ID。
+---
 
-本页处理普通上传流程之外的问题。尚未完成基础配置时，请先按 [Source Map 上线指南](/guide/sourcemap)生成、上传并验证一组 `.js` + `.map`。
+# 微信小程序 Sentry Source Map 排障与两层映射 {#source-map-进阶与排障}
+
+**Source Map 上传成功但堆栈仍是压缩代码，先核对事件与上传产物是否来自同一次构建。** release、运行文件名和映射关系都要对应；微信真机出现 `appservice.app.js` 时，分页 map 可能不足以还原，需要检查微信外层映射是否还要与框架 map 合成。
+
+本页从[事件中的表现](#先按现象选择排查路径)选择排查路径，覆盖微信小程序、其它平台、Cocos 小游戏和 Debug ID。Taro / uni-app 的初始化与组件错误捕获见 [Taro 接入](/guide/taro) / [uni-app 接入](/guide/uniapp)。尚未完成基础配置时，先按 [Source Map 上线指南](/guide/sourcemap)生成、上传并验证一组 `.js` + `.map`。
 
 ## 本地 Source Map Doctor
 

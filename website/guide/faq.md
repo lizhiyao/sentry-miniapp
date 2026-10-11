@@ -1,4 +1,20 @@
-# 常见问题 (FAQ)
+---
+title: 小程序 Sentry 没有数据？错误上报排查
+description: 排查微信等小程序接入 Sentry 后没有数据、组件错误不上报或堆栈无法还原的问题，逐项检查 DSN、合法域名、初始化顺序、采样与隐私同意。
+---
+
+# 小程序 Sentry 没有数据？错误上报排查 {#常见问题-faq}
+
+**小程序初始化 Sentry 后没有数据，先主动发送一个测试错误，再检查 DSN、合法域名、初始化顺序和发送条件。** 有 event ID 或 `flush()` 成功仍需在正确的 Sentry 项目里找到事件；只缺组件错误时，另查 React / Vue 错误处理。
+
+| 你看到的现象 | 从这里开始 |
+| --- | --- |
+| 初始化后完全没有错误数据 | [最小上报链路与检查清单](#no-events) |
+| 全局错误有数据，Vue / React 组件错误没有 | [组件错误捕获](#component-errors) |
+| 已有事件，但只显示压缩代码或 `appservice.app.js` | [Source Map 排障](/guide/sourcemap-advanced) |
+| 需要用户同意后才能发送监控数据 | [隐私同意配置](#privacy-consent) |
+
+首次接入可按[原生小程序](/guide/getting-started)、[Taro](/guide/taro)或 [uni-app](/guide/uniapp)指南完成配置。
 
 ## 初始化后 Sentry 里没有数据，先查什么？ {#no-events}
 

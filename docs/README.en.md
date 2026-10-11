@@ -25,13 +25,17 @@ Mini program runtimes may expose a window alias without DOM or browser request A
 
 ## ✨ Core Capabilities and Use Cases
 
-- **Automatic error capture**: Registers available host listeners for unhandled errors, Promise rejections, missing pages and memory warnings, then sends events to Sentry Issues.
-- **Debugging context**: Records device info, page lifecycle, taps/touches, and network breadcrumbs to help reconstruct what happened before a user hit an error.
-- **Performance and tracing**: With sampling enabled, measures HTTP requests and business operations, and propagates trace headers to selected backends. The optional Performance integration reads navigation, render, resource and User Timing entries when the host provides them.
-- **Source Map friendly stacks**: Normalizes platform-specific virtual stack paths to `app:///`, supports Source Maps / Debug IDs, and exposes `stackParser` for unusual runtimes.
-- **Weak-network and privacy flows**: Eligible failed sends enter a bounded offline queue for retry when the network recovers. With `requireConsent`, events enter a bounded local buffer without sending to Sentry; call `Sentry.setConsent(true)` after consent to attempt delivery of buffered events.
-- **Mini game support**: WeChat / Douyin mini games track foreground sessions through native show/hide listeners and can measure SDK setup to the first rAF callback. FPS and jank collection requires explicit opt-in; each capability is skipped when its required host APIs are unavailable.
-- **Business logs and metrics**: Use `Sentry.logger.*` for independently searchable logs and `Sentry.metrics.*` for counts, distributions and numeric values, alongside familiar error, context and span APIs.
+| The problem you face | What you can do with the SDK |
+| --- | --- |
+| Users report production errors that are hard to reproduce locally | View errors in Sentry and use device, page, interaction and request details to reconstruct what happened |
+| Stack traces show minified files and line numbers instead of your source | Upload Source Maps from the matching build to locate the original source and inspect code context |
+| Login, checkout or a page action is slow, with no clear bottleneck | Enable performance sampling to measure requests and business steps; configure tracing to connect them with backend operations already instrumented with Sentry |
+| A business operation fails without throwing an exception | Record searchable business logs and metrics to inspect key steps and track failure counts or duration distributions |
+| A weak connection prevents monitoring requests from being delivered | Buffer eligible data in a local queue with a size limit and retry when connectivity returns |
+| Monitoring data must wait for the user's privacy consent | Configure the consent gate to pause Sentry network delivery until consent, then attempt to send buffered data |
+| WeChat / Douyin mini games need error and frame-rate monitoring | Monitor game errors and sessions in Sentry, with optional FPS and jank collection |
+
+Automatic collection depends on host capabilities. React / Vue component errors require framework error handling, and mini game FPS collection requires explicit opt-in. See the [Taro](https://sentry-miniapp.pages.dev/guide/taro), [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp), [mini game](https://sentry-miniapp.pages.dev/guide/minigame) and [platform support](https://sentry-miniapp.pages.dev/guide/platforms) guides (Chinese).
 
 ---
 

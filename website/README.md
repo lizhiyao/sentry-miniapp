@@ -30,6 +30,23 @@ yarn run docs:preview    # 预览构建产物
 - 示例配置对照 `src/types.ts`、默认集成和实际脚本；Source Map 命令优先使用已安装 SDK 自带的工具。
 - 调整标题时保留已使用的锚点。提交前构建文档、核对本地链接和锚点，并预览受影响页面。
 
+## SEO 配置与效果观察
+
+正式站点地址为 `https://sentry-miniapp.pages.dev/`。VitePress 在构建时生成 `sitemap.xml`，各页面的 canonical 指向正式站点，`public/robots.txt` 提供 sitemap 地址。更换域名时，同时更新 `.vitepress/config.mts` 的 `SITE_URL` 与 `public/robots.txt`；PR 预览继续指向正式站点，避免产生另一组规范网址。
+
+页面标题和独立描述由 Markdown frontmatter 的 `title` / `description` 维护。标题说明用户要解决的问题，开头直接回答接入或排障要点，正文链接到下一步需要的指南；内容必须与实际支持范围一致。
+
+通过 [Google Search Console](https://search.google.com/search-console) 查看搜索流量：
+
+1. 添加网址前缀资源 `https://sentry-miniapp.pages.dev/` 并验证所有权。使用 HTML 验证文件时，将 Google 提供的文件原样放到 `website/public/` 后部署；使用 HTML 标签时，将提供的验证 meta 加到站点 `head`。域名资源需要 DNS 权限，当前 `pages.dev` 地址使用网址前缀资源即可。
+2. 在「站点地图」提交 `sitemap.xml`，在「网址检查」核对首页和重点页面的收录状态。提交 sitemap 帮助搜索引擎发现页面，不代表已经收录。
+3. 以本次优化上线日期为分界，在「效果 → 搜索结果」每两周比较一段完整时间与上一段等长时间。记录曝光、点击、点击率，并按「网页」筛选 `/guide/taro`、`/guide/uniapp`、`/guide/sourcemap-advanced`、`/guide/faq`，查看各页对应的实际搜索词。
+4. 新资源没有历史数据时，从添加资源后开始积累基线；留出数周观察，避免用单日波动判断效果。把真实接入反馈、示例使用或企业联系与搜索指标一起记录，点击本身不能证明 SDK 已被采用。
+
+验证方式见 [Google 所有权验证说明](https://support.google.com/webmasters/answer/9008080?hl=zh-Hans)，指标与筛选方法见 [Search Console 效果报告](https://support.google.com/webmasters/answer/7576553?hl=zh-Hans)。
+
+[Cloudflare Web Analytics](https://developers.cloudflare.com/web-analytics/) 可辅助观察到站访问及来源；Search Console 提供 Google 搜索中的曝光与点击。其它搜索引擎的表现需在各自站长工具中查看。站点尚未配置所有权验证或访问统计时，不把公开搜索结果数量当作流量基线。
+
 ## 部署（Cloudflare Pages）
 
 在 Cloudflare Pages 控制台「连接到 Git」选择本仓库，按如下设置（构建跑在仓库根、用 Yarn 4，与 SDK 完全一致，无 subdir / 包管理器特例）：

@@ -1,6 +1,19 @@
-# uni-app 接入指南
+---
+title: uni-app 小程序接入 Sentry：Vue 错误上报
+description: 在 uni-app Vue 3 + Vite 小程序中接入 Sentry，配置 main.js 初始化与 Vue errorHandler，排查组件错误不上报，并完成 H5 分端接入和 Source Map 源码定位。
+---
 
-本页以 **uni-app（Vue 3 + Vite）编译到微信小程序**为例，说明入口初始化、组件错误捕获与分端接入。可运行示例见 [`examples/uniapp`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。
+# uni-app 小程序接入 Sentry：Vue 错误上报 {#uni-app-接入指南}
+
+**uni-app 小程序端使用 `sentry-miniapp`，Vue 组件错误还需要接入 `errorHandler`。** 仅初始化 SDK，不能覆盖被 Vue 接住的组件渲染、生命周期和模板事件错误；如果全局错误有数据、组件错误没有，优先检查这一步。
+
+本页以 **uni-app（Vue 3 + Vite）编译到微信小程序**为例，提供 `main.js` 初始化、Vue 2 / Vue 3 错误处理与 H5 分端配置。可运行示例见 [`examples/uniapp`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。
+
+## 接入前确认
+
+- 已创建 Sentry 项目并复制完整 DSN；按[版本选择](/guide/migration-2.0#version-choice)确认后台兼容性。
+- 微信小程序后台已配置实际上报地址的 `request` 合法域名，见[域名检查](/guide/getting-started#_4-常见前置检查)。
+- 需要定位到 `.vue` 源码时，准备上传同一构建的 JS 与 Source Map，见[上线指南](/guide/sourcemap)。
 
 ## 为什么不能直接用 `@sentry/browser`
 
@@ -98,7 +111,7 @@ Sentry = require('sentry-miniapp');
 
 - **网络**：`uni.request` 最终走对应小程序端被包裹的全局请求 API，请求会自动记成 `xhr` 面包屑、随错误事件上报，无需额外配置。
 - **性能与追踪**：需要独立性能数据时再设置采样率，见[性能与链路追踪](/guide/performance-and-tracing)。
-- **Source Map**：uni-app 经过编译，错误栈是编译后代码，需上传 Source Map 才能还原。配置见 [Source Map 上线指南](/guide/sourcemap)。
+- **Source Map**：uni-app 经过编译，错误栈是编译后代码，需上传 Source Map 才能还原。配置见 [Source Map 上线指南](/guide/sourcemap)；真机堆栈出现 `appservice.app.js` 时，继续看[微信两层映射](/guide/sourcemap-advanced#微信真机的两层-source-map)。
 - **验证**：`addBreadcrumb` 不会单独上报，需主动 `Sentry.captureException(new Error('test'))` 才能在 Issues 看到。详见 [快速接入](/guide/getting-started)。
 
 ## 下一步
