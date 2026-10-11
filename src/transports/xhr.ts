@@ -107,6 +107,7 @@ export function createMiniappTransport(
     return new Promise((resolve, reject) => {
       let settled = false;
       let requestTask: MiniappRequestTask | undefined;
+      let abortRequested = false;
 
       const settle = (callback: () => void): void => {
         if (settled) return;
@@ -130,6 +131,7 @@ export function createMiniappTransport(
       }, requestTimeout);
 
       const abort = (): void => {
+        abortRequested = true;
         try {
           requestTask?.abort?.();
         } catch (_error) {
@@ -201,15 +203,15 @@ export function createMiniappTransport(
             /* The unavailable-method path below still settles this request. */
           }
         }
-        if (stopped || !canSend()) {
+        if (abortRequested || stopped || !canSend()) {
           cancel();
         } else if (!hasConsent()) {
           cancel(new Error('Sentry request blocked by consent'));
         } else if (typeof requestApi === 'function') {
           requestTask = requestApi.call(currentSdk, requestOptions) as
             MiniappRequestTask | undefined;
-          // 宿主 request 内可同步触发 dispose，返回的 task 此前尚不可 abort。
-          if (stopped || !canSend() || !hasConsent()) abort();
+          // 撤回或关闭可先于 task 返回；重新同意也不能撤销原请求的取消决定。
+          if (abortRequested || stopped || !canSend() || !hasConsent()) abort();
         } else {
           settle(() =>
             reject(new Error('No request method available in current miniapp environment')),

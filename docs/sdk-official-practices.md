@@ -56,6 +56,8 @@ Proxy 和 Reflect 需分别检测。[微信小游戏官方文档](https://develo
 
 ## 生命周期和晚到批次
 
+固定 Core 的 [`createTransport`](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/transports/base.ts) 将发送拒绝记为 network_error，再交给 [`makeOfflineTransport`](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/transports/offline.ts) 判断入库与重试。小程序 transport 只管理宿主请求：撤回可能同步发生在 API getter 或 request 调用中，取消决定须属于原请求，不能用回调结束后的同意状态替代。调用前已取消就跳过启动，task 尚未返回时则保留 abort 意图，在返回后尝试取消。重新同意允许新发送和 Core 重放；迟到回调不重新结算原请求。宿主缺少或无法执行 abort 时仍只能 best-effort，不另写重试、失败计数或持久化协议。
+
 Core 的 [`makeSession`](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/session.ts) 和 [scope 数据合并](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/utils/scopeData.ts) 会读取用户字段。[Scope.setSession](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/scope.ts) 还会同步通知监听器。小程序自动 Session 在用户读取之前登记创建身份，提交前复查 client 和前台操作仍有效，提交后、初次捕获前再检查会话归属：重复 show 不重入，hide 或退休取消未提交的操作，监听器已收尾的终态不重发，异常后释放身份以便恢复。创建使用现有同步临界区，防止读取中的 init 替换 runtime；dispose 仍可抢占。Session 的数据结构、错误状态和终态继续委托 Core，身份仅属于宿主生命周期控制，不写入线上 payload。
 
 固定 Core 的 [`captureSession`／`sendSession`](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/client.ts) 在 `beforeSendSession` 返回后生成 envelope，本次捕获返回前再将 `init` 设为 false。小程序回调内可以同步退后台或 close，故同一 Session 的嵌套捕获要区分这个序列化边界：hook 内的更新由当前发送承载；payload 已生成后的更新等本次 Core 捕获完成再发送，保持起始／终态顺序及单次 init。该控制只覆盖同步重入，另一份 Session 仍可捕获，finally 释放上下文。它没有重新实现状态或 JSON 协议，也不将任意并行会话管理归为官方 SDK 的共同保证。

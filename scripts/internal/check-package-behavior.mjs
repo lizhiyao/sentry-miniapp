@@ -128,6 +128,8 @@ async function runScenario() {
     notifyDelivery = resolve;
   });
   const disk = new Map();
+  let beforeTaskReturn;
+  let beforeRequestRead;
   const businessValue = { nativeBusinessValue: true };
   const businessReadResult = { data: businessValue };
   const businessWriteResult = { success: true };
@@ -179,6 +181,7 @@ async function runScenario() {
             );
           } else {
             transmitted.push(options);
+            if (beforeTaskReturn) return beforeTaskReturn(options);
             options.success({ status: 200, headers: {} });
             notifyDelivery();
           }
@@ -188,7 +191,18 @@ async function runScenario() {
       };
 
   const frozen = scenario.endsWith('-frozen');
-  if (frozen) Object.freeze(host);
+  if (frozen) {
+    const nativeHttpRequest = host.httpRequest;
+    Object.defineProperty(host, 'httpRequest', {
+      enumerable: true,
+      configurable: true,
+      get() {
+        beforeRequestRead?.();
+        return nativeHttpRequest;
+      },
+    });
+    Object.freeze(host);
+  }
   if (scenario === 'my-readonly-request') {
     Object.defineProperty(host, 'request', {
       value: undefined,
@@ -502,6 +516,80 @@ async function runScenario() {
       evidence.consentReplay = frozen;
       evidence.hostCalls = transmitted.length;
       evidence.offlineMode = client.getOfflineStoreDiagnostics()?.mode ?? null;
+      if (frozen) {
+        for (const phase of ['call', 'getter']) {
+          const start = transmitted.length;
+          let first = true;
+          let abortCalls = 0;
+          let firstOptions;
+          let replayDeadline;
+          const replayed = new Promise((resolve) => {
+            notifyDelivery = resolve;
+          });
+          beforeTaskReturn = (options) => {
+            if (phase === 'call' && first) {
+              first = false;
+              firstOptions = options;
+              client.setConsent(false);
+              client.setConsent(true);
+              return {
+                abort() {
+                  abortCalls++;
+                  options.fail({ errorMessage: 'cancelled after task return' });
+                },
+              };
+            }
+            options.success({ status: 200, headers: {} });
+            notifyDelivery();
+            return task;
+          };
+          if (phase === 'getter') {
+            beforeRequestRead = () => {
+              beforeRequestRead = undefined;
+              client.setConsent(false);
+              client.setConsent(true);
+            };
+          }
+          const cancelError = new Error(`consent cancellation during native request ${phase}`);
+          const cancelId = client.captureException(cancelError);
+          assert.equal(await client.flush(1000), true);
+          assert.equal(abortCalls, phase === 'call' ? 1 : 0);
+          assert.equal(transmitted.length - start, phase === 'call' ? 1 : 0);
+          assert.equal(client.getConsent(), true);
+          if (phase === 'call') {
+            firstOptions.success({ status: 200, headers: {} });
+            firstOptions.fail({ errorMessage: 'late failure' });
+          }
+          try {
+            await Promise.race([
+              replayed,
+              new Promise((_resolve, reject) => {
+                replayDeadline = originalTimeout(
+                  () => reject(new Error('regrant did not replay the cancelled event')),
+                  2000,
+                );
+              }),
+            ]);
+          } finally {
+            clearTimeout(replayDeadline);
+            beforeTaskReturn = undefined;
+            beforeRequestRead = undefined;
+          }
+          assert.equal(await client.flush(1000), true);
+          const attempts = transmitted
+            .slice(start)
+            .map(({ data }) => JSON.parse(data.split('\n')[2]));
+          assert.equal(attempts.length, phase === 'call' ? 2 : 1);
+          assert.ok(attempts.every((event) => event.event_id === cancelId));
+          assert.ok(
+            attempts.every((event) => event.exception.values[0].value === cancelError.message),
+          );
+          assert.equal(abortCalls, phase === 'call' ? 1 : 0);
+          assert.ok(![...disk.values()].some((value) => value.includes(cancelId)));
+        }
+        evidence.cancelledTaskAbortedAfterRegrant = true;
+        evidence.cancelledRequestReadSuppressed = true;
+      }
     }
     return { ...evidence, passed: true };
   } catch (error) {
