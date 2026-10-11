@@ -4,7 +4,7 @@ const { mockGetClient } = vi.hoisted(() => ({ mockGetClient: vi.fn() }));
 
 vi.mock('@sentry/core', () => ({ getClient: mockGetClient }));
 
-import { subscribeNativeEvent } from '../src/nativeEvents';
+import { getLastNativeEvent, subscribeNativeEvent } from '../src/nativeEvents';
 
 import {
   addFunctionInstrumentationHandler,
@@ -306,7 +306,7 @@ describe('共享函数 instrumentation', () => {
 });
 
 describe('共享原生事件 instrumentation', () => {
-  it.each(['missing', 'throws', 'getter-throws', 'works'] as const)(
+  it.each(['missing', 'throws', 'getter-throws', 'works', 'shadowed-call'] as const)(
     'off %s：重复订阅数量有界，源对象隔离，空通道不读取参数',
     (mode) => {
       const retained = new Set<(...args: any[]) => void>();
@@ -315,6 +315,14 @@ describe('共享原生事件 instrumentation', () => {
         if (mode === 'throws') throw new Error('off unavailable');
         retained.delete(listener);
       });
+      if (mode === 'shadowed-call') {
+        Object.defineProperty(on, 'call', { value: 'platform extension' });
+        Object.defineProperty(off, 'call', {
+          get() {
+            throw new Error('call property');
+          },
+        });
+      }
       const host = { on, ...(mode === 'missing' ? {} : { off }) };
       if (mode === 'getter-throws')
         Object.defineProperty(host, 'off', {
@@ -327,6 +335,7 @@ describe('共享原生事件 instrumentation', () => {
       const payload = new Proxy({}, { get: read });
       const seen = vi.fn();
       const stops: Array<() => void> = [];
+      expect(getLastNativeEvent(undefined, ['on'])).toBeUndefined();
       for (let cycle = 0; cycle < 20; cycle++) {
         expect(
           subscribeNativeEvent(
@@ -338,19 +347,25 @@ describe('共享原生事件 instrumentation', () => {
             (stop) => stops.push(stop),
           ),
         ).toBe(true);
+        if (cycle === 0) expect(getLastNativeEvent(host, ['on'])).toBeUndefined();
         for (const listener of retained) listener(payload);
+        expect(getLastNativeEvent(host, ['on'])).toBe('on');
+        expect(getLastNativeEvent(host, ['on', 'missing'])).toBeUndefined();
+        expect(getLastNativeEvent(host, [])).toBeUndefined();
         expect(seen).toHaveBeenCalledTimes(cycle + 1);
         stops.at(-1)!();
         stops.at(-1)!();
         for (const listener of retained) listener(payload);
       }
-      expect(on).toHaveBeenCalledTimes(mode === 'works' ? 20 : 1);
-      expect(retained.size).toBe(mode === 'works' ? 0 : 1);
+      expect(on).toHaveBeenCalledTimes(mode === 'works' || mode === 'shadowed-call' ? 20 : 1);
+      expect(retained.size).toBe(mode === 'works' || mode === 'shadowed-call' ? 0 : 1);
       expect(read).not.toHaveBeenCalled();
       // 同名 API 的另一个真实宿主有自己的通道。
       const otherOn = vi.fn();
+      const other = { on: otherOn };
+      expect(getLastNativeEvent(other, ['on'])).toBeUndefined();
       subscribeNativeEvent(
-        { on: otherOn },
+        other,
         'on',
         'off',
         seen,
@@ -358,6 +373,7 @@ describe('共享原生事件 instrumentation', () => {
         (stop) => stops.push(stop),
       );
       expect(otherOn).toHaveBeenCalledOnce();
+      expect(getLastNativeEvent(other, ['on'])).toBeUndefined();
       stops.at(-1)!();
     },
   );

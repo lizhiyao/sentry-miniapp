@@ -64,9 +64,12 @@ const sandbox = {
 sandbox.window.Error = runInNewContext('Error', sandbox);
 // CLI 注入优先使用 window；core 使用 globalThis，二者故意分离以检查 SDK 桥接。
 const filename = basename(bundlePath);
-const sdk = runInNewContext(`${code}\n;module.exports`, sandbox, {
-  filename: `appservice/${filename}`,
-});
+// CommonJS 模块变量必须隔离于宿主全局；补偿 wrapper 行，保持映射坐标一致。
+const sdk = runInNewContext(
+  `(function(exports, module) {\n${code}\n;return module.exports;\n})(exports, module)`,
+  sandbox,
+  { filename: `appservice/${filename}`, lineOffset: -1 },
+);
 const owner = sdk.init({
   dsn: 'https://key@example.com/1',
   release: 'symbolication-smoke@2.0',

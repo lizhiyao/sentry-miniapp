@@ -340,25 +340,117 @@ describe('原生 show/hide 与真实 core Session', () => {
       expect(frames.size).toBe(0);
       shows[0]!();
       expect(frames.size).toBe(1);
+      for (const phase of ['session', 'envelope'] as const) {
+        frame(20);
+        const sid = getIsolationScope().getSession()!.sid;
+        let armed = true;
+        const resume = (): void => {
+          if (!armed) return;
+          armed = false;
+          shows[0]!();
+        };
+        const stop =
+          phase === 'session'
+            ? client.on('beforeSendSession', (session) => {
+                if ('sid' in session && session.sid === sid && session.status === 'exited')
+                  resume();
+              })
+            : client.on('beforeEnvelope', (envelope) => {
+                if (
+                  collectEnvelopePayloads<SerializedSession>([envelope], ['session']).some(
+                    (session) => session.sid === sid && session.status === 'exited',
+                  )
+                )
+                  resume();
+              });
+        try {
+          hides[0]!();
+          expect(getClientLifetime(client)?.visibility).toBe('foreground');
+          expect(getIsolationScope().getSession()?.sid).not.toBe(sid);
+          expect(getIsolationScope().getSession()?.status).toBe('ok');
+          expect(frames.size).toBe(1);
+        } finally {
+          armed = false;
+          stop();
+        }
+        hides[0]!();
+        const suspend = (): void => {
+          if (!armed) return;
+          armed = false;
+          hides[0]!();
+        };
+        armed = true;
+        const stopSuspend =
+          phase === 'session'
+            ? client.on('beforeSendSession', (session) => {
+                if ('sid' in session && session.init && session.status === 'ok') suspend();
+              })
+            : client.on('beforeEnvelope', (envelope) => {
+                if (
+                  collectEnvelopePayloads<SerializedSession>([envelope], ['session']).some(
+                    (session) => session.init && session.status === 'ok',
+                  )
+                )
+                  suspend();
+              });
+        try {
+          shows[0]!();
+          expect(getClientLifetime(client)?.visibility).toBe('background');
+          expect(getIsolationScope().getSession()).toBeUndefined();
+          expect(frames.size).toBe(0);
+        } finally {
+          armed = false;
+          stopSuspend();
+        }
+        shows[0]!();
+      }
     },
   );
 
-  it('缺少 off 时复用一份宿主监听，事件只更新当前 Session，dispose 后停止收集', () => {
+  it.each([
+    'foreground',
+    'background',
+    'idle-hide',
+    'idle-show',
+    'disabled-hide',
+    'off-hide',
+    'observer-gap',
+  ] as const)('%s：重复初始化沿用连续宿主状态，关闭后不再更新 Session', (stage) => {
     const first = start();
     const firstSid = sessions()[0]!.sid;
+    if (stage === 'background' || stage === 'observer-gap') hides[0]!();
+    if (stage === 'observer-gap') (globalThis as any).wx.offShow = vi.fn();
+    if (stage === 'off-hide')
+      (globalThis as any).wx.offHide = (handler: () => void) => {
+        handler();
+        throw new Error('off failed after synchronous hide');
+      };
+    if (stage === 'idle-hide' || stage === 'idle-show') {
+      first.dispose();
+      hides[0]!();
+      if (stage === 'idle-show') shows[0]!();
+    }
+    if (stage === 'disabled-hide') {
+      first.getOptions().enabled = false;
+      hides[0]!();
+    }
     const second = start();
-    expect(sessions().filter((session) => session.sid === firstSid)).toHaveLength(2);
-    const secondSid = getIsolationScope().getSession()!.sid;
-    expect(shows).toHaveLength(1);
+    const background = ['background', 'idle-hide', 'disabled-hide', 'off-hide'].includes(stage);
+    expect(getIsolationScope().getSession() === undefined).toBe(background);
+    expect(getClientLifetime(second)?.visibility).toBe(background ? 'background' : 'foreground');
+    const firstCount = sessions().filter((session) => session.sid === firstSid).length;
+    expect(shows).toHaveLength(stage === 'observer-gap' ? 2 : 1);
     expect(hides).toHaveLength(1);
     expect(getClientLifetime(first)?.canCollectAutomatic()).toBe(false);
+    const show = shows.at(-1)!;
+    const secondSid = getIsolationScope().getSession()?.sid;
     hides[0]!();
-    shows[0]!();
-    expect(sessions().filter((session) => session.sid === firstSid)).toHaveLength(2);
+    show();
+    expect(sessions().filter((session) => session.sid === firstSid)).toHaveLength(firstCount);
     expect(getIsolationScope().getSession()!.sid).not.toBe(secondSid);
     second.dispose();
     const afterDispose = sessions().length;
-    shows[0]!();
+    show();
     hides[0]!();
     expect(sessions()).toHaveLength(afterDispose);
     expect(getIsolationScope().getSession()).toBeUndefined();
@@ -447,6 +539,16 @@ describe('原生 show/hide 与真实 core Session', () => {
         minigameFrameRateIntegration(),
         ...(order === 'session-first' ? [miniappLifecycleIntegration()] : []),
       ]);
+      expect(frames.size).toBe(0);
+      expect(sessions()).toEqual([]);
+      start([
+        spanStreamingIntegration(),
+        ...(order === 'session-first' ? [sessionIntegration()] : []),
+        minigameFrameRateIntegration(),
+        ...(order === 'session-first' ? [miniappLifecycleIntegration()] : []),
+      ]);
+      expect(shows).toHaveLength(1);
+      expect(hides).toHaveLength(1);
       expect(frames.size).toBe(0);
       expect(sessions()).toEqual([]);
       shows[0]!();

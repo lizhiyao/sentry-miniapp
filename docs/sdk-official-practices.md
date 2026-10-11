@@ -108,3 +108,7 @@ Core [`sendEnvelope`／`flush`](https://github.com/getsentry/sentry-javascript/b
 Core 的全局错误入口包装 `GLOBAL_OBJ.onerror`，不注册小程序宿主 onError。公开 addHandler／maybeInstrument 使用固定 Browser 事件类型和进程级标记，没有真实宿主对象／API 的 key，也不提供最后退订时 off 的协调。直接复用会混合不同事件源与数据形态，因此平台层保留一个窄的 [nativeEvents](../src/nativeEvents.ts) 桥接，负责真实宿主监听、可删除订阅、注册与移除中的同步重入；事件构建、Session 和网络发送仍委托现有接缝与 Core。
 
 无 off 或 off 抛错时复用同一 dispatcher，不让重复 init 留下更多原生监听；空 dispatcher 没有 client 处理器。全局宿主事件按交付时活动 client 处理，具体操作 callback 仍检查原 owner。宿主未提供事件生成代次时，无法识别跨 init 才交付的全局错误／hide 属于哪次初始化，不宣称异步上下文隔离。注册失败且不能确认移除时，能力按失败降级并不盲目重新注册。
+
+[BrowserClient 的 visibilitychange](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L141-L158)读取宿主当前可见状态，而不是用 client 初始化推断前台。小程序没有等价的通用查询：共享层仅保留连续观察的方向与顺序，新 client 的 Session／FPS／coordinator 采用该状态。成功 off 导致观察中断时不沿用此前的状态，不回放旧 payload 或继承旧 Session。原生 show／hide 的多阶段协调还需逐订阅检查事件身份，避免同步用户钩子触发新事件后，外层事件继续终结新状态的资源；这是平台协调层的职责，不是 Core triggerHandlers 已提供的保证。
+
+注册／退订复用本项目 wrapper 的标准原型调用方式，保留真实宿主 receiver，并避开函数自身被扩展的 `call` 属性；不需要 Reflect 或新的 polyfill。

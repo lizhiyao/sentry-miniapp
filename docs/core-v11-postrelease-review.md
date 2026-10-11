@@ -397,3 +397,13 @@ lint、源码／测试严格类型、全量 coverage／shuffle、标准构建／
 共享层检查源对象隔离、冻结 API、活动订阅快照、注册中 dispose、部分注册后抛错及 off getter／调用重入。原生部分注册失败不宣称完整能力，已送达的 hide 仍可收尾帧循环；成功 off 后旧 dispatcher 永久失效。宿主事件无生成代次信息，按交付时的活动 client 处理；具体 request／timer／rAF／查询的回调仍保留原 owner。off 抛错后无法确认是否已先移除监听，采用不盲目重试的有界降级，这不等于承诺故障 API 仍可持续交付。
 
 强化原有真实 Core 回归与已安装包 network-off-getter 场景，并为新增共享层补充 4 个测试定义（一个含 4 种 off 情况）；77 文件／1290 用例，CJS／ESM 仍各 21 个包行为场景。lint、严格类型、全量 coverage／shuffle、标准构建及真实包消费、微信独立 bundle／本地映射、官网构建通过。覆盖率门槛不变，statements 98.72%、branches 96.00%、functions 99.37%、lines 99.42%。README／英文入口与示例的接入 API 无需改变，架构、官方实践和官网更新监听复用及交付归属。此轮为受控宿主与真实包验证，未新增设备／后台证据或 npm 发布；#457 继续跟踪设备反馈。
+
+## 共享监听的状态与重入复核（2026-10-11）
+
+基线为 #500 合并树 `9e6d399` 的实际包。对照官方 Core 的 handler／instrumentation 分离、Browser DOM 的真实监听身份与保守移除，以及 BrowserClient 对宿主 visibilityState 的读取，复现并修复三处边界：连续监听已观察 hide 后，新 client 丢失状态而建立前台 Session／启动 FPS；Session 发送钩子中的嵌套 show 已恢复前台，外层 hide 仍停掉新帧循环；可调用宿主 API 的自身 `call` 字段或 getter 干扰 on／off。另检查相反的 show → hide、不同集成顺序及退订中同步 hide 后抛错，不将这些受控复现归因于已发生的设备故障。
+
+共享通道仅保留观察顺序，生命周期按真实源的连续观察初始化；关闭、enabled 暂停和退订中的宿主事件继续更新方向，不读 payload、不留 client。任一方向重新注册都会形成观察边界，中断前状态不能被当作当前状态。原生分发逐订阅检查当前事件身份，已被嵌套事件取代的外层阶段停止；事件构建、Session 状态与 envelope 仍由 Core 处理。on／off 使用标准函数原型并保留宿主 receiver，未增加 Reflect、运行时依赖或公共 API。
+
+候选实际包的七平台 × CJS／ESM × 缺 off、off 调用抛错、off getter 抛错、函数 call 被扩展共 56 项通过，覆盖后台重新初始化、新 SID 归属和两个 Core 发送阶段中的双向嵌套生命周期。另有七平台 × CJS／ESM × 四种 off 条件的 56 项 GC／监听数量复核，每项 50 次 init／dispose：无法移除时每个源／事件仍只有一个监听，正常 off 不留监听；旧 client 全部可回收，空通道无输入读取，新 client 的错误只交付一次。
+
+强化现有测试定义和实际包 session-start-ownership 场景，77 文件／1297 用例；CJS／ESM 仍各 21 个公开行为场景。微信 bundle 检查改为在 CommonJS 模块作用域执行产物，避免裸 VM 执行时压缩变量覆盖宿主全局；wrapper 行偏移经过实际异常映射校验。lint、严格类型、全量 coverage／shuffle、标准构建及七平台 × 15 能力模式的实际包消费、微信独立 bundle／本地映射、官网构建通过。覆盖率门槛不变，statements 98.71%、branches 96.01%、functions 99.38%、lines 99.42%。架构、官方实践和官网补充当前状态判断与事件归属原因；README／英文入口和示例接入方式无需改变。本轮未新增 npm 发布、设备或目标后台证据；#457 继续跟踪设备反馈。
