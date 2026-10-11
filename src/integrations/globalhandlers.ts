@@ -1,4 +1,11 @@
-import { captureEvent, captureException, getClient, isPrimitive, withScope } from '@sentry/core';
+import {
+  captureEvent,
+  captureException,
+  getClient,
+  isError,
+  isPrimitive,
+  withScope,
+} from '@sentry/core';
 import type { Client, Event, EventHint, Integration, IntegrationFn, Exception } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
@@ -46,8 +53,10 @@ interface PlatformErrorPayload {
 type PlatformErrorValue = string | Error | PlatformErrorPayload;
 
 function errorFromPlatformValue(value: PlatformErrorValue): Error {
-  if (value instanceof Error) {
-    return value;
+  try {
+    if (isError(value)) return value;
+  } catch (_error) {
+    /* 宿主品牌检查不可读时，仍尝试独立提取可用字段。 */
   }
 
   const details = getErrorDetails(value);
@@ -58,14 +67,12 @@ function errorFromPlatformValue(value: PlatformErrorValue): Error {
   // 小程序 / 小游戏 onError 可能直接给字符串，也可能给
   // { message: "MiniProgramError\n...\nat ...", stack: "" }。覆盖本地构造 Error
   // 产生的无关 stack，让 MiniappClient 使用用户配置的 stackParser 解析宿主帧。
-  if (details) {
-    const stack = details.stack || details.message;
-    // core 的 exceptionFromError 固定跳过首行。宿主可能直接从 frame 开始，补标准 header。
-    const firstLine = stack.split('\n', 1)[0] ?? '';
-    error.stack = miniappStackParser(firstLine, 0).length
-      ? `${error.name}: ${error.message}\n${stack}`
-      : stack;
-  }
+  const stack = details?.stack || details?.message || '';
+  // core 的 exceptionFromError 固定跳过首行。宿主可能直接从 frame 开始，补标准 header。
+  const firstLine = stack.split('\n', 1)[0] ?? '';
+  error.stack = miniappStackParser(firstLine, 0).length
+    ? `${error.name}: ${error.message}\n${stack}`
+    : stack;
   return error;
 }
 
@@ -93,8 +100,7 @@ export class GlobalHandlers implements Integration {
   private readonly _options: GlobalHandlersIntegrations;
 
   private _errorHandler: ((err: PlatformErrorValue) => void) | null = null;
-  private _rejectionHandler: ((res: { reason: unknown; promise: Promise<any> }) => void) | null =
-    null;
+  private _rejectionHandler: ((res: { reason: unknown; promise?: unknown }) => void) | null = null;
   private _pageNotFoundHandler:
     ((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => void) | null =
     null;
@@ -291,41 +297,46 @@ export class GlobalHandlers implements Integration {
   /** JSDoc */
   private _installGlobalOnUnhandledRejectionHandler(): void {
     if (this._isActiveClient()) {
-      this._rejectionHandler = this._guard(
-        ({ reason, promise }: { reason: unknown; promise: Promise<any> }) => {
-          const primitive = isPrimitive(reason);
-          const hint: EventHint = {
-            originalException: reason,
-            mechanism: {
-              type: 'onunhandledrejection',
-              handled: false,
-              ...(primitive && { synthetic: true }),
-            },
-            data: {
-              promise,
-            },
-          };
-          if (primitive) {
-            // 原始值没有拒绝来源栈；与 Browser 一样构造最小事件，Symbol 也显式转为字符串。
-            captureEvent(
-              {
-                level: 'error',
-                exception: {
-                  values: [
-                    {
-                      type: 'UnhandledRejection',
-                      value: `Non-Error promise rejection captured with value: ${String(reason)}`,
-                    },
-                  ],
-                },
+      this._rejectionHandler = this._guard((payload: { reason: unknown; promise?: unknown }) => {
+        const reason = payload.reason;
+        let promise: unknown;
+        try {
+          promise = payload.promise;
+        } catch (_error) {
+          /* Promise 只是可选 hint，读取失败不能丢失可用的拒绝原因。 */
+        }
+        const primitive = isPrimitive(reason);
+        const hint: EventHint = {
+          originalException: reason,
+          mechanism: {
+            type: 'onunhandledrejection',
+            handled: false,
+            ...(primitive && { synthetic: true }),
+          },
+          data: {
+            promise,
+          },
+        };
+        if (primitive) {
+          // 原始值没有拒绝来源栈；与 Browser 一样构造最小事件，Symbol 也显式转为字符串。
+          captureEvent(
+            {
+              level: 'error',
+              exception: {
+                values: [
+                  {
+                    type: 'UnhandledRejection',
+                    value: `Non-Error promise rejection captured with value: ${String(reason)}`,
+                  },
+                ],
               },
-              hint,
-            );
-          } else {
-            captureException(reason, hint);
-          }
-        },
-      );
+            },
+            hint,
+          );
+        } else {
+          captureException(reason, hint);
+        }
+      });
       this._listen('onUnhandledRejection', 'offUnhandledRejection', this._rejectionHandler);
     }
   }

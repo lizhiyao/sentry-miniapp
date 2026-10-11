@@ -46,6 +46,8 @@ flowchart TD
 
 宿主未处理 Promise 拒绝的原始值没有业务来源栈；GlobalHandlers 采用 Browser 的最小 `UnhandledRejection` 事件表达，显式 String 转换兼容 Symbol，保留 hint 原因并标记 synthetic，不构造监听器 Error。真实 Error 和结构化原因仍交给 Core 事件构建；两条入口都使用 Core 的 scope、processors、beforeSend、Session 更新和发送管道。
 
+宿主 `onError` 使用 Core 公开 `isError` 识别跨上下文异常，并把原对象交给 Core，保留身份、cause 和业务 stack。非 Error 的宿主报告只按字符串／结构化字段适配：message、stack、name 和 constructor 各自单次读取，字段不可读时保留其它可用信息；没有宿主来源栈时不保留适配器新建 Error 的本地 stack。拒绝回调中的 Promise 对象只作为可选 hint，读取失败不阻断可用 reason。该降级属于宿主输入边界，不扩展成另一套未知对象事件构建器。
+
 | 职责                | Core                                                                               | sentry-miniapp                                                         |
 | ------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | 公共 scope 与 trace | Scope、trace context、采样与 DSC                                                   | 重导出公共 API，提供宿主入口和操作归属                                 |

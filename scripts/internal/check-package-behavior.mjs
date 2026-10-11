@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 // Only the installed package's declared public CJS/ESM entry is imported.
 // Each scenario runs in a fresh process so Core scope and instrumentation do not leak between cases.
@@ -1176,6 +1177,11 @@ async function runBoundaryScenario(pkg) {
       assert.equal(payloads('event').length, 2);
       client.dispose();
       let rejectionHandler;
+      let errorHandler;
+      host.onError = function (callback) {
+        assert.equal(this, host);
+        errorHandler = callback;
+      };
       host.onUnhandledRejection = function (callback) {
         assert.equal(this, host);
         rejectionHandler = callback;
@@ -1239,6 +1245,62 @@ async function runBoundaryScenario(pkg) {
       assert.equal(payloads('event').length, 3 + reasons.length);
       evidence.primitiveRejections = reasons.length;
       evidence.businessRejectionSourcePreserved = true;
+      const foreign = runInNewContext(
+        "new Error('foreign Error', { cause: new TypeError('foreign cause') })",
+      );
+      assert.equal(foreign instanceof Error, false);
+      foreign.stack = `at submitOrder (${sourceFilename}:42:13)`;
+      foreign.cause.stack = 'TypeError: foreign cause\n at compute (pages/compute.js:11:7)';
+      errorHandler(foreign);
+      assert.equal(await client.flush(1000), true);
+      assert.equal(originalReasons.at(-1), foreign);
+      const chain = payloads('event').at(-1).exception.values;
+      assert.equal(chain.length, 2);
+      assert.equal(chain[0].value, 'foreign cause');
+      assert.equal(chain[0].stacktrace.frames[0].filename, 'app:///pages/compute.js');
+      assert.equal(chain[1].value, 'foreign Error');
+      assert.equal(chain[1].stacktrace.frames[0].lineno, 42);
+      assert.equal(foreign.stack, `at submitOrder (${sourceFilename}:42:13)`);
+      for (const inaccessible of ['message', 'stack']) {
+        const payload = {
+          name: 'TypeError',
+          message: 'readable host error',
+          stack: `TypeError: readable host error\n at submitOrder (${sourceFilename}:42:13)`,
+        };
+        Object.defineProperty(payload, inaccessible, {
+          get() {
+            throw new Error('unreadable host field');
+          },
+        });
+        errorHandler(payload);
+        assert.equal(await client.flush(1000), true);
+        const exception = payloads('event').at(-1).exception.values[0];
+        assert.equal(exception.value, 'readable host error');
+        if (inaccessible === 'stack') assert.equal(exception.stacktrace, undefined);
+        else assert.equal(exception.stacktrace.frames[0].filename, codeFile);
+      }
+      let reads = 0;
+      errorHandler({
+        get message() {
+          reads++;
+          return reads === 1 ? 'first host message' : 'changed message';
+        },
+      });
+      assert.equal(await client.flush(1000), true);
+      assert.equal(reads, 1);
+      assert.equal(payloads('event').at(-1).exception.values[0].value, 'first host message');
+      const optionalPromise = new Error('optional promise unavailable');
+      rejectionHandler({
+        reason: optionalPromise,
+        get promise() {
+          throw new Error('unreadable promise');
+        },
+      });
+      assert.equal(await client.flush(1000), true);
+      assert.equal(originalReasons.at(-1), optionalPromise);
+      assert.equal(payloads('event').at(-1).exception.values[0].value, optionalPromise.message);
+      assert.equal(payloads('event').length, 8 + reasons.length);
+      evidence.hostErrorInputs = 5;
     } else if (scenario === 'network-off-getter') {
       let handler;
       host.onNetworkStatusChange = function (callback) {

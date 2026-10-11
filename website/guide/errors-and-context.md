@@ -18,6 +18,8 @@
 
 Promise 的拒绝原因是 `Error` 时，SDK 保留其业务堆栈。字符串、数字、Symbol 等原始值没有来源堆栈，会显示为 `UnhandledRejection` 并记录该值；SDK 不把全局监听器的堆栈当成拒绝来源。业务希望定位拒绝位置时，应使用 `Promise.reject(new Error('说明'))` 或抛出 `Error`。`beforeSend` 的 `hint.originalException` 保留原始拒绝原因。
 
+平台 `onError` 提供 Error 时，SDK 保留原异常及其 `cause` 链。若平台只提供文本或结构化报告，SDK 从可用消息和堆栈提取信息；缺少来源堆栈时不会生成业务位置，定位仍需业务侧保留 Error。
+
 > Taro / uni-app 的组件错误可能先被 React 或 Vue 接住，不再冒泡到宿主全局监听。请分别按照 [Taro 错误边界](/guide/taro#_4-组件错误-用-react-错误边界)或 [uni-app errorHandler](/guide/uniapp#_3-main-js-尽早初始化-接-vue-errorhandler-关键) 接入。
 
 ## 主动上报已处理的问题
