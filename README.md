@@ -55,12 +55,14 @@
 npm install sentry-miniapp@next
 ```
 
-> 不使用 npm 时，可从 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) 下载对应版本的 `sentry-miniapp.umd.js`；调试源码仓库中的微信示例时，运行 `yarn build:miniapp` 生成示例依赖。
+原生微信项目还需在开发者工具中执行「工具 → 构建 npm」；目录要求见[快速接入](https://sentry-miniapp.pages.dev/guide/getting-started#_1-安装)。Taro / uni-app 由框架构建处理依赖。
+
+> 不使用 npm 时，可从 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) 下载对应版本的 `sentry-miniapp.umd.js`，放入项目的 `lib/` 目录，将下方导入改为 `const Sentry = require('./lib/sentry-miniapp.umd.js');`。调试源码仓库中的微信示例时，运行 `yarn build:miniapp` 生成示例依赖。
 
 在入口文件（`app.js` / `app.ts`）**最顶部、`App()` 之前**初始化：
 
 ```javascript
-import * as Sentry from 'sentry-miniapp';
+const Sentry = require('sentry-miniapp');
 
 Sentry.init({
   dsn: 'YOUR_DSN', // 复制 Sentry 项目中的完整 DSN

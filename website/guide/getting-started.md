@@ -8,17 +8,24 @@
 
 ## 1. 安装
 
+在小程序项目的 `package.json` 所在目录安装；尚无该文件时，先运行 `npm init -y`：
+
 ```bash
 npm install sentry-miniapp@next --save
 # 或 yarn add sentry-miniapp@next
 ```
+
+**原生微信小程序还需要构建 npm**：安装或更新 SDK 后，在微信开发者工具中执行「工具 → 构建 npm」，再编译小程序。默认情况下，`package.json` 须位于 `project.config.json` 的 `miniprogramRoot` 目录内；目录分离的项目按[微信官方 npm 文档](https://developers.weixin.qq.com/miniprogram/dev/devtools/npm.html)配置手动打包。Taro / uni-app 由框架构建处理依赖，不需要额外执行这个原生步骤。
+
+不使用 npm 时，可从 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) 下载对应版本的 `sentry-miniapp.umd.js`，放入项目的 `lib/` 目录，并将下方导入改为 `const Sentry = require('./lib/sentry-miniapp.umd.js');`。
 
 ## 2. 初始化
 
 **务必让 `Sentry.init` 在 `App()` 调用之前执行**，这样才能捕获到应用启动阶段的异常、并在业务请求之前装好网络面包屑。
 
 ```js
-import * as Sentry from 'sentry-miniapp';
+// app.js；放在现有 App() 调用之前
+const Sentry = require('sentry-miniapp');
 
 Sentry.init({
   dsn: 'YOUR_DSN', // 替换为 Sentry 项目中的完整 DSN
