@@ -76,7 +76,7 @@ Vue.config.errorHandler = (err, vm, info) => {
 
 uni-app 用**条件编译**按端引入——小程序用 `sentry-miniapp`，H5 用官方 `@sentry/browser`：
 
-用下方片段替换初始化封装中的 SDK 导入，再对选出的 SDK 调用 `init()`。DSN、release 和 environment 可共用；平台专属选项放在对应分支。
+用下方片段替换初始化封装中的 SDK 导入，保留后续的 `Sentry.init()`、标签设置和唯一的 `export default Sentry`。DSN、release 和 environment 可共用；平台专属选项放在对应分支。
 
 ```bash
 npm install sentry-miniapp@next @sentry/browser --save
@@ -92,8 +92,6 @@ Sentry = require('@sentry/browser');
 // #ifdef MP-WEIXIN || MP-ALIPAY || MP-BAIDU || MP-TOUTIAO || MP-QQ || MP-KUAISHOU || MP-DINGTALK
 Sentry = require('sentry-miniapp');
 // #endif
-
-export default Sentry;
 ```
 
 ## 5. 其它

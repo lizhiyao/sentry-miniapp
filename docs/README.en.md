@@ -59,12 +59,14 @@ Install:
 npm install sentry-miniapp@next
 ```
 
-> Not using npm? Download the versioned `sentry-miniapp.umd.js` asset from [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases). To run the WeChat example from source, generate its local bundle with `yarn build:miniapp`.
+For native WeChat projects, run **Tools → Build npm** in WeChat Developer Tools after installing or updating the SDK. See [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started#_1-安装) for directory requirements. Taro and uni-app handle dependencies through their framework builds.
+
+> Not using npm? Download the versioned `sentry-miniapp.umd.js` asset from [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases), place it in your project's `lib/` directory, and replace the import below with `const Sentry = require('./lib/sentry-miniapp.umd.js');`. To run the WeChat example from source, generate its local bundle with `yarn build:miniapp`.
 
 Initialize at the **top** of your entry file (`app.js` / `app.ts`), **before** `App()`:
 
 ```javascript
-import * as Sentry from 'sentry-miniapp';
+const Sentry = require('sentry-miniapp');
 
 Sentry.init({
   dsn: 'YOUR_DSN', // Copy the complete DSN from your Sentry project.
