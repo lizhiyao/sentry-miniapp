@@ -75,7 +75,7 @@ SDK 会开始补发同意前的缓冲事件，并恢复后续实时上报。用�
 Sentry.setConsent(false);
 ```
 
-之后的新数据不发 Sentry 网络，排队请求不得启动；在途请求在宿主提供能力时 abort。`Sentry.getConsent()` 读取当前 client 状态；未启用 requireConsent 时恒为 true。缺 Storage 可降级为有界内存；条数／字节上限为 0 时不缓存。
+之后的新数据不发 Sentry 网络，排队请求不得启动；在途请求在宿主提供能力时 abort。即使随后立即重新同意，SDK 仍会尝试取消原请求；新请求和缓存补发按当前授权状态处理。`Sentry.getConsent()` 读取当前 client 状态；未启用 requireConsent 时恒为 true。缺 Storage 可降级为有界内存；条数／字节上限为 0 时不缓存。
 
 > `requireConsent` 是网络发送门禁，不是采样开关。要减少上报量，请配置 `sampleRate`、`tracesSampleRate` 或过滤规则。
 

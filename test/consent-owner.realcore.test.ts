@@ -18,16 +18,23 @@ describe('client consent 归属（真实 core）', () => {
   const clients: MiniappClient[] = [];
   let request: ReturnType<typeof vi.fn>;
   let disk: Map<string, string>;
+  let host: {
+    request: ReturnType<typeof vi.fn>;
+    getStorageSync: (key: string) => string | undefined;
+    setStorageSync: (key: string, value: string) => void;
+    removeStorageSync: (key: string) => void;
+  };
   beforeEach(() => {
     vi.useFakeTimers();
     disk = new Map<string, string>();
     request = vi.fn();
-    vi.stubGlobal('wx', {
+    host = {
       request,
       getStorageSync: (key: string) => disk.get(key),
       setStorageSync: (key: string, value: string) => disk.set(key, value),
       removeStorageSync: (key: string) => disk.delete(key),
-    });
+    };
+    vi.stubGlobal('wx', host);
     resetPlatformCache();
   });
   afterEach(() => {
@@ -245,6 +252,80 @@ describe('client consent 归属（真实 core）', () => {
     ]);
     expect([...disk.values()].join('')).not.toContain('inflight');
     expect([...disk.values()].join('')).not.toContain('queued');
+    owner.dispose();
+
+    for (const [phase, abortBehavior] of [
+      ['call', 'fail'],
+      ['call', 'throw'],
+      ['getter', 'fail'],
+    ] as const) {
+      request.mockClear();
+      const current = init({
+        dsn: 'https://first@example.com/1',
+        requireConsent: true,
+        defaultIntegrations: false,
+        transportOptions: { maxConcurrentRequests: 1 },
+      })!;
+      clients.push(current);
+      const delivered: Envelope[] = [];
+      const abortBeforeReturn = vi.fn(() => {
+        if (abortBehavior === 'throw') throw new Error('host abort unavailable');
+        request.mock.calls[0]![0].fail({ errMsg: 'aborted after task return' });
+      });
+      request.mockImplementation((options) => {
+        if (phase === 'call' && request.mock.calls.length === 1) {
+          current.setConsent(false);
+          current.setConsent(true);
+          return { abort: abortBeforeReturn };
+        }
+        delivered.push(parseEnvelope(options.data));
+        options.success({ statusCode: 200 });
+        return {};
+      });
+      current.setConsent(true);
+      if (phase === 'getter') {
+        let cancelOnRead = true;
+        Object.defineProperty(host, 'request', {
+          configurable: true,
+          get() {
+            if (cancelOnRead) {
+              cancelOnRead = false;
+              current.setConsent(false);
+              current.setConsent(true);
+            }
+            return request;
+          },
+        });
+      }
+      const eventId = `regrant-${phase}-${abortBehavior}`;
+      await current.getTransport()!.send(createEventEnvelope(eventId));
+      expect(abortBeforeReturn).toHaveBeenCalledTimes(phase === 'call' ? 1 : 0);
+      expect(request).toHaveBeenCalledTimes(phase === 'call' ? 1 : 0);
+      expect(current.getConsent()).toBe(true);
+      expect([...disk.values()].join('')).toContain(eventId);
+      // 原请求的迟到回调不能重新结算，或改变唯一 Core 离线记录。
+      if (phase === 'call') {
+        request.mock.calls[0]![0].success({ statusCode: 200 });
+        request.mock.calls[0]![0].fail({ errMsg: 'late failure' });
+      }
+      await vi.advanceTimersByTimeAsync(6000);
+      const flushing = current.flush(1000);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await flushing).toBe(true);
+      const items = delivered.flatMap<Envelope[1][number]>((envelope) => envelope[1]);
+      expect(
+        items.filter(([header]) => header.type === 'event').map(([, payload]) => payload),
+      ).toEqual([expect.objectContaining({ event_id: eventId })]);
+      expect(
+        items.filter(([header]) => header.type === 'client_report').map(([, payload]) => payload),
+      ).toEqual([
+        expect.objectContaining({
+          discarded_events: [{ reason: 'network_error', category: 'error', quantity: 1 }],
+        }),
+      ]);
+      expect([...disk.values()].join('')).not.toContain(eventId);
+      current.dispose();
+    }
   });
 
   it('实例授权排 core 日志缓冲；新 runtime 不继承旧授权，旧实例 API 不授权新实例', () => {
