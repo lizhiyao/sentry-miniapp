@@ -36,6 +36,10 @@ yarn run docs:preview    # 预览构建产物
 
 页面标题和独立描述由 Markdown frontmatter 的 `title` / `description` 维护。标题说明用户要解决的问题，开头直接回答接入或排障要点，正文链接到下一步需要的指南；内容必须与实际支持范围一致。
 
+站点所有权使用 `public/google0f2e21db6b932133.html` 验证。该文件来自 Google Search Console，需要原样保留并持续部署到站点根目录；删除或替换会影响所有者的验证状态。更换验证账号时，先为新账号完成独立验证，再处理旧账号的验证文件。
+
+首轮 SEO 优化于 **2026-10-11** 上线，范围见 [PR #507](https://github.com/lizhiyao/sentry-miniapp/pull/507)。Search Console 资源也从这一天开始配置；若没有既有历史数据，先将首个完整两周作为基线，再与后续等长时间比较曝光、点击、点击率和搜索词变化。
+
 通过 [Google Search Console](https://search.google.com/search-console) 查看搜索流量：
 
 1. 添加网址前缀资源 `https://sentry-miniapp.pages.dev/` 并验证所有权。使用 HTML 验证文件时，将 Google 提供的文件原样放到 `website/public/` 后部署；使用 HTML 标签时，将提供的验证 meta 加到站点 `head`。域名资源需要 DNS 权限，当前 `pages.dev` 地址使用网址前缀资源即可。
