@@ -554,30 +554,52 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('单次公开 flush 不重复 hook，dispose 中断忽略 timeout 的自定义 transport', async () => {
-    let complete!: (value: boolean) => void;
-    const client = make({
-      transport: () => ({
-        send: () => Promise.resolve({}),
-        flush: () =>
-          new Promise<boolean>((resolve) => {
-            complete = resolve;
+  it.each(['before-transport', 'in-transport'] as const)(
+    'dispose 在 %s 阶段中断 flush，不重进 hook 或启动退休 transport',
+    async (stage) => {
+      const complete: Array<(value: boolean) => void> = [];
+      const fail: Array<(error: Error) => void> = [];
+      let completeSend!: (value: { statusCode?: number }) => void;
+      const flush = vi.fn(
+        () =>
+          new Promise<boolean>((resolve, reject) => {
+            complete.push(resolve);
+            fail.push(reject);
           }),
-      }),
-    });
-    const flushHook = vi.fn();
-    client.on('flush', flushHook);
-    const first = client.flush();
-    const second = client.flush();
-    await vi.advanceTimersByTimeAsync(10);
-    expect(flushHook).toHaveBeenCalledTimes(2);
-    client.dispose();
-    expect(await first).toBe(false);
-    expect(await second).toBe(false);
-    complete(true);
-    await Promise.resolve();
-    expect(vi.getTimerCount()).toBe(0);
-  });
+      );
+      const client = make({
+        transport: () => ({
+          send: () =>
+            new Promise<{ statusCode?: number }>((resolve) => {
+              completeSend = resolve;
+            }),
+          flush,
+        }),
+      });
+      const flushHook = vi.fn();
+      const afterEnvelope = vi.fn();
+      client.on('flush', flushHook);
+      client.on('afterEnvelope', afterEnvelope);
+      const sent = client.sendEnvelope(createEventEnvelope('custom pending'));
+      const first = client.flush();
+      const second = client.flush();
+      if (stage === 'in-transport') await vi.advanceTimersByTimeAsync(10);
+      expect(flushHook).toHaveBeenCalledTimes(2);
+      expect(flush).toHaveBeenCalledTimes(stage === 'in-transport' ? 2 : 0);
+      client.dispose();
+      expect(await sent).toEqual({});
+      expect(await first).toBe(false);
+      expect(await second).toBe(false);
+      complete[0]?.(true);
+      fail[1]?.(new Error('late custom flush failure'));
+      completeSend({});
+      await vi.advanceTimersByTimeAsync(1);
+      expect(flush).toHaveBeenCalledTimes(stage === 'in-transport' ? 2 : 0);
+      expect(flushHook).toHaveBeenCalledTimes(3);
+      expect(afterEnvelope).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
 
   it('第三方 flush/close hook 抛错仍清理 SDK 资源，关闭后不调用 finalizer', async () => {
     const client = make();
@@ -627,10 +649,13 @@ describe('真实 core client 关闭与发送边界', () => {
     first.dispose();
   });
 
-  it('同步 sampler/span/DSC/beforeBreadcrumb 内 init 拒绝重入且保留原绑定', async () => {
+  it('同步 sampler/span/DSC/breadcrumb/log/metric 内 init 拒绝重入且保留原绑定', async () => {
     const attempts: Array<MiniappClient | undefined> = [];
-    const attempt = () =>
-      attempts.push(init({ dsn: 'https://test@example.com/1', defaultIntegrations: false }));
+    const attempt = () => {
+      const client = init({ dsn: 'https://test@example.com/1', defaultIntegrations: false });
+      attempts.push(client);
+      if (client) clients.push(client);
+    };
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const owner = init({
       dsn: 'https://test@example.com/0',
@@ -649,22 +674,34 @@ describe('真实 core client 关闭与发送边界', () => {
         attempt();
         return breadcrumb;
       },
+      beforeSendLog: (log) => {
+        attempt();
+        return log;
+      },
+      beforeSendMetric: (metric) => {
+        attempt();
+        return metric;
+      },
     })!;
     clients.push(owner);
     owner.on('createDsc', attempt);
     startInactiveSpan({ name: 'hook reentry' }).end();
     addBreadcrumb({ message: 'manual breadcrumb' });
+    logger.info('log reentry');
+    metrics.count('metric reentry', 1);
     owner.captureMessage('breadcrumb reentry');
     const flushed = owner.flush();
     await vi.runAllTimersAsync();
     await flushed;
-    expect(attempts.length).toBeGreaterThanOrEqual(4);
+    expect(attempts.length).toBeGreaterThanOrEqual(6);
     expect(attempts.every((client) => client === undefined)).toBe(true);
     expect(getClient()).toBe(owner);
     expect(getDiagnostics().warnings.map((warning) => warning.code)).toContain(
       'reentrant_init_unsupported',
     );
-    expect(envelopes).toHaveLength(2);
+    expect(envelopes).toHaveLength(4);
+    expect(collectEnvelopePayloads(envelopes, ['log'])).toHaveLength(1);
+    expect(collectEnvelopePayloads(envelopes, ['trace_metric'])).toHaveLength(1);
     const event = collectEnvelopePayloads<ErrorEvent>(envelopes, ['event'])[0]!;
     expect(event.breadcrumbs).toEqual([expect.objectContaining({ message: 'manual breadcrumb' })]);
   });
@@ -829,33 +866,71 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(lateProducerResource).toHaveBeenCalledOnce();
   });
 
-  it('A 被 init 替换后，旧 offline retry 不读写或消费 B 的缓存', async () => {
-    const storage = new Map<string, string>();
-    const request = vi.fn((options: { fail: (error: { errMsg: string }) => void }) => {
-      options.fail({ errMsg: 'offline' });
-      return {};
-    });
-    const get = vi.fn((key: string) => storage.get(key));
-    const set = vi.fn((key: string, value: string) => storage.set(key, value));
-    vi.stubGlobal('wx', { request, getStorageSync: get, setStorageSync: set });
-    const options = { dsn: 'https://test@example.com/0', defaultIntegrations: false as const };
-    const first = init(options)!;
-    clients.push(first);
-    first.captureMessage('A failed request');
-    await vi.advanceTimersByTimeAsync(1);
-    expect(storage.get('sentry_miniapp_offline_v2')).toContain('A failed request');
-    const second = init({ ...options, enableOfflineCache: false })!;
-    clients.push(second);
-    const reads = get.mock.calls.length;
-    const writes = set.mock.calls.length;
-    const requests = request.mock.calls.length;
-    await vi.advanceTimersByTimeAsync(6000);
-    expect(get).toHaveBeenCalledTimes(reads);
-    expect(set).toHaveBeenCalledTimes(writes);
-    expect(request).toHaveBeenCalledTimes(requests);
-    expect(storage.get('sentry_miniapp_offline_v2')).toContain('A failed request');
-    expect(getClient()).toBe(second);
-  });
+  it.each(['before-retry', 'handoff', 'after-handoff'] as const)(
+    'A 在 %s 被 init 替换后，旧 offline retry 不读写或消费 B 的缓存',
+    async (stage) => {
+      const storage = new Map<string, string>();
+      const request = vi.fn(
+        (options: { data: string; fail: (error: { errMsg: string }) => void }) => {
+          options.fail({ errMsg: 'offline' });
+          return {};
+        },
+      );
+      const get = vi.fn((key: string) => storage.get(key));
+      let onDelete: (() => void) | undefined;
+      const set = vi.fn((key: string, value: string) => {
+        storage.set(key, value);
+        if (onDelete && (value === '' || JSON.parse(value).records.length === 0)) {
+          const replace = onDelete;
+          onDelete = undefined;
+          void Promise.resolve().then(() => {
+            if (stage === 'after-handoff') void Promise.resolve().then(replace);
+            else replace();
+          });
+        }
+      });
+      vi.stubGlobal('wx', { request, getStorageSync: get, setStorageSync: set });
+      const options = { dsn: 'https://test@example.com/0', defaultIntegrations: false as const };
+      const first = init(options)!;
+      clients.push(first);
+      first.captureMessage('A failed request');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(storage.get('sentry_miniapp_offline_v2')).toContain('A failed request');
+      let second!: MiniappClient;
+      const replace = () => {
+        second = init({
+          ...options,
+          dsn: 'https://test@example.com/1',
+          enableOfflineCache: false,
+        })!;
+        clients.push(second);
+      };
+      if (stage === 'before-retry') replace();
+      else {
+        onDelete = replace;
+        const flushed = first.flush(100);
+        await vi.advanceTimersByTimeAsync(100);
+        await flushed;
+      }
+      expect(
+        request.mock.calls.filter(([sent]) => sent.data.includes('A failed request')),
+      ).toHaveLength(1);
+      const reads = get.mock.calls.length;
+      const writes = set.mock.calls.length;
+      const requests = request.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(get).toHaveBeenCalledTimes(reads);
+      expect(set).toHaveBeenCalledTimes(writes);
+      expect(request).toHaveBeenCalledTimes(requests);
+      if (stage === 'before-retry') {
+        expect(storage.get('sentry_miniapp_offline_v2')).toContain('A failed request');
+      } else {
+        // best-effort 删除已提交；退休记录不能为了回填而碰 B 的存储。
+        expect(storage.get('sentry_miniapp_offline_v2')).toBe('');
+      }
+      expect(getClient()).toBe(second);
+    },
+  );
 
   it('直接构造的非 runtime client 不获得 SDK 持久 cache 的消费权限', async () => {
     const get = vi.fn();

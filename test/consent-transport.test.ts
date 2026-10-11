@@ -40,6 +40,11 @@ describe('createConsentAwareOfflineTransport', () => {
     expect(store.unshift).toHaveBeenCalledOnce();
     expect(store.push).not.toHaveBeenCalled();
     expect(queued?.[0].event_id).toBe('retry');
+    getTransportRuntime(transport)!.shutdown();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(store.shift).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledOnce();
   });
 
   it('独立 runtime handle 可暂停、恢复及永久停止重放，正 timeout flush 不代替 replay 请求', async () => {
@@ -50,9 +55,10 @@ describe('createConsentAwareOfflineTransport', () => {
       unshift: vi.fn(() => Promise.resolve()),
       shift: vi.fn(() => Promise.resolve(queued.shift())),
     };
+    const flush = vi.fn(() => Promise.resolve(true));
     const base: Transport = {
       send: vi.fn(() => Promise.resolve({ statusCode: 200 })),
-      flush: vi.fn(() => Promise.resolve(true)),
+      flush,
     };
     const transport = createConsentAwareOfflineTransport(
       base,
@@ -72,10 +78,15 @@ describe('createConsentAwareOfflineTransport', () => {
     runtime.requestReplay();
     await vi.advanceTimersByTimeAsync(100);
     expect(base.send).toHaveBeenCalledOnce();
+    flush.mockRejectedValueOnce(new Error('cleanup flush unavailable'));
+    runtime.shutdown();
+    const flushCalls = flush.mock.calls.length;
     runtime.shutdown();
     runtime.requestReplay();
     await vi.advanceTimersByTimeAsync(1000);
     expect(store.shift).toHaveBeenCalledOnce();
+    expect(flush).toHaveBeenCalledTimes(flushCalls);
+    expect(vi.getTimerCount()).toBe(0);
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -134,14 +145,30 @@ describe('createConsentAwareOfflineTransport', () => {
     expect(baseTransport.flush).toHaveBeenCalledWith(20);
   });
 
-  it('已安排的重试遇到撤回同意时不消费缓存且不发送网络', async () => {
+  it.each([
+    'before-shift',
+    'after-shift-consent',
+    'after-shift-owner',
+    'after-handoff-owner',
+  ] as const)('离线交付在 %s 停止时不发网；仅存续 owner 可保存撤权记录', async (stage) => {
     vi.useFakeTimers();
     const envelope = createEventEnvelope('revoked-before-retry');
     let granted = true;
+    let active = true;
     const store: OfflineStore = {
       push: vi.fn(() => Promise.resolve()),
       unshift: vi.fn(() => Promise.resolve()),
-      shift: vi.fn(() => Promise.resolve(envelope)),
+      shift: vi.fn(() => {
+        void Promise.resolve().then(() => {
+          if (stage === 'after-handoff-owner') {
+            void Promise.resolve().then(() => {
+              active = false;
+            });
+          } else if (stage === 'after-shift-owner') active = false;
+          else granted = false;
+        });
+        return Promise.resolve(envelope);
+      }),
     };
     const baseTransport: Transport = {
       send: vi.fn(() => Promise.resolve({ statusCode: 200 })),
@@ -152,14 +179,24 @@ describe('createConsentAwareOfflineTransport', () => {
       { url: 'https://o0.ingest.sentry.io/api/0/envelope/', recordDroppedEvent: vi.fn() },
       store,
       () => granted,
+      () => active,
     );
 
     transport.flush();
-    granted = false;
+    if (stage === 'before-shift') granted = false;
     await vi.advanceTimersByTimeAsync(100);
 
-    expect(store.shift).not.toHaveBeenCalled();
-    expect(store.unshift).not.toHaveBeenCalled();
+    expect(store.shift).toHaveBeenCalledTimes(stage === 'before-shift' ? 0 : 1);
+    expect(store.unshift).toHaveBeenCalledTimes(stage === 'after-shift-consent' ? 1 : 0);
     expect(baseTransport.send).not.toHaveBeenCalled();
+    if (stage === 'after-shift-owner' || stage === 'after-handoff-owner') {
+      // closing 的存储权已退休，但已接受的新鲜 envelope 仍可正常排空。
+      const fresh = createEventEnvelope('accepted-before-close');
+      await expect(transport.send(fresh)).resolves.toEqual({ statusCode: 200 });
+      expect(baseTransport.send).toHaveBeenCalledExactlyOnceWith(fresh);
+    }
+    getTransportRuntime(transport)!.shutdown();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

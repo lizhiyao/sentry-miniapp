@@ -372,3 +372,17 @@ lint、源码／测试严格类型和全量 coverage／shuffle 通过；覆盖�
 强化现有 helper、原生捕获、Session、client reports 和实际包消费场景，测试定义保持 77 文件／1277 用例，CJS／ESM 各 21 个行为场景。中文／英文 README、微信／Taro／uni-app 示例的初始化和 Error 拒绝用法与当前入口一致，无需为本修复改写示例。官网补充缺少来源栈时的定位边界；维护者文档解释当前适配职责，不把复现过程放入用户流程。
 
 lint、源码／测试严格类型、全量 coverage／shuffle、标准构建／真实安装包消费、微信独立 bundle／本地映射通过。覆盖率门槛不变：statements 98.71%、branches 95.91%、functions 99.20%、lines 99.41%。本轮为受控宿主、真实 Core 与实际构建包验证，不归因为特定手机故障；未新增 npm 发布、真机或目标 Sentry 后台验收，修复需随后续版本发布。
+
+## 退休资源、离线交付与批量回调复核（2026-10-11）
+
+基线为 `master 6947f6b`（#498）重新构建的实际 CJS／ESM 包，已含未发布的宿主输入修复。四类接缝缺陷在基线复现：beforeSendLog／Metric 允许同步 init 中途切换 runtime 并丢弃本次数据；SDK 外层 flush 提前结算后 Core 仍等待自定义 send／flush，悬挂任务会留住旧 client，processing 等待结束后还可能调用已关闭的底层 flush；offline 永久 shutdown 保留原长退避 timer；磁盘删除提交后的 Promise 交付窗口退休 owner，旧重放仍可利用 closing 的发送窗口启动。
+
+采集回调复用同步临界区，错误／过滤仍委托 Core。transport 适配与 SDK flush 共用独立的终态等待句柄，dispose 结算 Core-facing 等待并抑制迟到 afterEnvelope，保留自定义任务自身的取消责任。offline shutdown 通过 Core 公开无参数 flush 把长退避替换成当前 100ms 空 tick，在 store 交付与 Core shouldSend 两处复查 owner；仅撤回同意而 owner 仍活动时，继续由 Core unshift 保存原记录。没有新增 protected 覆写、重试状态机、存储 ACK 或私有 buffer／timer 访问，选择理由及固定官方源码见[官方实践](sdk-official-practices.md#生命周期和晚到批次)。
+
+七平台 × 两入口 × 八类实际包探针的基线／候选共 224 项对照均符合预期：基线 98 项复现上述缺陷、14 项无 off client 回收对照通过，候选 112 项全部通过。GC 探针分别覆盖默认 offline、flush 尚未进入／已进入底层、自定义 send 悬挂，外部仍持有原 Promise 时候选 client 可回收；离线交付探针在删除提交后的 microtask 更换目标，新 client 生效且旧缓存不发网。另有两树七平台两入口的 28 项重复 init／dispose 探针，每项 15 个 client 均可回收。没有 off 的模拟宿主仍保留惰性回调，不把 client 回收描述成宿主监听数量恒定；归属与长期取舍写入 ARCHITECTURE。
+
+两树 CJS／ESM 的 Logs／Metrics／Span × 接受、null、抛错、flush、close、dispose、嵌套采集、init 共 96 项组合符合各自 Core 契约，没有确认额外缺陷。beforeSendSpan 返回 null 不会丢弃，抛错会保留原 span；采集中 close 排出已有批次，dispose 排弃数据。Core 格式／回调语义保持原职责。
+
+强化原有回归与安装包行为场景：Vitest 定义未增加，参数组合展开后为 77 文件／1283 用例；CJS／ESM 各仍为 21 个包行为场景。lint、严格类型、全量 coverage／shuffle、标准构建与真实安装包消费、微信独立 bundle／本地映射及官网构建通过。覆盖率门槛不变：statements 98.72%、branches 95.90%、functions 99.37%、lines 99.42%。README／英文入口及示例用法已复核，官网仅补充切换配置与自定义 transport 关闭责任，不放入内部探针过程。
+
+此轮为真实 Core、构建产物及受控宿主验证；Node GC 不代表特定手机内存测试。未新增 npm 发布、真机或目标后台证据，修复需随后续版本发布；[#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 继续跟踪设备反馈。
