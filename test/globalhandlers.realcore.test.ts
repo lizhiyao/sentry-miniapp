@@ -26,7 +26,7 @@ import {
  * 平台 `wx.onError` 触发 → 经真 core 上报为 exception 事件，并带 `mechanism.handled=false`
  * （未处理错误的标志，core 据此把 Session 标记为 unhandled）。
  *
- * 历史单测把 captureException mock 掉，只断言「调用了」，测不到事件实际形态——本用例补这个真窟窿。
+ * 检查真实事件形态、异常来源和宿主监听的生命周期边界。
  */
 describe('GlobalHandlers（真 @sentry/core 集成）', () => {
   const g = global as any;
@@ -165,7 +165,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     expect(captured).toEqual([]);
   });
 
-  it('注册/getter 故障按能力隔离；不可读 native payload 不向宿主抛出', async () => {
+  it('监听故障隔离，rejection 保留原值与真实来源，不把监听器栈当成拒绝来源', async () => {
     g.wx.onError = vi.fn(() => {
       throw new Error('register failed');
     });
@@ -174,10 +174,15 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
         throw new Error('capability getter');
       },
     });
+    const originalReasons: unknown[] = [];
     const owner = init({
       dsn: 'https://test@example.com/1',
       defaultIntegrations: [new GlobalHandlers()],
       transport: createCapturingTransport(captured),
+      beforeSend: (event, hint) => {
+        originalReasons.push(hint.originalException);
+        return event;
+      },
     })!;
     const rejection = g.wx.onUnhandledRejection.mock.calls[0][0];
     const unreadable = Object.defineProperty({}, 'reason', {
@@ -186,7 +191,9 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
       },
     });
     expect(() => rejection(unreadable)).not.toThrow();
-    rejection({ reason: new Error('valid rejection'), promise: Promise.resolve() });
+    const error = new Error('valid rejection');
+    error.stack = 'Error: valid rejection\n    at submitOrder (pages/order/index.js:42:13)';
+    rejection({ reason: error, promise: Promise.resolve() });
     await owner.flush();
     const events = collectEnvelopePayloads<Event>(captured, ['event']);
     expect(events).toHaveLength(1);
@@ -194,6 +201,42 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
       type: 'onunhandledrejection',
       handled: false,
     });
+    expect(originalReasons[0]).toBe(error);
+    expect(events[0]!.exception?.values?.[0]?.stacktrace?.frames).toEqual([
+      expect.objectContaining({ filename: 'pages/order/index.js', lineno: 42, colno: 13 }),
+    ]);
+    const reasons = [
+      'Promise failed',
+      '',
+      42,
+      false,
+      null,
+      undefined,
+      BigInt(123),
+      Symbol('failed'),
+    ];
+    for (const reason of reasons) {
+      rejection({ reason, promise: Promise.resolve() });
+      await owner.flush();
+      const current = collectEnvelopePayloads<Event>(captured, ['event']);
+      expect(current).toHaveLength(originalReasons.length);
+      expect(originalReasons.at(-1)).toBe(reason);
+      const exception = current.at(-1)!.exception?.values?.[0];
+      expect(exception).toMatchObject({
+        type: 'UnhandledRejection',
+        value: `Non-Error promise rejection captured with value: ${String(reason)}`,
+        mechanism: { type: 'onunhandledrejection', handled: false, synthetic: true },
+      });
+      expect(exception?.stacktrace).toBeUndefined();
+    }
+    expect(collectEnvelopePayloads<Event>(captured, ['event'])).toHaveLength(1 + reasons.length);
+    const objectReason = { message: 'structured rejection', code: 'E_ORDER' };
+    rejection({ reason: objectReason, promise: Promise.resolve() });
+    await owner.flush();
+    expect(originalReasons.at(-1)).toBe(objectReason);
+    expect(
+      collectEnvelopePayloads<Event>(captured, ['event']).at(-1)?.extra?.['__serialized__'],
+    ).toEqual(objectReason);
     expect(g.wx.onPageNotFound).toHaveBeenCalledOnce();
   });
 

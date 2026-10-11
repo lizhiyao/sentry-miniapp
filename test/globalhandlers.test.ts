@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { captureException, withScope } from '@sentry/core';
+import { captureEvent, captureException, withScope } from '@sentry/core';
 import type { Event } from '@sentry/core';
 import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/globalhandlers';
 
@@ -9,6 +9,7 @@ const mockClient = vi.hoisted(() => ({ getOptions: () => ({}), registerCleanup: 
 vi.mock('@sentry/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sentry/core')>()),
   captureException: vi.fn(),
+  captureEvent: vi.fn(),
   getClient: () => mockClient,
   withScope: vi.fn(),
 }));
@@ -281,12 +282,23 @@ describe('GlobalHandlers', () => {
       const handler = mockSdk.onUnhandledRejection.mock.calls[0][0];
       handler({ reason: 'Promise failed', promise: Promise.resolve() });
 
-      expect(captureException).toHaveBeenCalledWith(
-        expect.any(Error),
+      expect(captureEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          mechanism: { type: 'onunhandledrejection', handled: false },
+          exception: {
+            values: [
+              {
+                type: 'UnhandledRejection',
+                value: 'Non-Error promise rejection captured with value: Promise failed',
+              },
+            ],
+          },
+        }),
+        expect.objectContaining({
+          originalException: 'Promise failed',
+          mechanism: { type: 'onunhandledrejection', handled: false, synthetic: true },
         }),
       );
+      expect(captureException).not.toHaveBeenCalled();
     });
 
     it('should capture Error reason directly', () => {

@@ -44,6 +44,8 @@ flowchart TD
 
 图中 transport 是 client 构造时装配的对象组合，并非所有配置都经过离线存储。正文观测的脱敏发生在网络／页面集成处；日志、span 和错误拥有各自的 Core 处理路径，共用发送边界。
 
+宿主未处理 Promise 拒绝的原始值没有业务来源栈；GlobalHandlers 采用 Browser 的最小 `UnhandledRejection` 事件表达，显式 String 转换兼容 Symbol，保留 hint 原因并标记 synthetic，不构造监听器 Error。真实 Error 和结构化原因仍交给 Core 事件构建；两条入口都使用 Core 的 scope、processors、beforeSend、Session 更新和发送管道。
+
 | 职责                | Core                                                                               | sentry-miniapp                                                         |
 | ------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | 公共 scope 与 trace | Scope、trace context、采样与 DSC                                                   | 重导出公共 API，提供宿主入口和操作归属                                 |

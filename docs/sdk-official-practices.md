@@ -24,6 +24,12 @@ Core fetch 与 Browser XHR 在 HTTP span 被 `ignoreSpans` 忽略、且存在活
 
 实现及回归见 [NetworkBreadcrumbs](../src/integrations/networkbreadcrumbs.ts)、[真实 Core 请求测试](../test/networkbreadcrumbs.realcore.test.ts)。
 
+## 未处理 Promise 拒绝的来源
+
+[Browser 全局拒绝监听](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/integrations/globalhandlers.ts#L76-L98)区分原始值和对象；其[原始值事件](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/integrations/globalhandlers.ts#L134-L146)使用 `UnhandledRejection`、显式 String 转换，不伪造来源 stack。本项目在宿主 `onUnhandledRejection` 入口采用相同事件形态，并标记 synthetic、保留 `hint.originalException`；真实 Error 和对象继续由 Core `captureException` 构建。最小事件通过公开 `captureEvent` 进入同一 Core pipeline，不复制 Browser eventbuilder 或改变主动 `captureException` 的语义。
+
+回归见 [GlobalHandlers 真实 Core 事件](../test/globalhandlers.realcore.test.ts)与[实际包入口的异常来源检查](../scripts/internal/check-package-behavior.mjs)。
+
 ## IP 推断与采集策略
 
 BrowserClient 按 `dataCollection.userInfo` 在 SDK metadata 写入 `settings.infer_ip`，Core 将设置合并进事件。[BrowserClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L128-L137)、[Core metadata](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/envelope.ts#L26-L45)。本项目同样对错误／消息事件明确表达该设置，因为在 SDK 内过滤用户字段不能阻止后台根据连接信息推断 IP。

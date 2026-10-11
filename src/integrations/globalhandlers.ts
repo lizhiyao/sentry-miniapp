@@ -1,4 +1,4 @@
-import { captureException, getClient, withScope } from '@sentry/core';
+import { captureEvent, captureException, getClient, isPrimitive, withScope } from '@sentry/core';
 import type { Client, Event, EventHint, Integration, IntegrationFn, Exception } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
@@ -93,8 +93,8 @@ export class GlobalHandlers implements Integration {
   private readonly _options: GlobalHandlersIntegrations;
 
   private _errorHandler: ((err: PlatformErrorValue) => void) | null = null;
-  private _rejectionHandler:
-    ((res: { reason: string | Error; promise: Promise<any> }) => void) | null = null;
+  private _rejectionHandler: ((res: { reason: unknown; promise: Promise<any> }) => void) | null =
+    null;
   private _pageNotFoundHandler:
     ((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => void) | null =
     null;
@@ -292,17 +292,38 @@ export class GlobalHandlers implements Integration {
   private _installGlobalOnUnhandledRejectionHandler(): void {
     if (this._isActiveClient()) {
       this._rejectionHandler = this._guard(
-        ({ reason, promise }: { reason: string | Error; promise: Promise<any> }) => {
-          const error = typeof reason === 'string' ? new Error(reason) : reason;
-          captureException(error, {
+        ({ reason, promise }: { reason: unknown; promise: Promise<any> }) => {
+          const primitive = isPrimitive(reason);
+          const hint: EventHint = {
+            originalException: reason,
             mechanism: {
               type: 'onunhandledrejection',
               handled: false,
+              ...(primitive && { synthetic: true }),
             },
             data: {
               promise,
             },
-          });
+          };
+          if (primitive) {
+            // 原始值没有拒绝来源栈；与 Browser 一样构造最小事件，Symbol 也显式转为字符串。
+            captureEvent(
+              {
+                level: 'error',
+                exception: {
+                  values: [
+                    {
+                      type: 'UnhandledRejection',
+                      value: `Non-Error promise rejection captured with value: ${String(reason)}`,
+                    },
+                  ],
+                },
+              },
+              hint,
+            );
+          } else {
+            captureException(reason, hint);
+          }
         },
       );
       this._listen('onUnhandledRejection', 'offUnhandledRejection', this._rejectionHandler);

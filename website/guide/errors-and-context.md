@@ -16,6 +16,8 @@
 
 初始化必须尽可能早。原生小程序应在入口文件顶部、`App()` 之前执行；小游戏应放在游戏入口最前面。
 
+Promise 的拒绝原因是 `Error` 时，SDK 保留其业务堆栈。字符串、数字、Symbol 等原始值没有来源堆栈，会显示为 `UnhandledRejection` 并记录该值；SDK 不把全局监听器的堆栈当成拒绝来源。业务希望定位拒绝位置时，应使用 `Promise.reject(new Error('说明'))` 或抛出 `Error`。`beforeSend` 的 `hint.originalException` 保留原始拒绝原因。
+
 > Taro / uni-app 的组件错误可能先被 React 或 Vue 接住，不再冒泡到宿主全局监听。请分别按照 [Taro 错误边界](/guide/taro#_4-组件错误-用-react-错误边界)或 [uni-app errorHandler](/guide/uniapp#_3-main-js-尽早初始化-接-vue-errorhandler-关键) 接入。
 
 ## 主动上报已处理的问题
