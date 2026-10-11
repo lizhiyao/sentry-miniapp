@@ -99,3 +99,12 @@ Core [`sendEnvelope`／`flush`](https://github.com/getsentry/sentry-javascript/b
 1. **HTTP span 低基数命名。** 官方 Browser 的 stream XHR 名称只保留方法和域名，把 URL 放在属性中，[见命名逻辑](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/tracing/request.ts#L382-L399)。本项目仍保留路径名称。后续应比较查询体验、分组基数和迁移影响，再决定默认命名；调整默认值需有消费构建与查询结果的对照。
 2. **仅错误监控的 tree-shaking。** 官方 Browser 的 [span API](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/tracing/browserSpanApi.ts#L13-L41) 在调用时安装 SpanStreaming，BrowserTracing 也负责装配；本项目默认 HTTP producer 需要默认 streaming。本项目须先测真实消费构建的体积和行为，再决定能否裁剪；不能为了减少体积移除仍需要的 SpanStreaming、编码或 transport 能力。
 3. **配置对象复用的默认集成回归。** Deno 特别测试同一 options 对象修改配置后再次 init 不沿用第一次的默认集合，[见测试](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/deno/test/sdk.test.ts#L65-L73)。本项目已每次构造默认实例，调整装配方式时须验证实际集成开关，不能照搬 Deno 的 tracing 集合。
+
+
+## 原生宿主监听与 client 订阅
+
+官方 Core 的 [addHandler／maybeInstrument](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/instrument/handlers.ts) 分离处理器和一次性全局 instrumentation；[Browser GlobalHandlers](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/integrations/globalhandlers.ts) 在处理器中检查当前 client。本项目采用同样的职责划分，并删除退休 client 的订阅；不能将 Browser 的全局处理器自动注册描述为它已替本项目保证了 client 回收。
+
+Core 的全局错误入口包装 `GLOBAL_OBJ.onerror`，不注册小程序宿主 onError。公开 addHandler／maybeInstrument 使用固定 Browser 事件类型和进程级标记，没有真实宿主对象／API 的 key，也不提供最后退订时 off 的协调。直接复用会混合不同事件源与数据形态，因此平台层保留一个窄的 [nativeEvents](../src/nativeEvents.ts) 桥接，负责真实宿主监听、可删除订阅、注册与移除中的同步重入；事件构建、Session 和网络发送仍委托现有接缝与 Core。
+
+无 off 或 off 抛错时复用同一 dispatcher，不让重复 init 留下更多原生监听；空 dispatcher 没有 client 处理器。全局宿主事件按交付时活动 client 处理，具体操作 callback 仍检查原 owner。宿主未提供事件生成代次时，无法识别跨 init 才交付的全局错误／hide 属于哪次初始化，不宣称异步上下文隔离。注册失败且不能确认移除时，能力按失败降级并不盲目重新注册。

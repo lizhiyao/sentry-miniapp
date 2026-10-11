@@ -82,7 +82,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
       defaultIntegrations: [new GlobalHandlers()],
       transport: createCapturingTransport(captured),
     })!;
-    expect(g.wx.offError).toHaveBeenCalledTimes(2);
+    expect(g.wx.offError).toHaveBeenCalledOnce();
     expect(g.wx.onUnhandledRejection).not.toHaveBeenCalled();
     const read = vi.fn();
     handlers[0]!(new Proxy({}, { get: read }));
@@ -90,7 +90,7 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     expect(getClientLifetime(owner)?.state).toBe('closed');
   });
 
-  it('同 integration 跨 A/B 复用仍独立；缺 off 的退休回调不读取参数或采集到 B', async () => {
+  it('同 integration 跨 A/B 复用：原生监听恒定，去重状态独立，只有当前 client 收集', async () => {
     g.wx.onMemoryWarning = vi.fn();
     const integration = new GlobalHandlers();
     const firstEnvelopes: Envelope[] = [];
@@ -119,17 +119,10 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
       defaultIntegrations: [integration],
       transport: createCapturingTransport(captured),
     })!;
-    const read = vi.fn(() => {
-      throw new Error('retired parameter read');
-    });
-    const unreadable = new Proxy({}, { get: read });
-    expect(() => {
-      oldError(unreadable);
-      oldRejection(unreadable);
-      oldPage(unreadable as any);
-      oldMemory(unreadable);
-    }).not.toThrow();
-    expect(read).not.toHaveBeenCalled();
+    expect(onErrorHandler).toBe(oldError);
+    expect(onPageNotFoundHandler).toBe(oldPage);
+    expect(g.wx.onUnhandledRejection).toHaveBeenCalledExactlyOnceWith(oldRejection);
+    expect(g.wx.onMemoryWarning).toHaveBeenCalledExactlyOnceWith(oldMemory);
     onErrorHandler!(new Error('same message'));
     await second.flush();
     expect(collectEnvelopePayloads<Event>(firstEnvelopes, ['event'])).toHaveLength(1);
@@ -138,6 +131,16 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     onErrorHandler!(new Error('B remains subscribed'));
     await second.flush();
     expect(collectEnvelopePayloads<Event>(captured, ['event'])).toHaveLength(2);
+    second.dispose();
+    const read = vi.fn(() => {
+      throw new Error('idle parameter read');
+    });
+    const unreadable = new Proxy({}, { get: read });
+    oldError(unreadable);
+    oldRejection(unreadable);
+    oldPage(unreadable as any);
+    oldMemory(unreadable);
+    expect(read).not.toHaveBeenCalled();
   });
 
   it('offError 失败或同步触发旧监听不影响其余 off，关闭后所有 handler 失效', () => {

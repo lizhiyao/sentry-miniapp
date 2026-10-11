@@ -89,7 +89,7 @@ describe('NetworkStatusIntegration', () => {
       offNetworkStatusChange: off,
     });
     integration.setup(mockClient as any);
-    expect(off).toHaveBeenCalledTimes(2);
+    expect(off).toHaveBeenCalledOnce();
     const read = vi.fn();
     handlers[0]!(new Proxy({}, { get: read }));
     expect(read).not.toHaveBeenCalled();
@@ -195,47 +195,48 @@ describe('NetworkStatusIntegration', () => {
 
     // 分发只采用活动 owner；不同 client 的订阅不能共享可变归属。
     expect(getNetworkType).toHaveBeenCalledTimes(2);
-    expect(onNetworkStatusChange).toHaveBeenCalledTimes(2);
+    expect(onNetworkStatusChange).toHaveBeenCalledOnce();
     expect(registerCleanup).toHaveBeenCalledOnce();
   });
 
-  it.each(['old-first', 'new-first'])('%s client cleanup 只解除对应网络监听', (order) => {
-    const handlers: Array<(res: any) => void> = [];
-    const off = vi.fn();
-    vi.mocked(crossPlatform.sdk).mockReturnValue({
-      request: vi.fn(),
-      onNetworkStatusChange: (handler: (res: any) => void) => handlers.push(handler),
-      offNetworkStatusChange: off,
-    });
-    const integration = new NetworkStatusIntegration();
-    integration.setup(mockClient as any);
-    const oldCleanup = mockClient.registerCleanup.mock.calls[0]![0];
-    const registerCleanup = vi.fn((cleanup: () => void) => {
-      activeCleanups.add(cleanup);
-    });
-    const secondClient = { registerCleanup, getOptions: () => ({}) };
-    mockGetClient.mockReturnValue(secondClient as any);
-    integration.setup(secondClient as any);
-    const newCleanup = registerCleanup.mock.calls[0]![0];
-    const retired = order === 'old-first' ? 0 : 1;
-    const [first, second] = retired === 0 ? [oldCleanup, newCleanup] : [newCleanup, oldCleanup];
+  it.each(['old-first', 'new-first'])(
+    '%s client cleanup 只删除自己的订阅，最后退订才解除原生监听',
+    (order) => {
+      const handlers: Array<(res: any) => void> = [];
+      const off = vi.fn();
+      vi.mocked(crossPlatform.sdk).mockReturnValue({
+        request: vi.fn(),
+        onNetworkStatusChange: (handler: (res: any) => void) => handlers.push(handler),
+        offNetworkStatusChange: off,
+      });
+      const integration = new NetworkStatusIntegration();
+      integration.setup(mockClient as any);
+      const oldCleanup = mockClient.registerCleanup.mock.calls[0]![0];
+      const registerCleanup = vi.fn((cleanup: () => void) => {
+        activeCleanups.add(cleanup);
+      });
+      const secondClient = { registerCleanup, getOptions: () => ({}) };
+      mockGetClient.mockReturnValue(secondClient as any);
+      integration.setup(secondClient as any);
+      const newCleanup = registerCleanup.mock.calls[0]![0];
+      const retired = order === 'old-first' ? 0 : 1;
+      const [first, second] = retired === 0 ? [oldCleanup, newCleanup] : [newCleanup, oldCleanup];
 
-    first!();
-    first!();
-    expect(off).toHaveBeenCalledExactlyOnceWith(handlers[retired]);
-    const read = vi.fn();
-    handlers[retired]!(new Proxy({}, { get: read }));
-    expect(read).not.toHaveBeenCalled();
-    handlers[1]!({ networkType: 'wifi', isConnected: true });
-    expect(mockAddBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
+      first!();
+      first!();
+      expect(handlers).toHaveLength(1);
+      expect(off).not.toHaveBeenCalled();
+      handlers[0]!({ networkType: 'wifi', isConnected: true });
+      expect(mockAddBreadcrumb).toHaveBeenCalledTimes(order === 'old-first' ? 1 : 0);
 
-    second!();
-    second!();
-    expect(off).toHaveBeenCalledTimes(2);
-    expect(off).toHaveBeenLastCalledWith(handlers[1 - retired]);
-    for (const handler of handlers) handler(new Proxy({}, { get: read }));
-    expect(read).not.toHaveBeenCalled();
-  });
+      second!();
+      second!();
+      expect(off).toHaveBeenCalledExactlyOnceWith(handlers[0]);
+      const read = vi.fn();
+      handlers[0]!(new Proxy({}, { get: read }));
+      expect(read).not.toHaveBeenCalled();
+    },
+  );
 
   it('should handle missing network APIs gracefully', () => {
     vi.spyOn(crossPlatform, 'sdk').mockReturnValue({ request: vi.fn() } as any);

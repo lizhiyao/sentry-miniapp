@@ -126,7 +126,7 @@ describe('Minigame 资源 owner（真实 core）', () => {
     host.onHide = register;
     start([], 'retired', factory());
     expect(register).toHaveBeenCalledOnce();
-    expect(host.offShow.mock.calls.length + host.offHide.mock.calls.length).toBe(2);
+    expect(host.offShow.mock.calls.length + host.offHide.mock.calls.length).toBe(1);
     const read = vi.fn();
     handlers[0]!(new Proxy({}, { get: read }));
     expect(read).not.toHaveBeenCalled();
@@ -160,7 +160,7 @@ describe('Minigame 资源 owner（真实 core）', () => {
     );
   });
 
-  it('同对象 A/B 复用：A 退休取消 SDK 帧，旧监听/帧不采集；B span 的 DSC 属于 B', async () => {
+  it('同对象 A/B 复用：A 退休取消 SDK 帧，监听复用；B span 的 DSC 属于 B', async () => {
     const firstEnvelopes: Envelope[] = [];
     const secondEnvelopes: Envelope[] = [];
     const integration = new MinigameIntegration();
@@ -173,13 +173,9 @@ describe('Minigame 资源 owner（真实 core）', () => {
     const second = start(secondEnvelopes, 'second', integration);
     expect(cancel).toHaveBeenCalledWith(1);
     getIsolationScope().clearBreadcrumbs();
-    const read = vi.fn(() => {
-      throw new Error('retired payload');
-    });
-    shows[0]!(new Proxy({}, { get: read }));
-    hides[0]!();
-    frame(0, 25);
-    expect(read).not.toHaveBeenCalled();
+    expect(shows).toHaveLength(1);
+    expect(hides).toHaveLength(1);
+    frame(0, 25); // 具体 rAF 操作仍属于 A，迟到帧不能采集到 B。
     expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
     expect(firstEnvelopes).toEqual([]);
     frame(1, 25);
@@ -194,7 +190,7 @@ describe('Minigame 资源 owner（真实 core）', () => {
     expect(spanAttribute(firstFrame, 'sentry.op')).toBe('ui.first_frame');
     expect(spanAttribute(firstFrame, 'minigame.init_to_first_frame_ms')).toBe(50);
     first.dispose();
-    shows[1]!({ scene: 1007 });
+    shows[0]!({ scene: 1007 });
     expect(getClient()).toBe(second);
   });
 
@@ -283,7 +279,7 @@ describe('Minigame 资源 owner（真实 core）', () => {
     expect(envelopes).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
   });
-  it('FPS 同对象 A/B：替换同步发 A summary、取消帧并释放监听；旧回调不写 B', async () => {
+  it('FPS 同对象 A/B：替换同步发 A summary、取消旧帧，宿主监听复用', async () => {
     const a: Envelope[] = [];
     const b: Envelope[] = [];
     const integration = new MinigameFrameRateIntegration({ reportInterval: 10000 });
@@ -301,12 +297,12 @@ describe('Minigame 资源 owner（真实 core）', () => {
     getIsolationScope().clearBreadcrumbs();
     const count = frames.length;
     frame(2, 100);
-    shows[0]!({});
-    hides[0]!();
+    expect(shows).toHaveLength(1);
+    expect(hides).toHaveLength(1);
     expect(frames).toHaveLength(count);
     expect(getIsolationScope().getScopeData().breadcrumbs).toEqual([]);
     frame(3, 20);
-    hides[1]!();
+    hides[0]!();
     const flushing = second.flush();
     await vi.advanceTimersByTimeAsync(1);
     await flushing;
@@ -360,7 +356,7 @@ describe('Minigame 资源 owner（真实 core）', () => {
     frame(2, 20);
     second.dispose();
     frame(3, 20);
-    hides[1]!();
+    hides[0]!();
     expect(b).toEqual([]);
   });
 

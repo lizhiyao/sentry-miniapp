@@ -1,9 +1,8 @@
 /**
  * 全局 App() 生命周期的单一包装点。
  *
- * 小程序的 `App()` 是全局构造函数，只应被猴补一次。此前 SessionIntegration 与
- * PageBreadcrumbs 各自独立猴补 App，存在还原顺序脆弱、重复的全局检测等问题
- * （架构 review P2-c）。这里用引用计数做单次包装：
+ * 小程序的 `App()` 是全局构造函数，生命周期订阅统一在这里包装，避免重复观测和
+ * 乱序还原。原生生命周期共享宿主监听，每个 owner 的协调与收尾仍独立：
  *
  * - 首个订阅者触发对 `globalThis.App` 的包装；最后一个退订时还原。
  * - 还原仅在「全局 App 仍是我们的 wrapper」时进行，杜绝乱序 cleanup 丢层 / 覆盖他人后续包装。
@@ -15,6 +14,7 @@
 import { getClient } from '@sentry/core';
 import type { Client } from '@sentry/core';
 import { isMinigame, sdk } from './crossPlatform';
+import { subscribeNativeEvent } from './nativeEvents';
 import { getClientLifetime } from './lifecycle';
 import type { ClientLifetime } from './lifecycle';
 import { createFunctionWrapper } from './helpers';
@@ -193,24 +193,12 @@ function channelActive(channel: NativeChannel): boolean {
 function installNativeChannel(channel: NativeChannel): void {
   const host = sdk();
   const game = isMinigame();
-  const listener = (key: keyof typeof host): Function | undefined => {
-    try {
-      const api = host[key];
-      return typeof api === 'function' ? api : undefined;
-    } catch (_error) {
-      return undefined;
-    }
-  };
   for (const [method, onKey, offKey] of [
     ['onShow', game ? 'onShow' : 'onAppShow', game ? 'offShow' : 'offAppShow'],
     ['onHide', game ? 'onHide' : 'onAppHide', game ? 'offHide' : 'offAppHide'],
   ] as const) {
     if (!channelActive(channel)) break;
-    const on = listener(onKey);
-    const off = listener(offKey);
-    if (!on || !channelActive(channel)) continue;
     const handler = (options?: unknown): void => {
-      if (!channelActive(channel)) return;
       channel.lastEvent = method;
       // Session 收尾与最终 flush 的顺序不取决于集成安装顺序。
       const snapshot = [...channel.subscribers];
@@ -218,24 +206,16 @@ function installNativeChannel(channel: NativeChannel): void {
         broadcast(snapshot, phase, method, options, channel.subscribers);
       }
     };
-    const release = (): void => {
-      try {
-        off?.call(host, handler);
-      } catch (_error) {
-        /* 一个 off 失败不阻断另一项；失效 handler 不再持有 owner。 */
-      }
-    };
-    channel.releases.push(release);
-    try {
-      on.call(host, handler);
-      if (method === 'onShow') channel.registeredShow = true;
-      else channel.registeredHide = true;
-    } catch (_error) {
-      /* 部分注册后抛错也保留 release，生命周期能力仍按注册失败降级。 */
-    } finally {
-      // 宿主可能在 on 调用中退休 client，却在 off 之后才保存 handler。
-      if (!channel.active) release();
-    }
+    const registered = subscribeNativeEvent(
+      host,
+      onKey,
+      offKey,
+      handler,
+      () => channelActive(channel),
+      (stop) => channel.releases.push(stop),
+    );
+    if (method === 'onShow') channel.registeredShow = registered;
+    else channel.registeredHide = registered;
   }
 }
 
@@ -248,7 +228,7 @@ interface MiniappLifecycleSubscription {
   lateInit: boolean;
 }
 
-/** App 前后阶段优先；不可包装的宿主复用每个活动 owner 的原生生命周期通道。 */
+/** App 前后阶段优先；原生路径共享宿主监听，每个活动 owner 的生命周期协调仍独立。 */
 export function subscribeMiniappLifecycle(
   client: Client,
   handlers: AppLifecycleHandlers,
