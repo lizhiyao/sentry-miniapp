@@ -49,7 +49,22 @@ yarn run docs:preview    # 预览构建产物
 
 验证方式见 [Google 所有权验证说明](https://support.google.com/webmasters/answer/9008080?hl=zh-Hans)，托管路由行为见 [Cloudflare Pages 路由规则](https://developers.cloudflare.com/pages/configuration/serving-pages/)，指标与筛选方法见 [Search Console 效果报告](https://support.google.com/webmasters/answer/7576553?hl=zh-Hans)。
 
-[Cloudflare Web Analytics](https://developers.cloudflare.com/web-analytics/) 可辅助观察到站访问及来源；Search Console 提供 Google 搜索中的曝光与点击。其它搜索引擎的表现需在各自站长工具中查看。站点尚未配置所有权验证或访问统计时，不把公开搜索结果数量当作流量基线。
+### 全站访问统计
+
+通过 Cloudflare Web Analytics 观察到站访问量、来源、热门页面及加载体验；Search Console 用于查看 Google 搜索中的曝光、点击和搜索词。其它搜索引擎的搜索表现需在各自站长工具中查看。
+
+Cloudflare Pages 的统计接入和核验步骤如下：
+
+1. 在 Cloudflare 控制台进入「Workers & Pages → sentry-miniapp → Metrics」，在「Web Analytics」启用统计。
+2. 重新部署正式站点。Pages 从下一次部署开始自动插入统计脚本，无需在 VitePress 配置中再添加同一脚本。
+3. 检查正式页面中只加载一次 Cloudflare beacon，浏览器网络面板中能看到统计请求成功；通过站内链接切换页面，确认新路径也被统计。Cloudflare beacon 默认支持单页应用导航，不额外添加路由上报。
+4. 进入「Web Analytics」，选择本站，查看访问量和页面浏览量，按来源及路径筛选；若统计包含预览域名，使用 Host 筛选 `sentry-miniapp.pages.dev`，避免把 PR 预览访问计入正式站点。
+
+每两周记录一段完整时间的 Visits、Page views、主要来源和热门页面，并关注上文四个重点指南的访问变化。Visits 是从外部来源或直接链接进入网站的访问次数，一次访问可以浏览多个页面；它不是去重后的用户人数。来源取决于浏览器提供的 referrer，浏览器拦截或上报失败也可能造成少报。
+
+访问统计从启用后开始积累；若没有既有数据，以首个完整两周作为基线，再与后续等长时间比较。不要将公开搜索结果数量、上线后的首日访问量或本次验证访问当作优化前的流量。
+
+配置和部署要求见 [Pages 统计接入](https://developers.cloudflare.com/pages/how-to/web-analytics/)，指标口径见 [Cloudflare 高层指标](https://developers.cloudflare.com/web-analytics/data-metrics/high-level-metrics/)，页面切换支持见 [单页应用统计](https://developers.cloudflare.com/web-analytics/get-started/web-analytics-spa/)。
 
 ## 部署（Cloudflare Pages）
 
