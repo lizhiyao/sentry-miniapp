@@ -13,7 +13,14 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
   srcExclude: ['README.md'], // 站点说明文档，不作为页面构建
-  head: [['link', { rel: 'icon', href: '/logo.png' }]],
+  head: [
+    ['link', { rel: 'icon', href: '/logo.png' }],
+    // Search Console 持续通过此标签确认站点所有权。
+    [
+      'meta',
+      { name: 'google-site-verification', content: 'XUylOdAYB-kXIXINMs7motMiKikZjlztkeZXf99uW_g' },
+    ],
+  ],
   sitemap: { hostname: SITE_URL },
   transformHead({ pageData }) {
     if (pageData.relativePath === '404.md') return [];
