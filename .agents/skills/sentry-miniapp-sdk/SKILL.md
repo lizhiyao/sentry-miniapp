@@ -8,7 +8,7 @@ metadata:
 
 # Sentry Mini Program SDK Setup
 
-Use this skill when a user wants to integrate or troubleshoot `sentry-miniapp` in a consumer application. Discover the application's runtime, installed SDK and entry point before choosing code. This guide covers the 2.0 beta contract.
+Use this skill when a user wants to integrate or troubleshoot `sentry-miniapp` in a consumer application. Discover the application's runtime, installed SDK and entry point before choosing code. This guide covers the stable 2.x contract.
 
 ## 1. Inspect the consumer
 
@@ -35,7 +35,7 @@ Determine:
 
 ## 2. Choose the SDK version and features
 
-An unqualified install selects stable 1.x; `@next` selects 2.0 beta. Do not silently migrate an existing 1.x application. Use the [version and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice), including its fixed 1.x documentation archive.
+An unqualified install selects the current stable release; `sentry-miniapp@2` selects the stable 2.x line. Use `@next` only when the user explicitly chooses a prerelease. Do not silently migrate an existing 1.x application. Use the [version and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice), including its fixed 1.x documentation archive.
 
 2.0 uses Core v11 and stream spans. Check the target Sentry deployment against the guide's support baseline; successful error ingestion alone does not prove support for spans, Logs, Metrics or Sessions.
 
@@ -52,13 +52,15 @@ Load only the references needed for the work. Automatic capture depends on avail
 
 ## 3. Install and initialize
 
-Use the consumer's existing package manager. For a chosen 2.0 beta, pin the resolved version and retain the lockfile:
+Use the consumer's existing package manager. For a chosen 2.x release, pin the resolved version and retain the lockfile:
 
 ```bash
-npm install --save-exact sentry-miniapp@next
+npm install --save-exact sentry-miniapp@2
 # Or, in a Yarn project:
-yarn add --exact sentry-miniapp@next
+yarn add --exact sentry-miniapp@2
 ```
+
+For native WeChat projects, run Tools → Build npm in the developer tools after installation or updates. Check the package.json/miniprogramRoot layout against the [native installation guide](https://sentry-miniapp.pages.dev/guide/getting-started#_1-安装); framework projects use their own build pipeline.
 
 Copy the complete DSN from the target Sentry project; do not construct its hostname. Configure the exact envelope request host as a legal request domain, or configure the chosen tunnel's host. Verify with device debugging and domain-check bypass disabled.
 

@@ -9,7 +9,7 @@
 ## 1. 安装
 
 ```bash
-npm install sentry-miniapp@next --save
+npm install sentry-miniapp --save
 ```
 
 ## 2. 初始化封装
@@ -79,7 +79,7 @@ uni-app 用**条件编译**按端引入——小程序用 `sentry-miniapp`，H5 
 用下方片段替换初始化封装中的 SDK 导入，保留后续的 `Sentry.init()`、标签设置和唯一的 `export default Sentry`。DSN、release 和 environment 可共用；平台专属选项放在对应分支。
 
 ```bash
-npm install sentry-miniapp@next @sentry/browser --save
+npm install sentry-miniapp @sentry/browser --save
 ```
 
 ```js

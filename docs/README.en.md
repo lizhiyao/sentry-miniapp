@@ -11,7 +11,7 @@
 
 [简体中文](../README.md) | English
 
-> This README and the current docs site cover the **2.0 beta**. Install `sentry-miniapp@next` to try it; an unqualified install selects stable 1.x. Choose a version below, then check delivery, original source locations and consent behavior in a test project. Beta feedback is collected in [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457).
+> This README and the current docs site cover the **stable 2.x release**. New projects can install `sentry-miniapp`; existing 1.x projects should read the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. Device and platform feedback is collected in [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457).
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 
@@ -41,7 +41,7 @@ Mini program runtimes may expose a window alias without DOM or browser request A
 | --- | --- |
 | 1.x meets your needs and runs reliably | Keep using 1.x; a Core version change alone does not require migration |
 | Your self-hosted Sentry is older than 26.4.2 and cannot be upgraded yet | Keep the 1.x version already verified with your deployment; see the [1.20.4 README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/docs/README.en.md) and [v1 documentation archive](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide) (Chinese) |
-| You use Sentry SaaS or a supported self-hosted deployment and need streamed tracing or business Metrics | Try the 2.0 beta in a test project after reading the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese) |
+| You use Sentry SaaS or a supported self-hosted deployment and need streamed tracing or business Metrics | Use 2.x after reading the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese), and verify it in a test project before deploying |
 
 Sentry SaaS (sentry.io) and supported newer self-hosted deployments can receive data from v1 and v2; you can keep your project and DSN. Core v11, used by 2.0, has an [official self-hosted support baseline](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x) of **Sentry 26.4.2 or higher**. Older deployments may partially work but are unsupported. Version 2.0 only supports streamed tracing and has no legacy tracing mode. Receiving an error or disabling tracing does not establish full compatibility with an older deployment.
 
@@ -56,7 +56,7 @@ Before you start:
 Install:
 
 ```bash
-npm install sentry-miniapp@next
+npm install sentry-miniapp
 ```
 
 For native WeChat projects, run **Tools → Build npm** in WeChat Developer Tools after installing or updating the SDK. See [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started#_1-安装) for directory requirements. Taro and uni-app handle dependencies through their framework builds.

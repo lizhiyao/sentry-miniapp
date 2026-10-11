@@ -81,7 +81,7 @@ node ../../scripts/internal/check-framework-sourcemaps.mjs \
   src/pages/test/test.tsx dist/pages/test/test.js dist/pages/test/test.js.map
 ```
 
-2.0 已提供 beta 预发布；本示例仍使用仓库构建。改为发布包时，安装 `sentry-miniapp@next` 或固定所需 beta 版本，并核对其 API 与[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
+2.0 已提供正式版；本示例仍使用仓库构建。改为发布包时，安装 `sentry-miniapp@2` 并提交锁文件，核对其 API 与[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ## 说明
 

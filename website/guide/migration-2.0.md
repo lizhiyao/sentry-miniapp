@@ -4,13 +4,13 @@
 
 ## 如何选择版本 {#version-choice}
 
-1.x 是稳定版，2.0 仍处于 beta。使用官方 Sentry SaaS，或达到 Core v11 官方支持基线的自建 Sentry（26.4.2 及以上）时，可以按项目需要选择 v1 或 v2；已稳定运行的 1.x 项目无须为了版本号升级。
+2.0 已提供正式版，默认安装获取 2.x。使用官方 Sentry SaaS，或达到 Core v11 官方支持基线的自建 Sentry（26.4.2 及以上）时，可以按项目需要选择 v1 或 v2；已稳定运行的 1.x 项目可继续使用已验收版本。
 
 | 项目情况 | 建议 |
 | --- | --- |
 | 已使用 1.x，现有监控满足需要 | 保留已经验收的 1.x 配置和版本 |
-| 新项目优先使用稳定版 | 接入 1.x，并使用下方的 1.x 文档归档 |
-| 需要 Metrics 或流式性能数据，且可接受 beta 变更 | 先在测试项目试用 2.0，再按本页迁移和验证 |
+| 新项目使用官方云服务或受支持的自建后台 | 接入 2.x，按当前官网配置并验证 |
+| 需要 Metrics 或流式性能数据 | 按本页迁移到 2.x，并在测试项目中验证后上线 |
 | 自建 Sentry 低于 26.4.2，暂时不能升级后台 | 继续使用该后台已经验收过的 v1；不能据此保证任意旧后台都兼容 v1 |
 
 错误监控、网络面包屑、离线缓存、Source Map 和链路追踪在 1.x 已有。2.0 可用 Metrics 记录业务计数和数值分布；性能数据采用流式 span，长流程尚未结束时，也能按批次发送已完成的子操作，减少等待整个流程收尾的时间。实际展示与接收仍取决于目标 Sentry 的能力和配置。
@@ -19,19 +19,19 @@ Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://git
 
 1.x 用户请查阅固定在 `v1.20.4` tag 的 [README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/README.md)、[官网源码归档](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website)和[接入指南目录](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide)。当前官网的接入与配置示例对应 2.0，不应直接用于 1.x；更早的 1.x 变更见归档中的 `migration-1.19.md`。
 
-选定 2.0 后，运行 `npm install --save-exact sentry-miniapp@next`，将当前预发布的完整版本号写入依赖，并提交锁文件。用 `npm ls sentry-miniapp` 确认实际安装版本；默认安装仍获取 1.x 稳定版。
+选定 2.x 后，运行 `npm install --save-exact sentry-miniapp@2`，将完整版本号写入依赖，并提交锁文件。用 `npm ls sentry-miniapp` 确认实际安装版本。继续使用 1.x 时，保留已验收版本，或显式安装 `sentry-miniapp@1`，不要使用默认安装替代版本选择。
 
-已使用早期 beta 的项目也应更新到当前版本；各版本修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
+已使用 beta 的项目也应通过上述命令切换到正式版；`@next` 是预发布渠道，不用于本次正式版升级。各版本修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
 
-## 试用前需要确认
+## 上线前需要确认 {#试用前需要确认}
 
-2.0 仍处于 beta 阶段，API 和行为可能继续调整。不同平台的真机验证尚在进行，建议先在测试项目中接入，并检查：
+正式发布已完成自动化契约、实际包消费和框架构建检查；不同平台与设备的真实运行反馈仍在持续收集。上线前，按项目启用的功能在目标设备与自己的 Sentry 后台检查：
 
 - 在目标设备上测试切到后台再返回、断网后恢复，以及用户撤回隐私授权后的行为。
 - 触发一次业务错误，确认 Sentry 能收到，并显示正确的源码文件和行号。上传的 JS 与 Source Map 必须来自运行中的同一版本构建，见 [Source Map 指南](/guide/sourcemap)。
 - 使用性能监控时，确认 Sentry 服务支持 `span/v2`（2.0 使用的性能数据格式），并能显示请求和业务操作的耗时。
 
-遇到问题可按 [beta 真机反馈说明](https://github.com/lizhiyao/sentry-miniapp/issues/457) 提供平台、版本、复现步骤和事件 ID。
+遇到问题可按 [真实设备反馈说明](https://github.com/lizhiyao/sentry-miniapp/issues/457) 提供平台、版本、复现步骤和事件 ID。完整真机矩阵仍待反馈，正式发布不代表所有设备组合均已验收。
 
 ## 公共 API 与集成
 
@@ -51,7 +51,7 @@ Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://git
 删除旧 `sendDefaultPii` 和 `enableLogs` 配置；保留旧值会导致初始化报错，添加新配置后也须移除旧键。隐私配置改用下文的 [`dataCollection`](#data-collection-migration)，日志过滤改用 `beforeSendLog`。
 
 ::: warning 早期 beta 用户
-请更新到当前预发布，并检查实际采集策略。早期 beta 可能静默忽略旧开关，不能依赖它们限制采集；具体修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
+请更新到正式版，并检查实际采集策略。早期 beta 可能静默忽略旧开关，不能依赖它们限制采集；具体修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
 :::
 
 原 System 独有的存储配额、应用更新信息由业务按实际需要采集。例如微信业务代码显式关联存储信息，不增加 SDK 默认权限调用：

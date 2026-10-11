@@ -2,7 +2,7 @@
 
 `Sentry.init({ ... })` 的常用选项与小程序扩展选项。通常只需 `dsn` + `release` 即可上手（见[快速接入](/guide/getting-started)），下面按参数类别列出类型、默认值和行为。
 
-本页对应 2.0 beta。1.x 的接入与参数请使用[版本选择页中的归档文档](/guide/migration-2.0#version-choice)。
+本页对应 2.x 正式版。1.x 的接入与参数请使用[版本选择页中的归档文档](/guide/migration-2.0#version-choice)。
 
 如果你还在判断“为什么需要这个选项”，先看对应的[异常、日志与上下文](/guide/errors-and-context)、[性能与链路追踪](/guide/performance-and-tracing)、[可靠上报与隐私同意](/guide/reliability-and-privacy)或[小游戏](/guide/minigame)指南。
 
