@@ -34,7 +34,7 @@
 | [v1 → v2 迁移成本](core-v11-migration-cost-review.md) | 旧配置、公开 API 与迁移取舍 |
 | [示例依赖审查](example-dependency-security.md) | 示例工具链的修补与当时的审计快照 |
 
-目标设备上的前后台恢复、弱网、存储与隐私撤回反馈由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 收集，证据按实际 SDK 版本记录。
+目标设备上的前后台恢复、弱网、存储与隐私撤回问题请[提交缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)，附实际 SDK／平台版本、复现步骤与证据。集中验收的历史记录保留在 [#457（已关闭）](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
 
 ## 维护约定
 

@@ -103,7 +103,7 @@ sentry-miniapp/
 
 当前职责边界、Core 接缝、保留原因和升级验证统一见[架构文档](ARCHITECTURE.md#7-core-的受控接缝与演进条件)。升级精确依赖前，先检查候选 Core 的签名、调用顺序、发送格式和离线行为，再运行对应真实 Core 与实际包回归，不能只依据类型检查通过。
 
-同版本官方 SDK 的实现参考见[官方 SDK 实践](docs/sdk-official-practices.md)，查询参数兼容层的补丁退出条件见[依赖取舍](docs/query-runtime-decision.md)。按版本的审查、框架依赖记录和文章集中在[文档索引](docs/README.md)；目标设备反馈由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。
+同版本官方 SDK 的实现参考见[官方 SDK 实践](docs/sdk-official-practices.md)，查询参数兼容层的补丁退出条件见[依赖取舍](docs/query-runtime-decision.md)。按版本的审查、框架依赖记录和文章集中在[文档索引](docs/README.md)；目标设备问题请[提交缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)，历史集中验收记录见 [#457（已关闭）](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
 
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 

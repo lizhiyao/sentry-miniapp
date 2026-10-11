@@ -31,7 +31,7 @@ Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://git
 - 触发一次业务错误，确认 Sentry 能收到，并显示正确的源码文件和行号。上传的 JS 与 Source Map 必须来自运行中的同一版本构建，见 [Source Map 指南](/guide/sourcemap)。
 - 使用性能监控时，确认 Sentry 服务支持 `span/v2`（2.0 使用的性能数据格式），并能显示请求和业务操作的耗时。
 
-遇到问题可按 [真实设备反馈说明](https://github.com/lizhiyao/sentry-miniapp/issues/457) 提供平台、版本、复现步骤和事件 ID。完整真机矩阵仍待反馈，正式发布不代表所有设备组合均已验收。
+遇到问题请[提交缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)，提供 SDK／平台版本、复现步骤和事件 ID。完整真机矩阵仍未全部验收，正式发布不代表所有设备组合均已通过。
 
 ## 公共 API 与集成
 
