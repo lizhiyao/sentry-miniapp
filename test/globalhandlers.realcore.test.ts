@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { runInNewContext } from 'node:vm';
 import {
   captureException,
   getClient,
@@ -11,7 +12,7 @@ import {
 } from '@sentry/core';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
-import { init } from '../src/index';
+import { init, linkedErrorsIntegration } from '../src/index';
 import { GlobalHandlers } from '../src/integrations/globalhandlers';
 import { MiniappClient } from '../src/client';
 import { getClientLifetime } from '../src/lifecycle';
@@ -237,6 +238,21 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
     expect(
       collectEnvelopePayloads<Event>(captured, ['event']).at(-1)?.extra?.['__serialized__'],
     ).toEqual(objectReason);
+    const optionalPromise = Object.defineProperty(
+      { reason: new Error('optional promise unreadable') },
+      'promise',
+      {
+        get() {
+          throw new Error('promise getter');
+        },
+      },
+    );
+    expect(() => rejection(optionalPromise)).not.toThrow();
+    await owner.flush();
+    expect(originalReasons.at(-1)).toBe(optionalPromise.reason);
+    expect(
+      collectEnvelopePayloads<Event>(captured, ['event']).at(-1)?.exception?.values?.[0]?.value,
+    ).toBe('optional promise unreadable');
     expect(g.wx.onPageNotFound).toHaveBeenCalledOnce();
   });
 
@@ -466,9 +482,8 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
   });
 
   it('TryCatch 捕获带 cause 的错误后，宿主 onError 再报同一外层错误被去重', async () => {
-    // core 11 把 hint 的 instrument mechanism 施加到被捕获的外层异常上，GlobalHandlers 因此
-    // 入队的是外层错误的 type/value，与宿主 onError 报上来的那条一致。10.x 下入队的是根因，
-    // 这条去重会失效、同一崩溃会被重报两次——本用例锁住该行为。
+    // Core 把 instrument mechanism 标记在被捕获的外层异常上；
+    // 去重比较同一外层错误，cause 链继续由 LinkedErrors 处理。
     const originalSetTimeout = g.setTimeout;
     g.setTimeout = (cb: (...args: any[]) => any) => {
       cb();
@@ -544,20 +559,80 @@ describe('GlobalHandlers（真 @sentry/core 集成）', () => {
       expect(collectEnvelopePayloads<Event>(captured, ['event'])).toHaveLength(2);
     },
   );
-  it('宿主保留 Error 身份但 stack 从 frame 开始时，不修改业务 Error 且第一帧保留', async () => {
+  it('宿主同／跨上下文 Error 保留身份、cause 与无首行 stack，结构化字段独立降级', async () => {
+    const originals: unknown[] = [];
     init({
       dsn: 'https://key@example.com/1',
-      defaultIntegrations: [new GlobalHandlers()],
+      defaultIntegrations: [new GlobalHandlers(), linkedErrorsIntegration()],
       transport: createCapturingTransport(captured),
+      beforeSend: (event, hint) => {
+        originals.push(hint.originalException);
+        return event;
+      },
     });
-    const error = new Error('raw Error');
     const stack = 'at first (pages/first.js:10:2)\nat second (pages/second.js:20:3)';
-    error.stack = stack;
-    onErrorHandler!(error);
+    const foreign = runInNewContext(
+      "new Error('foreign Error', { cause: new TypeError('foreign cause') })",
+    ) as Error & { cause: Error };
+    expect(foreign).not.toBeInstanceOf(Error);
+    foreign.cause.stack = 'TypeError: foreign cause\n at root (pages/root.js:7:3)';
+    for (const error of [new Error('raw Error'), foreign]) {
+      error.stack = stack;
+      onErrorHandler!(error);
+      await flush();
+      expect(error.stack).toBe(stack);
+      expect(originals.at(-1)).toBe(error);
+      const exceptions = collectEnvelopePayloads<Event>(captured, ['event']).at(-1)!.exception!
+        .values!;
+      const outer = exceptions.at(-1)!;
+      expect(outer.stacktrace!.frames!.map((frame) => frame.filename)).toEqual([
+        'pages/second.js',
+        'pages/first.js',
+      ]);
+      if (error === foreign) {
+        expect(exceptions).toHaveLength(2);
+        expect(exceptions[0]).toMatchObject({ type: 'TypeError', value: 'foreign cause' });
+      }
+    }
+    for (const inaccessible of ['message', 'stack'] as const) {
+      const payload = {
+        name: 'TypeError',
+        message: 'readable host message',
+        stack: 'TypeError: readable host message\n at host (pages/host.js:13:2)',
+      };
+      Object.defineProperty(payload, inaccessible, {
+        get() {
+          throw new Error(`${inaccessible} getter`);
+        },
+      });
+      expect(() => onErrorHandler!(payload)).not.toThrow();
+      await flush();
+      const exception = collectEnvelopePayloads<Event>(captured, ['event']).at(-1)!.exception!
+        .values![0]!;
+      expect(exception).toMatchObject({ type: 'TypeError', value: 'readable host message' });
+      if (inaccessible === 'stack') expect(exception.stacktrace).toBeUndefined();
+      else
+        expect(exception.stacktrace!.frames![0]).toMatchObject({
+          filename: 'pages/host.js',
+          lineno: 13,
+          colno: 2,
+        });
+    }
+    const opaque = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('opaque host payload');
+        },
+      },
+    );
+    expect(() => onErrorHandler!(opaque)).not.toThrow();
     await flush();
-    expect(error.stack).toBe(stack);
-    const frames = collectEnvelopePayloads<Event>(captured, ['event'])[0]!.exception!.values![0]!
-      .stacktrace!.frames!;
-    expect(frames.map((frame) => frame.filename)).toEqual(['pages/second.js', 'pages/first.js']);
+    expect(
+      collectEnvelopePayloads<Event>(captured, ['event']).at(-1)!.exception!.values![0],
+    ).toMatchObject({ value: 'Unknown platform error' });
+    expect(
+      collectEnvelopePayloads<Event>(captured, ['event']).at(-1)!.exception!.values![0]!.stacktrace,
+    ).toBeUndefined();
   });
 });

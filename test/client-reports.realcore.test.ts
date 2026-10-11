@@ -1,23 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getCurrentScope, logger, metrics, type Envelope } from '@sentry/core';
+import {
+  getCurrentScope,
+  getIsolationScope,
+  startSession,
+  eventFiltersIntegration,
+  logger,
+  metrics,
+  type Envelope,
+  type ErrorEvent,
+} from '@sentry/core';
 import { init } from '../src/sdk';
 import { MiniappClient } from '../src/client';
 import { resetPlatformCache } from '../src/crossPlatform';
+import { globalHandlersIntegration } from '../src/integrations/globalhandlers';
 import { collectEnvelopePayloads, createCapturingTransport } from './support/envelopes';
 
 type Report = { discarded_events: Array<{ reason: string; category: string; quantity: number }> };
 describe('client reports 的真实 core flush 与隐私契约', () => {
   const clients: MiniappClient[] = [];
   let envelopes: Envelope[];
+  let onUnhandledRejection: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     vi.useFakeTimers();
     resetPlatformCache();
     getCurrentScope().setClient(undefined);
     envelopes = [];
-    vi.stubGlobal('wx', { request: vi.fn() });
+    onUnhandledRejection = vi.fn();
+    vi.stubGlobal('wx', { request: vi.fn(), onUnhandledRejection });
   });
   afterEach(() => {
     clients.splice(0).forEach((client) => client.dispose());
+    getCurrentScope().setSession();
+    getIsolationScope().setSession();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -132,16 +146,75 @@ describe('client reports 的真实 core flush 与隐私契约', () => {
     expect(beforeEnvelope).not.toHaveBeenCalled();
     expect(reports()).toHaveLength(1);
   });
-  it('实际 sampleRate 丢弃默认形成报告，而不是只接受手工计数', async () => {
-    const client = start({ sampleRate: 0 });
-    client.captureMessage('sampled out');
-    await drain(client);
-    expect(reports()[0]!.discarded_events).toEqual([
-      { reason: 'sample_rate', category: 'error', quantity: 1 },
-    ]);
-    expect(envelopes.flatMap((envelope) => envelope[1].map((item) => item[0].type))).toEqual([
-      'client_report',
-    ]);
+  it('原生拒绝入口复用过滤、回调和采样顺序，最终报告与 Session 状态一致', async () => {
+    const modes = [
+      'pass',
+      'filter',
+      'processor',
+      'before-null',
+      'before-throw',
+      'async-null',
+      'async-reject',
+      'sample-zero',
+    ] as const;
+    for (const kind of ['primitive', 'error', 'object'] as const) {
+      for (const mode of modes) {
+        envelopes.length = 0;
+        getCurrentScope().setSession();
+        const reason =
+          kind === 'primitive'
+            ? 'pipeline value'
+            : kind === 'error'
+              ? new Error('pipeline value')
+              : { message: 'pipeline value', code: 42 };
+        const originals: unknown[] = [];
+        const beforeSend = vi.fn((event: ErrorEvent, hint: { originalException?: unknown }) => {
+          originals.push(hint.originalException);
+          if (mode === 'before-null') return null;
+          if (mode === 'before-throw') throw new Error('callback failure');
+          if (mode === 'async-null') return Promise.resolve(null);
+          if (mode === 'async-reject') return Promise.reject(new Error('callback failure'));
+          return event;
+        });
+        const client = start({
+          release: 'pipeline@1',
+          defaultIntegrations: [globalHandlersIntegration(), eventFiltersIntegration()],
+          ignoreErrors: mode === 'filter' ? [/pipeline value/] : undefined,
+          sampleRate: mode === 'sample-zero' ? 0 : 1,
+          beforeSend,
+        });
+        if (mode === 'processor') client.addEventProcessor(() => null);
+        const session = startSession();
+        onUnhandledRejection.mock.calls.at(-1)![0]({ reason });
+        // 异步 callback 在本次 flush 开始后丢弃时，报告由下一次 flush 排出。
+        await drain(client);
+        await drain(client);
+        const expectedDrop = {
+          filter: 'event_processor',
+          processor: 'event_processor',
+          'before-null': 'before_send',
+          'before-throw': 'callback_error',
+          'async-null': 'before_send',
+          'async-reject': 'callback_error',
+          'sample-zero': 'sample_rate',
+          pass: undefined,
+        }[mode];
+        expect(reports().flatMap((report) => report.discarded_events)).toEqual(
+          expectedDrop ? [{ reason: expectedDrop, category: 'error', quantity: 1 }] : [],
+        );
+        expect(collectEnvelopePayloads<ErrorEvent>(envelopes, ['event'])).toHaveLength(
+          mode === 'pass' ? 1 : 0,
+        );
+        expect(beforeSend).toHaveBeenCalledTimes(mode === 'filter' || mode === 'processor' ? 0 : 1);
+        if (beforeSend.mock.calls.length) expect(originals[0]).toBe(reason);
+        const updatesSession = mode === 'pass' || mode === 'sample-zero';
+        expect(session).toMatchObject({
+          status: updatesSession ? 'unhandled' : 'ok',
+          errors: updatesSession ? 1 : 0,
+        });
+        client.dispose();
+      }
+    }
   });
 
   it('异步 processor 在 flush 开始后 drop，仅在下一次 flush 提交报告', async () => {

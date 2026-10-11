@@ -494,6 +494,36 @@ describe('Helpers', () => {
       );
 
       expect(getErrorDetails(value)).toBeUndefined();
+      const stack = 'TypeError: readable host message\n at host (pages/host.js:13:2)';
+      for (const inaccessible of ['message', 'stack'] as const) {
+        const partial = { name: 'TypeError', message: 'readable host message', stack };
+        Object.defineProperty(partial, inaccessible, {
+          get() {
+            throw new Error('unreadable field');
+          },
+        });
+        expect(getErrorDetails(partial)).toEqual({
+          type: 'TypeError',
+          message: 'readable host message',
+          stack: inaccessible === 'stack' ? '' : stack,
+        });
+      }
+      const getters = {
+        message: vi.fn(() => 'first message'),
+        stack: vi.fn(() => ''),
+        name: vi.fn(() => ''),
+        constructor: vi.fn(() => TypeError),
+      };
+      const once = Object.defineProperties(
+        {},
+        Object.fromEntries(Object.entries(getters).map(([key, get]) => [key, { get }])),
+      );
+      expect(getErrorDetails(once)).toEqual({
+        message: 'first message',
+        stack: '',
+        type: 'TypeError',
+      });
+      Object.values(getters).forEach((get) => expect(get).toHaveBeenCalledOnce());
     });
 
     it('should preserve a standard Error-compatible object type', () => {

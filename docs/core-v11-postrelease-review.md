@@ -360,3 +360,15 @@ lint、源码／测试严格类型和全量 coverage／shuffle 通过；覆盖�
 同时复核请求 baggage 策略、单层 Core offline 重放及关闭门禁：保留业务已有 Sentry baggage 与固定 Browser XHR／Core fetch 的原始值策略一致，本轮未据算法差异更换合并方式；相关取消／离线／关闭现有回归通过，该范围未确认额外缺陷。lint、源码／测试严格类型、全量单测、标准构建／真实 npm 安装消费、微信独立 bundle／本地映射及官网构建通过。
 
 候选沿用开发版本号 beta.10，不能当作已发布 beta.10 包的修复。本轮未新增 npm 发布、真机或目标 Sentry 后台证据，设备反馈仍由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。
+
+## 宿主异常输入与捕获管道复核（2026-10-11）
+
+以 `master 24cab3d`（#497）及重新构建的同树实际包为基线，继续检查非 Error 输入、异步处理与 Session 交互、包／示例／文档一致性。此基线已包含原始值拒绝修复，与官方 npm beta.10 的代码不同。
+
+确认三处输入边界缺陷：跨上下文 Error 被 `instanceof` 误判并重建，丢失原对象和 cause；结构化报告任一字段 getter 失败会丢弃其它可读信息，重复读取 getter 还可能使用不同消息；可选 promise getter 失败会阻断正常拒绝原因。宿主入口改用 Core 公开 `isError`，结构化字段独立单次读取且不伪造本地 stack，可选 hint 读取独立降级。事件构建、过滤、Session 和采样算法仍由 Core 管理，未新增平台 API、依赖、polyfill 或 protected 覆写。固定上游源码与选择理由见[官方实践](sdk-official-practices.md#宿主异常身份与字段降级)。
+
+实际 CJS／ESM 包在七平台模拟宿主中检查跨上下文 cause、不可读 message／stack、变化 getter、不可读 promise 五类输入：基线 70 项均复现信息丢失或漏报，候选 70 项全部通过。另以原始值／Error／对象输入组合过滤、processor、同步／异步 beforeSend 丢弃及抛错、零采样、活动／空／已结束／dispose 后的异步 Session，两个入口各 36 项；基线与候选的 72 项均通过，没有确认该范围的额外缺陷。采样发生在 Session 更新之后；过滤和 beforeSend 丢弃不更新会话，已结束会话不重开，后来会话不接管旧事件。异步丢弃的报告可能留到下一次 flush，不把这一既有顺序当作缺陷。
+
+强化现有 helper、原生捕获、Session、client reports 和实际包消费场景，测试定义保持 77 文件／1277 用例，CJS／ESM 各 21 个行为场景。中文／英文 README、微信／Taro／uni-app 示例的初始化和 Error 拒绝用法与当前入口一致，无需为本修复改写示例。官网补充缺少来源栈时的定位边界；维护者文档解释当前适配职责，不把复现过程放入用户流程。
+
+lint、源码／测试严格类型、全量 coverage／shuffle、标准构建／真实安装包消费、微信独立 bundle／本地映射通过。覆盖率门槛不变：statements 98.71%、branches 95.91%、functions 99.20%、lines 99.41%。本轮为受控宿主、真实 Core 与实际构建包验证，不归因为特定手机故障；未新增 npm 发布、真机或目标 Sentry 后台验收，修复需随后续版本发布。

@@ -181,16 +181,17 @@ function getPlatformErrorType(stack: string): string | undefined {
 
 function getObjectErrorType(error: { name?: unknown; constructor?: unknown }): string | undefined {
   try {
-    if (typeof error.name === 'string' && error.name) {
-      return error.name;
+    const name = error.name;
+    if (typeof name === 'string' && name) {
+      return name;
     }
   } catch (_error) {
     // 某些宿主对象不允许读取 name，继续尝试构造器名称。
   }
 
   try {
-    const constructorName =
-      typeof error.constructor === 'function' ? error.constructor.name : undefined;
+    const constructor = error.constructor;
+    const constructorName = typeof constructor === 'function' ? constructor.name : undefined;
     // 与 core 的 error.name || error.constructor.name 语义对齐，但不把普通 Object
     // 等构造器误当成异常类型。
     return constructorName && ERROR_TYPE_PREFIX.test(`${constructorName}: `)
@@ -207,6 +208,15 @@ export interface ErrorDetails {
   type?: string;
 }
 
+function readErrorString(error: object, key: 'message' | 'stack'): string {
+  try {
+    const value = (error as Record<string, unknown>)[key];
+    return typeof value === 'string' ? value : '';
+  } catch (_error) {
+    return '';
+  }
+}
+
 export function getErrorDetails(value: unknown): ErrorDetails | undefined {
   try {
     if (typeof value === 'string') {
@@ -220,8 +230,8 @@ export function getErrorDetails(value: unknown): ErrorDetails | undefined {
     }
 
     const error = value as { message?: unknown; name?: unknown; stack?: unknown };
-    const rawMessage = typeof error.message === 'string' ? error.message : '';
-    const rawStack = typeof error.stack === 'string' ? error.stack : '';
+    const rawMessage = readErrorString(error, 'message');
+    const rawStack = readErrorString(error, 'stack');
     // 微信小游戏 Android 真机可能传入 { message: "MiniProgramError\n...\nat ...", stack: "" }。
     // stack 为空时，message 本身就是完整宿主堆栈，必须沿字符串路径解析。
     const embeddedStack = rawMessage.includes('\n') ? rawMessage : '';
@@ -231,6 +241,7 @@ export function getErrorDetails(value: unknown): ErrorDetails | undefined {
       platformMessage ||
       (rawMessage ? normalizeErrorMessage(rawMessage) : getPlatformErrorMessage(stack));
     const type = getPlatformErrorType(stack) || getObjectErrorType(error);
+    if (!message && !stack && !type) return undefined;
     return type ? { message, stack, type } : { message, stack };
   } catch (_error) {
     return undefined;

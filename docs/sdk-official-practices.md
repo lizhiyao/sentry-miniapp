@@ -30,6 +30,14 @@ Core fetch 与 Browser XHR 在 HTTP span 被 `ignoreSpans` 忽略、且存在活
 
 回归见 [GlobalHandlers 真实 Core 事件](../test/globalhandlers.realcore.test.ts)与[实际包入口的异常来源检查](../scripts/internal/check-package-behavior.mjs)。
 
+## 宿主异常身份与字段降级
+
+Browser 的[异常构建入口](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/eventbuilder.ts#L285-L288)使用 Core `isError`，其[品牌判断](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/utils/is.ts#L18-L28)可以识别跨上下文 Error。本项目的宿主 `onError` 同样复用该公开 helper，把原对象交给 Core，保留 cause、原始 hint 与重复捕获的身份；不通过重建 Error 或复制识别算法实现兼容。
+
+小程序 `onError` 还会提供字符串／结构化宿主报告。适配层独立、单次读取可用字段，字段 getter 失败时保留另一字段，缺来源时不附加监听器 stack；这属于本项目的宿主降级，不能描述为所有官方 SDK 对不可读 Error 的保证。`onUnhandledRejection` 的 promise 仅是可选诊断 hint，其读取失败不改变可用 reason 的捕获路径。没有可读 reason 的非法回调仍由宿主守卫隔离。
+
+过滤、processors、`beforeSend`、Session 更新和采样继续采用 Core 顺序。同步及异步 callback 抛错由 Core 的 [safeCallback](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/utils/safeCallback.ts)处理并记录 `callback_error`，不在平台监听器中新增统计或 Session 算法。回归见 [真实报告／Session 检查](../test/client-reports.realcore.test.ts)与[原生 Session 入口](../test/session.realcore.test.ts)。
+
 ## IP 推断与采集策略
 
 BrowserClient 按 `dataCollection.userInfo` 在 SDK metadata 写入 `settings.infer_ip`，Core 将设置合并进事件。[BrowserClient](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/browser/src/client.ts#L128-L137)、[Core metadata](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/envelope.ts#L26-L45)。本项目同样对错误／消息事件明确表达该设置，因为在 SDK 内过滤用户字段不能阻止后台根据连接信息推断 IP。
