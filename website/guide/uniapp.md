@@ -1,6 +1,6 @@
 # uni-app 接入指南
 
-uni-app 底层是 **Vue**。本页以 **uni-app（Vue3 + Vite）编译到微信小程序**为例，给出完整接入，并重点讲清一个最容易踩的坑：**Vue 会吞掉组件内错误**。可运行示例见 [`examples/uniapp`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。
+本页以 **uni-app（Vue 3 + Vite）编译到微信小程序**为例，说明入口初始化、组件错误捕获与分端接入。可运行示例见 [`examples/uniapp`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。
 
 ## 为什么不能直接用 `@sentry/browser`
 
@@ -30,10 +30,10 @@ Sentry.setTag('app.framework', 'uni-app');
 export default Sentry;
 ```
 
-## 3. main.js 尽早初始化 + 接 Vue errorHandler（关键）
+## 3. 初始化并接入 Vue 错误处理 {#_3-main-js-尽早初始化-接-vue-errorhandler-关键}
 
-::: danger 最常见的「明明设了 sampleRate: 1 却只偶尔上报一条」根因
-uni-app 底层是 Vue。**组件内**（`render` / 生命周期 / `watch` / 模板 `@click` 调用的方法）抛出的错误，会被 **Vue 自己的错误处理接住、只打印 console，不会冒泡到 `wx.onError`**，SDK 默认捕获不到。必须把 Vue 的 `errorHandler` 接到 Sentry，组件内错误才会上报。
+::: tip 组件错误由框架处理
+Vue 会处理组件渲染、生命周期、watch 和模板事件中的错误，它们不一定进入宿主 `onError`。将 Vue `errorHandler` 接到 Sentry，才能覆盖这条捕获路径；详见 [Vue 应用错误处理](https://vuejs.org/api/application.html#app-config-errorhandler)。
 :::
 
 `src/main.js`（Vue3）：
@@ -56,7 +56,9 @@ export function createApp() {
 }
 ```
 
-**Vue2（uni-app 旧版）** 改用 `Vue.config.errorHandler`：
+若项目已有 `errorHandler`，将捕获调用加入现有处理器，保留原有的错误处理逻辑。
+
+**Vue 2 项目** 改用 `Vue.config.errorHandler`：
 
 ```js
 import Vue from 'vue';
@@ -73,6 +75,8 @@ Vue.config.errorHandler = (err, vm, info) => {
 ## 4. 分端接入（同时要 H5）
 
 uni-app 用**条件编译**按端引入——小程序用 `sentry-miniapp`，H5 用官方 `@sentry/browser`：
+
+用下方片段替换初始化封装中的 SDK 导入，再对选出的 SDK 调用 `init()`。DSN、release 和 environment 可共用；平台专属选项放在对应分支。
 
 ```bash
 npm install sentry-miniapp@next @sentry/browser --save

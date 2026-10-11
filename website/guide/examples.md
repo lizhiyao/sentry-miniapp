@@ -8,7 +8,7 @@
 | [`examples/uniapp`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp) | uni-app（Vue3 + Vite） | `app.config.errorHandler` 接 Vue 组件错误、网络面包屑 |
 | [`examples/taro`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/taro) | Taro 4（React + TS） | React 错误边界上报组件错误、`Taro.request` 面包屑 |
 
-三个示例共用同一个演示 Sentry 项目 DSN，开箱即可上报；事件分别打了 `app.framework` 标签（`uni-app` / `taro-react`），在后台可按标签过滤区分。
+示例预置同一个演示 DSN；查看演示后台需要相应权限。自行验证时，先替换为自己的 DSN，并配置对应 AppID 的 request 合法域名。框架示例使用 `app.framework` 标签区分来源。
 
 示例依赖当前仓库的 SDK 构建，首次运行先在仓库根目录安装依赖并构建：
 

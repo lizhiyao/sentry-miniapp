@@ -1,6 +1,6 @@
 ---
 name: sentry-miniapp-sdk
-description: Full Sentry SDK setup for Mini Programs — error monitoring, tracing, offline cache, source maps. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou and cross-platform frameworks (Taro / uni-app).
+description: Set up or troubleshoot Sentry error monitoring, tracing, offline cache and source maps in native mini programs, Taro or uni-app. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou and WeChat/ByteDance minigames.
 license: MIT
 metadata:
   category: sdk-setup
@@ -8,366 +8,113 @@ metadata:
 
 # Sentry Mini Program SDK Setup
 
-Set up Sentry error monitoring, performance tracing, and offline caching in mini program projects using [`sentry-miniapp`](https://github.com/lizhiyao/sentry-miniapp) — a community SDK built on `@sentry/core` v11.
+Use this skill when a user wants to integrate or troubleshoot `sentry-miniapp` in a consumer application. Discover the application's runtime, installed SDK and entry point before choosing code. This guide covers the 2.0 beta contract.
 
-## Invoke This Skill When
+## 1. Inspect the consumer
 
-- User mentions **mini program**, **miniapp**, **小程序**, **WeChat**, **Alipay**, **ByteDance**, **Taro**, **uni-app** alongside Sentry
-- User wants to add error monitoring or performance tracking to a mini program
-- User asks about Sentry support for WeChat/Alipay/ByteDance mini programs
-- User imports or references `sentry-miniapp` in their project
-
-> This skill describes the 2.0 beta contract. Install `sentry-miniapp@next` to try it; an unqualified install still selects stable 1.x. Check the installed SDK version before editing a consumer. Read website/guide/migration-2.0.md for breaking changes and version-scoped acceptance. Beta.3 passed backend symbolication for actual WeChat DevTools application artifacts; real-device validation remains pending in issue #457. Verify each consumer build and backend; do not apply removed APIs to 2.0.
-
----
-
-## Phase 1: Detect
-
-Run these commands to understand the project:
+Read project instructions and inspect the relevant application directory. Prefer `rg`; exclude generated bundles and dependencies when searching source.
 
 ```bash
-# Detect mini program platform
-ls app.json project.config.json mini.project.json project.tt.json project.swan.json project.qq.json 2>/dev/null
-cat app.json 2>/dev/null | head -20
-
-# Detect framework (Taro / uni-app / native)
-cat package.json 2>/dev/null | grep -E '"@tarojs/|"@dcloudio/uni-|"sentry-miniapp"'
-
-# Check for existing Sentry SDK
-grep -r "sentry" package.json 2>/dev/null
-grep -r "Sentry.init" app.js app.ts src/app.js src/app.ts 2>/dev/null
-
-# Detect entry point
-ls app.js app.ts src/app.js src/app.ts 2>/dev/null
-
-# Detect package manager
-ls yarn.lock pnpm-lock.yaml package-lock.json 2>/dev/null
+rg --files -g 'package.json' -g '*lock*' -g '*project*.json' -g 'app.json' \
+  -g '*app.{js,ts,tsx,vue}' -g '*main.{js,ts}' \
+  -g '*config.{js,ts,mjs}' -g '!node_modules' -g '!dist'
+rg -n 'sentry-miniapp|@tarojs/|@dcloudio/uni-' package.json
+rg -n 'Sentry\.init|sentry-miniapp|errorHandler|componentDidCatch' \
+  src app.js app.ts -g '!node_modules' -g '!dist'
 ```
 
-**What to determine:**
+Adjust search roots to files that exist; these commands illustrate discovery, not a required directory layout.
 
-| Question | Impact |
-|----------|--------|
-| Which mini program platform? | Determines whether `miniappPlatform` is needed and which host APIs are used |
-| Native or cross-platform framework (Taro/uni-app)? | Determines init pattern and build config |
-| Is `sentry-miniapp` already installed? | Skip install if present, check version |
-| Where is the app entry point? | Determines where to place `Sentry.init()` |
-| Is there a build tool config (webpack/vite)? | Needed for Source Map setup |
+Determine:
 
-### Platform Detection Guide
+- **Installed version and package manager.** Read the lockfile and installed package metadata; a manifest range alone may not identify the resolved version.
+- **Release targets.** Read framework configuration and platform globals. WeChat's `project.config.json`, Alipay's `mini.project.json`, ByteDance's `project.tt.json` and Baidu's `project.swan.json` are useful clues. Confirm QQ, DingTalk and Kuaishou from actual target configuration.
+- **Framework and entry.** Native apps commonly use `app.js`/`app.ts`; Taro uses `src/app.tsx` or its configured entry; Vue 3 uni-app usually initializes from `src/main.js`/`main.ts`.
+- **Existing monitoring and privacy policy.** Preserve working error handlers, integrations, sampling and consent requirements.
+- **Sentry deployment and build pipeline.** Version support and final JS/map matching affect which features can be verified.
 
-| File Present | Platform |
-|-------------|----------|
-| `project.config.json` | WeChat (微信) |
-| `mini.project.json` | Alipay (支付宝) |
-| `project.tt.json` | ByteDance (字节跳动) |
-| `project.swan.json` | Baidu (百度) |
-| `project.qq.json` | QQ |
-| `@tarojs/*` in package.json | Taro (cross-platform) |
-| `@dcloudio/uni-*` in package.json | uni-app (cross-platform) |
+## 2. Choose the SDK version and features
 
-DingTalk and Kuaishou do not have a stable project-file signal in this guide.
-Confirm them from platform globals, framework configuration, dependencies, or
-the user's stated target instead of guessing from a filename.
+An unqualified install selects stable 1.x; `@next` selects 2.0 beta. Do not silently migrate an existing 1.x application. Use the [version and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice), including its fixed 1.x documentation archive.
 
----
+2.0 uses Core v11 and stream spans. Check the target Sentry deployment against the guide's support baseline; successful error ingestion alone does not prove support for spans, Logs, Metrics or Sessions.
 
-## Phase 2: Recommend
+Implement the requested coverage. Resolve routine setup choices from the project and user intent; ask only for missing information that affects the result.
 
-Present this recommendation based on detection results:
+| Coverage | When to add it | Reference |
+| --- | --- | --- |
+| Error monitoring and framework handlers | Basic integration or missing errors | [error-monitoring.md](references/error-monitoring.md) |
+| HTTP and business tracing | Latency measurement or backend trace correlation | [tracing.md](references/tracing.md) |
+| Offline cache and consent | Weak networks or a stated privacy requirement | [offline-cache.md](references/offline-cache.md) |
+| Source Map upload | Readable stacks from deployed builds | [sourcemap.md](references/sourcemap.md) |
 
-**Recommended (core coverage):**
+Load only the references needed for the work. Automatic capture depends on available host APIs; optional Performance observers and FPS are not universal platform capabilities.
 
-- ✅ **Error Monitoring** — always. Automatic capture of `onError`, `onUnhandledRejection`, `onPageNotFound`, `onMemoryWarning`
-- ✅ **Performance Tracing** — when needed. HTTP and business spans; Performance observers and FPS are opt-in
+## 3. Install and initialize
 
-**Recommended for production:**
-
-- ⚡ **Source Map Upload** — when deploying to production. Maps minified stack traces back to source code
-- ⚡ **Offline Cache** — when users are on unreliable networks. Caches events locally, retries when connectivity returns
-
-**Optional:**
-
-- ⚡ **Distributed Tracing** — when mini program calls backend APIs. Injects `sentry-trace`/`baggage` headers, and can optionally add W3C `traceparent`, to link frontend and backend spans
-- ⚡ **User Feedback** — when you want to collect user-reported issues via `Sentry.captureFeedback()`
-
-| Feature | Recommend when... |
-|---------|-------------------|
-| Error Monitoring | **Always** — zero-config automatic exception capture |
-| Performance Tracing | When measuring latency; HTTP tracing is built-in, observers are opt-in |
-| Source Map | **Production** — required to read minified stack traces |
-| Offline Cache | **Weak networks** — mobile users, rural areas |
-| Distributed Tracing | **API calls** — mini program talks to backend services |
-| User Feedback | **User-facing** — collect bug reports from end users |
-
----
-
-## Phase 3: Guide
-
-### Step 1: Install
+Use the consumer's existing package manager. For a chosen 2.0 beta, pin the resolved version and retain the lockfile:
 
 ```bash
-# npm
-npm install sentry-miniapp@next
-
-# yarn
-yarn add sentry-miniapp@next
+npm install --save-exact sentry-miniapp@next
+# Or, in a Yarn project:
+yarn add --exact sentry-miniapp@next
 ```
 
-### Step 2: Initialize
+Copy the complete DSN from the target Sentry project; do not construct its hostname. Configure the exact envelope request host as a legal request domain, or configure the chosen tunnel's host. Verify with device debugging and domain-check bypass disabled.
 
-Create or modify the app entry point. `Sentry.init()` **must** be called **before** `App()`.
+Initialize once, as early as practical, before native `App()` registration and business requests. In framework projects, put initialization in a dedicated module imported before the application module. Do not put `init()` inside a temporary scope or an unfinished async span.
 
-#### Native Mini Program (app.js)
-
-```javascript
+```js
+// Native app.js
 const Sentry = require('sentry-miniapp');
 
 Sentry.init({
-  dsn: 'https://<key>@<org>.ingest.sentry.io/<project>',
+  dsn: 'YOUR_DSN', // Copy the complete project DSN.
   release: 'my-miniapp@1.0.0',
   environment: 'production',
 });
 
 App({
-  // Your app config...
-  // No need to manually call Sentry in onError — SDK handles it automatically
+  // Existing application configuration.
 });
 ```
 
-#### Taro (app.js or app.ts)
+For Taro and uni-app, follow their actual entry and preserve existing framework error handling:
 
-```typescript
-import * as Sentry from 'sentry-miniapp';
+- [Taro initialization and React Error Boundary](https://sentry-miniapp.pages.dev/guide/taro)
+- [uni-app initialization and Vue errorHandler](https://sentry-miniapp.pages.dev/guide/uniapp)
 
-Sentry.init({
-  dsn: 'https://<key>@<org>.ingest.sentry.io/<project>',
-  release: 'my-miniapp@1.0.0',
-  environment: 'production',
-});
+H5 needs the official browser/framework SDK through target-specific imports. `sentry-miniapp` does not provide browser DOM or fetch/XHR instrumentation.
 
-// Taro App component follows...
-```
+### Platform labels and minigames
 
-#### uni-app (App.vue or main.js)
+Runtime APIs come from the detected host. Set `miniappPlatform` only to correct an ambiguous event label; it does not switch the host API. Values are `wechat`, `alipay`, `bytedance`, `qq`, `swan`, `dingtalk` and `kuaishou`. The event's top-level `platform` stays `javascript`.
 
-```javascript
-const Sentry = require('sentry-miniapp');
+WeChat/ByteDance minigames have no App/Page model. Automatic Session tracking requires both native show/hide listeners to register successfully; missing capabilities produce diagnostics. First frame measures SDK installation to the first rAF, not full cold start. FPS/jank defaults off; opt in with `enableMinigameFrameRate: true` only when needed. See the [minigame guide](https://sentry-miniapp.pages.dev/guide/minigame).
 
-Sentry.init({
-  dsn: 'https://<key>@<org>.ingest.sentry.io/<project>',
-  release: 'my-miniapp@1.0.0',
-  environment: 'production',
-});
-```
+### Configuration decisions
 
-### Step 3: Configure Platform (if needed)
+Use the [configuration reference](https://sentry-miniapp.pages.dev/guide/configuration) for the complete option list. Apply these boundaries when choosing settings:
 
-The SDK auto-detects the platform at runtime. When multiple platform globals are present, it uses platform-specific host names, data paths, and App IDs to disambiguate them. Set `miniappPlatform` only when those runtime signals are unavailable, conflicting, or the detected event label still does not match the release target.
+- Errors use `sampleRate`; traces use `tracesSampleRate` or `tracesSampler` and are off until configured.
+- Network body collection and console breadcrumbs default off. Do not copy demo full sampling, body capture or per-click fingerprints into production.
+- `tracePropagationTargets` defaults to an empty list. Add anchored URL allowlists only for backends the application controls.
+- `dataCollection` governs automatic fields. `userInfo: false` stops automatic error IP inference, but does not erase explicit `setUser` fields or arbitrary business logs.
+- Use `beforeSend`, `beforeSendLog` and `beforeSendMetric` for their respective data. `beforeSendSpan` edits streamed spans; `ignoreSpans` filters them.
+- `requireConsent` gates sending, not collection. See the offline/consent reference before changing that policy.
+- Integration factories create per-client instances. Keep default `SpanStreaming` when enabling tracing; replacing the full default set requires installing it explicitly.
 
-If you need to override the event's miniapp platform label:
+## 4. Verify the result
 
-```javascript
-Sentry.init({
-  dsn: '...',
-  miniappPlatform: 'bytedance', // 'wechat' | 'alipay' | 'bytedance' | 'qq' | 'swan' | 'dingtalk' | 'kuaishou'
-  // Note: Baidu's global object is `swan`, so use 'swan' (there is no 'baidu' value).
-});
-```
+Run the consumer's relevant checks and build the actual target. Verify progressively:
 
-The configured value is written to `contexts.miniapp.platform`; it does not switch the underlying runtime API. The top-level Sentry event `platform` always remains the standard value `javascript` so stack parsing, grouping, and Source Maps follow official JavaScript SDK semantics. Error handlers, requests, and storage continue using the compatible global detected automatically.
+1. Capture a new known error and record its event ID, release and runtime diagnostics.
+2. Check request errors and HTTP responses, then find the same event in the intended Sentry project/environment.
+3. For framework errors, test the framework handler as well as direct capture.
+4. For Source Maps, check the final runtime filename and event coordinates against the same build's JS/map.
+5. For enabled tracing, Logs, Metrics, Sessions or consent, check each feature's own payload and backend result.
+6. When device behavior is in scope, verify foreground/background, network restoration and domain checks on the actual target.
 
-### Step 4: Add User Context
+An event ID means capture was attempted. `flush()` returning true is not a backend receipt or proof of symbolication. Local tests do not establish survival across host freezing or process termination.
 
-```javascript
-// After user login
-Sentry.setUser({
-  id: 'user-123',
-  username: 'zhang_san',
-});
-
-// Add custom tags
-Sentry.setTag('page', 'payment');
-Sentry.setContext('order', { orderId: '2024001', amount: 99.9 });
-```
-
-### Minigame (小游戏)
-
-WeChat / ByteDance minigames have no App/Page model. The SDK uses available native lifecycle APIs for Session and foreground state. minigameIntegration() observes SDK setup to first rAF by default; this is not full cold start. FPS/jank loops default off: opt in with enableMinigameFrameRate: true. Missing rAF safely skips these measurements. Do not promise equivalent optional performance capabilities on all hosts.
-
-Version check: native Sessions in minigames without App() are supported from 2.0.0-beta.5. Consumers on 2.0.0-beta.4 and earlier 2.0 betas must manage Sessions explicitly if required. Both show/hide listener registrations must succeed; otherwise automatic Session tracking is skipped with a lifecycle diagnostic.
-
-### For Each Agreed Feature
-
-Walk through features one at a time. Load the corresponding reference file:
-
-| Feature | Reference | Load when... |
-|---------|-----------|-------------|
-| Error Monitoring | `references/error-monitoring.md` | Always |
-| Performance Tracing | `references/tracing.md` | User agreed to tracing |
-| Offline Cache | `references/offline-cache.md` | User agreed to offline cache |
-| Source Map | `references/sourcemap.md` | User agreed to source maps |
-
----
-
-## Configuration Reference
-
-### Key Init Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `dsn` | `string` | — | Sentry DSN (required) |
-| `release` | `string` | — | Release version, must match source map upload |
-| `environment` | `string` | — | Environment name (production, staging, etc.) |
-| `sampleRate` | `number` | `1.0` | Error event sample rate (0.0–1.0) |
-| `tracesSampleRate` | `number` | — | Trace sample rate (0.0–1.0) |
-| `tracesSampler` | `function` | — | Dynamic sampling function (overrides tracesSampleRate) |
-| `enableSourceMap` | `boolean` | `true` | Auto-normalize stack trace paths for source map resolution |
-| `stackParser` | `StackParser` | `miniappStackParser` | Custom stack parser for private runtimes or special stack formats |
-| `enableOfflineCache` | `boolean` | `true` | Controls the built-in transport's weak-network cache when requireConsent is false; custom transport manages its own cache/retry |
-| `offlineCacheLimit` | `number` | `30` | Max envelope records in the built-in weak-network cache when requireConsent is false |
-| `offlineCacheMaxAge` | `number` | `86400000` | Weak-network record TTL when requireConsent is false (ms); default 24h |
-| `requireConsent` | `boolean` | `false` | Gate outbound Sentry network sends until `Sentry.setConsent(true)` |
-| `consentCacheLimit` | `number` | `100` | Max shared-cache envelope records before and after consent when requireConsent is true; preserves oldest records |
-| `consentCacheMaxBytes` | `number` | `921600` | Shared-cache byte limit before and after consent; actual container budget is 180 KiB on Alipay/DingTalk and 900 KiB elsewhere |
-| `consentCacheMaxAge` | `number` | `86400000` | Shared-cache record TTL before and after consent (ms); default 24h |
-| `onConsentCacheDrop` | `function` | — | Called with `{ reason, dropped }` for shared-cache drops, including weak-network failures after consent; dropped counts envelope records |
-| `enableTracePropagation` | `boolean` | `true` | Inject distributed tracing headers (`sentry-trace`/`baggage`, plus optional `traceparent`) in outgoing requests |
-| `enableStandaloneHttpSpans` | `boolean` | `true` | Send parentless API requests as standalone segment spans; set false for child-only request tracing |
-| `tracePropagationTargets` | `Array` | `[]` | URL allowlist for trace header injection; empty means no injection because mini programs have no reliable same-origin baseline |
-| `propagateTraceparent` | `boolean` | `false` | Also inject W3C `traceparent` for OpenTelemetry / W3C Trace Context compatible backends |
-| `enableAutoSessionTracking` | `boolean` | `true` | Automatic session lifecycle management |
-| `enableConsoleBreadcrumbs` | `boolean` | `false` | Capture console.log/warn/error as breadcrumbs |
-| `traceNetworkBody` | `boolean` | `false` | Capture recognized JSON object/array or form bodies; filter keys before truncation. Unsupported Content-Type, unknown text, multipart/binary and malformed form bodies are omitted |
-| `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | Byte cap per captured body (`small` = 1 KB, `medium` = 10 KB); `request_body_size` / `response_body_size` still report the full pre-truncation size |
-| `sensitiveKeys` | `Array<string>` | `[]` | **Additional** key snippets masked in bodies, page `onLoad` query and launch/page query (matched case-insensitively as substrings, on top of core's built-in list) |
-| `dataCollection` | `object` | see core 11 | Collection gates this SDK honors: `urlQueryParams` (URLs, `url.query`, page `onLoad` query) and `httpBodies` (body directions). `httpHeaders` / `cookies` have no effect — this SDK never captures headers or cookies |
-| `enableNavigationBreadcrumbs` | `boolean` | `true` | Page lifecycle (navigation) breadcrumbs |
-| `enableUserInteractionBreadcrumbs` | `boolean` | `true` | Tap / user-interaction breadcrumbs |
-| `enableNetworkStatusMonitoring` | `boolean` | `true` | Real-time network monitoring; triggers offline flush on reconnect |
-| `allowUrls` | `Array<string\|RegExp>` | — | Only send errors whose URL matches (others dropped) |
-| `denyUrls` | `Array<string\|RegExp>` | — | Drop errors whose URL matches |
-| `ignoreErrors` | `Array<string\|RegExp>` | — | Drop errors whose message/type matches |
-| `transportOptions` | `object` | see below | Built-in transport safeguards and headers |
-| `defaultIntegrations` | `false\|Integration[]` | all built-in default integrations | Set `false` to disable every default integration; a custom array replaces the default base |
-| `integrations` | `Integration[]\|(defaults) => Integration[]` | — | An array appends to defaults (user instances win by name); a function receives defaults and returns the final list |
-| `enableMinigameLifecycle` | `boolean` | minigame `true` / miniprogram `false` | SDK setup to first rAF + filtered launch context + show/hide breadcrumbs; not full cold start |
-| `enableMinigameFrameRate` | `boolean` | `false` | Opt-in FPS/jank; missing rAF skips collection |
-| `beforeSend` | `function` | — | Event processor for filtering/modifying events |
-| `beforeSendSpan` | `function` | — | Hook to modify spans before sending. Receives `StreamedSpanJSON` (`name`, `is_segment`, `attributes` with RawAttributes (scalar or value/unit wrapper)); returning `null` is not allowed — drop spans with `ignoreSpans` |
-| `ignoreSpans` | `Array<string\|RegExp>` | — | Drop spans by name; replaces core 10's `ignoreTransactions` |
-| `traceLifecycle` | `'stream'` | `'stream'` | Only supported path in 2.0; explicit static throws before runtime replacement |
-| `beforeSendLog` | `function` | — | Hook to filter/modify logs before sending |
-| `beforeBreadcrumb` | `function` | — | Hook to filter/modify breadcrumbs before they are attached |
-
-Core v11 requires a compatible span/v2 backend. Verify the target deployment; 2.0 does not support static or a legacy transaction downgrade path.
-
-The built-in transport defaults to `requestTimeout: 3000` and `maxConcurrentRequests: 2` so Sentry cannot occupy all mini program network slots when the service is unavailable. Host concurrency waiting and core promise-buffer overflow are separate limits. A timed-out request is aborted when the host returns an abortable request task, then handed to offline caching. Keep these defaults unless real-device testing shows a need to adjust them; `transportOptions.headers` remains available for custom envelope headers.
-
-### Privacy Consent Gate
-
-For domestic mini program / mini game privacy flows, initialize with `requireConsent: true`. Before the user agrees, the SDK still collects errors, breadcrumbs, and performance data, but sends no Sentry network requests; events are buffered in miniapp storage and flushed after consent.
-
-```javascript
-Sentry.init({
-  dsn: '...',
-  requireConsent: true,
-  consentCacheLimit: 100,
-});
-
-// After the user agrees to the privacy policy
-Sentry.setConsent(true);
-
-// If consent is revoked, block outbound sends again
-Sentry.setConsent(false);
-```
-
-`requireConsent` implies local buffering even when `enableOfflineCache` is `false`; custom `transport` functions are wrapped by the consent gate too. The whole encoded container, including metadata, uses an SDK budget of 180 KiB on Alipay/DingTalk and 900 KiB on other supported runtimes; a lower configured byte limit still applies. These are SDK policy budgets, not guarantees of available host storage. There is one active persistent target; DSN/tunnel or incompatible policy changes drop old data with diagnostics. Retrying does not renew TTL. Capacity changes only trim compatible records. A replacement client does not inherit consent. Cache is best-effort, not a durable ACK or no-loss guarantee.
-
-With `requireConsent: true`, the same store uses `consentCache*` limits and preserves the oldest records before and after grant, including weak-network retries. `setConsent(true)` does not switch to `offlineCache*`. Limits count envelope records, which may contain batches of logs, metrics or spans. Revocation and client shutdown do not automatically erase saved records.
-
-### Platform Compatibility
-
-| Feature | WeChat | Alipay | ByteDance | Baidu | QQ | DingTalk | Kuaishou |
-|---------|--------|--------|-----------|-------|----|----------|----------|
-| Error Capture | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Performance | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Offline Cache | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Distributed Tracing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Session Tracking | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Source Map | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-
-> ✅ = supported through the SDK's cross-platform abstraction, not a per-host on-device certification. Validate the target hosts and backend before production; capability fixtures are not device certification. Optional performance requires actual observer/timeOrigin/rAF capabilities.
-
----
-
-## Verification
-
-After setup, verify the integration:
-
-1. **Trigger a test error:**
-
-```javascript
-// In any page
-Sentry.captureException(new Error('Test error from mini program'));
-```
-
-2. **Check Sentry dashboard:**
-   - Go to your Sentry project → Issues
-   - You should see the test error with:
-     - Device info (brand, model, OS)
-     - Top-level `platform: javascript`
-     - Mini program context (host platform and host SDK version)
-     - App context (`app_version` from `miniProgram.version` when available)
-     - Breadcrumbs (page navigation, network requests)
-
-3. **Verify automatic capture works:**
-   - Throw an unhandled error in a page — it should appear in Sentry without any manual `captureException` call
-
----
-
-## Phase 4: Cross-Link
-
-After mini program setup, check for companion services:
-
-```bash
-# Check for backend services in the same workspace
-ls -d ../*/package.json ../*/requirements.txt ../*/go.mod ../*/Gemfile 2>/dev/null
-```
-
-| Backend Detected | Suggest |
-|-----------------|---------|
-| Node.js (`package.json` with server framework) | [Sentry Node SDK](https://docs.sentry.io/platforms/javascript/guides/node/) |
-| Python (`requirements.txt`) | [Sentry Python SDK](https://docs.sentry.io/platforms/python/) |
-| Go (`go.mod`) | [Sentry Go SDK](https://docs.sentry.io/platforms/go/) |
-| Ruby (`Gemfile`) | [Sentry Ruby SDK](https://docs.sentry.io/platforms/ruby/) |
-| Java (`pom.xml` / `build.gradle`) | [Sentry Java SDK](https://docs.sentry.io/platforms/java/) |
-
-> **Tip:** Enable distributed tracing on both mini program and backend to get end-to-end request traces across services.
-
----
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Events not appearing in Sentry | Check DSN is correct; verify Sentry domain is in mini program's trusted domain list |
-| `sampleRate` filtering all events | Ensure `sampleRate` is not set to `0`; default is `1.0` |
-| Tracing spans not appearing | Set `tracesSampleRate` > 0 (or use `tracesSampler`) — tracing is off until set; there is no default |
-| Minified stack traces | Set up Source Map upload — see `references/sourcemap.md` |
-| Duplicate error reports | Do NOT manually call `Sentry.captureException` in `onError` — SDK captures automatically |
-| Events lost on weak networks | Enable offline cache: `enableOfflineCache: true` (default) |
-| WeChat DevTools not triggering `onError` | Test on a real device; DevTools may not trigger all error handlers |
-| Stack trace paths don't match source maps | Ensure `--url-prefix "app:///"` when uploading; SDK normalizes paths to `app:///` automatically |
-
-## 2.0 ownership and data boundaries
-
-- Named factories only; Integrations reexports the same functions. Do not use public legacy classes, shared defaultIntegrations, showReportDialog or static callbacks. Keep SpanStreaming when replacing defaults.
-- One init-managed active tracing runtime; no arbitrary concurrent clients or cross-await scope isolation. SDK owner scopes are synchronous. init retires the old runtime without cancelling business HTTP.
-- Manual spans supply route/network attributes at creation if needed for sampling. Stable device/app defaults fill missing keys only; do not copy all tags/context into spans.
-- logger and metrics calls collect through core buffers. enableLogs is removed; beforeSendLog returning null suppresses logs. sendClientReports defaults true; failed reports do not enter offline disk.
-- Dataset and arbitrary User Timing detail are not automatically copied. Business breadcrumbs use explicit allowed fields. Unknown plaintext/multipart/binary bodies are omitted, not declared sanitized.
-- Explicit setUser can still enrich spans/logs/metrics when userInfo=false. Avoid setting fields or filter the corresponding telemetry callback if they must not be sent.
-- Session uses foreground episodes and unhandled for JS unhandled errors; do not claim crash detection. Rebuild Release Health status filters, denominators and alert baselines.
-- close(positive timeout) is one total budget; 0/undefined waits for drain. Sync hide flush can start request/storage only with idle slots and synchronous hooks. It is not proof of delivery after host freeze.
-- Validate final envelopes, then real host behavior and target backend ingestion separately. Error, span/v2, logs, metrics, session, client_report and symbolication require corresponding evidence; never equate HTTP initiation with backend receipt.
+Report which version, build, runtime and backend were actually verified. Keep untested capabilities explicit, and include concise remaining steps only when they require user access or a real-device action.

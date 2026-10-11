@@ -1,5 +1,7 @@
 # v1 → v2 迁移成本专项审查
 
+> 历史审查记录：以下发现、验证数字和发布状态对应文中注明的版本与提交。当前设计和接入说明见[文档索引](README.md)。
+
 本轮对照 `v1.20.4`（`74598eaf8c04790d20f24760bce60e0fb2b0f548`）与审查基线 `master a195315e9d6dc45220e238cf5e8bb91c9a37b533`，区分 Core v11 的变化与本 SDK 自主取舍。上游证据固定为 Sentry JavaScript `11.4.0`，提交 `7f13c61336918fd727f473faa341b9a24f23718e`；实际阅读本地对应源码，不按 API 名称推断旧行为。
 
 **本轮旧配置校验和工具出口恢复纳入 `2.0.0-beta.7`；已发布的 beta.6 不包含这两项改动。** npm 发布状态以该版本的 CD 结果与 registry 为准，不以 master 合并代替。
@@ -33,7 +35,7 @@ Core v11 删除 `sendDefaultPii` 和 `enableLogs`，不再读取这些选项。J
 
 `withStaticSpan`／`withStreamedSpan` 在 [v1.20.4 的 sentry-miniapp 公共入口](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/src/index.ts)并无导出，不能列为该版本用户失去的公共能力。Core v11 的[两个 helper](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/packages/core/src/tracing/spans/beforeSendSpan.ts)仍存在，其中 `withStreamedSpan` 只返回原回调并已弃用；v2 不为了复制其它 SDK 的 API 名单增加它们。
 
-恢复 static 只能改变性能发送模型，不能承诺旧后台兼容：Core v11 已移除旧独立 span envelope，当前 HTTP root、小游戏和 Performance attributes 不会自动还原成 v1 数据模型；Logs、Metrics、Session、隐私设置还有各自的变化。后台支持与未来过渡模式的评估条件继续按 [ARCHITECTURE.md](../ARCHITECTURE.md#版本与后台兼容的取舍)执行。
+恢复 static 只能改变性能发送模型，不能承诺旧后台兼容：Core v11 已移除旧独立 span envelope，当前 HTTP root、小游戏和 Performance attributes 不会自动还原成 v1 数据模型；Logs、Metrics、Session、隐私设置还有各自的变化。后台支持与未来过渡模式的评估条件继续按 [ARCHITECTURE.md](../ARCHITECTURE.md#上报模型与后台基线)执行。
 
 ## 验证边界
 

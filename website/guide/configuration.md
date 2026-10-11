@@ -11,10 +11,12 @@
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `dsn` | `string` | — | Sentry DSN（必填，否则不上报） |
+| `enabled` | `boolean` | `true` | 是否启用遥测；若不希望安装任何自动监听，应按业务条件决定是否调用 `init()` |
+| `tunnel` | `string` | — | 自管的 envelope 转发地址；配置后将此地址加入宿主 request 合法域名 |
 | `release` | `string` | — | 版本号；**Source Map 解析的关键**，需与上传时的 release 完全一致 |
-| `environment` | `string` | — | 环境标识，如 `production` / `staging` |
+| `environment` | `string` | 'production' | 环境标识，如 `production` / `staging` |
 | `debug` | `boolean` | `false` | 开启 SDK 调试日志 |
-| `miniappPlatform` | `'wechat'｜'alipay'｜'bytedance'｜'qq'｜'swan'｜'dingtalk'｜'kuaishou'` | 自动识别 | 小程序宿主标记，写入 `contexts.miniapp.platform`。事件顶层 `platform` 固定为 Sentry 标准值 `javascript`。SDK 会结合平台对象、宿主名称、数据路径和 AppID 消除歧义；仅在信息缺失或冲突时手动指定。该选项不切换底层运行时 API。百度小程序使用 `swan` |
+| `miniappPlatform` | `MiniappPlatform` | 自动识别 | 小程序宿主标记，写入 `contexts.miniapp.platform`。事件顶层 `platform` 固定为 Sentry 标准值 `javascript`。SDK 会结合平台对象、宿主名称、数据路径和 AppID 消除歧义；仅在信息缺失或冲突时手动指定。该选项不切换底层运行时 API。可选 `wechat`、`alipay`、`bytedance`、`qq`、`swan`、`dingtalk`、`kuaishou`；百度使用 `swan` |
 | `platform` | 同 `miniappPlatform` | — | 已弃用的兼容别名，请改用 `miniappPlatform`；两者同时传入时后者优先 |
 
 ## 采样
@@ -45,69 +47,71 @@ tracesSampler: ({ attributes, inheritOrSampleWith }) => {
 | `enableUserInteractionBreadcrumbs` | `boolean` | `true` | 用户点击 / 触摸面包屑 |
 | `enableNavigationBreadcrumbs` | `boolean` | `true` | 页面生命周期 / 路由面包屑 |
 | `enableConsoleBreadcrumbs` | `boolean` | `false` | 把 `console` 输出记为面包屑 |
-| `enableSystemInfo` | `boolean` | `true` | 采集 client 自有的设备 / 系统 / 应用与宿主版本快照 |
+| `enableSystemInfo` | `boolean` | `true` | 采集设备、系统、应用与宿主版本信息；关闭时仍保留平台标识 |
 | `traceNetworkBody` | `boolean` | `false` | 网络面包屑中记录请求 / 响应体；体先按敏感键脱敏再按 `maxRequestBodySize` 截断，且仍受 `dataCollection.httpBodies` 约束 |
-| `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | 单个请求 / 响应体上报的字节上限（`small` = 1 KB、`medium` = 10 KB）。数值须为正安全整数，否则回落默认；超出部分截断，省略号也计入上限，1／2 字节预算分别最多补 `.`／`..`。`request_body_size` / `response_body_size` 仍记录原文的完整字节数 |
-| `dataCollection` | `object` | 见下 | core 11 的采集开关。`userInfo: false` 关闭错误事件的后台 IP 自动补充；`urlQueryParams` 控制 URL、`url.full`、面包屑 `url.query` 与页面 `onLoad` 入参；`httpBodies` 控制请求 / 响应体方向。**不采集请求头、响应头与 cookie**，因此 `httpHeaders` / `cookies` 在本 SDK 无作用对象 |
+| `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | 单个请求／响应体的字节上限；`small` = 1 KB、`medium` = 10 KB。超出部分截断，体积字段仍表示过滤、截断前的可观察大小 |
+| `dataCollection` | `object` | 见下 | SDK 自动采集策略：用户 IP 自动补充、URL query 与请求／响应体方向 |
+| `sensitiveKeys` | `string[]` | `[]` | 在默认敏感键名单上追加要过滤的键名片段 |
 | `maxBreadcrumbs` | `number` | `100` | 面包屑最大条数 |
 
 > 网络面包屑（`url`/`method`/状态码/耗时）**默认开启**，无需配置。若开启 `traceNetworkBody` 后需要按 URL 排除 body，可在 `beforeBreadcrumb` 里按 `breadcrumb.data.url` 删除 `request_body` / `response_body`，或返回 `null` 丢弃该条面包屑。
 
 通过 `networkBreadcrumbsIntegration({ traceNetworkBody: true, denyBodyUrls: [...] })` 可排除指定 URL 的请求与响应正文。字符串按正则表达式解析；正则保留大小写等匹配选项，但忽略 `g`／`y` 和业务 `lastIndex`，确保重复请求与响应使用一致的排除规则。仅跳过正文，仍可记录 URL、状态与耗时。
 
-> `dataCollection.httpBodies` 与 `traceNetworkBody` 是**两层独立的闸门**：前者按方向收窄（`outgoingRequest` / `outgoingResponse`），后者是本 SDK 的总开关；只有两者都放行才记录请求 / 响应体。SDK 自身采集的 URL 一律经过 `dataCollection.urlQueryParams` 过滤，默认即会把 `token` 这类敏感键值写成 `[Filtered]`。
-
 ## 采集数据的脱敏口径
 
-`dataCollection.userInfo` 默认为 `true`。设为 `false` 可关闭错误事件的后台 IP 自动补充，但不会删除业务通过 `setUser` 显式提供的 id、邮箱或 IP；也不会自动清理自定义日志、span 属性或事件字段。需要移除这些数据时，在采集前删去字段，或用对应的过滤回调处理。各类回调的作用范围见[常用 API](/guide/api)。
+采集开关控制 SDK 自动观察的数据，不会自动清理业务显式传入的用户、日志、span 属性或事件字段。
 
-使用 `dataCollection` 明确指定采集策略。`dataCollection: { userInfo: false }` 可关闭错误事件的后台 IP 自动补充；它不会删除业务显式提供的用户字段。不支持的 `sendDefaultPii` 配置会使初始化报错，以避免隐私设置被静默忽略。升级配置的改法见[隐私配置迁移](/guide/migration-2.0#data-collection-migration)。
+| 配置 | 行为 |
+| --- | --- |
+| `dataCollection.userInfo` | 默认 `true`；设为 `false` 关闭错误事件的后台 IP 自动补充，仍保留显式 `setUser()` 数据 |
+| `dataCollection.urlQueryParams` | 默认 `true`；控制 HTTP URL query、页面 `onLoad` 入参、页面不存在报告和小游戏启动 query；`false` 时整块省略 |
+| `dataCollection.httpBodies` | 默认允许宿主支持的方向；用数组选择 `outgoingRequest`／`outgoingResponse`，`[]` 禁止正文；还须开启 `traceNetworkBody` 才采集 |
+| `dataCollection.httpHeaders`／`cookies` | SDK 不自动采集请求头、响应头或 cookie，因此没有作用对象 |
 
-SDK 自动采集的键值数据都走 core 11 的 `CollectBehavior` 语义：键名保留，命中的值就地替换成 `[Filtered]`。
+URL query 与正文使用独立策略。HTTP、导航与资源的名称去掉 query、fragment 和明文账号密码；HTTP `url.full` 可保留经过过滤的 query。User Timing 的名称由业务提供，不按 URL 处理。
 
-- **匹配方式**：大小写不敏感的**片段**匹配，不是全等。`accessToken`、`xApiKey`、`sid` 这类写法都会被内置名单（`auth` / `token` / `secret` / `key` / `session` / `cookie` …）命中。
-- **本 SDK 补齐**：core 内置名单没有的支付与证件类片段（`credit_card` / `card_number` / `cvv` / `ssn` / `id_card` 等）也一并脱敏。
-- **作用范围**：请求 / 响应体（JSON 会递归到嵌套对象与数组，form 保留重复键及非敏感字段编码）、页面 `onLoad` 入参、默认 pageNotFound 与小游戏启动 query、HTTP URL query。
-- **追加自己的片段**：顶层 `sensitiveKeys` 选项是**在以上名单之上追加**，不再顶掉内置默认；手动配置 `NetworkBreadcrumbs` 时也可在其工厂选项里追加：
+键值过滤保留键名，把命中的值替换为 `[Filtered]`。匹配采用大小写不敏感的片段匹配：Core 的 `auth`／`token`／`secret`／`key`／`session`／`cookie` 等名单，加上 SDK 的支付和证件片段。`accessToken` 或 `xApiKey` 也会被命中；`sensitiveKeys` 只追加业务片段，不替换默认名单。
+
+`urlQueryParams` 还接受 `{ allow: ['page', 'source'] }` 或 `{ deny: ['memberNo'] }` 来限制键。`true` 仍执行内置敏感键过滤，不表示发送原始数据。
 
 ```js
 Sentry.init({
+  dsn: 'YOUR_DSN',
   traceNetworkBody: true,
   sensitiveKeys: ['memberNo'],
+  dataCollection: { userInfo: false },
 });
 ```
 
-> 页面入参与 URL query 受 `dataCollection.urlQueryParams` 控制：`false` 时整块不采（面包屑里不出现 `query` / `url.query`），`{ deny: [...] }` / `{ allow: [...] }` 按名单收窄。
+正文只采集可识别的 JSON 对象／数组或 URL-encoded form，先按键过滤再截断。格式根据 Content-Type 和实际内容判断；未知文本、multipart、二进制或无效编码省略正文。Content-Type 只用于识别格式，不写入遥测。
 
-2.0 仅采集可识别的 JSON object／array 或 form 正文，先按键脱敏再截断；此策略独立于 query 开关。请求／响应的 `header` 与 `headers` 中，大小写不敏感的 Content-Type 仅用于判断格式，不写入遥测。已声明的纯文本、multipart 等不支持格式，以及无法识别的正文、JSON 原始值、坏 form 编码和 binary 均省略 `request_body`／`response_body`。缺少 Content-Type 时只接受可确认的 JSON／URL-encoded 键值结构。
-
-大小可确认时仍记录 `*_body_size`：字符串按 UTF-8 字节数，ArrayBuffer／typed array 按实际视图 byteLength；JSON 对象按序列化后、过滤与截断前的大小。这是 SDK 可观察表示的大小，不是宿主最终 wire bytes；未知对象编码不猜测大小。敏感键过滤不能替代业务自己的数据策略。
-
-SDK 自动产生的 HTTP、navigation/resource URL 名称去掉 query、fragment，并过滤明文 userinfo；HTTP `url.full` 可保留经过过滤的 query。User Timing 的业务名称不按 URL 处理。缺原生 `URLSearchParams` 的宿主使用 form 编码 polyfill，坏百分号不会抛错，非法 UTF-8 与孤立 surrogate 使用替换字符；SDK 自采 query 遇到不能安全解码的键时直接省略 query。
+`request_body_size`／`response_body_size` 表示过滤与截断前的可观察 UTF-8 字节数或二进制视图大小，不一定等于网络实际传输大小。过滤不能替代业务自己的数据策略。各类数据的发送前回调见下方[过滤与钩子](#过滤与钩子)。
 
 ## Logs
 
-`Sentry.logger.trace/debug/info/warn/error/fatal` 按调用采集并批量发送，不需要开启日志开关。升级时删除旧 `enableLogs`，否则初始化会报错；原先依赖 `enableLogs: false` 的应用，应停止 logger 调用／移除日志集成，或配置 `beforeSendLog: () => null`。SDK 不默认把 console 转成 Logs。
-
-| 选项 | 类型 | 默认 | 说明 |
-|------|------|------|------|
-| `beforeSendLog` | `function` | — | Log 发送前的钩子，可修改或返回 `null` 丢弃 |
+`Sentry.logger.trace/debug/info/warn/error/fatal` 按调用采集并批量发送。用 `beforeSendLog` 修改或返回 `null` 丢弃；SDK 默认不把 console 转成 Logs。
 
 ```js
-Sentry.init({
-  dsn: 'https://<key>@sentry.io/<project>',
-});
-
-Sentry.logger.info('checkout completed', {
-  orderId: 'order_123',
-});
+Sentry.logger.info('checkout completed', { orderId: 'order_123' });
 ```
 
-`Sentry.logger.*` 会作为独立 log envelope 发送到 Sentry Logs；`enableConsoleBreadcrumbs` 只会把 `console` 输出记录为随下一次事件发送的面包屑，两者用途不同。
+`Sentry.logger.*` 用于独立业务日志；`enableConsoleBreadcrumbs` 只把 console 输出附在下一次事件上。使用方法见[异常、日志与上下文](/guide/errors-and-context#独立业务日志)。
+
+## Metrics
+
+业务通过 `Sentry.metrics.count/distribution/gauge` 记录指标，Core 负责缓冲与批处理。用 `beforeSendMetric` 修改或返回 `null` 丢弃；不要将订单号等高基数值作为聚合维度。调用示例见[Metrics API](/guide/api#metrics)。
+
+| 选项 | 类型 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `beforeSendLog` | `(log) => log \| null` | — | 修改或丢弃独立业务日志 |
+| `beforeSendMetric` | `(metric) => metric \| null` | — | 修改或丢弃业务指标 |
 
 ## Client reports
 
-2.0 默认 `sendClientReports: true`，可显式设为 `false`。报告记录采样、处理器等丢弃原因；`flush()` 先排 core buffers，再通过同一 transport 排出报告。无 DSN、未获同意或 client 已关闭时不清计数；报告发送失败不会保存到离线缓存。`flush()` 成功不代表后台已接收，发送期间产生的异步丢弃留到下一轮。
+`sendClientReports` 默认 `true`，设为 `false` 可关闭上报丢弃统计。报告记录采样、过滤和发送失败等原因，通过同一发送通道交付，不能绕过隐私门禁。发送失败的报告不写入离线缓存。
+
+失败尝试可能随后通过重试送达，因此报告中的 `network_error` 数量不等于最终丢失数量。`flush()` 会尝试排出当前报告；后续产生的丢弃计数留待下一轮。
 
 ## 接入诊断
 
@@ -150,7 +154,7 @@ console.log(diagnostics.warnings);
 | `offlineCacheLimit` | `number` | `30` | 未启用 `requireConsent` 时，内置弱网缓存最多保留的 envelope 记录数 |
 | `offlineCacheMaxAge` | `number` | `86400000` | 未启用 `requireConsent` 时，内置弱网缓存过期时间（ms），默认 24 小时 |
 
-SDK 的缓存条数、字节数、TTL 使用非负安全整数；负数、NaN、Infinity 和小数回落各自默认值。缓存条数／字节上限为 0 时不保留事件，TTL 为 0 时立即过期。2.0 删除通用 Performance 的 `sampleRate`、`bufferSize`、`reportInterval`、`thresholds` 和 `enableMemory`；span 采样和批处理由 core 负责。
+缓存条数、字节数和 TTL 须为非负安全整数，非法值回落默认；条数／字节上限为 0 时不保留记录，TTL 为 0 时立即过期。
 
 ## 隐私合规（同意后上报）
 
@@ -170,7 +174,7 @@ SDK 的缓存条数、字节数、TTL 使用非负安全整数；负数、NaN、
 import * as Sentry from 'sentry-miniapp';
 
 Sentry.init({
-  dsn: 'https://<key>@sentry.io/<project>',
+  dsn: 'YOUR_DSN',
   requireConsent: true,
   consentCacheLimit: 100,
   onConsentCacheDrop: ({ reason, dropped }) => {
@@ -185,63 +189,66 @@ Sentry.setConsent(true);
 Sentry.setConsent(false);
 ```
 
-2.0 的 `new MiniappClient(options)` 是自管的低层入口，必须显式提供 `transport`（类型和运行时都检查）。它只保障有显式 scope 的 event／feedback，不启动 SDK 自动 lifecycle、持久 store 或离线重放，也不承诺任意异步多 client tracing 隔离。旧的无参数或默认 transport 构造请迁移到 `init`。低层 `requireConsent: true` 未授权时拒绝发送并报告 `low_level_consent_blocking`，不声称已缓存；授权后只交给显式 transport。需要 SDK 缓存和自动恢复时使用 `init`。
+同意状态属于当前 client，新的 `init({ requireConsent: true })` 默认未同意，不继承旧授权。授权后会尝试发送已准备好的日志、指标和 span，并补发缓存；回前台或网络恢复时也会尝试重放。撤回后排队请求停止启动，在途请求在宿主支持时尝试取消；已传输的字节无法撤回，业务请求不受影响。
 
-同意状态、缓存配置和丢弃回调属于各 client。顶层 `Sentry.setConsent` / `Sentry.getConsent` 只路由当前 MiniappClient；也可调用 `client.setConsent` / `client.getConsent`。构造其他 client 不改变原实例状态；新的 `init({ requireConsent: true })` 默认未同意，不继承旧授权。关闭或退休的实例不能用授权 API 影响新实例。
+开启 `requireConsent` 会使用 `consentCache*` 缓冲，即使 `enableOfflineCache: false`。目标 DSN／tunnel 或不兼容策略变化会丢弃旧记录，容量和 TTL 调整只裁剪兼容记录。撤回或关闭不会自动清空已保存的数据。
 
-授权后，SDK 会尝试发送已准备好的 span、日志和指标，并补发离线缓存；不会等待尚未完成的异步 `beforeSend`。应用回前台或网络从离线恢复时，也会尝试恢复上报。撤回授权会暂停补发，切换或关闭 client 会停止旧 client 的补发。`flush()` 成功不表示缓存已排空或后台已接收。撤回会立即阻止默认 transport 启动新的 Sentry 请求，并在宿主支持时尝试取消在途遥测请求；已传输字节无法撤回，业务 HTTP 不受影响。符合缓存策略的记录可保留到重新同意时补发，仍受容量与过期限制。自定义 transport 的内部队列由其自身控制，SDK 无法强制撤销其中已接收的工作。
+缺少同步 Storage 或存储操作失败时，会降级为有界内存，重启后其中的数据会丢失。查看 `getDiagnostics().transport.offlineStore` 的模式与故障代码；`persistent` 只说明存储通道可用，不表示后台已收到。重试、丢弃和自定义 transport 的边界见[可靠上报与隐私同意](/guide/reliability-and-privacy)。
 
-`requireConsent: true` 会隐含启用本地缓冲：即便 `enableOfflineCache: false`，同意前事件仍会先写入小程序 Storage；传入自定义 `transport` 时，SDK 也会处理同意等待。2.0 的同意缓冲与弱网重试共用 `sentry_miniapp_offline_v2` 容器。SDK 按实际运行平台限制整个容器的 UTF-8 字节数（含元数据）：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB；较小的 `consentCacheMaxBytes` 仍会进一步收窄。预算是 SDK 的保守存储策略，不是对宿主全部存储额度的承诺，依据见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。DSN 或 tunnel 切换，以及不兼容的缓存隐私策略变化，会丢弃旧容器；容量和过期时间调整只裁剪仍兼容的记录。旧 `sentry_offline_store` 会删除，不恢复其数据。SDK 只访问这两个缓存 key。
+常规接入使用 `Sentry.init()`；直接构造 `MiniappClient` 属于自管发送通道的[高级用法](/guide/api#集成与高级扩展)。
 
-重试不会延长原过期时间。删除保存失败的记录不会发送；存储写入或删除失败后，本实例停止使用磁盘缓存并回退为有界内存。缺少同步 Storage API 时也使用有界内存，重启会丢失其中的数据。`Sentry.getDiagnostics().transport.offlineStore` 提供存储模式与失败代码，不返回原始数据：`unknown` 表示尚未操作，`persistent` 表示同步存储通道可用，`memory` 表示已回退为内存；这些模式都不代表后台已接收。丢弃通知只包含可确认的记录数，未知格式可能只有诊断。
+## 可选 Performance 采集 {#显式-performance-采集-2-0}
 
-高级直接调用 `Sentry.Transports.createMiniappOfflineStore` 时，须提供 `targetId` 和版本化 `policyId`；写入失败会拒绝返回的 Promise，不能视为已持久化。存储与重放的实现职责见仓库[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。
-
-## 显式 Performance 采集（2.0）
-
-默认不安装 Performance observer，也不启动 FPS 采样循环。通用 Performance 须显式安装 `performanceIntegration({ enableNavigation, enableRender, enableResource, enableUserTiming })`；前三项默认 `true`，User Timing 默认 `false`。FPS 须配置 `enableMinigameFrameRate: true`。小游戏生命周期的一次首帧观察仍保留。
-
-只为真实 navigation/render/resource/measure operation 生成 span，mark 作为面包屑；不生成 observer delivery 父 span、原始条目缓冲、周期统计或阈值告警，不自动读取 User Timing detail。宿主条目须有有效 epoch 毫秒时间，或提供与条目相同时间基准的有效 epoch 毫秒 `timeOrigin`；仅有相对时间则省略对应 span，并诊断 `performance_time_origin_missing`。SDK 不将初始化墙钟或首批结束时间当成 origin。宿主没有 observer 时安全跳过，不能据此承诺所有平台均提供性能时间线。
-
-2.0 只接受 `traceLifecycle: 'stream'`；JS 显式传入 `static` 在替换当前 runtime 前报错。删除 `beforeSendTransaction`、`ignoreTransactions` 和 `withStaticSpan`／`withStreamedSpan` 出口，改用 `beforeSendSpan` 修改名称／属性、`ignoreSpans` 丢弃。小游戏数值只写 span attributes，不再双写 static measurements。首帧近似改名 `minigame.init_to_first_frame`，耗时属性 `minigame.init_to_first_frame_ms`，上下文 `initToFirstFrameMs`；它表达 SDK 安装到首个 rAF 回调，无法代替完整冷启动。时钟回拨／非法差值省略并诊断 `performance_clock_invalid`，不填虚假的 0。
-
-## 性能数据里的运行环境维度
-
-core 11 的 span 使用 attributes；事件上的 tags 与一般 context 不会自动成为 span 属性。
-SDK 在 client 构造时保存稳定环境快照，在 core 合并公共属性后只填缺失字段：
-
-| 属性 | 含义 |
-|------|------|
-| `miniapp.platform` | 小程序宿主标识（`wechat` / `alipay` / `bytedance` 等） |
-| `miniapp.host_version` / `miniapp.host_sdk_version` | 宿主 App / 基础库版本 |
-| `app.app_version` | 小程序自身版本 |
-| `device.manufacturer` / `device.model` | 设备厂商与机型 |
-| `os.name` / `os.version` / `os.type` | 系统名、系统版本、系统类型（如 `iOS` / `17.4` / `ios`） |
-| `performance.api.available` / `performance.integration` | 性能集成登记的稳定能力 |
-
-事件与 span 的 OS name/version 都表示操作系统，不再把宿主版本当成 OS 版本。宿主能力缺失时省略字段，不填 `unknown` 或 `0x0`。
-
-自动 HTTP 操作在创建 span 前捕获页面栈 route 和已观测的 network.type，供 `tracesSampler` / `ignoreSpans` 使用；请求在另一页面完成也保留开始维度。延迟交付的 PerformanceEntry 不使用交付时页面。小游戏没有页面栈时不写 route。
-
-手动 span 只补稳定环境；动态 route/network 由业务在创建时显式传入：
+默认不安装 Performance observer。需要宿主性能条目时，追加 `performanceIntegration()`：
 
 ```js
-Sentry.startInactiveSpan({
-  name: 'checkout',
-  attributes: { route: 'pages/checkout', 'network.type': 'wifi' },
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  tracesSampleRate: 0.2,
+  integrations: [Sentry.performanceIntegration({ enableUserTiming: true })],
 });
 ```
 
-自动操作初始属性的优先级为 SDK 默认值 → 显式 scope 同名属性 → 操作显式属性。初始值只支持合法标量、同类数组和无单位包装值；带 unit 或不适配创建类型的 scope 值不强转，也不补该键的默认值，最终仍由 core 合并原始属性。若要按这些值采样，应在创建时显式提供合法标量。手动 span 的显式属性和 scope 单位始终优先于稳定默认值。
+| 工厂选项 | 默认 | 数据 |
+| --- | --- | --- |
+| `enableNavigation` | `true` | 宿主导航条目 |
+| `enableRender` | `true` | 宿主渲染条目 |
+| `enableResource` | `true` | 宿主资源条目 |
+| `enableUserTiming` | `false` | measure 转 span，mark 记面包屑，不自动读取 detail |
 
-`enableSystemInfo: false` 禁止 SDK 自动采集 device/os/app/runtime version；显式使用 `httpContextIntegration()` 同样遵循该配置。平台标识与用户自己提供的字段保留。小程序 tracing 的正式支持范围是一个活动 init client，不承诺任意并发 client 或跨 await 上下文隔离。
+没有 observer 或可信时间基准时，跳过相应测量；相对时间缺少有效 `timeOrigin` 时提示 `performance_time_origin_missing`。HTTP 请求耗时独立采集，不依赖 Performance observer。小游戏 FPS 另需 `enableMinigameFrameRate: true`，一次首帧观察按小游戏能力默认启用。
+
+## 性能数据里的运行环境维度
+
+性能数据使用 attributes，事件的 tags 与一般 context 不会自动变成 span 属性。SDK 补充缺失的稳定环境字段，保留业务显式值：
+
+| 属性 | 含义 |
+| --- | --- |
+| `miniapp.platform` | 小程序宿主标识 |
+| `miniapp.host_version`／`miniapp.host_sdk_version` | 宿主 App／基础库版本 |
+| `app.app_version` | 小程序自身版本 |
+| `device.manufacturer`／`device.model` | 设备厂商与机型 |
+| `os.name`／`os.version`／`os.type` | 操作系统名、版本与类型 |
+| `performance.api.available`／`performance.integration` | 性能集成登记的能力 |
+
+宿主缺少字段时省略对应属性；`enableSystemInfo: false` 关闭自动设备、系统与版本采集，平台标识和业务字段保留。
+
+自动 HTTP span 记录请求开始时的 route 和已观测的 network.type。业务 span 需要这些动态维度或据此采样时，在创建时显式提供：
+
+```js
+await Sentry.startSpan({
+  name: 'checkout',
+  attributes: { route: 'pages/checkout', 'network.type': 'wifi' },
+}, () => submitOrder());
+```
+
+异步父子关联的限制与采样方式见[性能与链路追踪](/guide/performance-and-tracing)。
 
 ## 运行环境与自建 Sentry
 
-- npm 包的 Node.js 依赖范围为 `>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0`，与固定的 core 11 版本一致；22.0–22.11 和 23.0–23.1 不在范围内。开发本 SDK 仓库还须满足构建、测试、lint 工具的共同要求，请用 20.x ≥ 20.19、22.x ≥ 22.13 或 ≥ 24。Node 要求不是小程序宿主版本要求。
-- Core v11 的[官方迁移说明](https://github.com/getsentry/sentry-javascript/blob/7f13c61336918fd727f473faa341b9a24f23718e/MIGRATION.md#upgrading-from-10x-to-11x)将自建 Sentry 26.4.2 及以上列为支持基线。旧版本可能部分可用，但不受支持；关闭 tracing 不能保证旧后台兼容。使用官方 SaaS 或受支持自建部署时，仍应确认项目启用的 `span/v2`、Logs、Metrics 等数据能被接收和显示。
-- 2.0 仅支持流式性能数据，没有切换到旧性能格式的兼容开关；旧自建后台应沿用项目已验证的 1.x 版本。
-- 版本选择与 1.x 文档归档见[如何选择版本](/guide/migration-2.0#version-choice)；删除项、数据采集与统计迁移见[升级到 2.0](/guide/migration-2.0)。
+安装和构建工具的 Node.js 要求由 npm 包的 `engines.node` 声明；开发本仓库的要求见[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)。这些要求不能当作手机宿主版本要求；实际运行时能力见[跨平台差异与降级](/guide/platform-compatibility)。
+
+自建 Sentry 版本基线、1.x 文档归档和升级步骤集中在[版本选择与迁移](/guide/migration-2.0#version-choice)。
 
 ## 分布式追踪
 
@@ -282,22 +289,22 @@ Sentry.startInactiveSpan({
 | `allowUrls` | `Array<string｜RegExp>` | 空 | 仅上报栈帧匹配这些 URL 的错误 |
 | `denyUrls` | `Array<string｜RegExp>` | 空 | 不上报栈帧匹配这些 URL 的错误 |
 | `ignoreErrors` | `Array<string｜RegExp>` | 空 | 消息/类型匹配的错误直接丢弃 |
-| `attachStacktrace` | `boolean` | `true` | 为没有堆栈的事件（`captureMessage`、非 Error 值的 `captureException`）自动附加堆栈。core 11 起默认由 `false` 改为 `true`；有无堆栈会影响 Sentry 分组，切换该开关会产生新 issue 分组 |
+| `attachStacktrace` | `boolean` | `true` | 为无原始堆栈的手动消息或异常值附加捕获位置；切换该选项可能改变事件分组 |
 | `beforeSend` | `function` | — | 事件发送前的钩子，可修改或返回 `null` 丢弃 |
-| `beforeSendSpan` | `function` | — | Span 发送前的钩子，收到 `StreamedSpanJSON`（`name` / `is_segment` / `attributes`）。attributes 是 core 的 RawAttributes，可为标量或带 value／unit 的包装；序列化后的 envelope 再带 type 注解。独立 segment span 也经过该钩子 |
-| `ignoreSpans` | `Array<string｜RegExp>` | 空 | 按 span 名丢弃 span，替代 core 10 的 `ignoreTransactions` |
-| `traceLifecycle` | `'stream'` | `'stream'` | 2.0 唯一支持路径，复用 core 原生小批发送；JS 显式 static 报配置错误 |
-| `beforeBreadcrumb` | `function` | — | 面包屑记录前的钩子 |
+| `beforeSendSpan` | `function` | — | 修改流式 span，返回 `StreamedSpanJSON`；常用字段为 `name`、`is_segment` 和 `attributes`。不能返回 `null`，丢弃使用 `ignoreSpans` |
+| `ignoreSpans` | `Array<string｜RegExp｜object>` | `[]` | 按名称匹配，或用含 `name`、`op`、`attributes` 的对象过滤；至少指定一项，多项须同时匹配 |
+| `traceLifecycle` | `'stream'` | `'stream'` | 流式性能上报；其他值不受支持，会使初始化报错 |
+| `beforeBreadcrumb` | `function` | — | 修改面包屑，或返回 `null` 丢弃 |
 | `transportOptions` | `object` | 见下 | 内置上报通道选项：请求头、超时和 Sentry 网络并发上限 |
 | `transport` | `function` | 内置 | 自定义传输层（高级用法） |
 
-> `allowUrls` / `denyUrls` / `ignoreErrors` 由默认的 `EventFilters` 集成实现。同名用户集成会覆盖默认实例；关闭或替换默认集合时，需要保留该集成，过滤选项才会生效。`InboundFilters` 已被 `@sentry/core` 11 移除。
+> `allowUrls`／`denyUrls`／`ignoreErrors` 由默认 `EventFilters` 集成实现；关闭或替换默认集合时，需要保留该集成。
 
-从 1.x 迁移 `beforeSendSpan` 时，需要将 `description`／`data`／`op`／`timestamp` 改为 `name`／`attributes`／`attributes['sentry.op']`／`end_timestamp`；旧字段不再用于流式 span。字段表与脱敏示例见[回调迁移](/guide/migration-2.0#before-send-span)。
+`beforeSendSpan` 的属性可以是标量，也可以是带 `value`／`unit` 的值。回调只修改当前 span；迁移旧字段时参见[回调迁移](/guide/migration-2.0#before-send-span)。
 
 ```js
 Sentry.init({
-  dsn: 'https://<key>@sentry.io/<project>',
+  dsn: 'YOUR_DSN',
   transportOptions: {
     requestTimeout: 3000,
     maxConcurrentRequests: 2,
@@ -309,10 +316,10 @@ Sentry.init({
 ```
 
 - `requestTimeout`：单次 Sentry 上报的超时时间（ms），默认 `3000`。超时后 SDK 会在宿主支持时调用 `RequestTask.abort()`，并把发送失败交给离线缓存处理。
-- `maxConcurrentRequests`：最多同时占用宿主网络槽位的 Sentry 请求数，默认 `2`。更多事件会先在 `@sentry/core` 的有界缓冲中等待，避免监控请求占满小程序网络并发、影响业务接口。
-- `binaryRequestBody`：`'arraybuffer'` 或 `'unsupported'`。默认仅在微信／抖音上采用精确 ArrayBuffer；其余平台暂按未确认能力拒绝二进制 envelope，并报告 `binary_request_unsupported`，永久能力错误不进入离线重试。文本 envelope 仍按原字符串发送。对于含附件的 mixed envelope，拒绝作用于整个 envelope，不拆分或强转 payload。其他宿主在对应基础库、设备上验证原始请求字节后，可显式设置 `'arraybuffer'`；也可在任何平台设置 `'unsupported'` 禁用二进制发送。
+- `maxConcurrentRequests`：默认 `2`，限制同时在途的 Sentry 请求。更多请求等待宿主槽位；Core 的有界发送缓冲溢出时会丢弃并记录 `queue_overflow`，不能靠调高此值消除所有排队或丢弃。
+- `binaryRequestBody`：`'arraybuffer'` 或 `'unsupported'`。默认微信／抖音使用 ArrayBuffer，其余平台暂按未确认能力拒绝二进制 envelope，诊断提示 `binary_request_unsupported`。确认目标宿主支持后，可显式设为 `'arraybuffer'`。 含附件的混合批次会整体拒绝，不拆分或强转；此类能力错误不进入离线重试。
 
-默认依据：[微信官方请求类型](https://github.com/wechat-miniprogram/api-typings/blob/master/types/wx/lib.wx.api.d.ts)和[抖音小程序请求说明](https://developer.open-douyin.com/docs/resource/zh-CN/mini-app/develop/api/network/http/tt-request)包含 ArrayBuffer 请求体。支付宝、钉钉、QQ、百度、快手暂未进入默认二进制能力白名单，这表示 SDK 尚未确认，不能据此断言这些宿主都不支持。尤其[快手小程序](https://open.kuaishou.com/docs/develop/api/network/request/request)与[小游戏](https://open.kuaishou.com/miniGameDocs/gameDev/api/network/request/ks.request.html)的参数表不同，不能按品牌混用支持结论。七平台 fixture 验证 SDK 的数据类型、拒绝与显式配置契约；真机及后台接收仍需单独验收。
+默认白名单依据[微信](https://github.com/wechat-miniprogram/api-typings/blob/master/types/wx/lib.wx.api.d.ts)和[抖音](https://developer.open-douyin.com/docs/resource/zh-CN/mini-app/develop/api/network/http/tt-request)的请求文档。其他平台未在白名单内不代表一定不支持；应核对小程序／小游戏对应接口，并用目标设备与 Sentry 验证二进制接收。
 
 - `headers`：附加到 envelope 请求的自定义请求头。
 
@@ -322,10 +329,10 @@ Sentry.init({
 
 | 选项 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `integrations` | `Integration[]｜(defaults) => Integration[]` | — | 数组会追加到默认集合，同名时用户实例优先；函数接收默认集合并返回最终集合，可用于过滤或改写 |
+| `integrations` | `Integration[]` 或 `function` | — | 数组会追加到默认集合，同名时用户实例优先；函数接收默认集合并返回最终集合，可用于过滤或改写 |
 | `defaultIntegrations` | `false｜Integration[]` | 全部内置默认集成 | 设为 `false` 可关闭全部默认集成；自定义数组会替换默认集合基底 |
 
-默认集成包含 `FunctionToString`、`GlobalHandlers`、`TryCatch`、`LinkedErrors`、`Dedupe`、**`SpanStreaming`**、`RewriteFrames`、`NetworkBreadcrumbs`、`Session`、`PageBreadcrumbs`、`NetworkStatus` 和 `EventFilters`（部分受顶层开关或运行时影响）。`Dedupe` / `LinkedErrors` / `RewriteFrames` / `FunctionToString` / `SpanStreaming` 直接复用 `@sentry/core` 官方实现。自定义 `defaultIntegrations` 时漏掉 `SpanStreaming` 会让业务 trace、无父 HTTP segment、导航与帧率汇总等 span 无法发送，`getDiagnostics()` 会给出 `span_streaming_missing` 警告。所有默认能力统一由 `getDefaultIntegrations(options)` 构造，不存在绕过 `defaultIntegrations` 的额外追加。
+默认集合包括异常、网络、页面、Session、网络状态、过滤与 Source Map 集成，以及负责性能批量发送的 `SpanStreaming`。部分集成受顶层开关或宿主能力影响，实际列表可通过 `getDiagnostics().integrations` 查看。自定义默认集合时，若要发送 span，须保留 `spanStreamingIntegration()`；缺少时会提示 `span_streaming_missing`。
 
 ```js
 // 在默认集合上追加；同名集成会覆盖默认实例
@@ -354,46 +361,23 @@ Sentry.init({
 
 未指定集成时使用默认集合；自定义时可在每次初始化调用 `Sentry.getDefaultIntegrations(options)`。路径工具由 `Sentry.Integrations.normalizeMiniappFrameFilename()` 提供。相关 API 的升级改法见[迁移说明](/guide/migration-2.0)。
 
-交互面包屑只记录必要的目标和处理器标识，避免自动复制整份 `dataset`；自动 targetId／handler 限 128 个 UTF-16 code units，eventType 限 64 个，不改业务传参。业务需要时应构造显式白名单的 breadcrumb，避免复制整份模板数据。导航 API 的面包屑由 Page collector 提供，服从 `enableNavigationBreadcrumbs` 和 query 策略；跳转尝试不写 route tag，也不启动轮询。
+交互面包屑只记录必要的目标和处理器标识，不自动复制 `dataset`。业务需要更多信息时，显式提取允许的字段并调用 `addBreadcrumb()`。
 
 ## client 关闭与切换 {#_2-0-的-client-关闭与切换契约}
 
-`init()` 只保留一个活动 runtime。切换前，旧 client 停止持久缓存消费，同步执行 SDK finalizer 并启动 owner flush，再绑定新 client；内部收尾预算为 2000ms。同步 span/sampler/DSC hook 或 `beforeBreadcrumb` 中重入 `init()` 会返回 `undefined` 并诊断 `reentrant_init_unsupported`，业务应在 hook 返回后的独立控制流中切换。
+通常在应用入口初始化一次。需要关闭或替换配置时，先停止创建新的业务 trace，再在独立控制流中执行。不要在 `withScope()`、尚未结束的异步 `startSpan()` 或同步采集回调中重新 `init()`；这些初始化返回 `undefined`，并提示 `init_scope_unsupported` 或 `reentrant_init_unsupported`。
 
-初始化和切换应发生在入口的根 scope。在 `withScope()`、`withActiveSpan()` 或尚未完成的异步 `startSpan()` 上下文中调用 `init()` 会返回 `undefined`；已有 runtime 保持运行，并诊断 `init_scope_unsupported`。先退出该上下文（异步 span 须等待完成），再初始化或切换。小程序使用 Core 的默认上下文策略，不支持替换为自定义 async context strategy。
+| 操作 | 使用方式与结果 |
+| --- | --- |
+| `flush(timeout?)` | 尝试排出已经接收的数据，SDK 继续工作；适合退后台或一次性测试 |
+| `close(timeout?)` | 停止新的业务采集，尝试排出已有数据并释放资源；返回是否完成本次排空 |
+| `client.dispose()` | 立即废弃 client，停止发送并解除资源，不生成最后汇总 |
+| 再次 `init()` | 退休旧 client，再绑定新实例；旧 SDK 操作的迟到回调不会转交新实例 |
 
-`client.close(timeout)` 的正有限 timeout 是整个收尾的预算；`0` 或省略 timeout 表示等待排空，不套内部 2000ms 预算。负数、NaN、Infinity 使用 2000ms 安全预算。重复 close 共享同一 Promise。`dispose()` 是立即废弃：禁用采集与发送，排弃 core buffer，再解除资源；它不生成最后的 summary，也可以中断等待中的 close，使其返回 `false`。宿主恢复后，默认发送队列在实际出队时仍检查终态与绝对 deadline。
+`close()` 的正有限 timeout 是整个收尾的毫秒预算；0 或省略表示等待排空，非法值回落 2000ms。替换旧 client 的内部收尾预算为 2000ms。关闭不会取消业务请求或定时器，也不会清空已有面包屑；需要清空时使用 `getIsolationScope().clearBreadcrumbs()`。
 
-调用 `close()` 后，client 停止接收新的业务异常、消息、事件、反馈和面包屑；已经进入 core 处理队列的数据继续在收尾预算内排出，SDK 的同步收尾步骤仍可生成最后一份汇总。调用 `dispose()` 后，再次捕获不会执行事件处理器、`beforeSend` 或 `beforeBreadcrumb`。这些采集 API 仍可能返回事件 ID，但 ID 不代表事件已进入队列或上报成功。
+自动 Session 按每次前台运行管理；JavaScript 未处理异常记为 `unhandled`，不代表宿主进程崩溃。原会话结束后才完成处理的错误仍可发送，但不会补改已结束会话或记入新会话。统计迁移见[关闭与 Session 统计](/guide/migration-2.0#关闭与-session-统计)。
 
-如果 `beforeBreadcrumb` 中关闭了当前 client，这一条面包屑也会丢弃。关闭不会自动清空此前已记录的面包屑；需要清空时使用 `getIsolationScope().clearBreadcrumbs()`。
+SDK 能包装 `App()` 时，会在业务同步 `onHide` 返回后收尾并 flush，不等待返回的 Promise。晚初始化或小游戏使用可用的原生 show／hide 监听；缺少任一监听时自动会话降级，需要业务管理边界。业务在异步 hide 回调中产生数据，或依赖原生监听执行顺序时，应在自己的处理器末尾显式调用 `flush()`。
 
-业务应先停止发起新的手动 trace，再调用 `close()`。直接导出的 Core tracing API 在排空期间仍可能创建 span、执行 hook 并进入发送队列；关闭完成或期限到达后，发送门禁会阻止后续交付。`close()` 返回 `true` 只表示本次排空完成，不是后台接收确认。
-
-反馈的两个 SDK 入口也在关闭开始后停止执行 `beforeSendFeedback`。Session 更新在排空期间继续处理，以保留已有事件的错误统计和同步收尾；`dispose()` 或关闭完成后，`client.captureSession(session)` 不再执行发送回调或修改传入的 Session。
-
-关闭后日志／指标不再执行用户采集回调或进入发送队列。如果在采集回调或属性转换过程中关闭 client，本次日志／指标也不会发送；关闭前已经接收的事件仍可在收尾预算内排空。
-
-不要在 `beforeSendLog`、`beforeSendMetric`、`beforeSendSpan` 等同步采集回调中重新 `init()`；需要切换配置时，在当前采集调用返回后执行。回调内的初始化会被拒绝并记录 `reentrant_init_unsupported`。
-
-`close`／`flush` 返回 `true` 不等于后台 ACK 或持久缓存已经排空。高级直接构造 client 不获得 SDK 持久缓存消费权限；错误／feedback 需显式 scope 归属，不承诺多个直接构造 client 的 streaming timer 独立隔离。自定义 transport 的内部队列、取消和严格停止能力仍由其实现负责。
-
-JS 未处理异常的 Session 状态为 `unhandled`，因为它不能证明宿主进程已经崩溃。SDK 只有 JavaScript 异常证据时不生成 `crashed`；会话状态用于 Release Health 统计和告警，升级时的统计基线调整见[迁移说明](/guide/migration-2.0)。
-
-自动 Session 随每次前台运行开始。可包装的小程序 App 路径在业务同步 `onHide` 之后结束会话。正常收尾发送 `exited`；已经上报 `unhandled` 等终态时，退后台、关闭或切换 client 不重复发送会话终态，避免 Release Health 重复累计。错误事件处理可能被异步 processor 或 `beforeSend` 延迟：如果完成时原会话已退出，错误事件仍按配置发送，但不再计入已退出会话的错误统计，也不记入后来开始的新会话。SDK 自动捕获的定时器／业务 rAF 同步异常按调度时的会话统计；开始时没有活动会话，也不会计入随后开始的会话。网络请求的业务回调中手动捕获的异常，以及宿主随后独立报告的全局异常，仍使用捕获当时的活动会话。手动 `startSession`／`captureSession`／`endSession` 沿用 core API，业务反复发送会话终态仍可能重复计数。
-
-重复前台通知不会重复开始会话。如果准备会话信息时已经退到后台或关闭 SDK，就跳过这次创建；后续回到前台时可正常开始新会话。
-
-在会话发送回调中退后台或调用 `close()` 时，同一会话的更新会按顺序收尾，避免重复上报终态；`dispose()` 仍立即停止发送。
-
-小游戏依赖宿主 `onShow`／`onHide`；小程序无法包装 App 时，使用可用的 `onAppShow`／`onAppHide`。两项监听均注册成功后自动管理前台会话；缺少或无法注册任一项监听时，跳过自动 Session，需要会话统计的项目可手动管理。SDK 与业务原生监听之间的执行顺序由宿主决定，业务处理器末尾应显式调用 `Sentry.flush()`，排出该处理器中产生的数据。
-
-SDK 可以包装 App 时，会在业务同步 `onHide` 执行后收尾并 flush；不会等待该处理器返回的 Promise。业务在 `await` 后才产生数据时，需自行调用 `Sentry.flush()`。App 已注册、入口无法包装或 App 定义被冻结时，自动收尾取决于宿主原生监听是否可用；无法监听时，业务应显式管理 hide/show 边界。缺少 `getApp` 时，SDK 无法可靠判断 App 是否已注册，因此应始终在 `App()` 前初始化。
-
-关闭完成或调用 `dispose()` 后，默认 transport 会清空等待队列，并在宿主提供能力时尝试取消在途请求。SDK 会结束等待中的发送／flush，即使第三方 transport 一直没有完成；迟到结果不会恢复该 client。第三方 transport 的私有队列与取消能力由其实现负责。
-
-`getDiagnostics().warnings` 可查询 `late_init`、`lifecycle_unavailable`、`reentrant_init_unsupported`、`init_scope_unsupported` 和 `invalid_close_timeout`。这些诊断只保留有界的状态代码，不发送事件；禁用默认集成时，生命周期与 hide/show 边界由业务显式管理。
-
-定时器和业务 rAF 回调的自动异常捕获归属于调度时的 client；切换 client 后，旧回调不会通过原来的包装器上报到新 client。关闭 SDK 不会取消业务定时器。TryCatch 只捕获回调同步抛出的异常；回调返回 Promise 后的 rejection 依赖宿主全局异常监听，不保证跨 `await` 的 scope 隔离。
-
-需要了解资源释放、生命周期监听和发送队列的实现时，可阅读仓库的[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)；开发与验证命令见[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)。
+事件 ID、`flush()`／`close()` 返回 `true` 均不代表后台接收确认，也不保证离线缓存全部排空。实际交付须在目标 Sentry 项目核对。资源归属、共享监听和取消的实现原因见[架构文档](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md#5-生命周期与共享宿主观测)。

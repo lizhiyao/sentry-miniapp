@@ -11,11 +11,13 @@
 | **概览** (`pages/index`) | SDK 初始化状态、页面生命周期面包屑、自动采集 `uni.request` 的 HTTP span（成功打面包屑、失败上报消息） |
 | **实验室** (`pages/test`) | `captureException`（同步/异步）、未处理 Promise 异常、`captureMessage`、`captureFeedback`、嵌套 span 性能追踪、`setUser` 设置/清除 |
 
-应用启动（`App.vue`）会生成 `launchId` 并开启启动链路 span；每个测试事件带唯一 `demo_trigger_id` 与 `fingerprint`，便于在 Sentry 后台按本次点击精确定位。
+应用启动（`App.vue`）会生成 `launchId` 并开启启动链路 span；每个测试事件带唯一 `demo_trigger_id` 与 `fingerprint`，便于按本次点击定位。唯一 fingerprint 仅用于验收，生产项目不要照搬，否则相同错误可能拆成多个 issue。
 
 跨定时器创建子 Span 时，示例通过 `withActiveSpan(parent, ...)` 显式关联父级，不依赖异步上下文自动传播。
 
 集成核心都在 [`src/utils/sentry.js`](./src/utils/sentry.js)。
+
+示例为了观察效果启用全量采样、console 面包屑与正文采集。生产接入从[最小配置](https://sentry-miniapp.pages.dev/guide/getting-started)开始，按业务需要选择采集字段和采样率。
 
 ## 运行
 
@@ -38,15 +40,15 @@ npm run build:mp-weixin
 
 ## DSN 配置
 
-`src/utils/sentry.js` 里的 `DSN` 与 `examples/wxapp` **共用同一个演示 Sentry 项目**，开箱即可上报——点击实验室按钮后，可在后台按 `demo_trigger_id` 看到事件。换成你自己项目的 DSN 即可在你的后台观察数据。
+三个示例共用演示 DSN，查看该项目后台需要相应账号权限。要自行验证接收结果，在 `src/utils/sentry.js` 中替换为自己的 DSN，并在微信后台配置其上报域名；随后可按 `demo_trigger_id` 定位本次事件。
 
-> 由于两端共用同一项目，后台里 uni-app 与 wxapp 的事件会混在一起。本示例给所有事件打了 `app.framework: uni-app` 标签（wxapp 示例未设该标签），需要区分时在 Sentry 后台按 `app.framework:uni-app` 过滤即可。
+> uni-app 事件带 `app.framework: uni-app`，Taro 事件带 `taro-react`；wxapp 未设置此标签。使用演示后台时，可按标签区分来源。
 
 微信开发者工具中还需把 Sentry 上报域名加入小程序后台「合法域名」（开发期可临时勾选「不校验合法域名」）。
 
-## 验证当前仓库的 2.0 契约
+## 本地映射与 SDK 版本
 
-当前固定 uni-app 工具链的生产插件会覆盖普通 build.sourcemap。示例用 --sourcemap、Vite 公共 configEnvironment 和 configResolved hook，同步实际构建环境及 Vue 插件读取的根配置，保留 hidden map 与 sourcesContent；只在输出阶段打开 map 会丢失 `.vue` 业务映射。JS 在 dist/build/mp-weixin，map 在 dist/build/.sourcemap/mp-weixin。先验证实际业务异常位置，再合成上传目录，不把 map 发布进小程序包：
+示例通过构建配置和 `--sourcemap` 保留 Vue 业务映射：JS 在 `dist/build/mp-weixin`，map 在 `dist/build/.sourcemap/mp-weixin`。先检查业务错误位置，再把两者合成上传目录；`.map` 不进入小程序发布包。具体配置见 [vite.config.js](vite.config.js)。
 
 ```bash
 node ../../scripts/internal/check-framework-sourcemaps.mjs \

@@ -15,7 +15,7 @@ import * as Sentry from 'sentry-miniapp';
 | `init(options)` | 在小程序入口初始化并返回 `MiniappClient`；不支持的运行时、临时 scope 中或采集 hook 重入时返回 `undefined` |
 | `isEnabled()` | 判断 SDK 是否启用；不表示隐私授权已放行或后台已接收，授权状态用 `getConsent()` |
 | `getClient()` | 读取当前 client |
-| `flush(timeout?)` | 等待待发送事件完成，适合应用即将退出前 |
+| `flush(timeout?)` | 尝试排出已接收的数据，SDK 继续运行；返回值不代表后台接收确认 |
 | `close(timeout?)` | 停止 SDK 自动采集和异常、消息等 capture 入口，尝试排出已有数据后关闭 client |
 | `lastEventId()` | 获取最近一次捕获事件的 id |
 
@@ -60,7 +60,7 @@ Sentry.captureFeedback({
 | API | 用途 |
 |-----|------|
 | `setUser(user)` | 关联或清除当前用户 |
-| `setTag(key, value)` / `setTags(tags)` | 添加可筛选标签，**只附在事件上**（core 11 的 span 不携带 tags） |
+| `setTag(key, value)` / `setTags(tags)` | 给错误和消息事件添加可筛选标签；性能、日志和指标的维度使用 attributes |
 | `setAttribute(key, value)` / `setAttributes(attrs)` | 写在隔离作用域上的属性，会同时附到 streamed span、logs 与 metrics；需要让字段在 Performance / Traces 里可见时用它 |
 | `setContext(name, context)` | 添加一组结构化上下文 |
 | `setExtra(key, value)` / `setExtras(extras)` | 添加辅助调试数据 |
@@ -91,7 +91,7 @@ Sentry.withScope(scope => {
 
 ## Logs
 
-2.0 按 logger 调用采集，无需 enableLogs；使用 beforeSendLog 过滤或停止调用以抑制日志：
+显式调用 logger 即采集业务日志，用 `beforeSendLog` 修改或返回 `null` 丢弃：
 
 ```js
 Sentry.logger.trace('cache lookup', { key: 'profile' });
@@ -106,7 +106,7 @@ Sentry.logger.fatal('bootstrap unavailable');
 
 ## Metrics
 
-业务显式调用 core 的 metrics API，按需提供单位和有限维度；SDK 不默认采集 memory 或建立第二套聚合引擎：
+显式调用 metrics 记录业务计数、分布或数值，并按需要提供单位与聚合维度：
 
 ```js
 Sentry.metrics.count('checkout.completed', 1, { attributes: { channel: 'miniapp' } });
@@ -169,7 +169,7 @@ console.log(Sentry.getDiagnostics());
 | `miniappStackParser` | 默认小程序堆栈解析器 |
 | `wrap(fn)` | 包裹函数，捕获同步抛出的异常后重新抛出；不处理返回 Promise 的 rejection |
 
-2.0 的顶层与 `Integrations` namespace 仅提供同一组 named factories，删除公共 class 与共享默认数组。迁移清单见[升级到 2.0](/guide/migration-2.0)。
+顶层与 `Integrations` 命名空间导出相同的集成工厂。每次初始化创建新的实例，使订阅与资源按 client 独立管理。
 
 `integrations` 数组会追加到默认集合，同名时用户实例优先。显式启用可选性能集成时无需手动展开默认集合：
 
@@ -191,12 +191,16 @@ Sentry.init({
 
 自定义 transport、集成或 `stackParser` 会扩大维护范围，只有默认能力无法覆盖目标运行时时再使用。相关配置见[配置项参考 · 集成](/guide/configuration#集成)与 [Source Map 进阶](/guide/sourcemap-advanced#debug-id-与自定义-stackparser)。
 
+`new MiniappClient(options)` 是低层入口，须显式提供 `transport`，捕获事件／反馈时提供明确的 scope 归属。它不安装 `init()` 的自动生命周期或持久缓存重放；`requireConsent: true` 未授权时直接阻止发送，并提示 `low_level_consent_blocking`，不声称已缓存。常规应用接入使用 `init()`。
+
+直接调用 `Transports.createMiniappOfflineStore(options)` 时，须提供区分实际 DSN／tunnel 的 `targetId`，以及表达采集／存储策略的 `policyId`。通常让 `init()` 管理这些身份与资源；高级扩展的职责见[架构文档](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。
+
 ## Session API
 
 SDK 默认启用自动 Session Tracking，大多数项目不需要手动管理。确实需要时仍可使用 `startSession`、`endSession`、`captureSession`，以及底层的 `makeSession`、`updateSession`、`closeSession`。
 
 错误事件可能经过异步处理。如果处理完成时原会话已经退出，错误事件仍按配置发送，但不会补改已退出会话的错误统计，也不会算进后来开始的新会话。
 
-`close()` 排空期间，Session 更新继续按 core 语义处理；`dispose()` 或关闭完成后，`client.captureSession(session)` 不再执行发送回调或修改传入的 Session。手动 `startSession`／`endSession` 仍用于显式管理会话状态。
+自动会话和手动会话使用同一套 Core Session API。需要完全手动管理时，应在初始化时设置 `enableAutoSessionTracking: false`；不要反复发送同一会话的终态，避免重复统计。
 
 不确定某个 API 是否适合当前问题时，先从[能力指南](/guide/errors-and-context)按任务选择，避免为了调用 API 而关闭默认自动能力。

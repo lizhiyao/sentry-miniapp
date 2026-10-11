@@ -1,5 +1,7 @@
 # 我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档
 
+> 文章存档：以下叙述和示例保留原稿阶段的信息。当前接入与配置请看[文档站](https://sentry-miniapp.pages.dev/)和[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+
 [![npm version](https://img.shields.io/npm/v/sentry-miniapp.svg?style=flat-square&color=cb3837)](https://www.npmjs.com/package/sentry-miniapp)
 [![npm downloads](https://img.shields.io/npm/dm/sentry-miniapp.svg?style=flat-square&color=4c1)](https://www.npmjs.com/package/sentry-miniapp)
 [![GitHub stars](https://img.shields.io/github/stars/lizhiyao/sentry-miniapp.svg?style=flat-square&color=ffb13b)](https://github.com/lizhiyao/sentry-miniapp)

@@ -46,7 +46,7 @@ SDK 会自动补充设备、系统、应用和小程序宿主 context：
 - 顶层 `event.platform` 是 Sentry 标准值 `javascript`；真实宿主在 `contexts.miniapp.platform`。
 - `contexts.app.app_version` 来自 `getAccountInfoSync().miniProgram.version`，`app_identifier` 来自 AppID。
 - `contexts.os.name/version` 表示操作系统名与系统版本；缺失宿主字段省略，不生成占位值。
-- 默认字段在 core 合并 scope 后按字段补齐，用户值与直接 event context 的 `null` 保留，再经过 core normalize。`Scope.setContext(key, null)` 是删除覆盖值；关闭系统默认采集使用 `enableSystemInfo: false`。
+- SDK 只补充缺失的默认环境字段，保留业务覆盖值。需要关闭自动系统信息采集时，设置 `enableSystemInfo: false`。
 - 宿主客户端 / 基础库版本在 `contexts.miniapp.host_version` 和 `host_sdk_version`，不会冒充小程序发布版本。
 - `onPageNotFound` / `onMemoryWarning` 附加的 tag 和 context 只属于当次事件，不会污染后续错误。
 
@@ -86,7 +86,7 @@ Sentry.addBreadcrumb({
 
 `addBreadcrumb` **不会单独发送网络请求**。它只会随下一次异常或消息事件一起发送，因此不能用它验证接入是否成功。
 
-2.0 不自动读取交互 dataset。业务确需关联动作时，显式提取允许的枚举，不复制整份对象：
+SDK 不自动读取交互 `dataset`；需要关联业务动作时，显式提取允许的字段：
 
 ```js
 function recordCheckoutAction(event) {
@@ -99,11 +99,11 @@ function recordCheckoutAction(event) {
 
 网络面包屑默认包含 URL、方法、状态码和耗时，不记录请求体与响应体。字段与 core 11 的口径一致：`url` 只到路径，query 单列在 `url.query`，两者都按 `dataCollection.urlQueryParams` 过滤。确实需要 body 时再开启 `traceNetworkBody`，体先按敏感键脱敏、再按 `maxRequestBodySize` 截断，`request_body_size` / `response_body_size` 记录截断前的完整字节数。
 
-SDK 自动采集的键值数据（URL query、页面 `onLoad` 入参、默认 pageNotFound／小游戏启动 query、JSON／form 请求与响应体）共用敏感键口径：大小写不敏感的**片段**匹配 core 内置敏感名单（`token` / `auth` / `secret` / `key` / `sid` …）加上本 SDK 补齐的支付与证件片段（`card_number` / `cvv` / `ssn` / `id_card` …），命中的值就地替换为 `[Filtered]`。业务自有字段用顶层 `sensitiveKeys` **追加**，不会顶掉这份名单。`dataCollection: { urlQueryParams: false }` 关闭 URL／页面／启动 query，正文仍由 `traceNetworkBody` 与 `httpBodies` 独立控制和脱敏，2.0 不读取交互 dataset；未知纯文本正文默认省略，详见[采集数据的脱敏口径](/guide/configuration#采集数据的脱敏口径)。
+URL query、页面与启动入参，以及 JSON／form 正文使用相同的敏感键过滤策略，命中的值替换为 `[Filtered]`。通过 `sensitiveKeys` 追加业务键名片段；`dataCollection.urlQueryParams: false` 关闭 query，正文另由 `traceNetworkBody` 和 `httpBodies` 控制。格式限制与过滤范围见[配置参考](/guide/configuration#采集数据的脱敏口径)。
 
 ## 独立业务日志
 
-需要在 Sentry Logs 中单独检索、聚合或告警时，显式调用 logger；2.0 不需要 enableLogs：
+需要独立检索、聚合或告警时，显式调用 logger：
 
 ```js
 Sentry.init({
@@ -139,7 +139,7 @@ Sentry.captureFeedback({
 });
 ```
 
-2.0 删除 showReportDialog；使用原生反馈表单和 captureFeedback。
+反馈输入由业务表单管理；提交前过滤敏感信息。
 
 ## 控制噪声与敏感数据
 

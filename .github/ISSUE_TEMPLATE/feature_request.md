@@ -21,6 +21,7 @@ Any alternative solutions or features you've considered.
 ## Platform
 
 Which mini program platform(s) would this feature apply to?
+Include the framework, SDK version and whether it is a mini program or minigame. For backend-related features, include the Sentry deployment type and version.
 
 - [ ] All platforms
 - [ ] WeChat

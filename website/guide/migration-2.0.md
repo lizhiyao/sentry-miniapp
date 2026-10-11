@@ -19,7 +19,7 @@ Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://git
 
 1.x 用户请查阅固定在 `v1.20.4` tag 的 [README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/README.md)、[官网源码归档](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website)和[接入指南目录](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide)。当前官网的接入与配置示例对应 2.0，不应直接用于 1.x；更早的 1.x 变更见归档中的 `migration-1.19.md`。
 
-选定 2.0 后，通过 `npm install sentry-miniapp@next` 试用，或用 `npm install sentry-miniapp@2.0.0-beta.7` 固定版本。默认安装仍获取 1.x 稳定版。升级前先确认实际安装版本。
+选定 2.0 后，运行 `npm install --save-exact sentry-miniapp@next`，将当前预发布的完整版本号写入依赖，并提交锁文件。用 `npm ls sentry-miniapp` 确认实际安装版本；默认安装仍获取 1.x 稳定版。
 
 已使用早期 beta 的项目也应更新到当前版本；各版本修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
 
@@ -51,7 +51,7 @@ Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://git
 删除旧 `sendDefaultPii` 和 `enableLogs` 配置；保留旧值会导致初始化报错，添加新配置后也须移除旧键。隐私配置改用下文的 [`dataCollection`](#data-collection-migration)，日志过滤改用 `beforeSendLog`。
 
 ::: warning 早期 beta 用户
-beta.6 及更早版本可能静默忽略这些旧开关，不能依赖它们限制采集；beta.6 还缺少上述路径工具出口。请升级到 beta.7 或更新版本，并按本页迁移。
+请更新到当前预发布，并检查实际采集策略。早期 beta 可能静默忽略旧开关，不能依赖它们限制采集；具体修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
 :::
 
 原 System 独有的存储配额、应用更新信息由业务按实际需要采集。例如微信业务代码显式关联存储信息，不增加 SDK 默认权限调用：

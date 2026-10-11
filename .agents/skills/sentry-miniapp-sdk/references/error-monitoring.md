@@ -4,16 +4,16 @@ Automatic and manual error capture for mini programs across all supported platfo
 
 ## What's Captured Automatically
 
-Once `Sentry.init()` is called, the SDK automatically captures:
+After early `Sentry.init()`, the SDK registers available host APIs for:
 
 - **`onError`** — unhandled JavaScript exceptions
 - **`onUnhandledRejection`** — unhandled Promise rejections
 - **`onPageNotFound`** — navigation to non-existent pages
 - **`onMemoryWarning`** — system memory pressure warnings
 
-No manual code is needed for these. The SDK hooks into the platform's global error handlers.
+Missing APIs are skipped. Early initialization cannot recover events that already occurred. Framework-handled errors also need the framework's own entry point: use [Vue errorHandler](https://sentry-miniapp.pages.dev/guide/uniapp) or a [React Error Boundary](https://sentry-miniapp.pages.dev/guide/taro), preserving existing handlers.
 
-> **Important:** Do NOT manually call `Sentry.captureException()` inside `App.onError()`. The SDK already captures these errors automatically. Doing so causes duplicate reports.
+Avoid manually reporting the same exception from `App.onError` when the global handler already captures it. If the host lacks automatic capture, verify and use a manual fallback.
 
 ## Manual Error Capture
 
@@ -44,13 +44,13 @@ Sentry.captureException(error, {
 ```javascript
 Sentry.setUser({
   id: 'user-123',
-  username: 'zhang_san',
-  ip_address: '{{auto}}',
 });
 
 // Clear user on logout
 Sentry.setUser(null);
 ```
+
+Set only approved user fields. `dataCollection.userInfo: false` disables automatic error IP inference, but does not remove explicitly supplied user data.
 
 ### Tags and Context
 
@@ -69,7 +69,7 @@ Sentry.setContext('order', {
 
 ### Breadcrumbs
 
-The SDK automatically records breadcrumbs for:
+When supported and enabled, the SDK records breadcrumbs for:
 - Page navigation (route changes)
 - Network requests (wx.request, etc.)
 - User interactions (tap, longpress)
@@ -92,9 +92,9 @@ Use `beforeSend` to filter or modify events before they're sent:
 
 ```javascript
 Sentry.init({
-  dsn: '...',
+  dsn: 'YOUR_DSN',
   beforeSend(event) {
-    // Drop events containing sensitive data
+    // Example business filter; this is not comprehensive redaction.
     if (event.message && event.message.includes('password')) {
       return null;
     }

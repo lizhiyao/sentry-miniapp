@@ -1,46 +1,34 @@
-# Tracing in the 2.0 miniapp SDK
+# Tracing
 
-Enable tracesSampleRate or tracesSampler for HTTP and business spans. Error sampleRate is separate. Core owns parent sampling, DSC, ignoreSpans and batching; never add a second Math.random or flush after every end.
+Configure `tracesSampleRate` or `tracesSampler` for HTTP and business spans. Error `sampleRate` is separate. Core owns sampling, trace context and batching; do not add independent random sampling or flush after every span.
 
 ```js
 Sentry.init({
   dsn: 'YOUR_DSN',
   tracesSampleRate: 0.2,
-  integrations: [Sentry.performanceIntegration({ enableResource: true })],
   tracePropagationTargets: [/^https:\/\/api\.example\.com\//],
 });
+
+await Sentry.startSpan(
+  { name: 'checkout.submit', op: 'ui.action' },
+  async () => submitOrder(),
+);
 ```
 
-The Performance factory is opt-in. It only uses available observer capabilities and trustworthy timestamps; it does not simulate browser FCP/LCP, create a parent for a delivery batch or infer route from the current page at delivery. No observer or reliable timeOrigin means skip and diagnostics. Performance sampleRate/bufferSize/reportInterval/thresholds/enableMemory options are removed. FPS is separately opt-in with enableMinigameFrameRate: true.
+`startSpan` ends with the callback; `startInactiveSpan` requires an explicit `end()`. Miniapp's default context strategy does not isolate arbitrary concurrent operations across `await`. Initialize one active client; use `withActiveSpan` to bind a span around synchronous work that schedules or performs an operation. Details and examples: [performance and tracing](https://sentry-miniapp.pages.dev/guide/performance-and-tracing).
 
-## Business spans and ownership
+## HTTP and propagation
 
-```js
-const span = Sentry.startInactiveSpan({
-  name: 'checkout.submit',
-  op: 'ui.action',
-  attributes: { route: 'pages/checkout/index' },
-});
-// End when the measured operation finishes.
-span.end();
-```
+Host request instrumentation creates a child span under an active parent, or a standalone segment otherwise. `enableStandaloneHttpSpans: false` keeps child-only tracing without removing breadcrumbs. Do not wrap an automatically instrumented request in a duplicate manual `http.client` span.
 
-startSpan manages the callback lifetime; startSpanManual supplies span/end to the callback. withActiveSpan and owner scopes bind synchronous work. A callback returning a Promise does not create arbitrary cross-await context isolation on miniapp stack strategy. Only one init-managed active tracing client is supported. Manual spans must be created/ended while that client remains active; supply route/network at creation when required for sampling. The SDK does not retain a snapshot Map for all manual spans.
+Headers are injected only for matching `tracePropagationTargets`; an empty list injects none. String targets match substrings of the full URL, including query, so prefer anchored origin regexes. Add `propagateTraceparent: true` only for a backend requiring W3C/OTel propagation. `enableTracePropagation: false` stops header injection without disabling local spans.
 
-Automatic SDK operations supply dynamic dimensions before creation. Stable device/app attributes fill missing keys at preprocessing; explicit scope/span values and units win. Tags/extra remain error fields. beforeSendSpan receives RawAttributes (scalar or value/unit wrappers), modifies name/attributes and cannot return null; ignoreSpans drops spans. Stream-only removes static, transaction callbacks and measurements.
+If the caller already supplies `sentry-trace` or `traceparent`, the SDK leaves that header group under the caller's control. An unsampled trace decision may still be propagated.
 
-## HTTP propagation
+## Optional performance and attributes
 
-Default host request instrumentation creates child spans under an active parent, otherwise native root/segment spans. enableStandaloneHttpSpans: false keeps child-only tracing without removing breadcrumbs. Do not add a duplicate manual http.client span around an automatically instrumented request.
+Install `performanceIntegration()` only for the required observer categories. Missing observers or trustworthy timestamps skip the measurement with diagnostics. FPS/jank is a separate opt-in for minigames. Do not describe SDK-install-to-first-rAF as full cold start or infer browser FCP/LCP.
 
-Headers are injected only for explicitly matching tracePropagationTargets; an empty list injects none. String targets match substrings of the entire URL, including its query, so use anchored origin regexes to limit propagation to backends you control. Case-insensitive matching and g/y regex handling follow core. enableTracePropagation: false only stops propagation. propagateTraceparent: true is for a backend explicitly needing W3C/OTel headers; keep native sentry-trace/baggage otherwise. Unsampled decisions are still propagated.
+Use span `attributes` for performance dimensions. `beforeSendSpan` receives streamed `name` and `attributes`, which may include value/unit wrappers; it cannot return null. Use `ignoreSpans` to drop spans. Removed transaction fields and API changes belong in the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#before-send-span).
 
-Core SpanStreaming sends finite batches on its own timer/capacity thresholds; unfinished roots do not prevent children from being sent. Keep spanStreamingIntegration when replacing defaults. Hide/close/runtime replacement are explicit drain boundaries, not proof of server receipt.
-
-## Session and performance interpretation
-
-Session tracks foreground episodes and reports JS unhandled errors as unhandled, not crashed. Do not claim host process crash detection or compare 1.x crash-free baselines without migrating status filters and denominators.
-
-minigame.init_to_first_frame measures SDK installation to first rAF callback, not full cold start. Its duration attribute is minigame.init_to_first_frame_ms and context is initToFirstFrameMs. FPS/jank are opt-in and retain bounded numeric samples; custom thresholds are not Sentry standard slow/frozen frames.
-
-Verify actual envelopes, target backend span/v2 support and on-device freeze/restore separately. An HTTP call or successful flush is not an ingestion ACK.
+Keep `spanStreamingIntegration()` if replacing default integrations. Completed spans are sent in bounded batches, including children whose parent is unfinished. Hide/close drains are best effort; verify target backend support and actual displayed spans separately from successful HTTP responses.

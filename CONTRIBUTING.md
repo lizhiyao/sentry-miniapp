@@ -17,7 +17,7 @@ git clone https://github.com/<your-username>/sentry-miniapp.git
 cd sentry-miniapp
 corepack enable   # 启用后 yarn 自动对齐到 package.json 固定的 Yarn 4 版本
 yarn install
-yarn dev
+yarn run dev
 ```
 
 ## How to Contribute
@@ -30,30 +30,33 @@ yarn dev
 
 ### Submitting Changes
 
-1. Create a feature or fix branch from `master`:
+1. Create a short-lived branch from the latest `master`. Do not commit directly to `master`:
 
 ```bash
-git checkout -b feature/my-feature
-# or
-git checkout -b fix/my-fix
+git fetch origin master
+git switch -c feature/my-change origin/master
 ```
 
-2. Make your changes. Write tests for new functionality.
+2. Make your changes and update the relevant documentation. For behavior changes, follow the testing guidance below; documentation-only changes do not require new unit tests.
 
 3. Ensure all checks pass:
 
 ```bash
-yarn lint && yarn typecheck && yarn test
+yarn run lint
+yarn run typecheck
+yarn run test
+# SDK builds or cross-platform behavior: yarn run build
+# Website content or navigation: yarn run docs:build
 ```
 
-4. Commit using [Conventional Commits](https://www.conventionalcommits.org/) format:
+4. Commit using [Conventional Commits](https://www.conventionalcommits.org/) with a Chinese subject, as required by [AGENTS.md](./AGENTS.md):
 
 ```bash
-git commit -m "feat: add new feature description"
-git commit -m "fix: fix bug description"
+git commit -m "feat(integrations): 新增请求过滤选项"
+git commit -m "docs: 完善小程序接入说明"
 ```
 
-5. Push and open a Pull Request against `master`.
+5. Push and open a Pull Request against `master`. Describe the user-visible result, relevant validation and any compatibility limits. Release PRs must preserve the release commit with a merge commit; see [DEVELOPMENT.md](./DEVELOPMENT.md#发布流程-maintainers-only).
 
 ### Cross-Platform Compatibility
 
@@ -63,7 +66,7 @@ This is critical: when modifying functionality, **always consider the impact on 
 
 - TypeScript is preferred for all new code.
 - Follow the existing ESLint configuration.
-- Code is auto-formatted by Prettier on commit (via lint-staged).
+- lint-staged runs ESLint and Prettier for staged source/scripts, and ESLint for tests. Markdown is not automatically formatted by this hook; check code fences, links and rendered pages when editing documentation.
 
 ## Testing
 
@@ -73,7 +76,7 @@ This is critical: when modifying functionality, **always consider the impact on 
   only assert calls to mocks or helper logic defined inside the test itself.
 - Reuse `test/support/` for real `@sentry/core` transports and envelope assertions. Prefer fake
   timers over real delays for time-dependent behavior.
-- `yarn typecheck` checks both production code and tests. Keep mocks compatible with the real
+- `yarn run typecheck` checks both production code and tests. Keep mocks compatible with the real
   function signatures instead of bypassing test type errors with broad casts.
 - Coverage must stay above the global thresholds enforced by `vitest.config.mts`.
   New changes should improve coverage without excluding production code from measurement.

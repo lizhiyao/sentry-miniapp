@@ -27,7 +27,7 @@
 
 ### 2. 首页访问阶段
 
-`pages/index/index.js` 现在不只是展示信息，还会主动演示首页监控实践：
+`pages/index/index.js` 演示一次首页访问中的上下文与网络观测：
 
 - 为每次页面访问生成唯一 `pageVisitId`
 - 在 `onLoad`、`onReady`、`onShow`、`onUnload` 中记录生命周期 Breadcrumb
@@ -48,13 +48,13 @@
 - 用户身份设置与清理
 - 自定义网络/性能测试
 
-测试页使用 core v11 的对象状态（`{ code: 1 }`／`{ code: 2, message: ... }`），并在创建子 Span 时通过 `withActiveSpan` 显式指定父级。页面显示“已采集”仅表示调用了采集 API；是否成功投递及还原源码，需要在 Sentry 后台按事件标识验证。
+测试页用 span 状态标记结果，并在跨回调创建子 span 时通过 `withActiveSpan` 显式指定父级。页面显示“已采集”只表示调用了采集 API；是否投递成功及还原源码，需要在自己的 Sentry 后台核对事件。
 
-为了方便观察 Issue 聚合行为，测试页的手动上报已经补充了唯一 `triggerId`、tag 和 fingerprint，连续点击时更容易在后台看到独立事件。
+测试事件使用唯一 `triggerId`、tag 和 fingerprint，便于定位单次操作。这是验收设置，生产项目不要照搬每次变化的 fingerprint，否则相同错误也可能拆成多个 issue。
 
 ## 推荐体验路径
 
-1. 在微信开发者工具中打开此项目
+1. 按下方步骤构建 SDK，替换为自己的 DSN、设置 AppID 与 request 合法域名，然后在微信开发者工具打开项目。
 2. 启动小程序，先观察首页的 SDK 状态、访问标识和统计数据
 3. 在 Sentry 后台查看启动链路、首页网络请求和性能数据
 4. 切换到测试页，逐个点击测试按钮
@@ -78,7 +78,9 @@
 在项目根目录运行：
 
 ```bash
-yarn build:miniapp
+corepack enable
+yarn install
+yarn run build:miniapp
 ```
 
 该命令会在本地生成 `examples/wxapp/lib/sentry-miniapp.js` 与 Source Map，并检查产物能否脱离仓库依赖独立加载。`lib/` 是生成目录，不提交到 Git。
@@ -106,7 +108,7 @@ yarn dev:miniapp
 
 ## 配置说明
 
-项目已经预配置 Sentry SDK，你可以在 `app.js` 中调整这些配置：
+在 `app.js` 中替换演示 DSN，便于在自己的 Sentry 项目确认接收结果。演示项目为了观察效果启用了全量采样、console 面包屑和正文采集；生产接入请从[最小配置](https://sentry-miniapp.pages.dev/guide/getting-started)开始，按需选择：
 
 - `dsn`
 - `environment`

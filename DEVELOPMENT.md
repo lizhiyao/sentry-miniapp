@@ -29,12 +29,15 @@ yarn install
 | `yarn build` | 构建标准 ESM/CJS/UMD 产物与类型声明，并检查 npm 包入口、七平台消费与自请求递归 |
 | `yarn build:miniapp` | 构建微信示例使用的独立 CommonJS bundle，并执行兼容性与加载检查 |
 | `yarn dev:miniapp` | 监听源码并持续构建微信示例 bundle |
-| `yarn build:types` | 构建类型定义文件（d.ts） |
+| `yarn build:types` | 先构建运行时代码，再生成类型定义文件（d.ts） |
 | `yarn test` | 运行单元测试（Vitest） |
 | `yarn test:coverage` | 运行单元测试并检查覆盖率门槛 |
 | `yarn test:shuffle` | 随机化用例顺序，排查测试状态污染与顺序依赖 |
 | `yarn lint` | 运行 ESLint 检查 |
 | `yarn typecheck` | 严格检查源码与测试代码的 TypeScript 类型 |
+| `yarn docs:dev` | 本地查看和编辑用户文档站 |
+| `yarn docs:build` | 构建文档站，检查页面生成与站内文件链接 |
+| `yarn docs:preview` | 预览已经构建的文档站 |
 
 ---
 
@@ -96,21 +99,11 @@ sentry-miniapp/
 
 `.github/workflows/framework-examples.yml` 在 SDK 源码、依赖、构建脚本、相关示例或 workflow 变化的 PR，以及每周定时和手动触发时，构建当前 SDK tarball，覆盖示例声明的发布版依赖后，先用 `scripts/internal/check-example-dependencies.mjs` 核对 override 声明的消费者实际解析版本，再执行 Taro／uni-app 的真实微信小程序构建和业务异常的原始源码内容、双向映射检查。已有安装锁可能保留旧依赖，因此不能用安装成功代替版本核对。无关改动不触发重型框架构建。
 
-### core 扩展边界与升级审查
+### Core 扩展边界与升级审查
 
-本次职责取舍、失败复现及文档一致性复核见 [core v11 收尾审查](docs/core-v11-review.md)；真机用户验证由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 单独跟踪。
+当前职责边界、Core 接缝、保留原因和升级验证统一见[架构文档](ARCHITECTURE.md#7-core-的受控接缝与演进条件)。升级精确依赖前，先检查候选 Core 的签名、调用顺序、发送格式和离线行为，再运行对应真实 Core 与实际包回归，不能只依据类型检查通过。
 
-beta.4 发布后的小游戏 Session、系统信息降级和离线交错复核见 [发布后专项审查](docs/core-v11-postrelease-review.md)。
-
-beta.6 发布后的三轮独立发现、交叉反例与实际包消费复核见 [SDK 深度审查](docs/sdk-deep-review.md)，包含本轮初始化、能力降级、无消费者清理及用户文档修正的证据与取舍。
-
-同版本 Browser、Node、Deno、Cloudflare 的实现对照、采纳的修复和小程序环境取舍见[官方 SDK 实践](docs/sdk-official-practices.md)。
-
-[#471](https://github.com/lizhiyao/sentry-miniapp/issues/471) 的逐项复核、async 栈帧／FPS／console 修复及测试和文档收尾见 [发现处理记录](docs/core-v11-issue-471-review.md)。
-
-Taro／uni-app 示例的构建器兼容补丁、实际依赖安全公告与剩余上游问题见 [示例依赖审查](docs/example-dependency-security.md)。
-
-当前职责边界、Core 接缝、保留原因与升级验证统一见 [架构文档的 Core 演进章节](ARCHITECTURE.md#7-core-的受控接缝与演进条件)。涉及这些边界的改动，应先核对候选 Core 实现，再执行文档所列真实 Core 和发布包回归；不能仅凭类型检查通过放宽依赖范围。
+同版本官方 SDK 的实现参考见[官方 SDK 实践](docs/sdk-official-practices.md)，查询参数兼容层的补丁退出条件见[依赖取舍](docs/query-runtime-decision.md)。按版本的审查、框架依赖记录和文章集中在[文档索引](docs/README.md)；目标设备反馈由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 跟踪。
 
 在提交 Pull Request 前，请务必确保所有测试通过，且没有 Lint 错误：
 
@@ -120,23 +113,33 @@ yarn lint && yarn typecheck && yarn test:coverage
 
 ---
 
-## 📦 发布流程 (Maintainers Only)
+## 发布流程 (Maintainers Only)
 
-项目已配置 GitHub Actions 自动化 CI/CD，使用 `commit-and-tag-version` 管理版本号与 tag。`master` 是受保护分支，发版提交也需要通过 PR 合入。常规发版流程如下：
+`master` 是唯一长期分支。发布分为准备版本、合并候选和推送 tag 三步；合并版本号不等于 npm 已发布。
 
-1. **本地校验**：运行 `yarn lint` 和 `yarn test` 确保代码健康。
-2. **创建 release 分支并生成发版提交**：从最新 `master` 创建短分支后运行 `yarn release`，该命令会自动完成以下操作：
-   - 根据 Conventional Commits 更新版本号
-   - 创建 Git commit 和 tag
-3. **同步 SDK 版本常量**：确保 `src/version.ts` 中的 `SDK_VERSION` 与 `package.json` 版本一致（CI 测试会自动校验）。
-4. **通过 PR 合入 release commit**：推送 release 分支并创建 PR。合并时使用 merge commit，保留 `vX.Y.Z` tag 指向的 release commit 进入 `master` 历史；不要 squash release PR。
-5. **推送 Tag 触发发布**：
+1. 从最新 `master` 创建短分支，完成 lint、类型、测试与构建检查。
+2. 在 release 分支生成候选提交。先将 `RELEASE_VERSION` 设为本次选定的完整版本；beta 使用明确的预发布号：
 
    ```bash
+   yarn run release --release-as "$RELEASE_VERSION" --skip.tag \
+     --releaseCommitMessageFormat 'chore(release): 准备 {{currentTag}} 发布候选'
+   ```
+
+   工具同步 `package.json` 与 `src/version.ts` 并创建提交；`--skip.tag` 将发布触发留到候选合并后。
+3. 推送分支、创建 PR，核对版本常量和 CI。release PR 使用 **merge commit** 合并，保留候选提交身份，不使用 squash。
+4. 确认发布版本与候选提交后，将 `RELEASE_COMMIT_SHA` 设为该完整 SHA，并替换 `vX.Y.Z`；创建 tag 前确认这个提交已经进入 `master` 历史：
+
+   ```bash
+   git tag vX.Y.Z "$RELEASE_COMMIT_SHA"
    git push origin vX.Y.Z
    ```
 
-6. GitHub Actions 将自动接管构建、通过 npm Trusted Publishing（OIDC）发布到 NPM，并在发布成功后通过 `softprops/action-gh-release@v3` 创建对应的 GitHub Release。Release notes 由 GitHub 根据 tag 之间的 PR 自动生成，同时附带可直接下载的 `sentry-miniapp.umd.js` 与 Source Map。
+5. `v*` tag 触发 `.github/workflows/publish.yml`，验证并通过 npm OIDC 发布；预发布进入 `next`，正式版进入 `latest`。成功后创建 GitHub Release，附 UMD、Source Map、tarball 与来源摘要。
+6. 核对 Actions 结果、npm 版本与 dist-tag、GitHub Release 资产。不要以 tag 推送成功或版本号已合并代替发布成功。
+
+`yarn run release` 也支持直接生成本地 tag；使用这一路径时，仍须保留 release commit、先合并 PR，再推送 tag。已发布 tag 不移动或覆盖。
+
+Release notes 由 GitHub 根据 tag 之间的 PR 生成。PR 标题与描述应准确说明最终改动，破坏性变化、迁移方式和兼容性限制须写清楚；不另维护一份 `CHANGELOG.md`。
 
 ### npm Trusted Publishing
 
@@ -152,8 +155,6 @@ yarn lint && yarn typecheck && yarn test:coverage
 `.github/workflows/publish.yml` 使用 GitHub 托管 runner，并授予 `id-token: write`。npm CLI 会用 GitHub OIDC 身份换取仅对当前 workflow 有效的短期发布凭证，并自动生成 provenance；不要重新添加 `NODE_AUTH_TOKEN` 或发布权限 token。
 
 首次 OIDC 发版验证成功后，应在 npm 的 Publishing access 中选择 **Require two-factor authentication and disallow tokens**，删除仓库中的 `NPM_TOKEN` Secret，并撤销 npm 账户里不再使用的发布 token。若发布报 `ENEEDAUTH`，优先检查 npm Trusted Publisher 的仓库名、workflow 文件名和可执行 action 是否完全一致。
-
-仓库不再保留单独的 `CHANGELOG.md`。PR title / description 是发版说明的唯一信息源，包含 BREAKING CHANGE、迁移方式或兼容性注意事项的改动必须在 PR 描述里写清楚。
 
 ### CI/CD 超时、诊断与发布包一致性
 

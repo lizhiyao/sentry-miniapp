@@ -10,14 +10,8 @@ interface State {
 }
 
 /**
- * React 错误边界：捕获子树「渲染 / 生命周期」里抛出的错误，转交 Sentry 上报，并给用户兜底 UI。
- *
- * 为什么需要它：Taro 默认用 React。React 不像 Vue 那样静默吞掉组件错误（未捕获的渲染错误会
- * 向上抛），但用错误边界能把渲染错误更完整地上报（带 componentStack），并避免整页白屏。
- * 这是 Taro(React) 对应 uni-app(Vue) `app.config.errorHandler` 的做法（见仓库 README「常见问题」）。
- *
- * 注意：错误边界只能捕获「渲染期」错误，捕获不到事件回调 / setTimeout / 异步里的错误——
- * 那些请直接 try/catch 后 `Sentry.captureException`，或交给 SDK 的全局 / TryCatch 集成。
+ * 捕获子树渲染、构造函数和生命周期错误，记录 componentStack，并显示可理解的恢复提示。
+ * 事件回调、定时器和异步错误需要业务捕获或宿主全局监听；接入方式见官网 Taro 指南。
  */
 export default class SentryBoundary extends Component<Props, State> {
   state: State = { hasError: false };
@@ -38,7 +32,7 @@ export default class SentryBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <View style={{ padding: '40rpx', color: '#c0392b' }}>
-          <Text>页面渲染出错，已上报 Sentry。</Text>
+          <Text>页面暂时无法显示，请重新进入。</Text>
         </View>
       );
     }
