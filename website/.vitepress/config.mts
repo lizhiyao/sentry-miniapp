@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress';
 
 const GITHUB = 'https://github.com/lizhiyao/sentry-miniapp';
+const SITE_URL = 'https://sentry-miniapp.pages.dev';
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -13,6 +14,12 @@ export default defineConfig({
   cleanUrls: true,
   srcExclude: ['README.md'], // 站点说明文档，不作为页面构建
   head: [['link', { rel: 'icon', href: '/logo.png' }]],
+  sitemap: { hostname: SITE_URL },
+  transformHead({ pageData }) {
+    if (pageData.relativePath === '404.md') return [];
+    const pagePath = pageData.relativePath.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '');
+    return [['link', { rel: 'canonical', href: new URL(pagePath, `${SITE_URL}/`).href }]];
+  },
 
   themeConfig: {
     logo: '/logo.png',

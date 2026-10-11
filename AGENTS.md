@@ -21,6 +21,12 @@ sentry-miniapp 是基于 `@sentry/core` 的跨端小程序 Sentry SDK，覆盖�
 - commit 格式必须使用 Conventional Commits，并用中文 subject，例如 `feat: 新增网络请求体抓取功能`。推荐 scope 使用稳定模块名，如 `sdk` / `cross-platform` / `integrations` / `transports` / `docs` / `agents-md` / `release`。
 - 遵循现有 ESLint 规范，优先使用 TypeScript。
 
+## 用户视角的文档
+
+- README、官网和对外介绍中的核心能力与适用场景，必须先说明用户遇到的问题、适合的项目或场景，以及接入后能获得的结果。
+- 使用用户能理解的语言。API 名称、协议字段和实现机制放在对应接入、配置或架构文档中；介绍中只保留影响用户选择或操作的技术细节。
+- 能力与收益必须对照当前实现，保留必要的启用条件、平台差异和使用限制，避免把可选采集写成默认能力，或承诺完整捕获、必定送达、自动合规等无法保证的结果。
+
 ## 跨端兼容性
 
 - 改平台能力时，同时考虑微信、支付宝、字节跳动、钉钉、QQ、百度、快手。

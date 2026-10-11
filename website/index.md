@@ -1,10 +1,12 @@
 ---
 layout: home
+title: 小程序 Sentry 错误监控与性能排查
+description: 用 sentry-miniapp 将微信等小程序、小游戏、Taro 和 uni-app 项目接入 Sentry，发现线上异常、还原源码位置、排查慢请求，并按项目需要配置弱网上报和隐私同意。
 
 hero:
   name: sentry-miniapp
   text: 小程序监控 SDK
-  tagline: 将小程序和小游戏的异常、业务日志与请求链路接入 Sentry，结合操作上下文和 Source Map 定位问题。支持微信等七个平台、Taro 和 uni-app。
+  tagline: 用户报错难复现、线上堆栈找不到源码、请求变慢不知道卡在哪？把小程序和小游戏接入 Sentry，结合出错记录、操作上下文与源码位置排查问题。支持微信等七个平台、Taro 和 uni-app。
   image:
     src: /logo.png
     alt: sentry-miniapp
@@ -21,14 +23,14 @@ hero:
 
 features:
   - icon: 🛡️
-    title: 发现并还原线上问题
-    details: 按宿主能力捕获异常和未处理 Promise 拒绝，结合页面、用户操作、网络面包屑与 Source Map 还原问题。
+    title: 线上报错，知道从哪里查
+    details: 在 Sentry 集中查看异常，结合设备、页面、操作和请求记录还原经过；上传对应构建的 Source Map，找到原始源码位置。
   - icon: 📊
-    title: 看懂性能与请求链路
-    details: 开启采样后测量请求与业务操作，向指定后端传播追踪头；按需启用宿主导航、渲染与资源性能采集。
+    title: 操作变慢，找出耗时步骤
+    details: 开启性能采样后查看请求与业务步骤的耗时；配置链路追踪后，关联已接入 Sentry 的后端操作，缩小排查范围。
   - icon: 📡
-    title: 面对弱网与隐私要求
-    details: 上报失败时使用有界本地缓存尝试补发；需要隐私同意时，在授权前暂停 Sentry 网络发送。
+    title: 按网络和隐私要求安排上报
+    details: 将符合策略的发送失败数据暂存并尝试补发；配置同意门禁，让监控数据在用户同意隐私协议后再发送。
 ---
 
 <div class="sm-trust-strip" aria-label="项目支持范围与维护状态">
@@ -66,19 +68,19 @@ features:
     <a class="sm-card" href="/guide/taro">
       <span class="sm-kicker">React</span>
       <h3>Taro</h3>
-      <p>处理入口初始化、React 错误边界以及小程序 / H5 分端接入。</p>
+      <p>接入 Taro 小程序错误监控，补充 React 组件错误上报，并与 H5 分端配置。</p>
       <span class="sm-link">查看 Taro 指南</span>
     </a>
     <a class="sm-card" href="/guide/uniapp">
       <span class="sm-kicker">Vue</span>
       <h3>uni-app</h3>
-      <p>处理 main.js 初始化、Vue errorHandler 与条件编译。</p>
+      <p>接入 uni-app 小程序错误监控，补上 Vue 组件错误，并与 H5 分端配置。</p>
       <span class="sm-link">查看 uni-app 指南</span>
     </a>
     <a class="sm-card" data-tone="source" href="/guide/minigame">
       <span class="sm-kicker">Game</span>
       <h3>微信 / 抖音小游戏</h3>
-      <p>监控异常和初始化后的首帧等待时间，按需开启帧率与卡顿统计。</p>
+      <p>集中排查小游戏异常，按需观察帧率与卡顿，了解运行是否流畅。</p>
       <span class="sm-link">查看小游戏指南</span>
     </a>
   </div>
@@ -133,13 +135,13 @@ Sentry.captureException(new Error('sentry-miniapp test'));
     <a class="sm-card" href="/guide/errors-and-context">
       <span class="sm-kicker">能力</span>
       <h3>异常、日志与上下文</h3>
-      <p>确认自动捕获范围，并补充用户、标签、面包屑和独立 Logs。</p>
+      <p>还原用户出错前的操作经过，查询关键业务步骤的日志。</p>
       <span class="sm-link">查看能力指南</span>
     </a>
     <a class="sm-card" data-tone="trace" href="/guide/performance-and-tracing">
       <span class="sm-kicker">性能</span>
       <h3>性能与链路追踪</h3>
-      <p>配置采样、请求 span、追踪目标和 W3C traceparent。</p>
+      <p>查看慢请求与业务步骤耗时，关联小程序和后端的请求链路。</p>
       <span class="sm-link">配置追踪</span>
     </a>
     <a class="sm-card" data-tone="source" href="/guide/sourcemap">
