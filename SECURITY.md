@@ -4,11 +4,11 @@
 
 | Version | Supported          |
 |---------|--------------------|
-| 2.0 beta (`next`) | Reports accepted; APIs and behavior may change before stable release |
-| 1.x.x (`latest`) | Stable release line |
+| 2.x.x (`latest`) | Current stable release line |
+| 1.x.x | Previous stable release line; reports accepted |
 | 0.x.x   | No (deprecated)    |
 
-Check the installed version when reporting an issue. Prerelease fixes are not necessarily present in the stable release; version selection and deployment requirements are described in the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice).
+Check the installed version when reporting an issue. Version selection and deployment requirements are described in the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice).
 
 ## Reporting a Vulnerability
 

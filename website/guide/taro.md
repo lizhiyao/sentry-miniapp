@@ -14,7 +14,7 @@ Taro 默认使用 **React**（也可通过 `framework` 配置切换到 Vue3 / Vu
 ## 1. 安装
 
 ```bash
-npm install sentry-miniapp@next --save
+npm install sentry-miniapp --save
 ```
 
 ## 2. 初始化封装
@@ -100,7 +100,7 @@ export default class SentryBoundary extends Component<{ children: ReactNode }, {
 用下方片段替换初始化封装中的 SDK 导入，再对选出的 SDK 调用 `init()`。DSN、release 和 environment 可共用；平台专属选项放在对应分支。
 
 ```bash
-npm install sentry-miniapp@next @sentry/browser --save
+npm install sentry-miniapp @sentry/browser --save
 ```
 
 ```ts

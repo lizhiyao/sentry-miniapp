@@ -11,7 +11,7 @@
 
 简体中文 | [English](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/README.en.md)
 
-> 本文与当前官网面向 **2.0 beta**，安装 `sentry-miniapp@next` 试用；默认安装仍为 1.x 稳定版。先按下方说明选择版本，beta 用户请在测试项目中确认上报、源码定位和隐私同意行为，反馈入口见 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
+> 本文与当前官网面向 **2.x 正式版**。新项目安装 `sentry-miniapp`；已有 1.x 项目先阅读[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。真实设备与跨端反馈见 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
@@ -37,7 +37,7 @@
 | --- | --- |
 | 1.x 已满足需求且运行稳定 | 可以继续使用 1.x，无需仅为 Core 版本升级而迁移 |
 | 自建 Sentry 低于 26.4.2，暂时无法升级后台 | 保持项目已验收的 1.x 版本；参考 [1.20.4 README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/README.md) 与 [v1 文档归档](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide) |
-| 使用官方云服务或受支持的自建后台，需要流式性能监控或业务 Metrics | 可在测试项目中试用 2.0 beta，先阅读[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) |
+| 使用官方云服务或受支持的自建后台，需要流式性能监控或业务 Metrics | 可接入 2.x，先阅读[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)，在测试项目中验证后上线 |
 
 官方云服务（sentry.io）与受支持的新自建后台均可接收 v1、v2 数据，项目和 DSN 可以沿用。2.0 所依赖的 Core v11 以自建 Sentry **26.4.2 及以上**为[官方支持基线](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x)；更旧版本可能部分可用，但不受支持。2.0 只支持流式性能上报，没有旧性能格式的兼容开关；仅收到异常或关闭 tracing 不能证明旧后台完整兼容。
 
@@ -52,7 +52,7 @@
 安装：
 
 ```bash
-npm install sentry-miniapp@next
+npm install sentry-miniapp
 ```
 
 原生微信项目还需在开发者工具中执行「工具 → 构建 npm」；目录要求见[快速接入](https://sentry-miniapp.pages.dev/guide/getting-started#_1-安装)。Taro / uni-app 由框架构建处理依赖。

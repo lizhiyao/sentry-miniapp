@@ -1,6 +1,6 @@
 # 文档索引
 
-接入和日常使用以[文档站](https://sentry-miniapp.pages.dev/)为主；仓库文档补充开发、设计取舍和审查记录。当前用户指南面向 2.0 beta，1.x 入口见[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+接入和日常使用以[文档站](https://sentry-miniapp.pages.dev/)为主；仓库文档补充开发、设计取舍和审查记录。当前用户指南面向 2.x 正式版，1.x 入口见[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
 
 ## 按任务阅读
 

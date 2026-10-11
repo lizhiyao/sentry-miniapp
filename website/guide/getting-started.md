@@ -1,6 +1,6 @@
 # 快速接入
 
-本页对应 2.0 beta，试用安装 `sentry-miniapp@next`。接入前先看[版本选择与迁移](/guide/migration-2.0#version-choice)。仓库示例使用当前构建产物。
+本页对应 2.x 正式版，安装 `sentry-miniapp`。接入前先看[版本选择与迁移](/guide/migration-2.0#version-choice)。仓库示例使用当前构建产物。
 
 `sentry-miniapp` 是基于 [`@sentry/core`](https://github.com/getsentry/sentry-javascript) 的跨端小程序 Sentry SDK，覆盖微信、支付宝、字节跳动、钉钉、QQ、百度、快手，并兼容 Taro / uni-app。
 
@@ -11,8 +11,8 @@
 在小程序项目的 `package.json` 所在目录安装；尚无该文件时，先运行 `npm init -y`：
 
 ```bash
-npm install sentry-miniapp@next --save
-# 或 yarn add sentry-miniapp@next
+npm install sentry-miniapp --save
+# 或 yarn add sentry-miniapp
 ```
 
 **原生微信小程序还需要构建 npm**：安装或更新 SDK 后，在微信开发者工具中执行「工具 → 构建 npm」，再编译小程序。默认情况下，`package.json` 须位于 `project.config.json` 的 `miniprogramRoot` 目录内；目录分离的项目按[微信官方 npm 文档](https://developers.weixin.qq.com/miniprogram/dev/devtools/npm.html)配置手动打包。Taro / uni-app 由框架构建处理依赖，不需要额外执行这个原生步骤。
