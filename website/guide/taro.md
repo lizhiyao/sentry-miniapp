@@ -3,7 +3,7 @@ title: Taro 小程序接入 Sentry：初始化与 React 错误上报
 description: 在 Taro 4 + React 微信小程序中接入 sentry-miniapp，完成入口初始化、React 错误边界、合法域名检查和 Source Map 验证，并与 H5 分端配置。
 ---
 
-# Taro 小程序接入 Sentry：初始化与 React 错误上报 {#taro-接入指南}
+# Taro 小程序接入 Sentry：React 错误上报 {#taro-接入指南}
 
 **Taro 小程序端使用 `sentry-miniapp` 接入 Sentry。** 在业务模块加载前初始化，再将 React 组件错误交给错误边界上报；同时构建 H5 时，按端选择 SDK。
 
