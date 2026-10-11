@@ -1,5 +1,7 @@
 # 一个中国小程序监控 SDK，为什么会出现在 Sentry 官方文档里
 
+> 文章存档：以下叙述和示例保留原稿阶段的信息。当前接入与配置请看[文档站](https://sentry-miniapp.pages.dev/)和[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+
 ![sentry-miniapp 出现在 Sentry 官方 Community-Supported SDKs 列表（来自 docs.sentry.io/platforms/）](https://cdn.jsdelivr.net/gh/lizhiyao/sentry-miniapp@master/docs/articles/sentry-listing-screenshot.png)
 
 前两天，我提给 Sentry 官方文档仓库的一个 PR 被合并了。

@@ -55,7 +55,7 @@ export default App;
 
 ## 4. 组件错误：用 React 错误边界
 
-React 不像 Vue 那样静默吞掉组件错误，但**渲染期错误若不接住会整页白屏**。用错误边界把渲染错误更完整地上报（带 `componentStack`）并兜底 UI。新建 `src/components/SentryBoundary.tsx`：
+React 错误边界可以捕获子树渲染、构造和生命周期中的错误，附加 `componentStack` 并展示备用界面。它不能覆盖事件处理器与任意异步任务；详见 [React 错误边界说明](https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary)。新建 `src/components/SentryBoundary.tsx`：
 
 ```tsx
 import { Component, type ErrorInfo, type ReactNode } from 'react';
@@ -78,7 +78,7 @@ export default class SentryBoundary extends Component<{ children: ReactNode }, {
     if (this.state.hasError) {
       return (
         <View style={{ padding: '40rpx', color: '#c0392b' }}>
-          <Text>页面渲染出错，已上报 Sentry。</Text>
+          <Text>页面暂时无法显示，请重新进入。</Text>
         </View>
       );
     }
@@ -87,8 +87,8 @@ export default class SentryBoundary extends Component<{ children: ReactNode }, {
 }
 ```
 
-::: warning 错误边界只接「渲染期」错误
-事件回调 / `setTimeout` / 异步里的错误，错误边界捕获不到——那些请直接 `try/catch` 后 `Sentry.captureException`，或交给 SDK 的全局 / TryCatch 集成。
+::: warning 错误边界的范围
+事件处理器、定时器和一般异步任务不在错误边界范围内。业务已捕获的异常可主动调用 `captureException()`；未处理异常由宿主全局监听或 TryCatch 集成按能力捕获。
 :::
 
 > 这是 Taro(React) 对应 uni-app(Vue) `errorHandler` 的做法。对比见 [常见问题 · 组件内错误](/guide/faq#component-errors)。
@@ -96,6 +96,8 @@ export default class SentryBoundary extends Component<{ children: ReactNode }, {
 ## 5. 分端接入（同时要 H5）
 
 若 Taro 工程还编译 H5，用 `process.env.TARO_ENV` 分端引入——小程序用 `sentry-miniapp`，H5 用功能完整、官方维护的 `@sentry/browser`：
+
+用下方片段替换初始化封装中的 SDK 导入，再对选出的 SDK 调用 `init()`。DSN、release 和 environment 可共用；平台专属选项放在对应分支。
 
 ```bash
 npm install sentry-miniapp@next @sentry/browser --save

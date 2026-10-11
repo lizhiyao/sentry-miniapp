@@ -4,7 +4,7 @@
 
 ## 先开启性能采样
 
-设置 `tracesSampleRate` 后，SDK 才会采样并发送性能 span（core 11 起不再产出 transaction 事件）：
+设置 `tracesSampleRate` 或 `tracesSampler` 后，SDK 按采样决定发送性能 span：
 
 ```js
 Sentry.init({
@@ -86,7 +86,9 @@ await Sentry.startSpan(
 );
 ```
 
-`startSpan` 管理回调生命周期，但小程序 stack strategy 不隔离任意 await 并发；不要据此承诺异步回调中的所有请求仍属于原父 span。只有确需手动结束时使用 startInactiveSpan。手动 span 的 route／network 由业务在创建时显式提供，SDK 不保存全局动态快照；tracing 仅支持一个活动 init runtime。
+`startSpan` 会在回调结束时自动结束 span；只有需要跨生命周期手动结束时才使用 `startInactiveSpan()`。需要页面或网络维度时，在创建业务 span 时显式提供 attributes。
+
+小程序仅支持一个当前使用的 tracing client。多个任务并行跨越 `await` 时，不能保证后续请求仍关联各自原来的父 span。跨定时器的同步工作可用 `withActiveSpan(parent, callback)` 显式关联，具体示例见[uni-app 工程](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。
 
 ## 串联小程序与服务端
 
@@ -142,17 +144,16 @@ Sentry.init({
 });
 ```
 
-## core 11 的 span streaming（升级须知）
+## 流式性能数据 {#core-11-的-span-streaming-升级须知}
 
-`sentry-miniapp` 依赖的 `@sentry/core` 11 把 trace 生命周期默认值改成了 `'stream'`：span 不再等根 span 结束后打包成一条 transaction 事件，而是按 trace 分批作为 `span` envelope item 发出。对使用方的影响：
+SDK 使用流式 span 上报性能数据。已经结束的子操作可在根流程结束前分批发送，避免长流程一直占用本地缓冲、必须等全部完成才看到数据。
 
-- **不再产生 transaction 事件**，Performance 页改由 segment span 聚合展示；Sentry 侧的查询、告警若按 `transaction` 类型写过，需要改看 span。
-- **2.0 删除 `beforeSendTransaction` 与 `ignoreTransactions` 配置**。替代：`beforeSendSpan`（配合 `span.is_segment` 判断）与 `ignoreSpans`。
-- **span 上的自定义指标改走属性**。小游戏的 `fps.avg`、`jank.count` 等只写 span attributes；删除 static measurements 双写。
-- **`measurements` / `tags` / `extra` 不再挂到 span 上**（streamed span 只携带 attributes），需要在 Sentry 端按属性查询。
-- 小游戏 `onHide` 的同步发出仍然成立：SDK 会随默认集成装 core 的 `spanStreamingIntegration`，退后台时的 `flush()` 会同步排空 span 缓冲区，不依赖 core 的定时器。
+- 在 Sentry Traces／性能页面查看请求、业务操作和 segment span；业务维度通过 attributes 查询。
+- 用 `beforeSendSpan` 修改 `name` 与 `attributes`，返回该 span；需要丢弃时使用 `ignoreSpans`，不能返回 `null`。
+- 默认 `SpanStreaming` 集成负责批量发送；自定义默认集合时须保留 `spanStreamingIntegration()`。
+- 退后台、关闭或替换配置时，SDK 会尝试排出缓冲；`flush()` 完成仍不代表后台接收确认。
 
-2.0 只支持 `traceLifecycle: 'stream'`；JS 显式传入 `static` 会报配置错误，须迁移到 span 与 attributes。`beforeSendSpan` 用于修改名称／属性；需要丢弃 span 时使用 `ignoreSpans`，不要返回 `null`。core 原生按 trace 批处理及 timer 保留，未结束 root 的 children 也可先发送；hide／close／init 替换边界通过 flush 主动排空，flush 成功仍不代表后台 ACK。
+这种数据格式由目标 Sentry 服务接收和展示。后台要求和旧配置迁移集中在[2.0 迁移指南](/guide/migration-2.0)，避免把客户端配置正确当作后台能力已验证。
 
 ## 验证链路
 
@@ -162,6 +163,6 @@ Sentry.init({
 4. 确认第三方域名没有收到不必要的追踪头。
 5. 打印 `Sentry.getDiagnostics()`，检查采样率、传播开关和 warnings。
 
-没有 span 时，先确认性能采样已开启、默认 `NetworkBreadcrumbs` 集成没有被替换；自定义 `defaultIntegrations` 时务必保留 `spanStreamingIntegration()`（core 11 的 span 发送依赖它，漏装时无父 HTTP segment 和其它 span 均无法发送），并检查 `enableStandaloneHttpSpans` 是否被关闭；本地 span 正常但服务端没有串联时，再检查 `tracePropagationTargets`、网关透传和后端 Sentry / OpenTelemetry 配置。
+没有 span 时，依次检查性能采样、`NetworkBreadcrumbs` 请求观测和 `SpanStreaming` 发送集成；没有父 span 的请求还受 `enableStandaloneHttpSpans` 控制。自定义默认集合须保留 `spanStreamingIntegration()`。本地 span 正常但服务端没有串联时，再查 `tracePropagationTargets`、网关透传和后端 Sentry / OpenTelemetry 配置。
 
 所有相关选项见[配置项参考 · 采样](/guide/configuration#采样)与[配置项参考 · 分布式追踪](/guide/configuration#分布式追踪)。

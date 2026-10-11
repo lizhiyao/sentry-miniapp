@@ -1,100 +1,97 @@
 # 工作原理
 
-理解 SDK 怎么跑，能帮你更快定位「为什么没上报 / 堆栈对不上 / 上报率低」这类问题。本页讲设计，不讲调用方式；调用方式见[常用 API](/guide/api)，初始化选项见[配置项参考](/guide/configuration)。
+`sentry-miniapp` 把小程序宿主的数据接入 Sentry 的处理管道。本页说明主要设计原因，帮助判断哪些能力自动启用、哪些需要业务配置。调用方式见[常用 API](/guide/api)，参数见[配置项参考](/guide/configuration)。
 
-## 为什么不能直接用 `@sentry/browser`
+<span id="为什么不能直接用-sentry-browser"></span>
 
-官方 Web SDK 依赖浏览器环境，而小程序**没有这些**：
+## 为什么需要小程序适配
 
-- 没有可依赖的浏览器 DOM／`document`；部分宿主提供 `window` 别名，但它不代表浏览器能力；
-- 没有 `fetch` / `XMLHttpRequest`——网络只能走各平台自己的请求 API（如 `wx.request` / `my.httpRequest`）；
-- 是**双线程架构**（渲染层 + 逻辑层），错误监听、全局对象都和浏览器不一样。
+小程序使用 `wx`／`my`／`tt` 等平台 API，没有可依赖的浏览器 DOM、`fetch` 或 `XMLHttpRequest`。部分宿主提供 `window` 别名，也不代表具备浏览器能力。因此，小程序端使用 `sentry-miniapp`；H5 端使用官方 Web SDK。
 
-所以 `@sentry/browser` 的传输层、全局错误钩子、DOM 录制在小程序里都用不了。`sentry-miniapp` 复用 Sentry 的**核心**（`@sentry/core`：事件模型、采样、scope、集成机制），只重写「与运行环境耦合」的那一层。
+SDK 复用 `@sentry/core` 的事件、scope、采样、追踪上下文和批处理，小程序层负责异常输入、请求、页面、生命周期和 Storage 适配。这样可以沿用 Sentry API 和数据格式，同时处理宿主差异。
 
 ## 整体架构
 
-```
-你的业务代码
-      │
-      ▼
-sentry-miniapp（init + 默认集成）
-  ├─ 全局异常捕获      劫持 wx.onError / onUnhandledRejection ...
-  ├─ 网络面包屑        包裹全局 request，记 url/method/状态码/耗时
-  ├─ Source Map 归一化  把各平台虚拟路径重写为 app:///
-  ├─ 性能 / 追踪        请求耗时记为 http.client span，注入 trace 头
-  ├─ Logs              Sentry.logger.* 独立上报业务日志
-  ├─ 同意门禁          requireConsent 下同意前不发网络，有界缓存可降级或丢弃
-  ├─ 离线缓存          官方 offline 管道 + 单目标 typed Storage，best-effort 重试
-  └─ 平台 API 抹平层    wx / my / tt / dd / qq / swan / ks 差异统一
-      │
-      ▼
-@sentry/core（事件构建、采样／DSC、scope、span／Logs／metrics 批处理）
-      │
-      ▼
-自定义 transport（走平台 request/httpRequest 把 envelope 发到 Sentry）
+```text
+业务代码 / 小程序宿主
+       ↓
+sentry-miniapp
+  异常、请求、页面与可选性能采集
+  平台信息、数据过滤、虚拟堆栈路径归一化
+       ↓
+@sentry/core
+  事件处理、作用域、采样、span / 日志 / 指标批处理
+       ↓
+小程序发送通道
+  隐私同意门禁、按配置启用的离线缓存、平台 request
+       ↓
+Sentry 后台：接收、聚合、源码还原与查询
 ```
 
 ## 关键机制
 
-### 平台 API 抹平
+<span id="平台-api-抹平"></span>
+<span id="全局异常捕获"></span>
 
-各平台全局对象（`wx` / `my` / `tt` / `dd` / `qq` / `swan` / `ks`）和 API 命名、入参、返回结构都有差异（如支付宝是 `my.httpRequest`、状态码字段叫 `status`）。SDK 在初始化时检测平台并把它们代理成统一调用，上层逻辑只面向一套 API。差异细节见[跨平台差异与降级](/guide/platform-compatibility)。
+### 按能力使用宿主 API
 
-### 全局异常捕获
+SDK 检测当前平台，统一请求与 Storage 参数、响应状态码等差异。缺少异常监听、性能 observer 或全局帧回调时，只跳过对应能力。某项观测无法安全包装宿主函数时，保留业务原函数，基础错误上报仍可继续。详见[跨平台差异与降级](/guide/platform-compatibility)。
 
-`init` 时劫持平台的全局错误监听（`onError` / `onUnhandledRejection` / `onPageNotFound` / `onMemoryWarning`，存在才挂）。**所以 `init` 必须在 `App()` 之前执行**——晚了就漏掉启动阶段的异常。
+应在入口尽早初始化，原生小程序放在 `App()` 之前；初始化前已经发生的异常和请求不能补采。Taro／uni-app 组件错误可能由框架先接住，需要接入 React 错误边界或 Vue `errorHandler`。
 
-> 注意：用 Vue（uni-app）时，组件内错误会被 Vue 自己的 `errorHandler` 接住、**不冒泡**到 `wx.onError`，需要手动把 Vue 的 `errorHandler` 接到 Sentry（这就是「上报率低」的常见根因）。详见 [uni-app 接入](/guide/uniapp)。
+<span id="网络面包屑与追踪"></span>
 
-### 网络面包屑与追踪
+### 网络面包屑与请求性能分开使用
 
-默认包裹全局 `request` / `httpRequest`，把每个请求记成 `category: xhr` 的面包屑，随**下一个错误事件**一起上报（`uni.request` / `Taro.request` 最终也会走到对应小程序端的全局请求 API）。开启性能采样后，请求在活跃 span 内记为 `http.client` 子 span，没有父级时记为独立 segment span；该采集不依赖宿主 `PerformanceObserver`。仅对 `tracePropagationTargets` 明确授权的域名注入 `sentry-trace` / `baggage`；需要 OpenTelemetry / W3C Trace Context 时再开启 `propagateTraceparent`。
+默认记录请求 URL、方法、状态与耗时，作为面包屑附在下一次错误或消息事件上；面包屑不单独上报。请求／响应正文默认关闭，按需开启后先过滤再截断。
 
-### 多次初始化与全局 instrumentation
+开启性能采样后，请求在活跃 span 内作为子操作，没有父级时默认作为独立操作上报。该耗时测量不依赖宿主 Performance observer。追踪头仅发往 `tracePropagationTargets` 匹配的地址，避免把链路信息传给无关服务。详见[性能与链路追踪](/guide/performance-and-tracing)。
 
-`request`、`Page`、`console` 等宿主全局函数由 SDK 的共享 instrumentation 层统一包装一次；每个 Sentry client 只注册自己的处理器。调用发生时只分发给当前 scope 绑定的 client，client 关闭时也只退订自己的处理器。因此在热更新、微前端容器或测试环境中发生重叠 `init()` 时，旧 client 的请求体采集 / 追踪白名单不会穿透到新 client，乱序 `close()` 也不会拆掉仍在工作的全局监控。原生错误、网络状态和前后台事件也按宿主共享监听，每个 client 可以独立退订；缺少 `off*` 时保留空通道并在下次初始化复用，避免监听随初始化次数增长。宿主全局事件按交付时的活动 client 处理；具体请求、定时器、帧回调与网络初始查询仍绑定原 client，关闭后的迟到结果不会转交。Performance Observer 仍由各 client 持有。
+<span id="数据处理与发送"></span>
+<span id="logs-与合规门禁"></span>
 
-连续监听已经确认的前后台状态会在重新初始化时保留，后台重启 SDK 不会误建前台 Session 或恢复 FPS 采样。监听中断后，SDK 不会把中断前的状态当作当前状态。建议在应用入口初始化一次。
+### 性能、日志与指标由 Core 批量发送
 
-业务代码仍应在启动阶段只初始化一次；上述隔离用于保证重入和清理安全，不是鼓励为同一个小程序长期维护多个并行 client。
+性能数据使用流式 span：已结束的子操作可以在长流程结束前分批发送。默认集成中的 `SpanStreaming` 负责这条发送路径；自定义默认集合时须保留它。span 的业务维度使用 attributes，错误事件的 tags／context 不会自动复制成性能属性。
 
-性能追踪仅支持一个当前使用的 client。小程序的异步上下文能力有限：多个任务并行跨越 `await` 时，不能保证各自的请求仍关联到原来的父 span。需要页面或网络类型等属性时，在创建业务 span 时显式传入；SDK 会补充设备和应用版本等稳定信息。
+`logger.*` 生成可独立检索的业务日志；`metrics.*` 记录计数、分布和数值。错误、日志、指标与 span 分别使用自己的过滤回调，处理其中一类不会自动过滤其他类别。
 
-### 数据处理与发送
+<span id="多次初始化与全局-instrumentation"></span>
 
-SDK 采集小程序数据后，由 `@sentry/core` 处理事件、采样和批量发送。错误事件的 processors／`beforeSend`、日志的 `beforeSendLog` 等钩子可在发送前修改或丢弃数据，见[配置项参考](/guide/configuration)。
+### 在生命周期边界尝试排空
 
-性能数据由默认的 `SpanStreaming` 集成批量发送。自定义 `defaultIntegrations` 时需保留 `spanStreamingIntegration()`，否则请求和业务操作的性能数据都无法发送；`Sentry.getDiagnostics()` 会提示缺失的集成。
+应用退后台时，宿主可能暂停计时器或终止进程，SDK 因此在该边界尝试排出缓冲数据。同步 `App.onHide` 执行后可以自动 flush；异步回调后来产生的数据需要业务显式 flush。该过程不能保证进程冻结后仍完成网络交付。
 
-### Logs 与合规门禁
+通常在入口初始化一次。SDK 共享全局函数包装与原生监听，替换或关闭 client 时释放自身订阅；缺少退订 API 的宿主复用不持有旧 client 的空监听，避免反复初始化累积回调。具体操作的迟到结果仍归原 client，不转交新实例。关闭与切换方法见[配置参考](/guide/configuration#_2-0-的-client-关闭与切换契约)。
 
-`Sentry.logger.*` 产生独立的 log envelope，用于业务日志查询、聚合和告警；`enableConsoleBreadcrumbs` 只会把 `console` 输出作为面包屑挂到下一次事件，两者用途不同。
+小程序没有通用的异步上下文隔离能力。多个任务并行跨越 `await` 时，不能保证后续请求仍关联各自原来的父 span；需要这些关系时应显式组织业务操作，见[业务 span 指南](/guide/performance-and-tracing#添加业务-span)。
 
-开启 `requireConsent` 后，SDK 仍会按配置采集遥测，但在 `Sentry.setConsent(true)` 前不会发送 Sentry 网络请求。有界缓存中的有效记录可在同意后补发；零容量、过期、存储故障或目标／不兼容策略变化可能丢弃记录。缺少 Storage 时可降级到内存，不能承诺跨进程保留。撤回同意后，排队请求不得开始；在途请求的取消取决于宿主能力。
+<span id="弱网离线缓存"></span>
 
-### Source Map 路径归一化
+### 同意门禁与弱网缓存共用发送边界
 
-小程序错误栈里的文件路径是各平台虚拟路径（如微信 `appservice/pages/index.js`、抖音小游戏 `tt://main/index.js`、Cocos `chunks:///_virtual/runtime.js`）。`RewriteFrames` 集成在上报前把它们统一重写为 `app:///` 前缀。SDK 还会兼容 Debug ID map 被注入到非 `globalThis` 全局对象的小游戏场景；私有引擎或特殊堆栈格式可通过 `stackParser` 覆盖默认解析器。真机上微信可能把逻辑层合并成 `appservice.app.js`，详见 [Source Map 进阶与排障](/guide/sourcemap-advanced)。
+`requireConsent` 控制 Sentry 网络发送，同意前仍按配置采集并进入有界本地缓冲。授权后尝试补发，撤回后暂停发送；在途取消取决于宿主能力。
 
-### 弱网离线缓存
+弱网重试与同意等待复用 Core 的离线管道。缓存受目标、策略、容量、过期时间和存储能力约束，可能丢弃或丢失数据，不能保证每条记录送达。缺少 Storage 时降级为内存。详见[可靠上报与隐私同意](/guide/reliability-and-privacy)。
 
-小程序网络不稳定。SDK 复用 core 的 offline 管道，在符合重试与缓存条件时写入单目标 Storage，恢复后尝试补发；HTTP 响应、限流、存储故障和关闭有各自处理边界，不是所有失败都会入库。缓存受容量与 TTL 限制，读取时先持久提交删除，再交给 transport，因此仍可能丢失，不承诺 durable ACK 或恰好一次。详见[可靠性与隐私](/guide/reliability-and-privacy)。
+<span id="source-map-路径归一化"></span>
+
+### 源码还原需要构建与后台配合
+
+SDK 解析宿主堆栈并把虚拟路径归一为 `app:///`，兼容运行时可见的 Debug ID。业务构建负责生成并上传同版本 JS／map，Sentry 负责匹配文件、还原源码。微信再次合并或转译 JS 时，可能需要最终运行文件的映射，不能仅靠路径重写解决。详见[Source Map 上线指南](/guide/sourcemap)。
 
 ## 端到端数据流
 
+```text
+运行时错误 → 宿主异常适配 → Core 合并上下文与处理事件
+       → 路径归一化、过滤与采样 → 同意 / 缓存 / 发送通道
+       → Sentry 接收事件 → 匹配同版本 JS / map → 显示源码
 ```
-运行时发生错误
-      ↓
-SDK 平台错误适配 → core 构建事件、合并 scope
-      ↓
-client／scope processors（含 RewriteFrames）→ normalize → beforeSend → session 更新／错误采样
-      ↓
-core envelope → 同意／生命周期门禁 → offline／宿主 transport（按缓存条件处理失败）
-      ↓
-Sentry 收到 → 匹配实际 frame、同次构建的 JS／map 与 Debug ID 或 release → 展示源码位置
-```
+
+事件 ID 或 `flush()` 完成只能说明客户端侧的调用结果，接入验收仍需在自己的 Sentry 项目查看新事件和源码位置。
 
 ## 下一步
 
-- [常用 API](/guide/api) · [配置项参考](/guide/configuration) · [支持范围](/guide/platforms) · [Source Map 上线指南](/guide/sourcemap)
+- 接入与排障：[快速接入](/guide/getting-started) · [常见问题](/guide/faq)
+- 查询调用与能力：[常用 API](/guide/api) · [支持范围](/guide/platforms)
+- 参与 SDK 开发：[维护者架构文档](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)

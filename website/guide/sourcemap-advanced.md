@@ -4,10 +4,10 @@
 
 ## 本地 Source Map Doctor
 
-包内提供静态体检命令。它不会登录 Sentry、不会上传或修改文件，只检查本地产物是否具备上传条件。
+包内提供静态体检命令。先按[快速接入](/guide/getting-started)安装 SDK，再在业务项目中运行以下命令；`--no-install` 使用本项目的 SDK，避免临时下载另一个版本。Doctor 不会登录 Sentry、上传或修改文件，只检查本地产物是否具备上传条件。
 
 ```bash
-npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+npx --no-install sentry-miniapp-sourcemap-doctor \
   --dist ./dist \
   --release "my-miniapp@1.0.0"
 ```
@@ -23,7 +23,7 @@ Doctor 会检查：
 CI 中建议开启严格模式：
 
 ```bash
-npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+npx --no-install sentry-miniapp-sourcemap-doctor \
   --dist ./dist \
   --release "$SENTRY_RELEASE" \
   --strict
@@ -93,7 +93,7 @@ appservice.app.js
 ### 2. 需要合成时，先检查能否匹配
 
 ```bash
-npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+npx --no-install sentry-miniapp-sourcemap-doctor \
   --wechat ./wechat/appservice.app.js.map \
   --build-maps ./dist/dev/mp-weixin \
   --strip webpack:// \
@@ -104,10 +104,11 @@ npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
 
 ### 3. 需要合成时，生成最终 map
 
-合成工具临时需要 `source-map`，不会增加 SDK 运行时依赖：
+合成工具需要业务项目的开发依赖 `source-map`，不增加小程序运行时依赖。安装后使用同一 SDK 包提供的命令：
 
 ```bash
-npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
+npm install --save-dev source-map
+npx --no-install sentry-miniapp-sourcemap-merge \
   --wechat ./wechat/appservice.app.js.map \
   --build-maps ./dist/dev/mp-weixin \
   --out ./merged/appservice.app.js.map \
@@ -120,7 +121,7 @@ npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
 
 把最终 map 与对应的运行 JS 成对上传，文件名以实际事件为准：例如 `app:///appservice.app.js` 或 `app:///app-service.js`。map 的 `file` 字段可能为空，不能只靠这个字段判断运行文件名。
 
-下载得到 `.map` 不代表已经具备完整上传条件。先检查同版本编译产物是否包含事件所指的运行 JS；`getCompiledResult` 导出的上传包可能仍是 `app.js`、`pages/*/*.js` 等分页文件，不能把其中任意文件改名为 `app-service.js` 来配对。缺少最终运行 JS 时，保留映射用于本地坐标验证，并将后台符号化登记为未验证；不要仅凭映射下载、CLI 上传成功或本地还原宣称后台验收通过。
+下载得到 `.map` 不代表已经具备完整上传条件。先检查同版本编译产物是否包含事件所指的运行 JS；`getCompiledResult` 导出的上传包可能仍是 `app.js`、`pages/*/*.js` 等分页文件，不能把其中任意文件改名为 `app-service.js` 来配对。缺少最终运行 JS 时，可先用 map 检查本地坐标，但仍须取得与事件对应的 JS，才能完成成对上传和后台验证。
 
 上传完成后新触发一个真机错误，核对 release、运行文件名与行列，再确认后台堆栈及源码上下文。
 
@@ -155,7 +156,7 @@ Cocos Creator 生成的 `game.js.map` 通常描述 **Cocos 构建的 `game.js` �
 把两份同名 map 分开放置，再运行：
 
 ```bash
-npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+npx --no-install sentry-miniapp-sourcemap-doctor \
   --wechat ./maps/wechat-online/game.js.map \
   --build-maps ./maps/cocos-build \
   --release "$SENTRY_RELEASE"
@@ -165,13 +166,15 @@ npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
 
 ### 3. 合成并上传
 
+先安装开发依赖 `source-map` 和 [sentry-cli](/guide/sourcemap#第二步-安装和配置-sentry-cli)，再运行：
+
 ```bash
-npx -p sentry-miniapp -p source-map sentry-miniapp-sourcemap-merge \
+npx --no-install sentry-miniapp-sourcemap-merge \
   --wechat ./maps/wechat-online/game.js.map \
   --build-maps ./maps/cocos-build \
   --out ./sentry-upload/game.js.map
 
-npx sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./sentry-upload \
+npx --no-install sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./sentry-upload \
   --url-prefix "app:///" \
   --ext js \
   --ext map \
@@ -184,7 +187,7 @@ npx sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./sentry-upload \
 
 ## Debug ID 与自定义 stackParser
 
-SDK 会同步当前小程序 / 小游戏运行时可见全局对象上的 `_sentryDebugIds` 与 `_debugIds`，兼容 Debug ID 被注入到 `window`、`global`、`self` 等对象的情况。
+使用构建插件注入 Debug ID 时，上传和部署须使用同一份注入后的 JS 与 map。SDK 负责把宿主可见的 Debug ID 交给 Sentry；仍应核对新事件的 `debug_meta` 与上传文件的 ID。额外的微信编译可能改变代码和映射，需要按前面的两层映射流程检查。
 
 大多数项目无需设置 `stackParser`。内置 `miniappStackParser` 已覆盖常见 V8、Safari、JavaScriptCore 以及小程序虚拟路径格式。
 
@@ -204,6 +207,8 @@ Sentry.init({
 ```
 
 `stackParser` 只负责把运行时字符串解析成 StackFrame，不会生成或上传 Source Map，也不会放宽 release / artifact 匹配要求。
+
+<span id="构建与事件匹配验证"></span>
 
 ## 上传成功仍无法还原
 
@@ -230,9 +235,4 @@ Sentry.init({
 
 仍无法定位时，提交 Issue 时附 SDK 版本、平台、框架、事件 filename、release、Doctor JSON 输出和脱敏后的 `Sentry.getDiagnostics()`。
 
-
-### 构建与事件匹配验证
-
-上传的 JS 和 map 必须与实际部署的构建一致。使用 Debug ID 注入时，将注入后的 JS 与对应 map 成对上传、部署，再核对新事件的 `debug_meta` 与已上传的 Debug ID；仅修改 map 的 ID 无法证明部署产物匹配。上传路径应与事件归一化后的 `filename` 一致。
-
-微信 `appservice.app.js`／`game.js` 的两层映射仍需按上文流程，在目标端触发新事件并确认后台还原结果。本地映射检查不能替代这一步。SDK 仓库自身的构建检查见[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)，映射职责见[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。
+SDK 维护者的构建检查见[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)，映射职责见[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。

@@ -35,7 +35,7 @@ Sentry.init({
 });
 ```
 
-显式配置只覆盖 `contexts.miniapp.platform`，不会切换底层宿主对象。事件顶层 `platform` 始终是 `javascript`，与 Sentry 官方 JavaScript SDK 的堆栈解析和 Source Map 语义保持一致；异常监听、网络和 Storage 等能力仍使用自动检测到的平台 API。旧 `platform` 选项仍可兼容，但已弃用；两者同时传入时 `miniappPlatform` 优先，非法值会给出警告并回退自动识别。
+显式配置只覆盖 `contexts.miniapp.platform`，不会切换底层宿主对象。事件顶层 `platform` 始终为 `javascript`，便于 Sentry 按 JavaScript 事件解析堆栈。异常监听、网络和 Storage 仍使用自动检测到的宿主 API。
 
 ## 网络请求差异
 
@@ -136,4 +136,4 @@ tt://pages/b.js            -> app:///pages/b.js
 
 ## 验证范围
 
-七平台能力 fixture 验证接口适配和缺失能力降级，不等于七平台真机认证。小程序无 ALS，仅承诺一个活动 tracing runtime；window 别名不代表具有 DOM。Performance observer／timeOrigin 缺失时省略相应 span，FPS 缺 rAF 时跳过。真实冻结、弱网、同意撤回和后台接收须按目标平台验收，见[2.0 迁移](/guide/migration-2.0)。
+各平台基础库和设备提供的可选能力可能不同。缺少 Performance observer／可信时间基准时省略对应 span，缺少全局 rAF 时跳过小游戏帧率采集。上线前在目标宿主核对前后台恢复、弱网、隐私撤回和后台接收结果；开发者工具的行为可能与手机不同。

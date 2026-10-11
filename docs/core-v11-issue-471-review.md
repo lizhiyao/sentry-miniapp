@@ -1,8 +1,10 @@
 # #471 发现处理记录（2026-10-10）
 
+> 历史审查记录：以下发现、验证数字和发布状态对应文中注明的版本与提交。当前设计和接入说明见[文档索引](README.md)。
+
 审查基线为 `master dfa0dcf14cc834955535ffa5b31146e285dcbe60`，SDK `2.0.0-beta.6`，实际安装的 Core 为精确固定的 `11.4.0`。本轮逐项验证 [#471](https://github.com/lizhiyao/sentry-miniapp/issues/471) 的发现，并独立复核修复后的行为；不把 issue 中的推断直接当成结论。
 
-该独立审查阶段从上述 master 修复，不包含 [#472](https://github.com/lizhiyao/sentry-miniapp/pull/472) 的传播头与 IP 推断改动，已由 [#473](https://github.com/lizhiyao/sentry-miniapp/pull/473) 合入 `master 86c476a`。下文 1325 用例／18 个包场景是该阶段证据；与 #472 整合后的 1335 用例／20 场景及测试精简见[组合复核](sdk-official-practices.md#与-473-整合后的复核)。
+该独立审查阶段从上述 master 修复，不包含 [#472](https://github.com/lizhiyao/sentry-miniapp/pull/472) 的传播头与 IP 推断改动，已由 [#473](https://github.com/lizhiyao/sentry-miniapp/pull/473) 合入 `master 86c476a`。下文 1325 用例／18 个包场景是该阶段证据；与 #472 整合后的 1335 用例／20 场景及测试精简见[组合复核](core-v11-postrelease-review.md#与-473-整合后的复核)。
 
 ## 逐项结论
 

@@ -2,7 +2,7 @@
 
 本文面向 SDK 维护者和贡献者，说明 2.0 实现的职责边界、关键数据流和设计取舍。阅读后，应能判断一项能力应放在哪一层、哪些行为必须保留，以及改动需要哪些验证。
 
-当前实现复用 `@sentry/core` v11；精确依赖版本以 [package.json](package.json) 为准。本文描述当前设计，版本验收证据分别保存在 [Core 升级审查](docs/core-v11-review.md)和[发布后审查](docs/core-v11-postrelease-review.md)。接入方式见[用户文档](https://sentry-miniapp.pages.dev/)，开发、调试和发版操作见 [DEVELOPMENT.md](DEVELOPMENT.md)。
+当前实现复用 `@sentry/core` v11；精确依赖版本以 [package.json](package.json) 为准。接入方式见[用户文档](https://sentry-miniapp.pages.dev/)，开发、调试和发版操作见 [DEVELOPMENT.md](DEVELOPMENT.md)。设计补充与历史验收证据由[文档索引](docs/README.md)统一导航。
 
 ## 1. 设计目标与支持边界
 
@@ -44,10 +44,6 @@ flowchart TD
 
 图中 transport 是 client 构造时装配的对象组合，并非所有配置都经过离线存储。正文观测的脱敏发生在网络／页面集成处；日志、span 和错误拥有各自的 Core 处理路径，共用发送边界。
 
-宿主未处理 Promise 拒绝的原始值没有业务来源栈；GlobalHandlers 采用 Browser 的最小 `UnhandledRejection` 事件表达，显式 String 转换兼容 Symbol，保留 hint 原因并标记 synthetic，不构造监听器 Error。真实 Error 和结构化原因仍交给 Core 事件构建；两条入口都使用 Core 的 scope、processors、beforeSend、Session 更新和发送管道。
-
-宿主 `onError` 使用 Core 公开 `isError` 识别跨上下文异常，并把原对象交给 Core，保留身份、cause 和业务 stack。非 Error 的宿主报告只按字符串／结构化字段适配：message、stack、name 和 constructor 各自单次读取，字段不可读时保留其它可用信息；没有宿主来源栈时不保留适配器新建 Error 的本地 stack。拒绝回调中的 Promise 对象只作为可选 hint，读取失败不阻断可用 reason。该降级属于宿主输入边界，不扩展成另一套未知对象事件构建器。
-
 | 职责                | Core                                                                               | sentry-miniapp                                                         |
 | ------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | 公共 scope 与 trace | Scope、trace context、采样与 DSC                                                   | 重导出公共 API，提供宿主入口和操作归属                                 |
@@ -68,7 +64,7 @@ flowchart TD
 | Client 与生命周期    | [client.ts](src/client.ts)、[lifecycle.ts](src/lifecycle.ts)：Core client 扩展、采集／发送／存储门禁、关闭资源                              |
 | 操作和会话归属       | [owner.ts](src/owner.ts)、[sessionCapture.ts](src/sessionCapture.ts)：延迟操作 owner 与捕获时 Session 关联                                  |
 | 环境维度             | [clientState.ts](src/clientState.ts)、[spanDimensions.ts](src/spanDimensions.ts)：client 自有环境状态，经 Core hook／processor 填充         |
-| 共享观测             | [instrumentation.ts](src/instrumentation.ts)、[appLifecycle.ts](src/appLifecycle.ts)：全局函数包装和前后台协调通道                          |
+| 共享观测             | [instrumentation.ts](src/instrumentation.ts)、[nativeEvents.ts](src/nativeEvents.ts)、[appLifecycle.ts](src/appLifecycle.ts)：全局函数包装、原生共享监听和前后台协调 |
 | 采集集成             | [integrations/](src/integrations/)：宿主异常、请求、页面、Session、网络状态和可选性能 producers                                             |
 | 数据处理与 Core 接缝 | [dataCollection.ts](src/dataCollection.ts)、[coreCompat.ts](src/coreCompat.ts)：自动采集字段过滤、正文策略和公共编码回退                    |
 | 发送与离线存储       | [transports/](src/transports/)：宿主请求、同意门、Core offline 适配、typed records 和 envelope codec                                        |
@@ -76,9 +72,13 @@ flowchart TD
 
 ## 3. 初始化与集成装配
 
+### 运行时能力准备
+
 公共入口先加载 `polyfills-bootstrap`，先于 Core 和其它 SDK 模块补齐所需的运行时能力。构建目标 ES2015 只约束语法，不能保证宿主具备更新的标准方法：入口按需内联 `core-js` 的 globalThis、Array.prototype.includes、Object.entries／values／fromEntries、Promise.allSettled、String.prototype.isWellFormed／toWellFormed 模块，覆盖 Core 实际调用的接缝，不引入完整 Promise polyfill 或替换宿主 Promise 构造器。URLSearchParams 使用同版本 `core-js-pure` 的公开入口作为独立回退；`coreCompat` 只检查实际 Core 路径所需的 record 编码／字符串名称解码，不以完整 URL、get() 或 pair 输入为前提，保留满足 SDK 需求的宿主构造器。安装回退保持已有数据属性的约束；不可配置但可写的数据属性也可安装。固定版本的小范围 Yarn patch 在 pure 模式跳过完整 URL 与 fetch／Request／Headers 的探测和包装，并在查询参数输入处复用同库 ToString 与 String.prototype.toWellFormed 完成 USVString 转换。解析、编码和迭代算法仍由依赖维护，不补完整 URL；候选比较、补丁范围和退出条件见[查询参数依赖取舍](docs/query-runtime-decision.md)。标准方法的迭代、Symbol 键、getter 和 thenable 语义由依赖维护，不另写字符串修复、表单编码和全局发现算法；全局模块也使用 core-js 的共享注册与函数源码标记机制。能力按进程安装，不随 client 关闭卸载；这不是对任意 ES5 引擎的支持承诺，Promise、Symbol、Map／Set、WeakMap／WeakSet、typed arrays 等基础能力仍由宿主提供。
 
 自身的 flush 清理通过成功／失败两条 then 分支完成，不依赖 Promise.finally。core-js 不提供 TextEncoder，SDK 的字节预算也需要无需分配编码结果的长度计算，因此 `coreCompat` 保留共用 UTF-8 标量转换；精确 ArrayBuffer 复制属于宿主请求适配。TextEncoder 经过构造及 UTF-8 标量编码检查；缺失、空壳或编码失败时，通过 Core 公开 singleton 注册现有 UTF-8 回退，保留已有编码 singleton，不改写宿主 TextEncoder。构建语法转换、标准库补齐和宿主 API 检测分别解决不同层面的兼容性，不能相互替代。
+
+### runtime 构造与替换
 
 `init()` 的主要顺序是：
 
@@ -89,6 +89,8 @@ flowchart TD
 
 旧 runtime 退休后，新构造失败或构造阶段的 scope 拒绝不会复活旧 runtime。Core 绑定完成后，集成 `setup` 可以启动自身的异步 span；它完成后返回的根仍绑定新 client。根初始化可正常替换 client，但业务入口应尽早、通常在 `App()` 注册前初始化；晚初始化不能补回已发生的宿主注册和启动异常。
 
+### 集成实例与默认组合
+
 集成的公共形式是 factory，返回类型只承诺 Core `Integration`，内部清理方法不作为公共 API。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
 
 默认装配显式包含 `spanStreamingIntegration()`：自定义 `Client` 不会自动获得其它官方宿主 SDK 的集成组合。移除它后，业务 span 和请求 span 都不会经默认 stream 管道发送。性能 Observer 和 FPS 属于可选宿主能力，不能成为基础 HTTP tracing 的前提。
@@ -98,6 +100,10 @@ flowchart TD
 ## 4. 事件处理与上下文归属
 
 ### 错误事件路径
+
+宿主 `onError` 使用 Core 公开 `isError` 识别跨上下文异常，并把原对象交给 Core，保留身份、cause 和业务 stack。非 Error 的宿主报告只按字符串／结构化字段适配：message、stack、name 和 constructor 各自单次读取，字段不可读时保留其它可用信息；没有宿主来源栈时不保留适配器新建 Error 的本地 stack。拒绝回调中的 Promise 对象只作为可选 hint，读取失败不阻断可用 reason。该降级属于宿主输入边界，不扩展成另一套未知对象事件构建器。
+
+宿主未处理 Promise 拒绝的原始值没有业务来源栈；GlobalHandlers 采用 Browser 的最小 `UnhandledRejection` 事件表达，显式 String 转换兼容 Symbol，保留 hint 原因并标记 synthetic，不构造监听器 Error。真实 Error 和结构化原因仍交给 Core 事件构建；两条入口都使用 Core 的 scope、processors、beforeSend、Session 更新和发送管道。
 
 公共捕获 API 仍通过 Core 路由到 client。`MiniappClient` 先检查采集终态，并准备采集时的 scope／Session 引用，随后调用 `super.capture*`。
 
@@ -123,7 +129,7 @@ Client 对同一个 Session 对象的同步捕获重入保留短暂操作上下�
 | ---------------------------------------- | ---------------------------------------------------- | ---------------------------------------- |
 | 一次错误捕获及异步 processor／beforeSend | 捕获时的 Session 引用，包括明确为空                  | 防止处理完成后记到后来的会话             |
 | 已调度 timer／rAF 任务、已发起业务请求   | 操作开始时快照                                       | 迟到的旧操作不抢占新会话                 |
-| 长期 Minigame／FPS／Performance 观测     | 每次执行克隆 owner scope，使用当前 isolation Session | 安装于 A 的 producer 在 B 活跃时应计入 B |
+| 长期 Minigame／FPS／Performance 观测     | 每次执行克隆 owner scope，使用当前 isolation Session | 同一 client 的长期观测跟随当前前台会话  |
 | 自动设备、宿主与应用维度                 | client 自有快照／状态，经 Core 扩展点填充            | 不污染共享 scope，不改变业务显式维度     |
 
 Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业务数据，仅替换 Session，不修改原 scope。原样导出的手动 Session API 操作 Core current／isolation scope，并非 per-client 会话 facade；自动集成只清除它仍持有的同一引用。需要完整手动控制会话时应关闭自动 Session，不能据此假定手动与自动会话完全隔离。
@@ -196,6 +202,8 @@ Core `addBreadcrumb()` 写入共享 isolation scope，不会自行检查 Miniapp
 
 对应回归见 [instrumentation](test/instrumentation.test.ts)、[lifecycle-coordinator](test/lifecycle-coordinator.realcore.test.ts)、[native-session](test/native-session.realcore.test.ts)和[client-lifecycle](test/client-lifecycle.realcore.test.ts)。
 
+### 原生共享监听与前后台状态
+
 原生错误、网络状态与 show／hide 通过 [nativeEvents](src/nativeEvents.ts) 按真实宿主对象和 on API 名共享监听，每个 client 的处理器、去重窗口、网络状态与 Session 协调器仍独立。退订立即删除处理器并释放 client／scope；最后一个订阅退出才尝试 off。缺少 off 或 off 抛错时保留同一空 dispatcher，下次订阅直接复用，每个事件源／事件在本 SDK 实例内最多保留一份原生监听。空通道不读取事件参数；分发使用活动订阅快照，中途退休或新加入的订阅不接管本次事件。注册前登记 stop，注册中退休则等 on 返回后解除，避免宿主晚保存 callback。
 
 原生事件没有请求 owner／发生代次信息，采用交付时活动 client 的订阅；例如跨 init 才交付的全局错误或 hide 会更新当前 client。该边界不扩展到具体 request、timer、rAF、初始网络查询或离线操作：它们仍绑定原 owner，退休后不转交。常规接入在应用入口初始化一次。
@@ -226,11 +234,15 @@ on／off 使用标准函数原型调用并保留真实宿主 receiver，不读�
 - **网络授权**：`requireConsent` 控制实际发送，不等同于停止采集。`isEnabled()` 只表示 SDK 启用，授权使用 `getConsent()` 判断。默认请求在排队和执行前均检查同意与 lifetime，撤回后阻止新请求。每个请求保留自己的取消决定：读取宿主 API 期间已取消就不启动，调用中取消则在 task 返回后仍尝试 abort；立即重新同意不能恢复原请求。在途取消依赖宿主能力，缺少或失败的 abort 不能保证物理请求停止。
 - **持久化权限**：只有活动 runtime 可以使用 SDK store 和重放；目标、隐私策略、容量和 TTL 共同决定缓存可用性。
 
+### 自动数据与追踪传播
+
 自动网络采集通过 `collectUrlParts` 一次解析与脱敏生成 `url.full`、名称和 breadcrumb query，再复用到 span 和面包屑；每次按当前 client 策略计算，不缓存策略或原始 URL。自请求识别、追踪白名单和正文拒绝规则仍匹配业务原始 URL。`data:` URL 的正文裁剪复用 Core helper，并额外移除 MIME 区域的 query／fragment，防止这部分内容经名称、资源性能或最终 URL 属性泄漏。
 
 请求观测与宿主发送共用字段快照；URL、method、data、headers 和回调 getter 只读取一次，相关非枚举／继承字段也进入快照。业务扩展的可枚举字符串／Symbol 字段保留，`__proto__` 按自有数据字段处理；额外参数、零参数、receiver、task 和原回调语义不变。复制或读取失败时原样透传一次。getter、响应字段和正文转换可能执行业务代码，退休后停止后续观测读取；不因此取消原业务回调。非字符串 URL 不据其 String 转换结果放行追踪头或正文采集。
 
 追踪头按显式目标白名单注入。请求已有 `sentry-trace` 或 `traceparent` 时，整组传播由调用方负责，SDK 保留原 header／headers，不补入本地 trace 的标识或 baggage；头名不区分大小写。自动生成的一组标识与采样上下文来自同一 Core trace，本地 HTTP span 和面包屑的采集独立于是否注入。
+
+### 离线发送与缓存职责
 
 client 构造时选择 transport 组合，前三行适用于 `init()` 管理的 runtime：
 

@@ -13,10 +13,11 @@ Sentry.captureException(new Error('sentry test'));
 - **DSN / Project 是否可用**：确认 DSN 属于当前要看的 Sentry Project，且没有把测试事件发到其它环境或其它项目里。
 - **request 合法域名是否配置**：核对实际运行的 AppID 和实际上报地址，按[快速接入的域名检查](/guide/getting-started#_4-常见前置检查)填写完整域名；配置 `tunnel` 时检查 tunnel 地址。关闭手机调试和开发者工具的「不校验合法域名」后再验收。
 - **初始化位置是否太晚**：应在 `App()` 之前初始化；放进 `App.onLaunch` 无法补回已经发生的启动异常或本次 `onLaunch` 面包屑。原生前台与后台监听均可用时，仍可管理初始化后的 Session；用 `getDiagnostics()` 检查生命周期警告，详见[初始化时序](/guide/getting-started#_2-初始化)。
-- **是否只调用了 `addBreadcrumb`**：面包屑不会单独上报，只会随下一次 error / message 事件一起发送（core 11 的 span 只携带属性，不再附面包屑）。验证接入时请用 `captureException` 或 `captureMessage`。
-- **采样是否过滤了事件**：确认 `sampleRate` 没有被设得太低；如果只验证性能 span，还要确认 `tracesSampleRate` 或 `tracesSampler`。
+- **是否只调用了 `addBreadcrumb`**：面包屑不会单独上报，只会随下一次 error / message 事件一起发送（性能 span 使用属性，不携带错误事件的面包屑）。验证接入时请用 `captureException` 或 `captureMessage`。
+- **是否启用并获得发送同意**：检查 `Sentry.isEnabled()`；配置 `requireConsent: true` 时，还要检查 `Sentry.getConsent()`。启用 SDK 和允许发送是两个独立条件。
+- **事件是否被过滤或采样**：检查 `sampleRate`、`ignoreErrors`、`beforeSend` 以及 Sentry 页面的时间、环境和搜索条件。验证性能 span 时，另查 `tracesSampleRate`／`tracesSampler` 和 `ignoreSpans`。
 - **开发者工具与真机差异**：微信开发者工具某些环境的报错不触发底层 `wx.onError`，建议用真机预览验证自动异常捕获。
-- **框架组件错误是否被吞掉**：uni-app / Taro 的组件错误可能被 Vue / React 先接住，不一定冒泡到平台全局 `onError`。这类错误需要接框架错误处理，见 [组件内错误](#component-errors)。
+- **框架是否已经处理组件错误**：uni-app / Taro 的组件错误可能被 Vue / React 先接住，不一定冒泡到平台全局 `onError`。这类错误需要接框架错误处理，见 [组件内错误](#component-errors)。
 
 排查时也可以打印诊断信息，并把输出贴到 GitHub issue：
 
@@ -24,15 +25,21 @@ Sentry.captureException(new Error('sentry test'));
 console.log(Sentry.getDiagnostics());
 ```
 
+## 有 event ID 或 flush 成功，就表示后台收到了吗？
+
+event ID 表示发起了采集，不证明事件通过过滤、采样和网络发送。`flush()` 返回 true 表示本次等待按 SDK 语义完成；事件仍可能在同意缓存中，或被服务端过滤。
+
+验收时，先检查实际请求结果，再用 event ID 在正确项目和环境中找到事件。Source Map 还要单独确认源码文件、行列号和上下文，见 [Source Map 验证](/guide/sourcemap#第六步-验证-source-map-是否生效)。
+
 ## 初始化后必须在 `onError` 中手动调 API 吗？
 
-**不需要。** SDK 初始化时会自动劫持并注册平台底层的全局错误监听（如 `wx.onError`）。只要 `Sentry.init` 在 `App()` 调用**之前**执行，就能自动捕获未处理的 JS 异常。
+**不需要重复上报。** SDK 注册宿主可用的全局异常监听。尽早初始化以覆盖启动阶段；缺少监听 API 时，业务仍可主动调用捕获方法。
 
 如果整体没有数据，先按 [初始化后没有数据](#no-events) 的清单排查；如果只有组件内错误缺失，继续看 [组件内错误](#component-errors)。
 
 ## 网络请求会随错误事件一起上报吗？
 
-**会，且默认开启。** SDK 默认启用 `NetworkBreadcrumbs`，自动劫持 `wx.request` / `my.httpRequest`，把每个网络请求记成 `category: xhr` 的面包屑，随**下一个被捕获的错误事件**一起上报（与 `@sentry/browser` 默认行为一致）。
+**会，且默认开启。** SDK 默认启用 `NetworkBreadcrumbs`，包装宿主请求 API（如 `wx.request` / `my.httpRequest`），把每个网络请求记成 `category: xhr` 的面包屑，随**下一个被捕获的错误事件**一起上报（与 `@sentry/browser` 默认行为一致）。
 
 - **默认字段**：`url`（只到路径）/ `url.query`（按 `dataCollection.urlQueryParams` 过滤）/ `method` / `status_code` / `duration`；请求进入宿主 `fail` 回调时标 `error` 级，进入 `success` 回调但 HTTP 状态为 4xx／5xx 时标 `warning` 级，慢请求（>3s）也标 `warning` 级。
 - **默认不带请求 / 响应体**，需要 body 时开启 `traceNetworkBody: true`：体先按敏感键片段脱敏（core 内置名单 + 本 SDK 的支付／证件片段，可用顶层 `sensitiveKeys` 追加），再按 `maxRequestBodySize`（默认 1 MB）截断；按 URL 排除仍可在 `beforeBreadcrumb` 里二次处理。
@@ -42,7 +49,7 @@ console.log(Sentry.getDiagnostics());
 
 ## `Sentry.logger.*` 和 console 面包屑有什么区别？
 
-`Sentry.logger.*` 会发送独立的 log envelope，适合业务日志查询、聚合、告警和跨事件分析；2.0 按 logger 调用采集，不需要 enableLogs。
+`Sentry.logger.*` 发送独立业务日志，用于查询、聚合和告警；用 `beforeSendLog` 过滤。
 
 `enableConsoleBreadcrumbs` 只会把 `console.log/warn/error` 记录成面包屑，随**下一次 error / message 事件**一起发送；如果后续没有事件，它不会单独出现在 Sentry。
 
@@ -54,7 +61,7 @@ uni-app 底层是 Vue。组件渲染、生命周期、watch 或模板事件中�
 
 ### Taro 呢？
 
-Taro React 的渲染期错误建议由 Error Boundary 捕获并转交 Sentry；事件回调和异步错误不属于 Error Boundary 的捕获范围。使用 Taro Vue 时按 Vue `errorHandler` 处理。完整代码见 [Taro 接入指南](/guide/taro#_4-组件错误-用-react-错误边界)。
+Taro React 的渲染、构造函数和生命周期错误建议由 Error Boundary 捕获并转交 Sentry；事件回调和异步错误不属于 Error Boundary 的捕获范围。使用 Taro Vue 时按 Vue `errorHandler` 处理。完整代码见 [Taro 接入指南](/guide/taro#_4-组件错误-用-react-错误边界)。
 
 ## 隐私协议同意前如何避免发送 Sentry 网络请求？ {#privacy-consent}
 

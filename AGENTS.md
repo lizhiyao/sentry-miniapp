@@ -12,6 +12,7 @@ sentry-miniapp 是基于 `@sentry/core` 的跨端小程序 Sentry SDK，覆盖�
 - 交付前默认跑 `yarn run lint` 和 `yarn run test`（Vitest 单测）；涉及构建产物或跨端行为时，再跑 `yarn run build`。
 - 新增测试前先检查能否强化现有用例；参数组合优先参数化，跨层重复须保护不同接缝，不以用例数量作为验收指标。具体准则见 `CONTRIBUTING.md` 的 Testing。
 - 代码改造完成后，必须检查并更新相关文档，如 `README.md`、`docs/README.en.md`、`website/` 或示例工程文档。
+- 文档改动对照当前源码、默认值和实际命令；官网改动运行 `yarn run docs:build` 并核对链接／锚点。用户指南讲当前行为，旧配置放迁移页，版本审查证据保留在维护记录；文档索引见 `docs/README.md`。
 
 ## 硬规则
 
@@ -67,6 +68,7 @@ cp -r .agents/skills/sentry-miniapp-sdk ~/.agents/skills/sentry-miniapp-sdk
 - 维护者架构与设计取舍：`ARCHITECTURE.md`
 - 用户文档站：`website/`（接入、配置、平台能力与排障内容的主入口）
 - 英文用户入口、对外文章与媒体素材：`docs/`（文章索引见 `docs/articles/README.md`）
+- 设计补充和版本审查记录索引：`docs/README.md`
 - 示例工程：`examples/wxapp/`
 - sentry-miniapp skill 入场：`.agents/skills/sentry-miniapp-sdk/SKILL.md`（单一来源，见上节）
 - 分支 / 贡献细节：`CONTRIBUTING.md`

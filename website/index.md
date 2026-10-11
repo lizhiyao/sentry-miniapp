@@ -4,7 +4,7 @@ layout: home
 hero:
   name: sentry-miniapp
   text: 小程序监控 SDK
-  tagline: 一个基于 @sentry/core 构建的小程序监控 SDK，覆盖异常、性能、日志、离线缓存与链路追踪；支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等小程序，以及微信 / 抖音小游戏，并兼容 Taro / uni-app。
+  tagline: 将小程序和小游戏的异常、业务日志与请求链路接入 Sentry，结合操作上下文和 Source Map 定位问题。支持微信等七个平台、Taro 和 uni-app。
   image:
     src: /logo.png
     alt: sentry-miniapp
@@ -22,13 +22,13 @@ hero:
 features:
   - icon: 🛡️
     title: 发现并还原线上问题
-    details: 自动捕获未处理异常、Promise rejection 和内存告警，结合用户操作、页面与网络上下文定位问题。
+    details: 按宿主能力捕获异常和未处理 Promise 拒绝，结合页面、用户操作、网络面包屑与 Source Map 还原问题。
   - icon: 📊
     title: 看懂性能与请求链路
-    details: 采集启动、渲染、资源和请求耗时，可通过 http.client span 与追踪头串联服务端调用链。
+    details: 开启采样后测量请求与业务操作，向指定后端传播追踪头；按需启用宿主导航、渲染与资源性能采集。
   - icon: 📡
     title: 面对弱网与隐私要求
-    details: 符合缓存条件的发送失败会进入有界本地缓存并尝试重放；需要用户授权时，可在同意前采集但不发送网络请求。
+    details: 上报失败时使用有界本地缓存尝试补发；需要隐私同意时，在授权前暂停 Sentry 网络发送。
 ---
 
 <div class="sm-trust-strip" aria-label="项目支持范围与维护状态">

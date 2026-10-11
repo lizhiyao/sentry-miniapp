@@ -1,5 +1,7 @@
 # 我把 Sentry 接进了 7 端小程序：从异常捕获、Breadcrumb 到 Source Map 定位
 
+> 文章存档：以下叙述和示例保留原稿阶段的信息。当前接入与配置请看[文档站](https://sentry-miniapp.pages.dev/)和[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+
 > 微信、支付宝、字节、百度、QQ、钉钉、快手 7 端小程序，一套代码统一接入 Sentry，把异常捕获、用户路径、弱网兜底、Source Map 定位真正串成一套可落地的工程方案。
 
 很多团队不是不想做小程序监控，而是试了一圈之后发现：

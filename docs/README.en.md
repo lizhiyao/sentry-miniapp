@@ -11,29 +11,27 @@
 
 [简体中文](../README.md) | English
 
-> This README covers the 2.0 beta. Install `sentry-miniapp@next` to try it; an unqualified install still selects the stable 1.x release. Choose a version below before installing. Device testing across platforms is still in progress. Start with a test project and check data delivery, original source locations in errors, and consent behavior. Report problems through the [beta feedback issue](https://github.com/lizhiyao/sentry-miniapp/issues/457).
+> This README and the current docs site cover the **2.0 beta**. Install `sentry-miniapp@next` to try it; an unqualified install selects stable 1.x. Choose a version below, then check delivery, original source locations and consent behavior in a test project. Beta feedback is collected in [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457).
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 
 Mini program runtimes may expose a window alias without DOM or browser request APIs, so this SDK uses native platform APIs for delivery and automatic capture. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); for mini programs or mini games, use this SDK.
 
-> **What are Mini Programs?** Mini programs (小程序) are lightweight apps that run inside super-apps like WeChat, Alipay, and ByteDance/Douyin. They form a massive ecosystem in China with **hundreds of millions of daily active users**, but have no direct equivalent in the Western stack — think of them as a hybrid of PWAs and native apps, hosted within a platform's sandbox.
+> **Mini programs** are apps hosted inside platforms such as WeChat, Alipay and Douyin. Their JavaScript runtimes use platform-specific networking and lifecycle APIs rather than the browser DOM and request APIs.
 
 > **📖 Setup details and production configuration**: [sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) — getting started, framework guides, configuration, Source Maps, FAQ, and examples live on the docs site (Chinese for now).
-
-> **📰 Featured Article (Chinese)**: [《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — How sentry-miniapp got listed in Sentry's official community-supported SDKs documentation. If you find this project useful, please consider giving it a ⭐ Star.
 
 ---
 
 ## ✨ Core Capabilities and Use Cases
 
-- **Automatic error capture**: Captures global errors, Promise rejections, page errors, and memory warnings automatically, then sends them to Sentry Issues instead of leaving them only in user feedback.
+- **Automatic error capture**: Registers available host listeners for unhandled errors, Promise rejections, missing pages and memory warnings, then sends events to Sentry Issues.
 - **Debugging context**: Records device info, page lifecycle, taps/touches, and network breadcrumbs to help reconstruct what happened before a user hit an error.
-- **Performance and tracing**: With tracing enabled, API requests can be reported as `http.client` spans for backend correlation. The optional Performance integration measures startup, page rendering, and resource timing when the host exposes the required capabilities.
+- **Performance and tracing**: With sampling enabled, measures HTTP requests and business operations, and propagates trace headers to selected backends. The optional Performance integration reads navigation, render, resource and User Timing entries when the host provides them.
 - **Source Map friendly stacks**: Normalizes platform-specific virtual stack paths to `app:///`, supports Source Maps / Debug IDs, and exposes `stackParser` for unusual runtimes.
 - **Weak-network and privacy flows**: Eligible failed sends enter a bounded offline queue for retry when the network recovers. With `requireConsent`, events enter a bounded local buffer without sending to Sentry; call `Sentry.setConsent(true)` after consent to attempt delivery of buffered events.
 - **Mini game support**: WeChat / Douyin mini games track foreground sessions through native show/hide listeners and can measure SDK setup to the first rAF callback. FPS and jank collection requires explicit opt-in; each capability is skipped when its required host APIs are unavailable.
-- **Familiar Sentry APIs**: `captureException`, `setUser`, `addBreadcrumb`, `startSpan`, `captureFeedback`, `Sentry.logger.*`, and more.
+- **Business logs and metrics**: Use `Sentry.logger.*` for independently searchable logs and `Sentry.metrics.*` for counts, distributions and numeric values, alongside familiar error, context and span APIs.
 
 ---
 
@@ -69,7 +67,7 @@ Initialize at the **top** of your entry file (`app.js` / `app.ts`), **before** `
 import * as Sentry from 'sentry-miniapp';
 
 Sentry.init({
-  dsn: 'https://<key>@<org>.ingest.sentry.io/<project>',
+  dsn: 'YOUR_DSN', // Copy the complete DSN from your Sentry project.
   release: 'my-project@1.0.0', // match the release you upload Source Maps with
   environment: 'production',
 });
@@ -121,11 +119,11 @@ Sentry.setTag('page_module', 'checkout');
 // Breadcrumb
 Sentry.addBreadcrumb({ message: 'Tapped [Confirm Payment]', category: 'action', level: 'info' });
 
-// Sentry Logs (2.0 collects explicit calls; filter with beforeSendLog)
+// Independent business logs; filter with beforeSendLog
 Sentry.logger.info('User completed payment', { orderId: 'order_123' });
 
 // Custom span
-await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
+await Sentry.startSpan({ name: 'checkout.submit', op: 'ui.action' }, async () => { /* business operation */ });
 
 // User feedback: mini programs have no DOM, so submit from your own native form
 Sentry.captureFeedback({ message: 'The page is frozen', name: 'John Doe', email: 'john@example.com' });
@@ -163,13 +161,11 @@ After the first event is working, pick the guide based on what you are doing nex
 
 - **No events in Sentry after initialization?** Send a test event with `captureException`, then check the DSN, `request` trusted domain, whether `Sentry.init` runs before `App()`, whether `sampleRate` is too low, and whether you only called `addBreadcrumb`. Breadcrumbs are not sent alone; they ship with the next captured event.
 - **Must I report manually in `onError`?** No. `Sentry.init` registers available platform global error listeners automatically. Initialize before `App()` to observe startup. Late initialization cannot recover earlier startup errors or `onLaunch` breadcrumbs; native foreground/background listeners can still support sessions after initialization when both are available. Check `getDiagnostics()` for lifecycle warnings.
-- **Are network requests included with errors?** Yes. By default the SDK records `url` (path only), `url.query`, `method`, status code and duration as breadcrumbs, both filtered through `dataCollection.urlQueryParams`. Request / response bodies are off by default; when you enable `traceNetworkBody`, bodies are sanitized key-by-key first (core's sensitive snippets plus this SDK's payment / ID-document snippets, extendable via the top-level `sensitiveKeys`) and then truncated to `maxRequestBodySize` (1 MB by default).
-
-  JSON and form body filtering is independent of the query switch. Disabling query collection cannot expose form secrets; duplicate form keys and unaffected encoding are preserved. Unsafe form key decoding blanks the collected body while retaining its original byte count. SDK URL names exclude query, fragment and plaintext credentials; page-not-found and minigame launch queries follow the client collection policy. In 2.0, unknown plaintext/multipart/binary bodies are omitted and interaction dataset is not copied; manual capture data still belongs to the application.
+- **Are network requests included with errors?** Yes, as breadcrumbs containing a filtered URL, method, status and duration. Bodies are off by default. Enabling `traceNetworkBody` collects recognized JSON/form data, filters sensitive keys and applies the size limit; it does not sanitize manual application data.
 - **Are trace headers sent to every API by default?** No. Mini programs have no reliable same-origin baseline, so an empty `tracePropagationTargets` list injects nothing. Allowlist only backend origins you control.
 - **Why do uni-app / Taro component errors need extra wiring?** Frameworks may catch component errors before they reach the platform global `onError`. Use `app.config.errorHandler` / `Vue.config.errorHandler` for Vue, and an Error Boundary for Taro React.
 - **Will it send requests before privacy consent?** By default the SDK reports normally according to your config. If your app must avoid network requests before consent, enable `requireConsent` and call `Sentry.setConsent(true)` once the user grants consent.
-- **Can I disable automatic IP enrichment for error events?** Set `dataCollection: { userInfo: false }`. User fields you explicitly supply through `setUser` are retained; filter these before capture when needed. When upgrading to 2.0, remove the old `sendDefaultPii` / `enableLogs` options and review your collection policy; retaining either option causes initialization to fail. To disable logs, use `beforeSendLog: () => null` or stop logging calls. See the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) (Chinese).
+- **Can I disable automatic IP enrichment for error events?** Set `dataCollection: { userInfo: false }`. Explicit `setUser()` fields remain; filter them before capture when needed. Existing applications should follow the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) before updating.
 - **Session Replay or H5 builds?** Mini programs have no DOM, so official Session Replay is not supported. For H5 builds, use official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); keep `sentry-miniapp` for mini program builds.
 
 > Full answers on the **[docs site · FAQ](https://sentry-miniapp.pages.dev/guide/faq)**.
@@ -183,7 +179,7 @@ For setup issues or production troubleshooting, GitHub is the best first stop so
 - **Bugs / no events / Source Map issues**: [open an issue](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose) with the SDK version, target platform, reproduction steps, relevant config, and `Sentry.getDiagnostics()` output.
 - **Feature requests / monitoring design discussions**: [start a discussion](https://github.com/lizhiyao/sentry-miniapp/discussions) with your scenario, target platforms, and expected behavior.
 
-Please redact DSNs, tokens, and user data before sharing logs or config.
+Remove auth tokens, app secrets and personal data before sharing logs or configuration.
 
 For real-time mini program / mini game monitoring discussion, you can join the WeChat group. Due to WeChat group QR code expiration (7-day limit), please add the author on WeChat (**note: sentry-miniapp**) to be invited:
 

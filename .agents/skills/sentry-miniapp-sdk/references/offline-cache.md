@@ -1,6 +1,6 @@
-# Offline and consent in the 2.0 miniapp SDK
+# Offline Cache and Consent
 
-Use one core makeOfflineTransport layer, one active persistent target and one runtime owner token. Do not add a second retry engine, multi-target archive, durable ACK or exactly-once promise.
+The default transport enables a bounded weak-network cache. Change it to meet the consumer's needs, without adding a second retry engine.
 
 ```js
 Sentry.init({
@@ -11,28 +11,24 @@ Sentry.init({
 });
 ```
 
-The whole encoded container, including metadata, uses an SDK budget of 180 KiB on Alipay/DingTalk and 900 KiB on other supported runtimes; a lower configured byte limit still applies. These are SDK policy budgets, not guarantees of available host storage. Typed records preserve binary payloads and subviews; retry retains original capture time/TTL. Default eviction prioritizes errors and then older records; consent preserve-oldest may reject new data when full. Storage faults are observable, never described as durable success.
+Cache budgets cover encoded envelopes and metadata: at most 180 KiB on Alipay/DingTalk and 900 KiB on other supported runtimes, with lower configured limits respected. These are SDK budgets, not guaranteed available host storage.
 
-DSN/tunnel target, old schema or incompatible privacy/storage policy changes drop incompatible data with diagnostics; count/bytes/TTL/eviction adjustments only trim compatible data. A replacement runtime may consume compatible stored records but does not inherit grant. Retired owners cannot write back an in-flight failure over the new owner's store.
-
-shift commits removal to storage before handing a record to transport. Failed commit returns no record and pauses replay; it must not repeatedly deliver the same item or leak retry timers. Successful removal before network handoff is best-effort and can lose data if interrupted; it is not an atomic delivery transaction.
+Retries preserve the original expiry. Incompatible Sentry targets or privacy/storage policies discard old records with diagnostics; changes to capacity or TTL trim compatible data. Storage failure may fall back to bounded memory. Removal from storage precedes network delivery, so interruption can lose data; retries can duplicate it. Do not promise durable receipt or exactly-once delivery.
 
 ## Consent
 
 ```js
 Sentry.init({ dsn: 'YOUR_DSN', requireConsent: true });
-Sentry.setConsent(true); // After explicit user consent.
-Sentry.setConsent(false); // Revoke the current client's permission.
+Sentry.setConsent(true);  // After explicit user consent.
+Sentry.setConsent(false); // Revoke this client's sending permission.
 ```
 
-required=true implies a consent/offline layer even with enableOfflineCache=false. Count/bytes=0 disables SDK caching; missing Storage can fall back to bounded memory with diagnostics. Before grant, SDK collection may still occur but no SDK Sentry request starts. Revocation also checks queued work at actual host dequeue; in-flight abort depends on host capability.
+`requireConsent: true` gates Sentry sending while collection may continue. It uses `consentCache*` both before and after permission, even with `enableOfflineCache: false`; weak-network failures use the same cache. Count/byte limits of zero disable caching. Drop callbacks count envelope records, which may contain multiple telemetry items.
 
-When required=true, consentCache* limits and preserve-oldest eviction apply to the shared store both before and after grant, including weak-network retries; offlineCacheLimit/offlineCacheMaxAge do not take over after setConsent(true). Limits and drop notices count envelope records, which can contain batched telemetry. Revocation or client shutdown does not automatically erase persisted records.
-
-Custom transport with required=false remains user-managed with no automatic SDK offline layer. With required=true it is wrapped for consent; it should not itself stack a second offline layer. Its private queue needs its own actual-send gate for strict revocation. Low-level directly constructed MiniappClient does not acquire persistent store or runtime replay ownership.
+Reinitialization does not inherit permission. Revocation prevents queued SDK requests from starting and attempts in-flight cancellation when the host supports it; it does not erase saved records. A custom transport must control its own private queue at actual send time. Without required consent, custom transports receive no implicit SDK offline layer.
 
 ## Verification
 
-Capture before grant: observe no request and an allowed storage/memory record. Grant: observe replay without TTL renewal. Revoke while one request occupies a host slot: queued requests must not start. Force storage write/delete failures and runtime replacement: no false success, cross-target delivery or retired-owner overwrite. Check diagnostics and final payload bytes.
+Check capture before permission, replay after grant, queued requests after revocation, and recovery after network loss. Use diagnostics to distinguish storage failure, capacity drops and blocked sending. Do not infer backend receipt from a cache becoming empty or `flush()` returning true.
 
-Then verify on the real target host and Sentry deployment. Mock storage/request and successful flush do not prove survival of process termination, timer freeze or backend receipt. client_report is not stored on disk.
+Actual foreground/background freezing and process termination require target-runtime validation when that behavior is in scope. See [reliability and privacy](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy) and [configuration](https://sentry-miniapp.pages.dev/guide/configuration) for limits and verification steps.

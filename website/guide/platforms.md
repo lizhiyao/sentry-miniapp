@@ -20,9 +20,9 @@
 
 | 能力 | 小程序 | 小游戏 | 说明 |
 |------|:------:|:------:|------|
-| 异常 / 未处理 Promise 捕获 | ✅ | ✅ | `wx.onError` / `wx.onUnhandledRejection` |
+| 异常 / 未处理 Promise 捕获 | ✅ | ✅ | 按宿主可用的 `onError`／`onUnhandledRejection` 监听 |
 | `setTimeout` / `setInterval` / rAF 包裹 | ✅ | ✅ | TryCatch 集成 |
-| 网络请求面包屑（url / 方法 / 状态码 / 耗时） | ✅ | ✅ | 包裹 `wx.request`；可选记录 body |
+| 网络请求面包屑（URL / 方法 / 状态码 / 耗时） | ✅ | ✅ | 包裹宿主 `request`／`httpRequest`，正文需手动开启 |
 | 分布式追踪（http.client span） | ✅ | ✅ | 需开启 `tracesSampleRate` |
 | 宿主性能条目（导航 / 渲染 / 资源 / User Timing） | ✅ | ➖ | 需安装 `performanceIntegration()`，以宿主实际提供的 observer 和时间戳为准 |
 | 自定义业务 span | ✅ | ✅ | 通过 `startSpan` 等 API 测量，需开启性能采样 |
@@ -35,7 +35,7 @@
 | 多平台堆栈解析 | ✅ | ✅ | 支持 V8 / Safari / JavaScriptCore 格式，配合 Source Map 精准定位 |
 | 弱网离线缓存重试 | ✅ | ✅ | 失败缓存到本地 Storage |
 | 隐私同意前停止网络发送 | ✅ | ✅ | 开启 `requireConsent` 后进入本地缓冲 |
-| Sentry Logs | ✅ | ✅ | 按 logger 调用采集 |
+| Sentry Logs／Metrics | ✅ | ✅ | 显式调用 logger／metrics；目标 Sentry 须支持对应数据 |
 
 > ✅ 表示 SDK 提供对应接入能力，不代表每个平台、基础库或设备都有全部宿主 API。缺少所需 API 时跳过相应采集；➖ 表示该环境通常不提供对应能力。
 

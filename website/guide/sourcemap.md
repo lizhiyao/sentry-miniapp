@@ -124,26 +124,26 @@ export default defineConfig({
 
 ### uni-app
 
-Vue CLI 项目可设置 productionSourceMap 与 devtool；Vite／uni-app 的最终行为取决于插件。当前仓库示例使用 Vite 6，通过公共 `configEnvironment` hook 配置实际构建环境，同时在 `configResolved` 中保留 Vue 插件需要的 hidden map／sourcesContent。构建命令仍需 `--sourcemap`；map 在 `dist/build/.sourcemap/mp-weixin`，与 `dist/build/mp-weixin` 的 JS 合成上传目录，完整配置见[uni-app 示例](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp)。不能仅凭 `build.sourcemap` 配置存在宣称产物已生成。
+uni-app 的 map 生成方式取决于构建器和插件版本，请按 [uni-app 示例](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp#本地映射与-sdk-版本)配置并运行带 `--sourcemap` 的构建。示例的 map 位于 `dist/build/.sourcemap/mp-weixin`，JS 位于 `dist/build/mp-weixin`；上传前将它们按相同相对路径放入同一目录，并检查实际产物。
 
 `hidden-source-map` 会生成独立 map，但不会在生产 JS 中留下可公开加载的 `sourceMappingURL`。上传完成后，不要把 `.map` 发布进小程序包。
 
 ## 第四步：上传 Source Map
 
-本页命令固定 sentry-cli 3.6.2。CLI 3 已移除 releases files／sourcemaps explain，使用 sourcemaps upload 和产品内 Unminify Code 排障，见[官方 3.0 迁移说明](https://github.com/getsentry/sentry-cli/releases/tag/3.0.0)。自建部署应分别核对 CLI 与 SDK 的后台要求，版本相同不代表一定兼容。
+以下命令使用前面安装的 sentry-cli 3.6.2；`--no-install` 确保使用项目依赖，不临时下载其它版本。自建部署还需核对 CLI 和 SDK 各自的后台要求，见 [CLI 官方说明](https://github.com/getsentry/sentry-cli/releases/tag/3.0.0)和 [SDK 版本选择](/guide/migration-2.0#version-choice)。
 
 使用与 SDK 完全一致的 release，并且**同时上传同一次构建的 `.js` 和 `.map`**：
 
 ```bash
 SENTRY_RELEASE="my-miniapp@1.0.0"
 
-npx sentry-cli releases new "$SENTRY_RELEASE"
-npx sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./dist \
+npx --no-install sentry-cli releases new "$SENTRY_RELEASE"
+npx --no-install sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./dist \
   --url-prefix "app:///" \
   --ext js \
   --ext map \
   --validate
-npx sentry-cli releases finalize "$SENTRY_RELEASE"
+npx --no-install sentry-cli releases finalize "$SENTRY_RELEASE"
 ```
 
 | 参数 | 作用 |
@@ -163,6 +163,8 @@ Taro / Webpack 和 Vite 项目也可使用 `@sentry/webpack-plugin` 或 `@sentry
 
 ## 第五步：CI/CD 自动化
 
+下面假设项目已经安装本页对应的 `sentry-miniapp` 和 `@sentry/cli`，并提交依赖锁文件。Doctor 使用项目安装的 SDK 版本；构建配置须将 `SENTRY_RELEASE` 注入运行代码。
+
 ```yaml
 name: Build and upload source maps
 
@@ -177,7 +179,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - run: npm ci
       - name: Build
@@ -187,7 +189,7 @@ jobs:
 
       - name: Check local source maps
         run: |
-          npx -p sentry-miniapp sentry-miniapp-sourcemap-doctor \
+          npx --no-install sentry-miniapp-sourcemap-doctor \
             --dist ./dist \
             --release "$SENTRY_RELEASE" \
             --strict
@@ -196,12 +198,12 @@ jobs:
 
       - name: Upload source maps
         run: |
-          npx sentry-cli releases new "$SENTRY_RELEASE"
-          npx sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./dist \
+          npx --no-install sentry-cli releases new "$SENTRY_RELEASE"
+          npx --no-install sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./dist \
             --url-prefix "app:///" \
             --ext js --ext map \
             --validate
-          npx sentry-cli releases finalize "$SENTRY_RELEASE"
+          npx --no-install sentry-cli releases finalize "$SENTRY_RELEASE"
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: your-org

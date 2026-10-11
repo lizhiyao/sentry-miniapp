@@ -11,25 +11,23 @@
 
 简体中文 | [English](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/README.en.md)
 
-> 本文适用于 2.0 beta，试用请安装 `sentry-miniapp@next`；默认安装仍获取 1.x 稳定版。版本选择见下方。不同平台的真机验证尚在进行，请先在测试项目中确认数据上报、错误源码定位和隐私授权行为；遇到问题可提交 [beta 反馈](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
+> 本文与当前官网面向 **2.0 beta**，安装 `sentry-miniapp@next` 试用；默认安装仍为 1.x 稳定版。先按下方说明选择版本，beta 用户请在测试项目中确认上报、源码定位和隐私同意行为，反馈入口见 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
 > **📖 接入细节与生产配置**：[sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) —— 快速接入、框架指南、配置项、Source Map、FAQ、示例工程都在文档站。
 
-> **📰 最新文章**：[《我给 Sentry 提了个 PR，后来 sentry-miniapp 进了官方文档》](https://juejin.cn/post/7636106283963760681) — sentry-miniapp 已被收录进 Sentry 官方文档的 community-supported SDK 列表。觉得有用请帮忙点个 ⭐ Star，让更多小程序团队找到它。
-
 ---
 
 ## ✨ 核心能力与适用场景
 
-- **异常自动捕获**：自动捕获全局异常、Promise rejection、页面异常和内存告警，把问题送进 Sentry Issues，而不是只停留在用户反馈里。
+- **异常自动捕获**：监听宿主可用的全局异常、未处理 Promise 拒绝、页面不存在和内存告警，并送入 Sentry Issues。
 - **排查上下文**：记录设备信息、页面生命周期、点击 / 触摸和网络请求面包屑，帮助还原用户出错前做了什么。
-- **性能与链路追踪**：开启 tracing 后，API 请求可作为 `http.client` span 串联后端链路；可选 Performance 集成基于宿主实际能力采集启动、页面渲染和资源加载耗时。
+- **性能与链路追踪**：开启采样后记录 API 请求和业务操作耗时；向指定后端传播追踪头。可选 Performance 集成读取宿主提供的导航、渲染、资源和 User Timing 条目。
 - **Source Map 友好**：统一多平台虚拟堆栈路径为 `app:///`，配合 Source Map / Debug ID 还原源码位置；特殊运行时可用 `stackParser` 适配。
 - **弱网与合规场景**：符合缓存策略的发送失败会进入有界离线队列，网络恢复后尝试补发；开启 `requireConsent` 后，事件进入有界本地缓冲，不向 Sentry 发起请求，用户同意后再调用 `Sentry.setConsent(true)` 尝试补发。
 - **小游戏专属能力**：微信 / 抖音小游戏通过宿主前后台监听统计会话，并可测量 SDK 初始化到首次帧回调的等待时间；帧率与卡顿统计需手动开启，缺少对应平台能力时跳过。
-- **熟悉的 Sentry API**：支持 `captureException`、`setUser`、`addBreadcrumb`、`startSpan`、`captureFeedback`、`Sentry.logger.*` 等常用能力。
+- **业务日志与指标**：通过 `Sentry.logger.*` 检索独立日志，通过 `Sentry.metrics.*` 记录业务计数、分布和数值；继续使用熟悉的错误、上下文与 span API。
 
 ---
 
@@ -65,7 +63,7 @@ npm install sentry-miniapp@next
 import * as Sentry from 'sentry-miniapp';
 
 Sentry.init({
-  dsn: 'https://<key>@<org>.ingest.sentry.io/<project>',
+  dsn: 'YOUR_DSN', // 复制 Sentry 项目中的完整 DSN
   release: 'my-project@1.0.0', // 与上传 Source Map 时的 release 一致
   environment: 'production',
 });
@@ -117,11 +115,11 @@ Sentry.setTag('page_module', 'checkout');
 // 业务面包屑
 Sentry.addBreadcrumb({ message: '点击了[确认支付]', category: 'action', level: 'info' });
 
-// Sentry Logs（2.0 按调用采集；beforeSendLog 可过滤）
+// 独立业务日志；beforeSendLog 可过滤
 Sentry.logger.info('用户完成支付', { orderId: 'order_123' });
 
 // 自定义测速
-await Sentry.startSpan({ name: 'fetch-user', op: 'http.client' }, async () => { /* ... */ });
+await Sentry.startSpan({ name: 'checkout.submit', op: 'ui.action' }, async () => { /* 业务操作 */ });
 
 // 用户反馈：小程序无 DOM，请自行实现原生表单后提交
 Sentry.captureFeedback({ message: '页面卡住了', name: '张三', email: 'zhangsan@example.com' });
@@ -133,7 +131,7 @@ console.log(Sentry.getDiagnostics());
 Sentry.setConsent(true);
 ```
 
-如需关闭错误事件的后台 IP 自动补充，设置 `dataCollection: { userInfo: false }`；业务显式提供的用户信息仍会保留。升级到 2.0 时应删除旧 `sendDefaultPii`／`enableLogs`，重新确认采集策略；保留旧开关会导致初始化报错。日志禁用应使用 `beforeSendLog: () => null` 或停止日志调用。具体改法见[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
+如需关闭错误事件的后台 IP 自动补充，设置 `dataCollection: { userInfo: false }`；显式 `setUser()` 数据仍保留。独立日志、指标和 span 分别使用各自的过滤回调，详见[配置参考](https://sentry-miniapp.pages.dev/guide/configuration)。已有项目升级前阅读[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ---
 
@@ -165,7 +163,7 @@ Sentry.setConsent(true);
 - **Bug / 没有数据 / Source Map 不还原**：[提交 Issue](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)，请附 SDK 版本、目标平台、复现步骤、关键配置和 `Sentry.getDiagnostics()` 输出。
 - **功能建议 / 监控方案讨论**：[发起 Discussion](https://github.com/lizhiyao/sentry-miniapp/discussions)，说明业务场景、目标平台和期望行为。
 
-请勿公开 DSN、token 或用户隐私数据；贴日志和配置前请先脱敏。
+分享配置和日志前，请移除 Auth Token、AppSecret 和用户隐私数据。
 
 想实时交流小程序 / 小游戏监控方案，可以加入微信群。由于微信群二维码有 7 天时效，请添加作者微信（**备注 sentry-miniapp**），由作者邀请入群：
 

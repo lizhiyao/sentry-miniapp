@@ -27,7 +27,7 @@ Sentry.init({
 
 Sentry 服务不可达或长时间无响应时，SDK 除了把超时传给平台请求 API，还会启动自己的计时器；到时会主动调用宿主 `RequestTask.abort()`（宿主提供该能力时），尽快释放网络槽位。发送失败的事件随后进入离线缓存，等待网络恢复后重试。
 
-当宿主网络槽满时，新请求进入 miniapp transport 队列，实际出队再次检查 consent／lifetime。core promise buffer 的在途容量另有上限；其溢出记为 queue_overflow，不等同于宿主并发排队。通常保持较短超时和较小并发。
+更多 Sentry 请求会等待 SDK 的发送槽位。等待队列仍受 Core 的有界发送缓冲限制，溢出时会记录 `queue_overflow`；通常保持较短超时和较小并发，不通过无限排队保护上报。
 
 ## 弱网离线缓存
 
@@ -42,7 +42,7 @@ Sentry.init({
 });
 ```
 
-符合存储策略的失败 envelope 会写入 Storage；网络恢复或后续 flush 唤醒重放。记录保留原始时间，retry 不续 TTL；client_report 失败不落盘。写入失败有诊断，不冒称持久化成功。
+符合缓存条件的失败数据会写入 Storage，网络恢复或后续 `flush()` 时尝试补发。重试保留原始过期时间；client reports 发送失败不入库。可通过诊断信息查看存储故障。
 
 离线重试与同意等待共用一个缓存，按当前 Sentry 投递目标保存数据。SDK 将包含元数据的整个容器限制在支付宝／钉钉 180 KiB、其余平台 900 KiB 以内；这是 SDK 的保守预算，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。更换 DSN／tunnel、读取旧格式或使用不兼容的隐私／存储策略时，会丢弃旧数据并记录诊断；只调整容量或过期时间时，会裁剪仍兼容的记录。
 
@@ -75,7 +75,7 @@ SDK 会开始补发同意前的缓冲事件，并恢复后续实时上报。用�
 Sentry.setConsent(false);
 ```
 
-之后的新数据不发 Sentry 网络，排队请求不得启动；在途请求在宿主提供能力时 abort。即使随后立即重新同意，SDK 仍会尝试取消原请求；新请求和缓存补发按当前授权状态处理。`Sentry.getConsent()` 读取当前 client 状态；未启用 requireConsent 时恒为 true。缺 Storage 可降级为有界内存；条数／字节上限为 0 时不缓存。
+之后的新数据只进入允许的本地缓冲，排队请求停止启动；在途请求在宿主支持时尝试取消，已经传输的字节无法撤回。`getConsent()` 读取当前 client 状态，未启用 `requireConsent` 时为 `true`。缺少 Storage 时使用有界内存，条数或字节上限为 0 时不缓存。
 
 > `requireConsent` 是网络发送门禁，不是采样开关。要减少上报量，请配置 `sampleRate`、`tracesSampleRate` 或过滤规则。
 
@@ -104,7 +104,7 @@ Sentry.init({
 
 ## 上线前怎样验证
 
-1. 清空本地 Storage，重新启动应用且暂不点击同意。
+1. 在隔离测试项目中清理 SDK 缓存，重新启动且暂不点击同意；不要清空生产项目的业务 Storage。
 2. 主动调用 `captureException`，确认没有 Sentry 网络请求。
 3. 检查平台 Storage 中出现缓冲数据。
 4. 调用 `setConsent(true)`，确认缓冲事件被补发并能在 Sentry 中看到。

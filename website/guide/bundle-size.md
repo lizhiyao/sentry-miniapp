@@ -15,7 +15,7 @@ App({
   onLaunch() {
     require.async('./subpackageA/sentry-miniapp.js')
       .then((Sentry) => {
-        Sentry.init({ dsn: 'https://xxxxxxxx@sentry.io/12345' /* ...其他配置 */ });
+        Sentry.init({ dsn: 'YOUR_DSN' /* ...其他配置 */ });
       })
       .catch((err) => console.error('Sentry 加载失败', err));
   },
