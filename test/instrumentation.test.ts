@@ -4,6 +4,8 @@ const { mockGetClient } = vi.hoisted(() => ({ mockGetClient: vi.fn() }));
 
 vi.mock('@sentry/core', () => ({ getClient: mockGetClient }));
 
+import { subscribeNativeEvent } from '../src/nativeEvents';
+
 import {
   addFunctionInstrumentationHandler,
   ensureFunctionInstrumentation,
@@ -66,7 +68,10 @@ describe('共享函数 instrumentation', () => {
     expect(installed).toBe(false);
     expect(source.run).toBe(original);
     const nativeReflect = Reflect;
-    for (const reflect of [undefined, { apply: nativeReflect.apply, ownKeys: nativeReflect.ownKeys }]) {
+    for (const reflect of [
+      undefined,
+      { apply: nativeReflect.apply, ownKeys: nativeReflect.ownKeys },
+    ]) {
       vi.stubGlobal('Reflect', reflect);
       const host = { run: original };
       const installed = ensureFunctionInstrumentation(host, 'run');
@@ -82,7 +87,9 @@ describe('共享函数 instrumentation', () => {
       expect(extendedHost.run).toBe(extended);
     }
     vi.stubGlobal('Reflect', {
-      get get() { throw new Error('Reflect inaccessible'); },
+      get get() {
+        throw new Error('Reflect inaccessible');
+      },
     });
     const guardedHost = { run: original };
     const guardedInstalled = ensureFunctionInstrumentation(guardedHost, 'run');
@@ -295,5 +302,251 @@ describe('共享函数 instrumentation', () => {
     expect(ensureFunctionInstrumentation(source, 'run')).toBe(false);
     expect(() => unsubscribe()).not.toThrow();
     expect(source.run()).toBe('third-party');
+  });
+});
+
+describe('共享原生事件 instrumentation', () => {
+  it.each(['missing', 'throws', 'getter-throws', 'works'] as const)(
+    'off %s：重复订阅数量有界，源对象隔离，空通道不读取参数',
+    (mode) => {
+      const retained = new Set<(...args: any[]) => void>();
+      const on = vi.fn((listener) => retained.add(listener));
+      const off = vi.fn((listener) => {
+        if (mode === 'throws') throw new Error('off unavailable');
+        retained.delete(listener);
+      });
+      const host = { on, ...(mode === 'missing' ? {} : { off }) };
+      if (mode === 'getter-throws')
+        Object.defineProperty(host, 'off', {
+          get() {
+            throw new Error('off getter');
+          },
+        });
+      Object.freeze(host);
+      const read = vi.fn();
+      const payload = new Proxy({}, { get: read });
+      const seen = vi.fn();
+      const stops: Array<() => void> = [];
+      for (let cycle = 0; cycle < 20; cycle++) {
+        expect(
+          subscribeNativeEvent(
+            host,
+            'on',
+            'off',
+            seen,
+            () => true,
+            (stop) => stops.push(stop),
+          ),
+        ).toBe(true);
+        for (const listener of retained) listener(payload);
+        expect(seen).toHaveBeenCalledTimes(cycle + 1);
+        stops.at(-1)!();
+        stops.at(-1)!();
+        for (const listener of retained) listener(payload);
+      }
+      expect(on).toHaveBeenCalledTimes(mode === 'works' ? 20 : 1);
+      expect(retained.size).toBe(mode === 'works' ? 0 : 1);
+      expect(read).not.toHaveBeenCalled();
+      // 同名 API 的另一个真实宿主有自己的通道。
+      const otherOn = vi.fn();
+      subscribeNativeEvent(
+        { on: otherOn },
+        'on',
+        'off',
+        seen,
+        () => true,
+        (stop) => stops.push(stop),
+      );
+      expect(otherOn).toHaveBeenCalledOnce();
+      stops.at(-1)!();
+    },
+  );
+
+  it('分发快照不转交事件，退订和一个处理器异常不影响其他订阅', () => {
+    let emit: (...args: any[]) => void;
+    const host = {
+      on: (handler: typeof emit) => {
+        emit = handler;
+      },
+    };
+    const stops: Array<() => void> = [];
+    const seen: string[] = [];
+    let current = 'A';
+    const add = (handler: () => void, active = () => true) =>
+      subscribeNativeEvent(host, 'on', 'off', handler, active, (stop) => stops.push(stop));
+    add(
+      () => {
+        seen.push('A');
+        stops[1]!();
+        current = 'B';
+        add(() => seen.push('new'));
+        throw new Error('handler');
+      },
+      () => current === 'A',
+    );
+    add(() => seen.push('retired'));
+    current = 'B';
+    add(
+      () => seen.push('B'),
+      () => current === 'B',
+    );
+    current = 'A';
+    add(() => seen.push('tail'));
+    let corrupt = false;
+    add(
+      () => seen.push('unreadable'),
+      () => {
+        if (corrupt) throw new Error('active getter');
+        return true;
+      },
+    );
+    corrupt = true;
+    emit!();
+    expect(seen).toEqual(['A', 'tail']);
+    emit!();
+    expect(seen).toEqual(['A', 'tail', 'B', 'tail', 'new']);
+    stops.forEach((stop) => stop());
+    emit!();
+    expect(seen).toHaveLength(5);
+  });
+
+  it('off getter／调用中加入订阅不丢监听；注册前失活不调用 on', () => {
+    for (const phase of ['getter', 'call']) {
+      const saved: Array<() => void> = [];
+      const on = vi.fn((listener) => saved.push(listener));
+      const seen = vi.fn();
+      let firstStop: () => void;
+      let secondStop: () => void;
+      let subscribed = false;
+      const addSecond = () => {
+        if (subscribed) return;
+        subscribed = true;
+        saved[0]!(); // off 内同步分发必须无效。
+        subscribeNativeEvent(
+          host,
+          'on',
+          'off',
+          seen,
+          () => true,
+          (stop) => {
+            secondStop = stop;
+          },
+        );
+      };
+      const off = vi.fn(() => {
+        if (phase === 'call') addSecond();
+      });
+      const host = Object.defineProperty({ on }, 'off', {
+        get() {
+          if (phase === 'getter') addSecond();
+          return off;
+        },
+      });
+      subscribeNativeEvent(
+        host,
+        'on',
+        'off',
+        seen,
+        () => true,
+        (stop) => {
+          firstStop = stop;
+        },
+      );
+      firstStop!();
+      expect(on).toHaveBeenCalledTimes(phase === 'getter' ? 1 : 2);
+      expect(seen).not.toHaveBeenCalled();
+      saved.at(-1)!();
+      expect(seen).toHaveBeenCalledOnce();
+      secondStop!();
+      saved.forEach((listener) => listener());
+      expect(seen).toHaveBeenCalledOnce();
+    }
+    let active = true;
+    const on = vi.fn();
+    const stop = vi.fn();
+    expect(
+      subscribeNativeEvent(
+        { on },
+        'on',
+        'off',
+        vi.fn(),
+        () => active,
+        (release) => {
+          active = false;
+          release();
+          stop();
+        },
+      ),
+    ).toBe(false);
+    expect(stop).toHaveBeenCalledOnce();
+    expect(on).not.toHaveBeenCalled();
+    expect(
+      subscribeNativeEvent(
+        { on },
+        'on',
+        'off',
+        vi.fn(),
+        () => {
+          throw new Error('active getter');
+        },
+        vi.fn(),
+      ),
+    ).toBe(false);
+  });
+
+  it('部分注册失败按能力降级；成功 off 后可重装，注册中停止只在 on 返回后 off', () => {
+    for (const removable of [false, true]) {
+      const saved: Array<(...args: any[]) => void> = [];
+      const stops: Array<() => void> = [];
+      const on = vi.fn((listener) => {
+        saved.push(listener);
+        throw new Error('after saving');
+      });
+      const off = vi.fn();
+      const host = { on, ...(removable ? { off } : {}) };
+      for (let i = 0; i < 2; i++) {
+        expect(
+          subscribeNativeEvent(
+            host,
+            'on',
+            'off',
+            vi.fn(),
+            () => true,
+            (stop) => stops.push(stop),
+          ),
+        ).toBe(false);
+        stops.at(-1)!();
+      }
+      expect(on).toHaveBeenCalledTimes(removable ? 2 : 1);
+      stops.forEach((stop) => stop());
+      const read = vi.fn();
+      saved.forEach((listener) => listener(new Proxy({}, { get: read })));
+      expect(read).not.toHaveBeenCalled();
+    }
+    const order: string[] = [];
+    let stop: () => void;
+    const host = {
+      on: () => {
+        order.push('on');
+        stop();
+        order.push('saved');
+      },
+      off: () => {
+        order.push('off');
+      },
+    };
+    expect(
+      subscribeNativeEvent(
+        host,
+        'on',
+        'off',
+        vi.fn(),
+        () => true,
+        (release) => {
+          stop = release;
+        },
+      ),
+    ).toBe(false);
+    expect(order).toEqual(['on', 'saved', 'off']);
   });
 });

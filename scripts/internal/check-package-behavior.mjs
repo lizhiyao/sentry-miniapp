@@ -1303,8 +1303,10 @@ async function runBoundaryScenario(pkg) {
       evidence.hostErrorInputs = 5;
     } else if (scenario === 'network-off-getter') {
       let handler;
+      let registrations = 0;
       host.onNetworkStatusChange = function (callback) {
         assert.equal(this, host);
+        registrations += 1;
         handler = callback;
       };
       Object.defineProperty(host, 'offNetworkStatusChange', {
@@ -1344,10 +1346,23 @@ async function runBoundaryScenario(pkg) {
       );
       handler(late);
       assert.equal(lateReads, 0);
+      for (let cycle = 0; cycle < 20; cycle++) {
+        client = sdk.init({
+          ...common,
+          defaultIntegrations: [sdk.networkStatusIntegration()],
+          transport,
+        });
+        assert.notEqual(client.getOptions().enabled, false);
+        client.dispose();
+        handler(late);
+      }
+      assert.equal(registrations, 1, 'off failure must reuse the host dispatcher');
+      assert.equal(lateReads, 0);
       let offCalls = 0;
       host.onNetworkStatusChange = function (callback) {
         assert.equal(this, host);
         sdk.getClient().dispose();
+        registrations += 1;
         handler = callback;
       };
       Object.defineProperty(host, 'offNetworkStatusChange', {
@@ -1365,12 +1380,26 @@ async function runBoundaryScenario(pkg) {
         defaultIntegrations: [sdk.networkStatusIntegration()],
         transport,
       });
+      assert.notEqual(client.getOptions().enabled, false, 'retained dispatcher must not reread on');
+      client.dispose();
+      assert.equal(offCalls, 1);
+      client = sdk.init({
+        ...common,
+        defaultIntegrations: [sdk.networkStatusIntegration()],
+        transport,
+      });
       assert.equal(client.getOptions().enabled, false);
       assert.ok(offCalls > 0, 'a handler saved after registration disposal must be detached');
       handler(late);
       assert.equal(lateReads, 0, 'retired late handler must not read host payload');
       assert.equal(payloads('event').length, 1);
-      evidence.controls = { reconnectFlushes: 1, partialRegistrationDisposal: true, lateReads };
+      evidence.controls = {
+        reconnectFlushes: 1,
+        retainedRegistrations: 1,
+        repeatCycles: 20,
+        partialRegistrationDisposal: true,
+        lateReads,
+      };
     } else if (scenario === 'page-zeroargs') {
       global.Page = function (options) {
         assert.equal(this, global);

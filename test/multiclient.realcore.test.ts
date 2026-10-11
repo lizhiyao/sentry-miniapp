@@ -177,7 +177,7 @@ describe('重叠 client 的全局 instrumentation 所有权', () => {
     expect(secondSends).toBe(2);
   });
 
-  it('NetworkStatus 同对象跨 A/B 复用，旧查询/无 off 监听失效；迟到初始结果不覆盖新变化', async () => {
+  it('NetworkStatus 同对象跨 A/B 复用一份监听，旧查询失效；迟到初始结果不覆盖新变化', async () => {
     const queries: Array<(res: unknown) => void> = [];
     const listeners: Array<(res: unknown) => void> = [];
     g.wx = {
@@ -187,32 +187,35 @@ describe('重叠 client 的全局 instrumentation 所有权', () => {
     const integration = new NetworkStatusIntegration();
     const first = start([integration]);
     const second = start([integration]);
-    expect(listeners).toHaveLength(2);
+    expect(listeners).toHaveLength(1);
     const read = vi.fn(() => {
       throw new Error('retired network read');
     });
     const unreadable = new Proxy({}, { get: read });
-    listeners[0]!(unreadable);
     queries[0]!(unreadable);
     expect(read).not.toHaveBeenCalled();
     expect(getClientEnvironment(first).contexts.network).toBeUndefined();
-    listeners[1]!({ networkType: 'none', isConnected: false });
+    listeners[0]!({ networkType: 'none', isConnected: false });
     queries[1]!({ networkType: 'wifi' });
     expect(getClientEnvironment(second).contexts.network).toEqual({
       type: 'none',
       isConnected: false,
     });
     const flush = vi.spyOn(second, 'flush').mockResolvedValue(true);
-    listeners[1]!({ networkType: '4g', isConnected: true });
+    listeners[0]!({ networkType: '4g', isConnected: true });
     expect(flush).toHaveBeenCalledOnce();
     first.dispose();
-    listeners[1]!({ networkType: '5g', isConnected: true });
+    listeners[0]!({ networkType: '5g', isConnected: true });
     expect(getClientEnvironment(second).contexts.network).toEqual({
       type: '5g',
       isConnected: true,
     });
     expect(flush).toHaveBeenCalledOnce();
     expect(getClient()).toBe(second);
+    second.dispose();
+    listeners[0]!(unreadable);
+    queries[1]!(unreadable);
+    expect(read).not.toHaveBeenCalled();
   });
 
   it('NetworkStatus 退休在 off 前失效，off 故障不使旧查询或监听恢复', () => {

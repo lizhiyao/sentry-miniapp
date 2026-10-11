@@ -343,25 +343,23 @@ describe('原生 show/hide 与真实 core Session', () => {
     },
   );
 
-  it('缺少 off 时替换后旧回调不读参数、不结束新 Session；dispose 也停止新回调', () => {
+  it('缺少 off 时复用一份宿主监听，事件只更新当前 Session，dispose 后停止收集', () => {
     const first = start();
     const firstSid = sessions()[0]!.sid;
     const second = start();
     expect(sessions().filter((session) => session.sid === firstSid)).toHaveLength(2);
     const secondSid = getIsolationScope().getSession()!.sid;
-    const count = sessions().length;
-    shows[0]!();
-    hides[0]!();
-    expect(sessions()).toHaveLength(count);
-    expect(getIsolationScope().getSession()!.sid).toBe(secondSid);
+    expect(shows).toHaveLength(1);
+    expect(hides).toHaveLength(1);
     expect(getClientLifetime(first)?.canCollectAutomatic()).toBe(false);
-    hides[1]!();
-    shows[1]!();
+    hides[0]!();
+    shows[0]!();
+    expect(sessions().filter((session) => session.sid === firstSid)).toHaveLength(2);
     expect(getIsolationScope().getSession()!.sid).not.toBe(secondSid);
     second.dispose();
     const afterDispose = sessions().length;
-    shows[1]!();
-    hides[1]!();
+    shows[0]!();
+    hides[0]!();
     expect(sessions()).toHaveLength(afterDispose);
     expect(getIsolationScope().getSession()).toBeUndefined();
   });
@@ -477,7 +475,7 @@ describe('原生 show/hide 与真实 core Session', () => {
       onHide,
     });
     start([sessionIntegration(), miniappLifecycleIntegration()]);
-    expect(offShow).toHaveBeenCalledTimes(2);
+    expect(offShow).toHaveBeenCalledOnce();
     expect(onHide).not.toHaveBeenCalled();
     shows[0]!();
     expect(sessions()).toEqual([]);
@@ -508,7 +506,7 @@ describe('原生 show/hide 与真实 core Session', () => {
   });
 
   it.each(['onShow', 'offShow'] as const)(
-    '%s getter 退休 owner 后不再调用 on 或注册 hide',
+    '%s getter 退休 owner 的边界：on 取消注册，off 只在退订读取',
     (key) => {
       const onShow = vi.fn();
       const offShow = vi.fn();
@@ -523,11 +521,20 @@ describe('原生 show/hide 与真实 core Session', () => {
       });
       vi.stubGlobal('wx', host);
       const client = start();
-      expect(onShow).not.toHaveBeenCalled();
-      expect(offShow).not.toHaveBeenCalled();
-      expect(onHide).not.toHaveBeenCalled();
+      if (key === 'onShow') {
+        expect(onShow).not.toHaveBeenCalled();
+        expect(offShow).not.toHaveBeenCalled();
+        expect(onHide).not.toHaveBeenCalled();
+      } else {
+        // 可选 off getter 仅在退订时读取，不影响能力安装。
+        expect(onShow).toHaveBeenCalledOnce();
+        expect(onHide).toHaveBeenCalledOnce();
+        expect(offShow).not.toHaveBeenCalled();
+        client.dispose();
+        expect(offShow).toHaveBeenCalledOnce();
+      }
       expect(getClientLifetime(client)?.state).toBe('closed');
-      expect(sessions()).toEqual([]);
+      expect(getIsolationScope().getSession()).toBeUndefined();
     },
   );
 

@@ -101,7 +101,7 @@ describe('独立 runtime lifecycle 与真实 core flush', () => {
     expect(order).toEqual(['session', 'flush']);
   });
 
-  it('native game listeners 无 off 能力时旧 handler 失效，show/hide 仍更新新 owner', () => {
+  it('native game listeners 无 off 时监听数量恒定，show/hide 只更新新 owner', () => {
     vi.stubGlobal('App', undefined);
     const shows: Array<() => void> = [];
     const hides: Array<() => void> = [];
@@ -118,11 +118,13 @@ describe('独立 runtime lifecycle 与真实 core flush', () => {
     const second = start();
     first.dispose();
     const flushed = vi.spyOn(second, 'flush');
+    expect(shows).toHaveLength(1);
+    expect(hides).toHaveLength(1);
     hides[0]!();
-    expect(flushed).not.toHaveBeenCalled();
-    shows[1]!();
-    hides[1]!();
-    expect(flushed).toHaveBeenCalledTimes(2);
+    expect(flushed).toHaveBeenCalledOnce();
+    shows[0]!();
+    hides[0]!();
+    expect(flushed).toHaveBeenCalledTimes(3);
     expect(getClientLifetime(second)?.visibility).toBe('background');
   });
 
@@ -286,7 +288,7 @@ describe('独立 runtime lifecycle 与真实 core flush', () => {
       onHide: hide,
     });
     const owner = start();
-    expect(off).toHaveBeenCalledTimes(2);
+    expect(off).toHaveBeenCalledOnce();
     expect(hide).not.toHaveBeenCalled();
     handlers[0]!();
     expect(getClientLifetime(owner)?.visibility).toBe('stopped');

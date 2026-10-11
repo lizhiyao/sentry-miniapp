@@ -44,9 +44,9 @@ describe('close → re-init 重新挂载（F2）', () => {
     delete g.wx;
   });
 
-  it('init → close → init 后全局错误处理重新注册', async () => {
+  it('init → close → init 后复用原生监听，仅当前 client 处理错误', async () => {
     init(makeOpts() as any);
-    // 宿主监听由每个 client 的 setup 安装；无需空 setupOnce 占位。
+    // 宿主监听按事件源安装一次，client 的处理器在 setup 中订阅。
     expect((g.wx.onError as Mock).mock.calls.length).toBeGreaterThanOrEqual(1);
     expect(getClient()!.getIntegrationByName('GlobalHandlers')).toBeDefined();
     const firstHandler = (g.wx.onError as Mock).mock.calls[0]![0] as (error: Error) => void;
@@ -60,12 +60,10 @@ describe('close → re-init 重新挂载（F2）', () => {
     (g.wx.onError as Mock).mockClear();
 
     init(makeOpts() as any);
-    // 新监听生效，缺少 offError 的宿主保留的旧监听也不能污染新 client。
-    expect(g.wx.onError).toHaveBeenCalled();
+    // 缺少 offError 时复用已安装的宿主监听，客户端处理器重新订阅。
+    expect(g.wx.onError).not.toHaveBeenCalled();
     expect(getClient()!.getIntegrationByName('GlobalHandlers')).toBeDefined();
-    firstHandler(new Error('retired client error'));
-    const secondHandler = (g.wx.onError as Mock).mock.calls[0]![0] as (error: Error) => void;
-    secondHandler(new Error('second client error'));
+    firstHandler(new Error('second client error'));
     expect(await getClient()!.flush(100)).toBe(true);
     expect(installedIntegrations).toEqual(setupOnceRecords);
     expect(

@@ -128,7 +128,7 @@ Client 对同一个 Session 对象的同步捕获重入保留短暂操作上下�
 
 Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业务数据，仅替换 Session，不修改原 scope。原样导出的手动 Session API 操作 Core current／isolation scope，并非 per-client 会话 facade；自动集成只清除它仍持有的同一引用。需要完整手动控制会话时应关闭自动 Session，不能据此假定手动与自动会话完全隔离。
 
-关闭会释放 owner 引用；缺少宿主 `off*` 时，迟到的 SDK 观测回调通过活动门禁失效。原业务 timer／request 回调仍可运行，其中显式调用顶层捕获 API，或随后发生独立宿主错误时，仍可按当前 client 捕获。该机制解决 SDK 自己的自动观测归属，不取消业务回调，也不实现通用异步上下文隔离。
+关闭会释放 owner 引用；具体 request／timer／rAF 操作的迟到 SDK 观测回调通过活动门禁失效。原业务 timer／request 回调仍可运行，其中显式调用顶层捕获 API，或随后发生独立宿主错误时，仍可按当前 client 捕获。该机制解决 SDK 自己的自动观测归属，不取消业务回调，也不实现通用异步上下文隔离。
 
 请求门禁闭包持有的 client／lifetime 同样随 owner 释放清空；业务宿主可以长期保留未完成请求的回调，单独清空 OwnerToken 内部引用仍不足以解除这些闭包的强引用。
 
@@ -196,7 +196,11 @@ Core `addBreadcrumb()` 写入共享 isolation scope，不会自行检查 Miniapp
 
 对应回归见 [instrumentation](test/instrumentation.test.ts)、[lifecycle-coordinator](test/lifecycle-coordinator.realcore.test.ts)、[native-session](test/native-session.realcore.test.ts)和[client-lifecycle](test/client-lifecycle.realcore.test.ts)。
 
-宿主缺少或无法执行 off 时，已注册的原生回调只能失效并释放 client／scope；宿主仍可能保留惰性回调，频繁重新初始化时监听数量不保证有界。这里保留退休回调不读取参数、不接管新 client 的归属契约；共享回调重绑定会改变晚到事件归属，须作为独立设计取舍评估。常规接入在应用入口初始化一次。
+原生错误、网络状态与 show／hide 通过 [nativeEvents](src/nativeEvents.ts) 按真实宿主对象和 on API 名共享监听，每个 client 的处理器、去重窗口、网络状态与 Session 协调器仍独立。退订立即删除处理器并释放 client／scope；最后一个订阅退出才尝试 off。缺少 off 或 off 抛错时保留同一空 dispatcher，下次订阅直接复用，每个事件源／事件在本 SDK 实例内最多保留一份原生监听。空通道不读取事件参数；分发使用活动订阅快照，中途退休或新加入的订阅不接管本次事件。注册前登记 stop，注册中退休则等 on 返回后解除，避免宿主晚保存 callback。
+
+原生事件没有请求 owner／发生代次信息，采用交付时活动 client 的订阅；例如跨 init 才交付的全局错误或 hide 会更新当前 client。该边界不扩展到具体 request、timer、rAF、初始网络查询或离线操作：它们仍绑定原 owner，退休后不转交。常规接入在应用入口初始化一次。
+
+on 可能先保存监听再抛错，此时能力标记按注册失败降级，已能收到的宿主事件仍可通知活动订阅以收尾资源。无可靠 off 时不重复注册这一不确定通道；off 抛错也无法判断宿主是否已先移除监听，优先保证注册数量有界而不盲目重试。成功 off 后新订阅建立新的 dispatcher，保留的旧函数永久失效。
 
 ## 6. 跨端能力与隐私发送边界
 

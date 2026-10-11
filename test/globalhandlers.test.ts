@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { captureEvent, captureException, withScope } from '@sentry/core';
 import type { Event } from '@sentry/core';
 import { GlobalHandlers, globalHandlersIntegration } from '../src/integrations/globalhandlers';
@@ -15,7 +15,7 @@ vi.mock('@sentry/core', async (importOriginal) => ({
 }));
 
 // Mock crossPlatform
-const mockSdk: any = {};
+let mockSdk: any = {};
 
 vi.mock('../src/crossPlatform', () => ({
   sdk: vi.fn(() => mockSdk),
@@ -33,7 +33,7 @@ describe('GlobalHandlers', () => {
     (withScope as Mock).mockImplementation((callback: (scope: any) => void) => callback(mockScope));
 
     // 重置 mockSdk
-    Object.keys(mockSdk).forEach((key) => delete mockSdk[key]);
+    mockSdk = {};
     mockSdk.onError = vi.fn();
     mockSdk.onUnhandledRejection = vi.fn();
     mockSdk.onPageNotFound = vi.fn();
@@ -42,6 +42,10 @@ describe('GlobalHandlers', () => {
     mockSdk.offUnhandledRejection = vi.fn();
     mockSdk.offPageNotFound = vi.fn();
     mockSdk.offMemoryWarning = vi.fn();
+  });
+
+  afterEach(() => {
+    for (const [cleanup] of mockClient.registerCleanup.mock.calls) cleanup();
   });
 
   it('creates the functional integration with options', () => {

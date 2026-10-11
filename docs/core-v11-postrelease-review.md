@@ -386,3 +386,14 @@ lint、源码／测试严格类型、全量 coverage／shuffle、标准构建／
 强化原有回归与安装包行为场景：Vitest 定义未增加，参数组合展开后为 77 文件／1283 用例；CJS／ESM 各仍为 21 个包行为场景。lint、严格类型、全量 coverage／shuffle、标准构建与真实安装包消费、微信独立 bundle／本地映射及官网构建通过。覆盖率门槛不变：statements 98.72%、branches 95.90%、functions 99.37%、lines 99.42%。README／英文入口及示例用法已复核，官网仅补充切换配置与自定义 transport 关闭责任，不放入内部探针过程。
 
 此轮为真实 Core、构建产物及受控宿主验证；Node GC 不代表特定手机内存测试。未新增 npm 发布、真机或目标后台证据，修复需随后续版本发布；[#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 继续跟踪设备反馈。
+
+
+## 缺少 off 的长期监听复核（2026-10-11）
+
+基线为 #499 合并树 `a2d2175` 对应实际包。原生错误、网络与生命周期资源按 client 注册，关闭可释放 client，却让无 off 或 off 故障的宿主继续保留每次 init 的空回调。对照官方 Core 的 addHandler／maybeInstrument 和 Browser GlobalHandlers 后，平台采用宿主监听与 client 订阅分离：按真实源对象／on API 共享 dispatcher，退休立即删除订阅，最后退订才尝试 off，不能移除时下次复用。三处重复的注册／清理逻辑合并到 nativeEvents；不增加运行时依赖或公共 API，也不复制 Core 事件管道。选择理由和事件归属见[官方实践](sdk-official-practices.md#原生宿主监听与-client-订阅)。
+
+七平台 × CJS／ESM × 缺 off、off 调用抛错、off getter 抛错、正常 off 的两树实际包对照共 112 项通过，每项 50 次 init／dispose。前三种条件下基线保留 350 份原生回调，候选固定为 7 份（每个事件一份）；正常 off 的两树都不留下监听。全部旧 client 在 Node GC 探针中可回收；空通道不读输入，重启后的错误仅进入活动 client 一次。初始网络查询是一次性 owner 操作，单独验证退休后的结果失效，不将模拟宿主保存的查询 callback 计为长期监听。
+
+共享层检查源对象隔离、冻结 API、活动订阅快照、注册中 dispose、部分注册后抛错及 off getter／调用重入。原生部分注册失败不宣称完整能力，已送达的 hide 仍可收尾帧循环；成功 off 后旧 dispatcher 永久失效。宿主事件无生成代次信息，按交付时的活动 client 处理；具体 request／timer／rAF／查询的回调仍保留原 owner。off 抛错后无法确认是否已先移除监听，采用不盲目重试的有界降级，这不等于承诺故障 API 仍可持续交付。
+
+强化原有真实 Core 回归与已安装包 network-off-getter 场景，并为新增共享层补充 4 个测试定义（一个含 4 种 off 情况）；77 文件／1290 用例，CJS／ESM 仍各 21 个包行为场景。lint、严格类型、全量 coverage／shuffle、标准构建及真实包消费、微信独立 bundle／本地映射、官网构建通过。覆盖率门槛不变，statements 98.72%、branches 96.00%、functions 99.37%、lines 99.42%。README／英文入口与示例的接入 API 无需改变，架构、官方实践和官网更新监听复用及交付归属。此轮为受控宿主与真实包验证，未新增设备／后台证据或 npm 发布；#457 继续跟踪设备反馈。

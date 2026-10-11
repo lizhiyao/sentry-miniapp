@@ -1,6 +1,7 @@
 import { addBreadcrumb, getClient } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
 import { sdk } from '../crossPlatform';
+import { subscribeNativeEvent } from '../nativeEvents';
 import { setClientContext } from '../clientState';
 import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 
@@ -18,6 +19,7 @@ export class NetworkStatusIntegration implements Integration {
     let lastConnected: boolean | null = null;
     let observedChange = false;
     let source: ReturnType<typeof sdk> | undefined;
+    let release: (() => void) | undefined;
     this._owners.add(client);
     const isActive = (): boolean =>
       !!owner &&
@@ -59,14 +61,10 @@ export class NetworkStatusIntegration implements Integration {
       owner = undefined;
       lastConnected = null;
       this._owners.delete(held);
-      const host = source;
       source = undefined;
-      try {
-        if (typeof host?.offNetworkStatusChange === 'function')
-          host.offNetworkStatusChange(handler);
-      } catch (_error) {
-        /* 缺 off 或 off 失败时，旧回调也已失效。 */
-      }
+      const stop = release;
+      release = undefined;
+      stop?.();
     };
     const detach = lifetime?.registerStop(cleanup);
     client.registerCleanup(() => {
@@ -80,23 +78,16 @@ export class NetworkStatusIntegration implements Integration {
     } catch (_error) {
       /* 一个能力不可用不阻断另一个监听。 */
     }
-    try {
-      const host = source;
-      const on = host?.onNetworkStatusChange;
-      if (typeof on === 'function' && isActive()) {
-        try {
-          on.call(host, handler);
-        } finally {
-          // 可选 off 不作为注册前提；注册中退休后才尝试解除迟到保存的监听。
-          if (!isActive()) {
-            const off = host?.offNetworkStatusChange;
-            if (typeof off === 'function') off.call(host, handler);
-          }
-        }
-      }
-    } catch (_error) {
-      /* 已登记 cleanup，部分注册成功仍能退休。 */
-    }
+    subscribeNativeEvent(
+      source,
+      'onNetworkStatusChange',
+      'offNetworkStatusChange',
+      handler,
+      isActive,
+      (stop) => {
+        release = stop;
+      },
+    );
   }
 }
 

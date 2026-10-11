@@ -9,6 +9,7 @@ import {
 import type { Client, Event, EventHint, Integration, IntegrationFn, Exception } from '@sentry/core';
 
 import { sdk } from '../crossPlatform';
+import { subscribeNativeEvent } from '../nativeEvents';
 import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 import { getErrorDetails } from '../helpers';
 import { miniappStackParser } from '../stacktrace';
@@ -99,12 +100,7 @@ export class GlobalHandlers implements Integration {
   /** JSDoc */
   private readonly _options: GlobalHandlersIntegrations;
 
-  private _errorHandler: ((err: PlatformErrorValue) => void) | null = null;
-  private _rejectionHandler: ((res: { reason: unknown; promise?: unknown }) => void) | null = null;
-  private _pageNotFoundHandler:
-    ((res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => void) | null =
-    null;
-  private _memoryWarningHandler: ((res: { level: number }) => void) | null = null;
+  private readonly _releases: Array<() => void> = [];
   private _client: Client | undefined;
   private _sdk: ReturnType<typeof sdk> | undefined;
   private readonly _controllers = new WeakMap<Client, GlobalHandlers>();
@@ -122,7 +118,7 @@ export class GlobalHandlers implements Integration {
     };
   }
 
-  /** 同一 integration 对象复用时，各 client 的宿主资源与去重窗口仍独立。 */
+  /** 同一 integration 对象复用时，各 client 的处理器与去重窗口仍独立。 */
   public setup(client: Client): void {
     if (this._controllers.has(client)) return;
     const lifetime = getClientLifetime(client);
@@ -156,9 +152,8 @@ export class GlobalHandlers implements Integration {
     return !lifetime || lifetime.canCollectAutomatic();
   }
 
-  private _guard<T extends unknown[]>(handler: (...args: T) => void): (...args: T) => void {
+  private _isolate<T extends unknown[]>(handler: (...args: T) => void): (...args: T) => void {
     return (...args) => {
-      if (!this._isActiveClient()) return;
       withTelemetryCritical(() => {
         try {
           handler(...args);
@@ -169,23 +164,15 @@ export class GlobalHandlers implements Integration {
     };
   }
 
-  private _listen(onName: string, offName: string, handler: Function): void {
-    const source = this._sdk;
-    const on = source?.[onName as keyof typeof source];
-    if (typeof on !== 'function' || !this._isActiveClient()) return;
-    try {
-      on.call(source, handler);
-    } finally {
-      // 宿主可能在注册中退休 client，且在 cleanup 返回后才保存 handler。
-      if (!this._isActiveClient()) {
-        try {
-          const off = source?.[offName as keyof typeof source];
-          if (typeof off === 'function') off.call(source, handler);
-        } catch (_error) {
-          /* 不可读或不可用的 off 不影响已失效的回调守卫。 */
-        }
-      }
-    }
+  private _listen(onName: string, offName: string, handler: (...args: any[]) => void): void {
+    subscribeNativeEvent(
+      this._sdk,
+      onName,
+      offName,
+      handler,
+      () => this._isActiveClient(),
+      (stop) => this._releases.push(stop),
+    );
   }
 
   /**
@@ -281,7 +268,7 @@ export class GlobalHandlers implements Integration {
   /** JSDoc */
   private _installGlobalOnErrorHandler(): void {
     if (this._isActiveClient()) {
-      this._errorHandler = this._guard((err: PlatformErrorValue) => {
+      const handler = this._isolate((err: PlatformErrorValue) => {
         const error = errorFromPlatformValue(err);
         captureException(error, {
           mechanism: {
@@ -290,14 +277,14 @@ export class GlobalHandlers implements Integration {
           },
         });
       });
-      this._listen('onError', 'offError', this._errorHandler);
+      this._listen('onError', 'offError', handler);
     }
   }
 
   /** JSDoc */
   private _installGlobalOnUnhandledRejectionHandler(): void {
     if (this._isActiveClient()) {
-      this._rejectionHandler = this._guard((payload: { reason: unknown; promise?: unknown }) => {
+      const handler = this._isolate((payload: { reason: unknown; promise?: unknown }) => {
         const reason = payload.reason;
         let promise: unknown;
         try {
@@ -337,14 +324,14 @@ export class GlobalHandlers implements Integration {
           captureException(reason, hint);
         }
       });
-      this._listen('onUnhandledRejection', 'offUnhandledRejection', this._rejectionHandler);
+      this._listen('onUnhandledRejection', 'offUnhandledRejection', handler);
     }
   }
 
   /** JSDoc */
   private _installGlobalOnPageNotFoundHandler(): void {
     if (this._isActiveClient()) {
-      this._pageNotFoundHandler = this._guard(
+      const handler = this._isolate(
         (res: { path: string; query: Record<string, any>; isEntryPage: boolean }) => {
           const url = collectUrlName(res.path);
           const query = collectKeyValueData(
@@ -370,14 +357,14 @@ export class GlobalHandlers implements Integration {
           });
         },
       );
-      this._listen('onPageNotFound', 'offPageNotFound', this._pageNotFoundHandler);
+      this._listen('onPageNotFound', 'offPageNotFound', handler);
     }
   }
 
   /** JSDoc */
   private _installGlobalOnMemoryWarningHandler(): void {
     if (this._isActiveClient()) {
-      this._memoryWarningHandler = this._guard(({ level = -1 }: { level: number }) => {
+      const handler = this._isolate(({ level = -1 }: { level: number }) => {
         let levelMessage = '没有获取到告警级别信息';
 
         switch (level) {
@@ -409,7 +396,7 @@ export class GlobalHandlers implements Integration {
           });
         });
       });
-      this._listen('onMemoryWarning', 'offMemoryWarning', this._memoryWarningHandler);
+      this._listen('onMemoryWarning', 'offMemoryWarning', handler);
     }
   }
 
@@ -420,28 +407,8 @@ export class GlobalHandlers implements Integration {
     for (const cleanup of [...this._cleanups]) cleanup();
     // 先失效，off API 同步触发的回调也不能继续采集。
     this._client = undefined;
-    const source = this._sdk;
     this._sdk = undefined;
-    const listeners: Array<[string, Function | null]> = [
-      ['offError', this._errorHandler],
-      ['offUnhandledRejection', this._rejectionHandler],
-      ['offPageNotFound', this._pageNotFoundHandler],
-      ['offMemoryWarning', this._memoryWarningHandler],
-    ];
-    for (const [name, handler] of listeners) {
-      if (!handler) continue;
-      try {
-        const remove = source?.[name as keyof typeof source];
-        if (typeof remove === 'function') remove.call(source, handler);
-      } catch (_error) {
-        /* 每项 off 独立容错；无 off 仍已失效。 */
-      }
-    }
-
-    this._errorHandler = null;
-    this._rejectionHandler = null;
-    this._pageNotFoundHandler = null;
-    this._memoryWarningHandler = null;
+    for (const release of this._releases.splice(0)) release();
     this._recentInstrumentEvents.length = 0;
   }
 }

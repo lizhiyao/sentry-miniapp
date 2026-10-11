@@ -53,7 +53,7 @@ sentry-miniapp（init + 默认集成）
 
 ### 多次初始化与全局 instrumentation
 
-`request`、`Page`、`console` 等宿主全局函数由 SDK 的共享 instrumentation 层统一包装一次；每个 Sentry client 只注册自己的处理器。调用发生时只分发给当前 scope 绑定的 client，client 关闭时也只退订自己的处理器。因此在热更新、微前端容器或测试环境中发生重叠 `init()` 时，旧 client 的请求体采集 / 追踪白名单不会穿透到新 client，乱序 `close()` 也不会拆掉仍在工作的全局监控。平台提供独立 `on*` / `off*` 的监听和 Performance Observer 则由各 client 自己持有，并使用同样的当前-client 门禁。
+`request`、`Page`、`console` 等宿主全局函数由 SDK 的共享 instrumentation 层统一包装一次；每个 Sentry client 只注册自己的处理器。调用发生时只分发给当前 scope 绑定的 client，client 关闭时也只退订自己的处理器。因此在热更新、微前端容器或测试环境中发生重叠 `init()` 时，旧 client 的请求体采集 / 追踪白名单不会穿透到新 client，乱序 `close()` 也不会拆掉仍在工作的全局监控。原生错误、网络状态和前后台事件也按宿主共享监听，每个 client 可以独立退订；缺少 `off*` 时保留空通道并在下次初始化复用，避免监听随初始化次数增长。宿主全局事件按交付时的活动 client 处理；具体请求、定时器、帧回调与网络初始查询仍绑定原 client，关闭后的迟到结果不会转交。Performance Observer 仍由各 client 持有。
 
 业务代码仍应在启动阶段只初始化一次；上述隔离用于保证重入和清理安全，不是鼓励为同一个小程序长期维护多个并行 client。
 
