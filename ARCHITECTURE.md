@@ -162,7 +162,7 @@ Session／TryCatch 的资源清理由每个 client 的 lifetime stop 与公开 `
 
 无法包装 `App()` 时，可回退到宿主 `onAppShow`／`onAppHide` 原生通道；仍不能补回先前已发生的启动事件。
 
-`getApp()` 返回已注册实例时，late-init 使用原生通道。初始化早于 `App()` 注册时，`getApp()` 可能抛错或没有实例，这时保留 App 包装，以覆盖之后的完整业务 handler 次序。当前无法仅凭失败返回区分“尚未注册”和“已注册但 getApp 异常”；不强行把两者都改为 late-init。后者尚无正常宿主复现，作为 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457) 的设备反馈检查点；不将模拟的异常 getter 当成已验证的平台故障。
+`getApp()` 返回已注册实例时，late-init 使用原生通道。初始化早于 `App()` 注册时，`getApp()` 可能抛错或没有实例，这时保留 App 包装，以覆盖之后的完整业务 handler 次序。当前无法仅凭失败返回区分“尚未注册”和“已注册但 getApp 异常”；不强行把两者都改为 late-init。后者尚无正常宿主复现，历史线索见 [#457（已关闭）](https://github.com/lizhiyao/sentry-miniapp/issues/457)。若真实设备出现，请[提交可复现的缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)；不将模拟的异常 getter 当成已验证的平台故障。
 
 小游戏由 `isMinigame()` 判断，Session、可见性与 Minigame／FPS producers 使用原生 show／hide 共享通道，即使宿主存在第三方 App／Page shim 也不改变这些生命周期订阅的原生路径。它们共用 SDK 内部的 `before`／`after`／`flush` 次序；与其它原生业务监听器的先后仍由宿主决定。PageBreadcrumbs 单独检测实际 App／Page／导航 API，原生通道不提供页面或路由模型。
 
@@ -314,7 +314,7 @@ npm 发版由 `v*` tag 触发 [publish.yml](.github/workflows/publish.yml)：校
 | 用户实际安装的模块、类型与宿主降级可用                                | 真实 tarball 的 CJS／ESM／UMD／类型与七平台消费检查  |
 | 框架产物和 Source Map 正确配对                                        | Taro／uni-app 实际构建与映射检查；目标后台符号化验收 |
 
-本地宿主 fixtures 和开发者工具不能证明设备冻结／恢复、实际存储限制、弱网、原生监听顺序与在途取消。真实设备证据由 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457)及后续版本验收收集，不把历史 beta 的后台证据写成新版本全套验收。
+本地宿主 fixtures 和开发者工具不能证明设备冻结／恢复、实际存储限制、弱网、原生监听顺序与在途取消。真实设备问题通过[缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)记录实际 SDK／平台版本、复现步骤与证据；历史集中验收记录保留在 [#457（已关闭）](https://github.com/lizhiyao/sentry-miniapp/issues/457)。后续版本按实际变更与反馈补验，不把历史 beta 的后台证据写成新版本全套验收。
 
 新增功能前先定位责任层：Core 已有能力优先装配；宿主差异放在平台适配或集成；资源边界放在 lifetime／owner；发送策略通过现有 transport 组合表达。每个新监听、timer、Observer 和 wrapper 都须有 cleanup 或退休门禁，并说明缺能力时的回退。
 

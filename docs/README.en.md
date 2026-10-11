@@ -11,7 +11,7 @@
 
 [简体中文](../README.md) | English
 
-> This README and the current docs site cover the **stable 2.x release**. New projects can install `sentry-miniapp`; existing 1.x projects should read the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. Device and platform feedback is collected in [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457).
+> This README and the current docs site cover the **stable 2.x release**. New projects can install `sentry-miniapp`; existing 1.x projects should read the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. For device or platform issues, [submit a bug report](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose).
 
 A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
 

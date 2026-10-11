@@ -11,7 +11,7 @@
 
 简体中文 | [English](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/README.en.md)
 
-> 本文与当前官网面向 **2.x 正式版**。新项目安装 `sentry-miniapp`；已有 1.x 项目先阅读[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。真实设备与跨端反馈见 [#457](https://github.com/lizhiyao/sentry-miniapp/issues/457)。
+> 本文与当前官网面向 **2.x 正式版**。新项目安装 `sentry-miniapp`；已有 1.x 项目先阅读[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。遇到真实设备或跨端问题，请[提交缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)。
 
 一个基于 `@sentry/core` 核心构建的**小程序监控 SDK**，提供**异常监控**、**性能监控**、离线缓存、分布式追踪等能力。支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音等**小游戏**，并兼容 Taro / uni-app 等跨端框架。
 
