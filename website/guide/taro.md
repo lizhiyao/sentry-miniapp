@@ -11,7 +11,7 @@ description: 在 Taro 4 + React 微信小程序中接入 sentry-miniapp，完成
 
 ## 接入前确认
 
-- 已创建 Sentry 项目并复制完整 DSN；按[版本选择](/guide/migration-2.0#version-choice)确认后台兼容性。
+- 已创建 Sentry 项目并复制完整 DSN；2.x 需要 Sentry 官方云服务，或 **26.4.2 及以上的自建 Sentry**。已有项目升级或后台更旧时，先看[版本选择与迁移](/guide/migration-2.0#version-choice)。
 - 微信小程序后台已配置实际上报地址的 `request` 合法域名，见[域名检查](/guide/getting-started#_4-常见前置检查)。
 - 需要定位到 `.tsx` 源码时，准备上传同一构建的 JS 与 Source Map，见[上线指南](/guide/sourcemap)。
 
@@ -130,6 +130,16 @@ if (process.env.TARO_ENV === 'h5') {
 - **网络**：`Taro.request` 最终走对应小程序端被包裹的全局请求 API，请求会自动记成 `xhr` 面包屑、随错误事件上报，无需额外配置。
 - **性能与追踪**：需要独立性能数据时再设置采样率，见[性能与链路追踪](/guide/performance-and-tracing)。
 - **Source Map**：Taro 经过编译，错误栈是编译后代码，需上传 Source Map 才能还原。配置见 [Source Map 上线指南](/guide/sourcemap)；真机堆栈出现 `appservice.app.js` 时，继续看[微信两层映射](/guide/sourcemap-advanced#微信真机的两层-source-map)。
+
+## 验证接入是否完成 {#verify-setup}
+
+分别验证上报链路和组件错误捕获：
+
+1. 在测试页面的按钮回调中调用 `Sentry.captureException(new Error('taro delivery test'))`，到正确的 Sentry 项目和环境中找到该事件。这一步确认手动上报链路。
+2. 在错误边界包裹的子组件中，临时让渲染函数抛出一个带独特消息的 `Error`，不要手动调用 `captureException`。确认备用界面出现，并在 Sentry 找到该组件错误及 `componentStack`。可参考[示例测试页](https://github.com/lizhiyao/sentry-miniapp/blob/master/examples/taro/src/pages/test/test.tsx)的「触发组件渲染错误」按钮。
+3. 第二步成功后移除测试代码。只完成第一步，不能证明错误边界覆盖了你的实际页面；普通按钮回调抛错也不能用于验证 React 渲染错误捕获。
+
+没有事件时，先看[上报链路排查](/guide/faq#no-events)；只有组件错误缺失时，检查该组件是否处于实际生效的错误边界内。
 
 ## 下一步
 
