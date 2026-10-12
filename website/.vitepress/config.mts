@@ -107,7 +107,29 @@ export default defineConfig({
 
     socialLinks: [{ icon: 'github', link: GITHUB }],
 
-    search: { provider: 'local' },
+    search: {
+      provider: 'local',
+      options: {
+        translations: {
+          button: { buttonText: '搜索文档', buttonAriaLabel: '搜索文档' },
+          modal: {
+            displayDetails: '显示详细列表',
+            resetButtonTitle: '清空搜索',
+            backButtonTitle: '返回搜索',
+            noResultsText: '未找到相关结果',
+            footer: {
+              selectText: '选择',
+              selectKeyAriaLabel: '回车键',
+              navigateText: '切换',
+              navigateUpKeyAriaLabel: '向上键',
+              navigateDownKeyAriaLabel: '向下键',
+              closeText: '关闭',
+              closeKeyAriaLabel: 'Esc 键',
+            },
+          },
+        },
+      },
+    },
 
     outline: { label: '本页目录', level: [2, 3] },
     docFooter: { prev: '上一篇', next: '下一篇' },
