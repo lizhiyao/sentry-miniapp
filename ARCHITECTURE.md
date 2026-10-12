@@ -78,6 +78,8 @@ flowchart TD
 
 自身的 flush 清理通过成功／失败两条 then 分支完成，不依赖 Promise.finally。core-js 不提供 TextEncoder，SDK 的字节预算也需要无需分配编码结果的长度计算，因此 `coreCompat` 保留共用 UTF-8 标量转换；精确 ArrayBuffer 复制属于宿主请求适配。TextEncoder 经过构造及 UTF-8 标量编码检查；缺失、空壳或编码失败时，通过 Core 公开 singleton 注册现有 UTF-8 回退，保留已有编码 singleton，不改写宿主 TextEncoder。构建语法转换、标准库补齐和宿主 API 检测分别解决不同层面的兼容性，不能相互替代。
 
+构建通过 `scripts/internal/share-corejs-helpers.mjs` 共享固定版本两种 core-js 模式中源码及完整依赖闭包一致的基础模块。全局安装、pure 的 path／export、模式标记和可变注册表保持独立；构建不复制标准算法，也不把整个 pure 包替换为全局包。依赖升级前必须复核共享边界，版本守卫会阻止未经复核的构建。ESM 产物压缩格式空白并保留 PURE 注释供消费端 tree-shaking；独立 JS 的原始字节预算由 `check:bundle-size` 在标准与小程序构建中检查，测量方法和证据见[包体积审查](docs/bundle-size-review.md)。
+
 ### runtime 构造与替换
 
 `init()` 的主要顺序是：

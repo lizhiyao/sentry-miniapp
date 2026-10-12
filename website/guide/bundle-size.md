@@ -2,6 +2,12 @@
 
 小程序「主包体积」很宝贵。`sentry-miniapp` 包含 `@sentry/core` 引擎与多端适配，实际占用随 SDK 版本、构建格式和打包方式变化，应以项目的最终产物和平台包体积分析为准；gzip 后的大小不能代替小程序包体积。如果你很在意主包体积，可以把 SDK 放到分包并异步初始化。
 
+## 先确认实际占用
+
+- npm 展示的解包总量包含 ESM／CommonJS／UMD、类型声明和 Source Map，不代表小程序需要打入的体积；项目只应使用所需的构建格式。
+- 用平台开发者工具或框架构建分析查看最终 JS 属于主包还是分包，并检查是否出现 SDK 或 Core 的重复副本。
+- 关闭性能、日志等可选采集会改变运行行为，不保证对应代码从产物中移除。ESM 的按需裁剪取决于打包器和实际引用；独立 CommonJS／UMD 文件包含完整 SDK。
+
 ## 方案 A：微信原生分包异步化
 
 微信原生支持[分包异步化](https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/async.html)，可用 `require.async` 跨分包加载 SDK。

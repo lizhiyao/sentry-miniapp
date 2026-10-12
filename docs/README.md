@@ -28,6 +28,7 @@
 | 记录 | 范围 |
 | --- | --- |
 | [2.0.0 发布后整体审查](postrelease-2.0.0-review.md) | 实际 npm 包、生命周期与隐私边界、宿主调用修复及接入文档复核 |
+| [SDK 包体积审查](bundle-size-review.md) | 发布包归因、基础模块共享、ESM 压缩、消费端构建及体积预算 |
 | [Core v11 收尾审查](core-v11-review.md) | 初次升级的职责、跨端降级、缓存、关闭和文档复核 |
 | [发布后的专项复核](core-v11-postrelease-review.md) | 后续 beta 阶段的发现、修复与验证证据 |
 | [SDK 深度审查](sdk-deep-review.md) | beta.6 后的架构、运行时和实际包检查 |
