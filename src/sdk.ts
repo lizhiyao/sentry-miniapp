@@ -11,7 +11,7 @@ import {
   spanStreamingIntegration,
   uuid4,
 } from '@sentry/core';
-import type { Integration } from '@sentry/core';
+import type { Client, Integration } from '@sentry/core';
 import { miniappStackParser } from './stacktrace';
 import { resolveScopeSession, setOwnedScopeSession } from './sessionCapture';
 import { miniappLifecycleIntegration } from './integrations/lifecycle';
@@ -45,9 +45,9 @@ import type { MiniappOptions, SendFeedbackParams } from './types';
 
 const initializationScopeRejected = Symbol('miniapp.initializationScopeRejected');
 
-function warnUnsupportedInitScope(): void {
+function warnUnsupportedInitScope(fallbackOwner?: Client): void {
   try {
-    const owner = getClient();
+    const owner = getClient() ?? fallbackOwner;
     if (owner instanceof MiniappClient) {
       getClientLifetime(owner)?.warnings.add('init_scope_unsupported');
     } else {
@@ -216,12 +216,12 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
   class ScopeBoundClient extends MiniappClient {
     public constructor(options: MiniappLowLevelClientOptions) {
       if (getCurrentScope() !== bindingScope) {
-        warnUnsupportedInitScope();
+        warnUnsupportedInitScope(previous);
         throw initializationScopeRejected;
       }
       super(options);
       if (getCurrentScope() !== bindingScope) {
-        warnUnsupportedInitScope();
+        warnUnsupportedInitScope(previous);
         this.dispose();
         throw initializationScopeRejected;
       }
@@ -230,7 +230,11 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
   // initAndBind 的类型要求构造参数已是完整 ClientOptions，而 MiniappClient 刻意接收
   // init 专用的宽选项，已通过内部标记允许默认 transport；低层公开构造必须显式提供 transport。
   const previous = bindingScope.getClient();
-  if (previous instanceof MiniappClient) void previous.retireRuntime().catch(() => {});
+  if (previous instanceof MiniappClient) {
+    void previous.retireRuntime().catch(() => {});
+    // 已退休的实例通过自己的 scope 排空；解除当前绑定，避免 Core 将它视为活动 client。
+    if (bindingScope.getClient() === previous) bindingScope.setClient(undefined);
+  }
   markRuntimeConstruction(opts);
   try {
     initAndBind(ScopeBoundClient as any, opts as any);

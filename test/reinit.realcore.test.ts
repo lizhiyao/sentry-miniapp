@@ -59,7 +59,12 @@ describe('close → re-init 重新挂载（F2）', () => {
     expect(installedIntegrations).toEqual(setupOnceRecords);
     (g.wx.onError as Mock).mockClear();
 
-    init(makeOpts() as any);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {
+      throw new Error('console unavailable');
+    });
+    expect(init(makeOpts() as any)).toBeDefined();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
     // 缺少 offError 时复用已安装的宿主监听，客户端处理器重新订阅。
     expect(g.wx.onError).not.toHaveBeenCalled();
     expect(getClient()!.getIntegrationByName('GlobalHandlers')).toBeDefined();

@@ -259,7 +259,7 @@ client 构造时选择 transport 组合，前三行适用于 `init()` 管理的 
 
 SDK 复用 `makeOfflineTransport` 管理入库和重试，只补 `shouldSend`／`shouldStore`、受控 store 与重放句柄。重放在授权、前台恢复、网络恢复或 flush 入口唤醒；不另写第二个 backoff 引擎，也不把 offline 重放当成持久 ACK。
 
-Core 11.4 没有公开的 offline timer 取消接口。永久 shutdown 先关闭重放／存储门禁，再用公开无参数 transport flush 将长退避替换为一次最短 tick（当前 100ms）；该 tick 不读盘、不发网。已关闭的底层 flush 门禁避免清理时再启动用户任务；晚到发送的 SDK 等待已结算，不会把原响应的 Retry-After 重新带回重试。临时 stopReplay 保留暂停／恢复语义，不当作永久关闭。
+Core 11.6 没有公开的 offline timer 取消接口。永久 shutdown 先关闭重放／存储门禁，再用公开无参数 transport flush 将长退避替换为一次最短 tick（当前 100ms）；该 tick 不读盘、不发网。已关闭的底层 flush 门禁避免清理时再启动用户任务；晚到发送的 SDK 等待已结算，不会把原响应的 Retry-After 重新带回重试。临时 stopReplay 保留暂停／恢复语义，不当作永久关闭。
 
 Core 默认 transport 将发送 Promise 拒绝记为 `network_error` client report；撤回同意导致在途／排队请求取消时也沿用这一语义。符合缓存策略的原 envelope 可同时入库，重新同意后仍可能送达。因此该计数不能解释成最终永久丢失条数，也不能仅凭它判断 consent 失效。SDK 不拦截或重写 Core outcome 管道；回归检查取消后的缓存、重放事件和最终 client report 三者，而不是消除这个计数。
 
@@ -291,6 +291,8 @@ UTF-8 编码与字节预算共用 `coreCompat` 的标量转换，TextEncoder 不
 集成使用 factories，性能数据使用单一 stream 管道，buffer 由 Core 管理。评判替换实现的依据是：是否减少重复算法、能否保留可观察语义，以及是否缩小升级时需要复核的接缝。与同版本 Browser、Node、Deno、Cloudflare 的实践对照及本项目取舍见[官方 SDK 对照](docs/sdk-official-practices.md)。
 
 升级 Core 必须阅读候选源码的签名、调用顺序和实现差异，检查上述接缝、公开 hook、stream 格式、offline 行为与编码契约，并运行真实 Core 和实际发布包回归。类型检查通过不能替代行为验证；调整精确依赖和结论应一并写入升级 PR。
+
+重新初始化时先退休旧 MiniappClient，再通过公开 Scope API 解除仍指向它的当前绑定；旧实例继续通过自己的 scope 排空。这避免 Core 将已退休实例当作活动 client，不依赖 Core 的私有关闭标记。顶层 close 的解除绑定由 Core 负责，实例 close／dispose 只负责自己的资源。具体版本差异与证据见 [Core 11.6 升级复核](docs/core-11.6-review.md)。
 
 ## 8. 构建、映射与发布的职责关系
 
