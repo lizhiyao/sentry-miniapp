@@ -30,6 +30,16 @@ yarn run docs:preview    # 预览构建产物
 - 示例配置对照 `src/types.ts`、默认集成和实际脚本；Source Map 命令优先使用已安装 SDK 自带的工具。
 - 调整标题时保留已使用的锚点。提交前构建文档、核对本地链接和锚点，并预览受影响页面。
 
+## 视觉主题维护
+
+全站配色、字体、间距和组件样式由 `.vitepress/theme/custom.css` 维护，浅色与深色共用语义变量。使用系统字体，不依赖外部字体服务。文档导航、搜索、代码复制和手机菜单沿用 VitePress 默认主题的行为。
+
+导航与 favicon 共用 `public/logo.png`。保留原始人物图形；导航通过 CSS 设置尺寸、留白和浅色底座，在两个主题中保持黑色人物与浅色背景的对比，不对整张图片反色或裁剪。
+
+首页内容维护在 `index.md`；首屏的排查流程示意由 `.vitepress/theme/components/HomeHero.vue` 渲染，经主题入口注册。示意不展示实际客户数据或虚构监控指标。调整首页时保留页面标题、描述、有效的入口链接及已有安装锚点。
+
+样式变更需构建并检查桌面／手机、浅色／深色与键盘操作；检查代码和表格的横向滚动，不用隐藏全页溢出掩盖布局问题。自定义交互应保留可见焦点，并尊重减少动画的系统设置。
+
 ## SEO 配置与效果观察
 
 正式站点地址为 `https://sentry-miniapp.pages.dev/`。VitePress 在构建时生成 `sitemap.xml`，各页面的 canonical 指向正式站点，`public/robots.txt` 提供 sitemap 地址。更换域名时，同时更新 `.vitepress/config.mts` 的 `SITE_URL` 与 `public/robots.txt`；PR 预览继续指向正式站点，避免产生另一组规范网址。
