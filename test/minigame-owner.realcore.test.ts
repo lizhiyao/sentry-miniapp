@@ -86,6 +86,7 @@ describe('Minigame 资源 owner（真实 core）', () => {
   ] as const)(
     '%s 的 cancel getter 不可读时仍采集，关闭后迟到帧失效',
     async (_name, factory, spanName) => {
+      Object.defineProperty(globalThis.requestAnimationFrame, 'call', { value: undefined });
       Object.defineProperty(globalThis, 'cancelAnimationFrame', {
         configurable: true,
         get() {
@@ -161,6 +162,11 @@ describe('Minigame 资源 owner（真实 core）', () => {
   });
 
   it('同对象 A/B 复用：A 退休取消 SDK 帧，监听复用；B span 的 DSC 属于 B', async () => {
+    Object.defineProperty(cancel, 'call', {
+      get() {
+        throw new Error('cancel.call extension must not be read');
+      },
+    });
     const firstEnvelopes: Envelope[] = [];
     const secondEnvelopes: Envelope[] = [];
     const integration = new MinigameIntegration();

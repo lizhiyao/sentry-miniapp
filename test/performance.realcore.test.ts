@@ -567,16 +567,31 @@ describe('Performance 的真实 core operation 与时间契约', () => {
     getCurrentScope().setAttribute('navigation.duration', undefined);
   });
   it('duration 与列表 reader 只读取一次，条目时间与采样属性使用同一快照', async () => {
+    const getPerformance = vi.fn(() => manager);
+    for (const fn of [getPerformance, manager.createObserver]) {
+      Object.defineProperty(fn, 'call', {
+        get() {
+          throw new Error('call extension must not be read');
+        },
+      });
+    }
+    const host = { getPerformance };
+    vi.stubGlobal('wx', host);
     const client = start();
     const duration = vi.fn().mockReturnValueOnce(20).mockReturnValue(999999);
     const entry = Object.defineProperty(navigation(), 'duration', { get: duration });
     const reader = vi.fn(() => [entry]);
+    Object.defineProperty(reader, 'call', { value: undefined });
     const lookup = vi.fn(() => reader);
-    callback(Object.defineProperty({}, 'getEntries', { get: lookup }));
+    const entries = Object.defineProperty({}, 'getEntries', { get: lookup });
+    callback(entries);
     await drain(client);
     expect(duration).toHaveBeenCalledOnce();
     expect(lookup).toHaveBeenCalledOnce();
     expect(reader).toHaveBeenCalledOnce();
+    expect(reader.mock.contexts).toEqual([entries]);
+    expect(getPerformance.mock.contexts).toEqual([host]);
+    expect(manager.createObserver.mock.contexts).toEqual([manager]);
     const span = collectSpans(envelopes)[0]!;
     expect(spanAttribute(span, 'navigation.duration')).toBe(20);
     expect(span.end_timestamp).toBe((EPOCH - 9730) / 1000);

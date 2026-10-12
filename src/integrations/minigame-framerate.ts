@@ -267,24 +267,26 @@ export class MinigameFrameRateIntegration implements Integration {
     let scheduling = true;
     let called = false;
     try {
-      const id = raf.call(globalThis, () => {
-        called = true;
-        if (this._frameRequest !== request) return;
-        this._frameRequest = undefined;
-        // 非异步 shim 不代表渲染帧，也不能递归占住业务线程。
-        if (scheduling) return;
-        this._observe(() => {
-          if (!this._running) return;
-          const t = now();
-          this._onFrame(t - this._lastFrameTs);
-          this._lastFrameTs = t;
-        });
-        this._requestFrame();
-      });
+      const id = Function.prototype.apply.call(raf, globalThis, [
+        () => {
+          called = true;
+          if (this._frameRequest !== request) return;
+          this._frameRequest = undefined;
+          // 非异步 shim 不代表渲染帧，也不能递归占住业务线程。
+          if (scheduling) return;
+          this._observe(() => {
+            if (!this._running) return;
+            const t = now();
+            this._onFrame(t - this._lastFrameTs);
+            this._lastFrameTs = t;
+          });
+          this._requestFrame();
+        },
+      ]);
       if (this._frameRequest === request && !called) request.id = id;
       else if (!called) {
         try {
-          cancel?.call(globalThis, id);
+          if (cancel) Function.prototype.apply.call(cancel, globalThis, [id]);
         } catch (_error) {
           /* 迟到句柄已失效。 */
         }
@@ -298,7 +300,7 @@ export class MinigameFrameRateIntegration implements Integration {
 
   private _cancel(id: unknown): void {
     try {
-      this._cancelFrame?.call(globalThis, id);
+      if (this._cancelFrame) Function.prototype.apply.call(this._cancelFrame, globalThis, [id]);
     } catch (_error) {
       /* 无 cancel 或失败时靠请求身份与 owner 失效。 */
     }

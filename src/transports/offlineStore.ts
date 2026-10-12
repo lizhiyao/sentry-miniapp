@@ -93,7 +93,7 @@ export function createMiniappOfflineStore(
   }
   function call(source: Record<string, unknown>, method: Function, ...args: unknown[]): unknown {
     active();
-    const result: unknown = method.call(source, ...args);
+    const result: unknown = Function.prototype.apply.call(method, source, args);
     active();
     return result;
   }

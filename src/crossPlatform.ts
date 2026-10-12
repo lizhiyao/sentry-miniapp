@@ -172,7 +172,7 @@ const callPlatformInfo = (platformSdk: SDK, method: keyof SDK): Record<string, a
     const fn = platformSdk[method];
     if (typeof fn !== 'function') return null;
 
-    const result = fn.call(platformSdk);
+    const result = Function.prototype.apply.call(fn, platformSdk, []);
     return result && typeof result === 'object' ? result : null;
   } catch (_error) {
     return null;
@@ -333,7 +333,9 @@ export function getStorageApi(
   )
     return method;
   return function (key: string, data?: unknown) {
-    const result = method.call(source, name === 'setStorageSync' ? { key, data } : { key });
+    const result = Function.prototype.apply.call(method, source, [
+      name === 'setStorageSync' ? { key, data } : { key },
+    ]);
     assertStorageSuccess(result, name === 'getStorageSync');
     return name === 'getStorageSync' ? (result ? result.data : null) : undefined;
   };
@@ -680,7 +682,7 @@ export const getPerformanceManager = (): PerformanceManager | null => {
     const currentSdk = sdk();
     const getPerformance = currentSdk.getPerformance;
     if (typeof getPerformance === 'function') {
-      return getPerformance.call(currentSdk);
+      return Function.prototype.apply.call(getPerformance, currentSdk, []);
     }
   } catch (error) {
     try {

@@ -36,18 +36,23 @@ afterEach(() => {
 
 describe('系统信息逐项降级（真实 core 最终事件）', () => {
   it.each(platforms)('%s 的分体 API 抛错仍可使用旧 API 的设备和系统信息', async (name) => {
-    installHost(name, {
-      request: vi.fn(),
-      getAppBaseInfo: () => {
-        throw new Error('split API unavailable');
-      },
-      getSystemInfoSync: () => ({
+    const getSystemInfoSync = vi.fn(function (this: unknown) {
+      expect(this).toBe((globalThis as unknown as Record<string, unknown>)[name]);
+      return {
         brand: `${name}-brand`,
         model: `${name}-model`,
         system: 'Android 15',
         version: '8.0',
         SDKVersion: '3.0',
-      }),
+      };
+    });
+    Object.defineProperty(getSystemInfoSync, 'call', { value: null });
+    installHost(name, {
+      request: vi.fn(),
+      getAppBaseInfo: () => {
+        throw new Error('split API unavailable');
+      },
+      getSystemInfoSync,
     });
     const event = await captureEnvironment();
     expect(event.contexts?.device).toMatchObject({

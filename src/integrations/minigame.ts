@@ -164,57 +164,58 @@ export class MinigameIntegration implements Integration {
     }
     if (!owner.isActive()) return;
     const cancel = this._cancelFrame;
-    const id = raf.call(globalThis, () =>
-      this._observe(() => {
-        this._frameId = undefined;
-        if (this._coldStartReported) return;
-        this._coldStartReported = true;
-        const firstFrameTs = now();
-        const elapsed = firstFrameTs - this._initTs;
-        if (!Number.isFinite(elapsed) || elapsed < 0) {
-          if (this._owner?.isActive())
-            getClientLifetime(this._client!)?.warnings.add('performance_clock_invalid');
-          return;
-        }
-        const initToFirstFrameMs = Math.round(elapsed);
-        this._minigameContext.initToFirstFrameMs = initToFirstFrameMs;
-        setClientContext(this._client, 'minigame', { ...this._minigameContext });
-        addBreadcrumb({
-          category: 'minigame.performance',
-          message: `SDK 初始化到首帧耗时: ${initToFirstFrameMs}ms`,
-          level: 'info',
-          data: { initToFirstFrameMs },
-        });
+    const id = Function.prototype.apply.call(raf, globalThis, [
+      () =>
+        this._observe(() => {
+          this._frameId = undefined;
+          if (this._coldStartReported) return;
+          this._coldStartReported = true;
+          const firstFrameTs = now();
+          const elapsed = firstFrameTs - this._initTs;
+          if (!Number.isFinite(elapsed) || elapsed < 0) {
+            if (this._owner?.isActive())
+              getClientLifetime(this._client!)?.warnings.add('performance_clock_invalid');
+            return;
+          }
+          const initToFirstFrameMs = Math.round(elapsed);
+          this._minigameContext.initToFirstFrameMs = initToFirstFrameMs;
+          setClientContext(this._client, 'minigame', { ...this._minigameContext });
+          addBreadcrumb({
+            category: 'minigame.performance',
+            message: `SDK 初始化到首帧耗时: ${initToFirstFrameMs}ms`,
+            level: 'info',
+            data: { initToFirstFrameMs },
+          });
 
-        // 独立性能事件：「SDK 初始化 → 首帧」自成一条 segment span 发出，进 Performance 页。
-        // 仅在 tracing 启用（tracesSampleRate/tracesSampler）时真正上报；否则为非记录 span、不发送。
-        // span 时间戳使用 epoch 锚点；duration 用 now() 测得的 initToFirstFrameMs 叠加上去，
-        // 保证绝对时间与时长语义各自清晰。
-        if (!owner.isActive()) return;
-        const span = startInactiveSpan({
-          name: 'minigame.init_to_first_frame',
-          op: 'ui.first_frame',
-          // core 11 废弃 forceTransaction；断掉父 span 后这条 root span 自成一个 segment。
-          parentSpan: null,
-          startTime: this._initEpoch / 1000,
-          attributes: automaticSpanAttributes(
-            this._client,
-            {
-              'minigame.scene': this._minigameContext.scene as any,
-              'minigame.path': this._minigameContext.path as any,
-              'minigame.init_to_first_frame_ms': initToFirstFrameMs,
-            },
-            false,
-          ),
-        });
+          // 独立性能事件：「SDK 初始化 → 首帧」自成一条 segment span 发出，进 Performance 页。
+          // 仅在 tracing 启用（tracesSampleRate/tracesSampler）时真正上报；否则为非记录 span、不发送。
+          // span 时间戳使用 epoch 锚点；duration 用 now() 测得的 initToFirstFrameMs 叠加上去，
+          // 保证绝对时间与时长语义各自清晰。
+          if (!owner.isActive()) return;
+          const span = startInactiveSpan({
+            name: 'minigame.init_to_first_frame',
+            op: 'ui.first_frame',
+            // 不指定父 span，使首帧观测成为独立 segment。
+            parentSpan: null,
+            startTime: this._initEpoch / 1000,
+            attributes: automaticSpanAttributes(
+              this._client,
+              {
+                'minigame.scene': this._minigameContext.scene as any,
+                'minigame.path': this._minigameContext.path as any,
+                'minigame.init_to_first_frame_ms': initToFirstFrameMs,
+              },
+              false,
+            ),
+          });
 
-        if (!owner.isActive()) return;
-        span.end((this._initEpoch + initToFirstFrameMs) / 1000);
-      }),
-    );
+          if (!owner.isActive()) return;
+          span.end((this._initEpoch + initToFirstFrameMs) / 1000);
+        }),
+    ]);
     if (!owner.isActive()) {
       try {
-        cancel?.call(globalThis, id);
+        if (cancel) Function.prototype.apply.call(cancel, globalThis, [id]);
       } catch (_error) {
         /* 返回任务前退休也要 best-effort 取消。 */
       }
@@ -233,7 +234,7 @@ export class MinigameIntegration implements Integration {
     const cancel = this._cancelFrame;
     this._cancelFrame = undefined;
     try {
-      if (frame !== undefined) cancel?.call(globalThis, frame);
+      if (frame !== undefined && cancel) Function.prototype.apply.call(cancel, globalThis, [frame]);
     } catch (_error) {
       /* 取消失败仍已失效。 */
     }

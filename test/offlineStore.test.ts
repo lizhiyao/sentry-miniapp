@@ -70,6 +70,10 @@ afterEach(() => {
 
 describe('single-target offline store', () => {
   it('persists FIFO and reinserts retry at the front', async () => {
+    for (const method of [host.getStorageSync, host.setStorageSync, host.removeStorageSync]) {
+      Object.defineProperty(method, 'call', { value: undefined });
+    }
+    storage[LEGACY_OFFLINE_STORE_KEY] = 'legacy';
     const cache = store();
     await cache.push(createEventEnvelope('A'));
     await cache.push(createEventEnvelope('B'));
@@ -77,7 +81,11 @@ describe('single-target offline store', () => {
     expect(first?.[0].event_id).toBe('A');
     await cache.unshift(first!);
     expect(await drain(cache)).toEqual(['A', 'B']);
-    expect(cache.getDiagnostics()).toEqual({ mode: 'persistent', codes: [] });
+    expect(cache.getDiagnostics()).toEqual({ mode: 'persistent', codes: ['migration_drop'] });
+    expect(storage[LEGACY_OFFLINE_STORE_KEY]).toBeUndefined();
+    for (const method of [host.getStorageSync, host.setStorageSync, host.removeStorageSync]) {
+      expect(method.mock.contexts.every((receiver) => receiver === host)).toBe(true);
+    }
   });
   it('keeps typed bytes across storage and sends exactly the original core wire', async () => {
     const cache = store();

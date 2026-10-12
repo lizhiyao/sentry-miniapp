@@ -91,6 +91,13 @@ describe('宿主归一化不会阻断其它能力（真实默认 transport）', 
         disk.delete(key);
         return { success: true };
       });
+      for (const method of [httpRequest, get, set, remove]) {
+        Object.defineProperty(method, 'call', {
+          get() {
+            throw new Error('host function.call is not a capability');
+          },
+        });
+      }
       const host = Object.freeze({
         httpRequest,
         getStorageSync: get,

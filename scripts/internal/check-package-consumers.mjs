@@ -287,6 +287,13 @@ const host = {
     return { platform: 'devtools', brand: 'package-smoke' };
   },
 };
+// 无 Reflect 的自动观测只支持普通函数；扩展函数调用由其余宿主场景验证。
+if (!['missing-reflect', 'partial-reflect'].includes(runtimeMode)) {
+  Object.defineProperty(rawRequest, 'call', {
+    configurable: true,
+    get() { throw new Error('Host request.call is an unrelated extension'); },
+  });
+}
 globalThis[contract.globalName] = host;
 
 const client = sdk.init({
@@ -315,13 +322,14 @@ if (runtimeMode === 'standard') {
     outerRequestCalls += 1;
     // A broken self-request guard would recurse forever. Bypass instrumentation after a few calls
     // so the probe fails with a finite request list instead of hanging CI.
-    if (outerRequestCalls > 6) return rawRequest.call(this, options);
-    return sentryWrappedRequest.call(this, {
+    if (outerRequestCalls > 6) return Function.prototype.apply.call(rawRequest, this, [options]);
+    return Function.prototype.apply.call(sentryWrappedRequest, this, [{
       ...options,
       ...(options.header && { header: { ...options.header } }),
       ...(options.headers && { headers: { ...options.headers } }),
-    });
+    }]);
   };
+  Object.defineProperty(host[contract.requestMethod], 'call', { value: undefined });
   host[contract.requestMethod]({
     url: businessUrl,
     method: 'POST',
