@@ -50,11 +50,9 @@ Sentry.init({
 
 默认网络面包屑和 tracing 也会包裹对应平台的请求 API。使用 `Taro.request` 或 `uni.request` 时，它们在小程序端最终仍会调用宿主平台请求 API，因此通常无需重复埋点。
 
-默认 SDK 入口会补齐所需的 `globalThis`、`Array.prototype.includes`、`Object.entries/values/fromEntries`、`Promise.allSettled`、`String.prototype.isWellFormed/toWellFormed` 和 `URLSearchParams`，无需业务另行补充这些方法。宿主仍需提供 Promise、Symbol、Map/Set、WeakMap/WeakSet 和 typed arrays 等基础能力；仅开启 Babel 语法转换不能补齐运行时 API。缺少或不完整的 `TextEncoder` 使用 SDK 编码回退，附件发送还需宿主支持二进制请求，见[二进制请求配置](./configuration)。
+SDK 入口会补齐所需的 `globalThis`、`Array.prototype.includes`、`Object.entries/values/fromEntries`、`Promise.allSettled`、`String.prototype.isWellFormed/toWellFormed` 和 `URLSearchParams`，无需业务另行补充这些方法。宿主仍需提供 Promise、Symbol、Map/Set、WeakMap/WeakSet 和 typed arrays 等基础能力；仅开启 Babel 语法转换不能补齐运行时 API。缺少或不完整的 `TextEncoder` 使用 SDK 编码回退，附件发送还需宿主支持二进制请求，见[二进制请求配置](./configuration)。
 
-下一版本的精简入口 `sentry-miniapp/lite` 不自带这些标准方法补齐，须由应用或宿主在导入前提供；它保留相同的平台适配和 TextEncoder 回退。npm 2.0.0 尚无此入口，使用条件见[主包体积优化](./bundle-size#已有兼容能力的项目使用精简入口)。
-
-默认入口的查询参数能力独立于完整 `URL`：满足 SDK 使用需求的宿主 `URLSearchParams` 保持原样，缺失必要能力时自动补齐。SDK 不补完整 URL，也不改写宿主 fetch／Request；能力检查不代表为业务补齐所有 Web API。
+查询参数能力独立于完整 `URL`：满足 SDK 使用需求的宿主 `URLSearchParams` 保持原样，缺失必要能力时自动补齐。SDK 不补完整 URL，也不改写宿主 fetch／Request；能力检查不代表为业务补齐所有 Web API。
 
 包装会保留请求函数上的扩展属性及其动态更新。若运行时缺少 `Proxy` 或 `Reflect.get`，而请求函数带有框架扩展成员，SDK 会保留原函数并跳过该入口的自动面包屑和 tracing；错误上报仍使用可用的宿主请求 API。
 

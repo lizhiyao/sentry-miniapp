@@ -183,9 +183,3 @@ CD 核对 tag、package.json、SDK_VERSION、tarball 元数据，保存提交 SH
 ### 消费端按需打包检查
 
 实际安装包检查还会把基础接入与显式启用 Performance API 的 ESM 项目重新打包：基础项目不能保留未引用的 Performance API／HTTP 上下文集成，性能项目必须仍能安装和清理 observer。两者都运行异常发送与 flush 检查，并分别限制在 235／240 KiB 的原始 JS 内。探针含测试驱动代码，其数字不能直接当作任意框架项目的 SDK 增量；发布文件预算与消费端预算保护不同的打包边界。
-
-### 默认与精简入口的构建
-
-`yarn build:release` 先生成共享 SDK、标准方法补齐和能力检查的 ESM／CJS 文件及公开 facade，再构建独立 UMD 和类型入口。npm 入口依赖包内 `dist/internal`／`dist/chunks`，打包时须保留完整目录；独立下载使用 UMD，微信示例使用 `yarn build:miniapp` 的单文件产物。`yarn dev` 监听 npm 运行文件；`yarn dev:miniapp` 监听独立示例。
-
-体积检查累计入口及全部静态本地依赖，不以 facade 文件大小作结论。实际包检查验证精简入口不含 core-js 运行源码、所需能力缺失时在 Core 求值前失败、同格式两个入口的身份及生命周期一致，并运行七平台发送和 ESM 消费端裁剪探针。

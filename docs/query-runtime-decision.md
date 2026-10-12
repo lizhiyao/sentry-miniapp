@@ -13,7 +13,7 @@ Core 的[请求数据规范化集成](https://github.com/getsentry/sentry-javasc
 
 Core 没有公开的查询参数构造器注入接缝。只设置 tunnel 可以绕开鉴权地址构造，不能补齐实际使用的查询参数过滤；自行复制 endpoint 或过滤算法也会扩大 Core 升级时需要维护的实现范围。
 
-SDK 在 `queryRuntime.ensureURLSearchParams` 中只检查实际路径需要的 record 编码与字符串参数名称解码，覆盖百分号编码、`+` 空格与正常 Unicode 名称。`get()`、pair 输入和孤立 surrogate 的完整标准行为不作为宿主可用性的启动条件。满足 SDK 需求的构造器保持原身份，即使没有完整 `URL` 或属性不可改写；回退构造器的额外输入一致性另由包消费检查保护。该检测不实现解析、编码或迭代算法，也不补完整 URL 或包装 fetch／Request／Headers。
+SDK 在 `coreCompat.ensureURLSearchParams` 中只检查实际路径需要的 record 编码与字符串参数名称解码，覆盖百分号编码、`+` 空格与正常 Unicode 名称。`get()`、pair 输入和孤立 surrogate 的完整标准行为不作为宿主可用性的启动条件。满足 SDK 需求的构造器保持原身份，即使没有完整 `URL` 或属性不可改写；回退构造器的额外输入一致性另由包消费检查保护。该检测不实现解析、编码或迭代算法，也不补完整 URL 或包装 fetch／Request／Headers。
 
 ## 必要性与取舍的证据
 
@@ -71,7 +71,3 @@ SDK 在 `queryRuntime.ensureURLSearchParams` 中只检查实际路径需要的 r
 这些边界由[实际安装包消费检查](../scripts/internal/check-package-consumers.mjs)约束，覆盖 CJS／ESM、七个平台和独立 UMD；[启动测试](../test/polyfills.test.ts)验证 SDK 装配和宿主能力选择。immutable 安装也保证补丁与固定版本一致。候选库先按实际 SDK 路径和宿主副作用评估，再单独评估回退输入行为、实际包体积和依赖成本；不预先承诺任意 Web IDL 输入或完整 ES5 引擎支持。
 
 修补的 pure 包仅作为本 SDK 构建时的 URLSearchParams 回退来源，不用于完整 URL 或其它浏览器 API。代码内联到 SDK 产物，消费项目无需安装该包或应用 Yarn patch。
-
-## 接入方已提供标准能力时
-
-默认入口仍保留上述回退。`sentry-miniapp/lite` 只检查实际 Core 接缝，使用宿主或应用提供的全局查询构造器，不加载 core-js／core-js-pure。两种入口在同一模块格式下共享一份 SDK 实现；编码回退继续通过 Core 公开 singleton 提供。精简入口不会仅因为应用安装了 Babel 或 core-js 就认定能力已存在，接入要求见[主包体积优化](../website/guide/bundle-size.md)。精简入口是下一次发布新增能力，npm 2.0.0 尚不提供。

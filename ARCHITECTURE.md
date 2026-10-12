@@ -58,7 +58,7 @@ flowchart TD
 
 | 模块                 | 入口与作用                                                                                                                                  |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| 公共契约与初始化     | [index.ts](src/index.ts)、[lite.ts](src/lite.ts)、[api.ts](src/api.ts)、[sdk.ts](src/sdk.ts)、[types.ts](src/types.ts)：Core API 重导出、factories、选项和 runtime 装配                   |
+| 公共契约与初始化     | [index.ts](src/index.ts)、[sdk.ts](src/sdk.ts)、[types.ts](src/types.ts)：Core API 重导出、factories、选项和 runtime 装配                   |
 | 启动兼容             | [polyfills-bootstrap.ts](src/polyfills-bootstrap.ts)：先于其它 SDK 静态依赖安装标准能力                                                     |
 | 宿主能力             | [crossPlatform.ts](src/crossPlatform.ts)：真实平台探测、API 与字段适配、小游戏识别                                                          |
 | Client 与生命周期    | [client.ts](src/client.ts)、[lifecycle.ts](src/lifecycle.ts)：Core client 扩展、采集／发送／存储门禁、关闭资源                              |
@@ -79,14 +79,6 @@ flowchart TD
 自身的 flush 清理通过成功／失败两条 then 分支完成，不依赖 Promise.finally。core-js 不提供 TextEncoder，SDK 的字节预算也需要无需分配编码结果的长度计算，因此 `coreCompat` 保留共用 UTF-8 标量转换；精确 ArrayBuffer 复制属于宿主请求适配。TextEncoder 经过构造及 UTF-8 标量编码检查；缺失、空壳或编码失败时，通过 Core 公开 singleton 注册现有 UTF-8 回退，保留已有编码 singleton，不改写宿主 TextEncoder。构建语法转换、标准库补齐和宿主 API 检测分别解决不同层面的兼容性，不能相互替代。
 
 构建通过 `scripts/internal/share-corejs-helpers.mjs` 共享固定版本两种 core-js 模式中源码及完整依赖闭包一致的基础模块。全局安装、pure 的 path／export、模式标记和可变注册表保持独立；构建不复制标准算法，也不把整个 pure 包替换为全局包。依赖升级前必须复核共享边界，版本守卫会阻止未经复核的构建。ESM 产物压缩格式空白并保留 PURE 注释供消费端 tree-shaking；独立 JS 的原始字节预算由 `check:bundle-size` 在标准与小程序构建中检查，测量方法和证据见[包体积审查](docs/bundle-size-review.md)。
-
-### 精简入口与共享实现
-
-`src/api.ts` 是两个公开入口的 API 单一来源，包含公共编码回退；默认入口先安装标准能力，`/lite` 先检查接入方提供的标准方法和 Core 查询参数接缝，再加载同一实现。能力不足时在 Core 求值前抛出可操作的错误。查询检测位于不依赖 Core 的 `queryRuntime.ts`，避免检查过程提前启动 Core；TextEncoder 的公开 singleton 回退属于传输适配，两种入口均保留。
-
-npm 构建将共享 SDK、兼容补齐和启动检查作为三个内部入口，生成按顺序加载的 ESM／CJS facade。同一模块格式的两个 facade 引用同一个 runtime，保持类、WeakMap、lifetime、consent 和共享监听身份；不通过全局注册第二套 SDK 或复制实现解决混用。可选集成的 PURE 注释仍供消费端裁剪。构建检查沿静态本地依赖遍历全部文件，体积包含完整闭包；包消费回归同时检查无兼容库、加载前失败、两种入口顺序、重复 init 和真实发送。
-
-精简入口不承担任意标准库输入的一致性验证，接入方须先安装所需全局能力。默认入口及直接下载的 UMD／微信示例独立 bundle 继续提供回退。UMD 和示例保持单文件；npm 私有共享文件不提供独立公共导出，使用者不能只复制 facade。混用 ESM／CJS 或不同 SDK 安装副本仍可能产生重复实现，不属于同格式双入口共享的承诺。
 
 ### runtime 构造与替换
 
@@ -302,7 +294,7 @@ UTF-8 编码与字节预算共用 `coreCompat` 的标量转换，TextEncoder 不
 
 ## 8. 构建、映射与发布的职责关系
 
-标准 npm 构建产生默认／精简 ESM／CJS facade、内部共享文件、独立 UMD 与声明，微信示例构建产生独立 CJS 与 map。两类运行时代码都内联 Core；声明仍引用 Core 类型，因此依赖保持精确固定。生成目录不作为源代码维护，入口与消费一致性由 [vite.config.mjs](vite.config.mjs)和[包消费检查](scripts/internal/check-package-consumers.mjs)约束。
+标准 npm 构建产生 ESM／CJS／UMD 与声明，微信示例构建产生独立 CJS 与 map。两类运行时代码都内联 Core；声明仍引用 Core 类型，因此依赖保持精确固定。生成目录不作为源代码维护，入口与消费一致性由 [vite.config.mjs](vite.config.mjs)和[包消费检查](scripts/internal/check-package-consumers.mjs)约束。
 
 Source Map 链路跨越三个责任方：
 
