@@ -115,7 +115,7 @@ export default defineConfig({
           modal: {
             displayDetails: '显示详细列表',
             resetButtonTitle: '清空搜索',
-            backButtonTitle: '返回搜索',
+            backButtonTitle: '关闭搜索',
             noResultsText: '未找到相关结果',
             footer: {
               selectText: '选择',
