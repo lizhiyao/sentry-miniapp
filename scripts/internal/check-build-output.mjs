@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { packageEntryFiles } from './package-entry-files.mjs';
+import { readFile } from 'node:fs/promises';
+import { parseSync } from '@babel/core';
 
 const files = process.argv.slice(2);
 
@@ -47,17 +48,21 @@ function inspectNode(node, problems) {
 
 let failed = false;
 
-const inspected = new Set();
-for (const entry of files) {
-  for (const [file, { ast }] of await packageEntryFiles(entry)) {
-    if (inspected.has(file)) continue;
-    inspected.add(file);
-    const problems = new Set();
-    inspectNode(ast, problems);
-    if (problems.size > 0) {
-      failed = true;
-      console.error(`${file}: ${Array.from(problems).join(', ')}`);
-    }
+for (const file of files) {
+  const code = await readFile(file, 'utf8');
+  const ast = parseSync(code, {
+    babelrc: false,
+    configFile: false,
+    filename: file,
+    sourceType: 'unambiguous',
+  });
+  const problems = new Set();
+
+  inspectNode(ast, problems);
+
+  if (problems.size > 0) {
+    failed = true;
+    console.error(`${file}: ${Array.from(problems).join(', ')}`);
   }
 }
 
@@ -65,4 +70,4 @@ if (failed) {
   process.exit(1);
 }
 
-console.log(`Build compatibility check passed for ${inspected.size} runtime file(s).`);
+console.log(`Build compatibility check passed for ${files.length} bundle(s).`);

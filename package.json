@@ -9,14 +9,14 @@
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
     "build": "npm run build:release && npm run check:package-consumers",
-    "build:release": "vite build && vite build --mode umd && npm run build:type-entrypoints && npm run check:build-output && npm run check:bundle-size && npm run check:package",
+    "build:release": "vite build && npm run build:type-entrypoints && npm run check:build-output && npm run check:bundle-size && npm run check:package",
     "build:type-entrypoints": "node scripts/internal/create-type-entrypoints.mjs",
-    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js dist/sentry-miniapp-lite.mjs dist/sentry-miniapp-lite.cjs.js",
-    "check:bundle-size": "node scripts/internal/check-bundle-size.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js dist/sentry-miniapp-lite.mjs dist/sentry-miniapp-lite.cjs.js",
+    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
+    "check:bundle-size": "node scripts/internal/check-bundle-size.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
     "check:package": "publint --level error",
     "check:package-consumers": "node scripts/internal/check-package-consumers.mjs",
     "build:miniapp": "vite build --mode miniapp && node scripts/internal/check-build-output.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-bundle-size.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-miniapp-bundle.mjs examples/wxapp/lib/sentry-miniapp.js",
-    "build:types": "vite build && vite build --mode umd && tsc --emitDeclarationOnly --outDir dist/types && npm run build:type-entrypoints",
+    "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types && npm run build:type-entrypoints",
     "dev": "vite build --watch",
     "dev:miniapp": "vite build --mode miniapp --watch",
     "docs:dev": "vitepress dev website",
@@ -58,22 +58,10 @@
         "types": "./dist/types/index.d.cts",
         "default": "./dist/sentry-miniapp.cjs.js"
       }
-    },
-    "./lite": {
-      "import": {
-        "types": "./dist/types/lite.d.mts",
-        "default": "./dist/sentry-miniapp-lite.mjs"
-      },
-      "require": {
-        "types": "./dist/types/lite.d.cts",
-        "default": "./dist/sentry-miniapp-lite.cjs.js"
-      }
     }
   },
   "files": [
     "dist",
-    "lite.js",
-    "lite.d.ts",
     "scripts/*.mjs",
     "README.md",
     "LICENSE",

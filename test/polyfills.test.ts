@@ -11,44 +11,6 @@ afterEach(() => {
 });
 
 describe('标准能力启动边界', () => {
-  it('精简入口拒绝缺失的必要能力，保留接入方负责补齐的边界', async () => {
-    const { assertRequiredRuntime } = await import('../src/runtime-preflight');
-    const root = globalThis;
-    const cases: Array<[object, string, string, unknown]> = [
-      [root, 'globalThis', 'globalThis', undefined],
-      [Array.prototype, 'includes', 'Array.prototype.includes', undefined],
-      [Object, 'entries', 'Object.entries', undefined],
-      [Object, 'values', 'Object.values', undefined],
-      [Object, 'fromEntries', 'Object.fromEntries', undefined],
-      [Promise, 'allSettled', 'Promise.allSettled', undefined],
-      [root, 'Promise', 'Promise.allSettled', undefined],
-      [String.prototype, 'isWellFormed', 'String.prototype.isWellFormed', undefined],
-      [String.prototype, 'toWellFormed', 'String.prototype.toWellFormed', undefined],
-      [root, 'URLSearchParams', 'URLSearchParams', undefined],
-      [root, 'URLSearchParams', 'URLSearchParams', class {}],
-    ];
-    for (const [owner, key, label, value] of cases) {
-      const descriptor = Object.getOwnPropertyDescriptor(owner, key)!;
-      let failure: unknown;
-      try {
-        Object.defineProperty(owner, key, { ...descriptor, value });
-        try {
-          assertRequiredRuntime();
-        } catch (error) {
-          failure = error;
-        }
-      } finally {
-        Object.defineProperty(owner, key, descriptor);
-      }
-      expect(failure).toBeInstanceOf(Error);
-      expect((failure as Error).message).toContain(
-        '[sentry-miniapp/lite] Missing runtime capabilities:',
-      );
-      expect((failure as Error).message).toContain(label);
-    }
-    expect(() => assertRequiredRuntime()).not.toThrow();
-  });
-
   // 原生／空壳与冻结原型的能力检测在实际包的独立进程中检查，避免依赖 CommonJS 缓存。
   it('启动时补齐缺失的查询参数能力，保留宿主请求与 Promise 身份', async () => {
     vi.stubGlobal('URLSearchParams', undefined);
@@ -62,7 +24,7 @@ describe('标准能力启动边界', () => {
     expect(Promise).toBe(nativePromise);
 
     const fallback = URLSearchParams;
-    const { ensureURLSearchParams } = await import('../src/queryRuntime');
+    const { ensureURLSearchParams } = await import('../src/coreCompat');
     ensureURLSearchParams(fallback);
     expect(URLSearchParams).toBe(fallback);
 
@@ -130,12 +92,5 @@ describe('标准能力启动边界', () => {
       configurable: true,
       writable: true,
     });
-
-    vi.unstubAllGlobals();
-    const regular = await import('../src/index');
-    const lite = await import('../src/lite');
-    expect(lite.init).toBe(regular.init);
-    expect(lite.MiniappClient).toBe(regular.MiniappClient);
-    expect(lite.setConsent).toBe(regular.setConsent);
   });
 });

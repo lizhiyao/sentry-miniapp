@@ -15,13 +15,13 @@ function isolateUmdHelpers({ types }) {
           const body = types.functionExpression(null, [], types.blockStatement(path.node.body));
           const call = types.callExpression(
             types.memberExpression(body, types.identifier('call')),
-            [types.thisExpression()],
+            [types.thisExpression()]
           );
 
           path.node.body = [types.expressionStatement(call)];
-        },
+        }
       },
-    },
+    }
   };
 }
 
@@ -46,7 +46,7 @@ function transformGenerators() {
           compact: true,
           sourceMaps: true,
           sourceType: 'unambiguous',
-          plugins,
+          plugins
         });
 
         if (!result?.code) {
@@ -55,10 +55,10 @@ function transformGenerators() {
 
         return {
           code: result.code,
-          map: result.map ?? null,
+          map: result.map ?? null
         };
       },
-    },
+    }
   };
 }
 
@@ -70,7 +70,7 @@ function bundledNotices() {
     name: 'sentry-miniapp-bundled-notices',
     generateBundle(_options, bundle) {
       for (const output of Object.values(bundle)) {
-        if (output.type === 'chunk' && output.isEntry) {
+        if (output.type === 'chunk') {
           // 在最终压缩后追加，避免声明被删除；尾部注释不移动现有 source map 位置。
           output.code += `\n${thirdPartyNotice}\n`;
         }
@@ -88,32 +88,10 @@ const baseConfig = {
   },
   resolve: {
     alias: {
-      '@': resolve(import.meta.dirname, 'src'),
-    },
-  },
+      '@': resolve(import.meta.dirname, 'src')
+    }
+  }
 };
-
-// npm facade 按依赖顺序加载独立启动模块，然后引用唯一共享 runtime。
-function packageFacades() {
-  return {
-    name: 'sentry-miniapp-package-facades',
-    generateBundle(options) {
-      const esm = options.format === 'es';
-      const extension = esm ? 'mjs' : 'cjs.js';
-      for (const lite of [false, true]) {
-        const preparation = lite ? 'runtime-preflight' : 'polyfills';
-        const source = esm
-          ? `import './internal/${preparation}.${extension}';\nexport * from './internal/sdk-runtime.${extension}';\n`
-          : `require('./internal/${preparation}.${extension}');\nmodule.exports = require('./internal/sdk-runtime.${extension}');\n`;
-        this.emitFile({
-          type: 'asset',
-          fileName: `sentry-miniapp${lite ? '-lite' : ''}.${extension}`,
-          source: source + thirdPartyNotice + '\n',
-        });
-      }
-    },
-  };
-}
 
 export default defineConfig(({ mode }) => {
   if (mode === 'miniapp') {
@@ -126,7 +104,7 @@ export default defineConfig(({ mode }) => {
           entry: resolve(import.meta.dirname, 'src/index.ts'),
           name: 'SentryMiniapp',
           fileName: 'sentry-miniapp',
-          formats: ['cjs'], // 小程序只需要 CommonJS 格式
+          formats: ['cjs'] // 小程序只需要 CommonJS 格式
         },
         outDir: 'examples/wxapp/lib',
         rolldownOptions: {
@@ -134,34 +112,14 @@ export default defineConfig(({ mode }) => {
           external: [],
           output: {
             format: 'cjs',
-            exports: 'auto',
-          },
-        },
+            exports: 'auto'
+          }
+        }
       },
       define: {
-        __DEV__: mode === 'development',
+        __DEV__: mode === 'development'
       },
       plugins: [shareCorejsHelpers(), transformGenerators(), bundledNotices()],
-    };
-  }
-
-  // 下载使用的 UMD 保持独立；npm 的两个入口共享同一组运行模块。
-  if (mode === 'umd') {
-    return {
-      ...baseConfig,
-      build: {
-        ...baseConfig.build,
-        emptyOutDir: false,
-        lib: {
-          entry: resolve(import.meta.dirname, 'src/index.ts'),
-          name: 'SentryMiniapp',
-          formats: ['umd'],
-          fileName: () => 'sentry-miniapp.umd.js',
-        },
-        rolldownOptions: { external: [] },
-      },
-      plugins: [shareCorejsHelpers(), transformGenerators(), bundledNotices()],
-      define: { __DEV__: false },
     };
   }
 
@@ -171,11 +129,7 @@ export default defineConfig(({ mode }) => {
     build: {
       ...baseConfig.build,
       lib: {
-        entry: {
-          'sdk-runtime': resolve(import.meta.dirname, 'src/api.ts'),
-          polyfills: resolve(import.meta.dirname, 'src/polyfills-bootstrap.ts'),
-          'runtime-preflight': resolve(import.meta.dirname, 'src/runtime-preflight.ts'),
-        },
+        entry: resolve(import.meta.dirname, 'src/index.ts'),
         name: 'SentryMiniapp',
       },
       outDir: 'dist',
@@ -184,34 +138,39 @@ export default defineConfig(({ mode }) => {
         output: [
           {
             format: 'es',
-            entryFileNames: 'internal/[name].mjs',
-            chunkFileNames: 'chunks/[name]-[hash].mjs',
+            entryFileNames: 'sentry-miniapp.mjs',
             exports: 'named',
             // 保留 PURE 注释供消费端 tree-shaking，同时压缩发布文件的空白。
-            minify: { codegen: true },
+            minify: { codegen: true }
           },
           {
             format: 'cjs',
-            entryFileNames: 'internal/[name].cjs.js',
-            chunkFileNames: 'chunks/[name]-[hash].cjs.js',
-            exports: 'auto',
+            entryFileNames: 'sentry-miniapp.cjs.js',
+            exports: 'auto'
           },
-        ],
-      },
+          {
+            format: 'umd',
+            entryFileNames: 'sentry-miniapp.umd.js',
+            name: 'SentryMiniapp',
+            exports: 'auto',
+            globals: {}
+          },
+        ]
+      }
     },
     plugins: [
       shareCorejsHelpers(),
       transformGenerators(),
-      packageFacades(),
+      bundledNotices(),
       // 生成 TypeScript 类型定义文件
       dts({
         include: ['src/**/*'],
         exclude: ['src/**/*.test.ts', 'test/**/*'],
-        outDirs: 'dist/types',
-      }),
+        outDirs: 'dist/types'
+      })
     ],
     define: {
-      __DEV__: mode === 'development',
-    },
+      __DEV__: mode === 'development'
+    }
   };
 });
