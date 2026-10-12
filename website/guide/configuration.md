@@ -376,6 +376,8 @@ Sentry.init({
 
 `close()` 的正有限 timeout 是整个收尾的毫秒预算；0 或省略表示等待排空，非法值回落 2000ms。替换旧 client 的内部收尾预算为 2000ms。关闭不会取消业务请求或定时器，也不会清空已有面包屑；需要清空时使用 `getIsolationScope().clearBreadcrumbs()`。
 
+顶层 `Sentry.close()` 完成后会解除它所关闭的当前绑定，`Sentry.getClient()` 返回 `undefined`；若等待关闭期间已经初始化了新 client，新绑定会保留。直接调用实例的 `client.close()` 或 `client.dispose()` 只关闭该实例，不修改当前 Scope 的绑定；不要仅凭 `getClient()` 非空判断实例仍可采集。
+
 自动 Session 按每次前台运行管理；JavaScript 未处理异常记为 `unhandled`，不代表宿主进程崩溃。原会话结束后才完成处理的错误仍可发送，但不会补改已结束会话或记入新会话。统计迁移见[关闭与 Session 统计](/guide/migration-2.0#关闭与-session-统计)。
 
 SDK 能包装 `App()` 时，会在业务同步 `onHide` 返回后收尾并 flush，不等待返回的 Promise。晚初始化或小游戏使用可用的原生 show／hide 监听；缺少任一监听时自动会话降级，需要业务管理边界。业务在异步 hide 回调中产生数据，或依赖原生监听执行顺序时，应在自己的处理器末尾显式调用 `flush()`。

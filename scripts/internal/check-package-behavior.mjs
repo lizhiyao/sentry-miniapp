@@ -31,6 +31,7 @@ const boundaryScenarios = [
   'session-start-ownership',
   'ignored-http-parent-propagation',
   'async-stacktrace',
+  'core-clock-close',
 ];
 const scenarios = [
   'empty-session-timer',
@@ -1138,6 +1139,74 @@ async function runBoundaryScenario(pkg) {
         client.dispose();
       }
       assert.equal(businessCalls, 8);
+    } else if (scenario === 'core-clock-close') {
+      let monotonic = 1000;
+      Date.now = () => clock;
+      Object.defineProperty(global, 'performance', {
+        configurable: true,
+        value: { timeOrigin: clock - monotonic, now: () => monotonic },
+      });
+      let waiting = false;
+      let completeClose;
+      const options = {
+        ...common,
+        tracesSampleRate: 1,
+        defaultIntegrations: [sdk.spanStreamingIntegration()],
+        transport: () => ({
+          send: transport().send,
+          flush: () =>
+            waiting
+              ? new Promise((resolve) => {
+                  completeClose = resolve;
+                })
+              : Promise.resolve(true),
+        }),
+      };
+      client = sdk.init(options);
+      const start = clock / 1000;
+      const spanningSleep = sdk.startInactiveSpan({ name: 'spanning sleep' });
+      clock += 60000;
+      monotonic += 250;
+      const event = await finishEvent('after sleep');
+      assert.equal(event.timestamp, clock / 1000, 'event clock must catch up after sleep');
+      spanningSleep.end();
+      const afterSleep = sdk.startInactiveSpan({ name: 'after sleep' });
+      afterSleep.end();
+      const explicit = sdk.startInactiveSpan({ name: 'explicit', startTime: (clock - 500) / 1000 });
+      explicit.end((clock - 300) / 1000);
+      assert.equal(await client.flush(1000), true);
+      const spans = payloads('span').flatMap((container) => container.items);
+      assert.equal(spans.length, 3);
+      assert.equal(spans[0].start_timestamp, start);
+      assert.equal(spans[0].end_timestamp, start + 0.25, 'implicit span keeps monotonic duration');
+      assert.equal(spans[1].start_timestamp, clock / 1000);
+      assert.equal(spans[2].start_timestamp, (clock - 500) / 1000);
+      assert.equal(spans[2].end_timestamp, (clock - 300) / 1000);
+      waiting = true;
+      const old = client;
+      const closing = sdk.close(1000);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const originalWarn = console.warn;
+      try {
+        console.warn = () => {
+          throw new Error('console unavailable');
+        };
+        client = sdk.init({ ...common, defaultIntegrations: false, transport });
+      } finally {
+        console.warn = originalWarn;
+      }
+      assert.notEqual(client, old);
+      assert.ok(completeClose, 'old close must have started draining');
+      completeClose(true);
+      await closing;
+      assert.equal(sdk.getClient(), client, 'old close must preserve replacement binding');
+      assert.equal(await sdk.close(1000), true);
+      assert.equal(sdk.getClient(), undefined, 'top-level close unbinds the current client');
+      evidence.controls = {
+        driftCorrected: true,
+        explicitTimesPreserved: true,
+        closeBindingPreserved: true,
+      };
     } else if (scenario === 'async-stacktrace') {
       const sourceFilename = 'pages/index/index.js';
       const codeFile = `app:///${sourceFilename}`;
