@@ -88,14 +88,14 @@ features:
 
 ## 安装并验证
 
-先按项目需要与 Sentry 后台版本[选择 SDK 版本](/guide/migration-2.0#version-choice)。选定版本后，尽早初始化并主动发送一个测试错误；确认 Sentry Issues 中能看到事件，再继续配置生产环境能力。
+本页面向 2.x。接入需要 Sentry 官方云服务，或 **26.4.2 及以上的自建 Sentry**。已有项目升级或使用更旧的后台时，先看[版本选择与迁移](/guide/migration-2.0#version-choice)。
+
+尽早初始化并主动发送一个测试错误；确认 Sentry Issues 中能看到事件，再继续配置生产环境能力。
 
 ```bash
 npm install sentry-miniapp --save
 # 或 yarn add sentry-miniapp
 ```
-
-本页使用 2.x 正式版，默认安装获取当前正式版。稳定运行的 1.x 项目可继续使用已验收版本，接入请使用[版本选择页中的归档文档](/guide/migration-2.0#version-choice)。升级到 2.x 前，先阅读迁移变更并验证自己的项目配置。
 
 ```js
 import * as Sentry from 'sentry-miniapp';

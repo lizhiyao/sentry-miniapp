@@ -1,8 +1,8 @@
 # 快速接入
 
-本页对应 2.x 正式版，安装 `sentry-miniapp`。接入前先看[版本选择与迁移](/guide/migration-2.0#version-choice)。仓库示例使用当前构建产物。
+用最小配置把一个测试错误发到 Sentry，确认上报链路打通后，再添加项目需要的监控。
 
-`sentry-miniapp` 是基于 [`@sentry/core`](https://github.com/getsentry/sentry-javascript) 的跨端小程序 Sentry SDK，覆盖微信、支付宝、字节跳动、钉钉、QQ、百度、快手，并兼容 Taro / uni-app。
+本页面向 2.x，适用于微信、支付宝、字节跳动、钉钉、QQ、百度、快手原生小程序。接入需要 Sentry 官方云服务，或 **26.4.2 及以上的自建 Sentry**；已有项目升级或后台更旧时，先看[版本选择与迁移](/guide/migration-2.0#version-choice)。
 
 > 本页是**原生小程序**的最短接入路径。Taro、uni-app 或小游戏请直接进入 [Taro](/guide/taro)、[uni-app](/guide/uniapp)或[小游戏](/guide/minigame)指南。
 

@@ -39,21 +39,15 @@ Automatic collection depends on host capabilities. React / Vue component errors 
 
 ---
 
-## Choose an SDK Version and Sentry Deployment
+## Setup Requirements
 
-| Your situation | Version choice |
-| --- | --- |
-| 1.x meets your needs and runs reliably | Keep using 1.x; a Core version change alone does not require migration |
-| Your self-hosted Sentry is older than 26.4.2 and cannot be upgraded yet | Keep the 1.x version already verified with your deployment; see the [1.20.4 README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/docs/README.en.md) and [v1 documentation archive](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide) (Chinese) |
-| You use Sentry SaaS or a supported self-hosted deployment and need streamed tracing or business Metrics | Use 2.x after reading the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese), and verify it in a test project before deploying |
-
-Sentry SaaS (sentry.io) and supported newer self-hosted deployments can receive data from v1 and v2; you can keep your project and DSN. Core v11, used by 2.0, has an [official self-hosted support baseline](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x) of **Sentry 26.4.2 or higher**. Older deployments may partially work but are unsupported. Version 2.0 only supports streamed tracing and has no legacy tracing mode. Receiving an error or disabling tracing does not establish full compatibility with an older deployment.
+Use Sentry SaaS or **self-hosted Sentry 26.4.2 or higher**. Older self-hosted deployments are outside the supported range for 2.x; receiving errors alone does not establish support for other monitoring features. Before upgrading an existing project, or if your deployment cannot be upgraded, read the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese).
 
 ## 🚀 Get It Working In 5 Minutes
 
 Before you start:
 
-- Choose an SDK version supported by your Sentry deployment as described above, then create a project and copy its DSN.
+- Confirm your Sentry deployment meets the requirements above, then create a project and copy its DSN.
 - Add your Sentry endpoint domain to the `request` trusted-domain list in your mini program console.
 - Check [runtime compatibility](https://sentry-miniapp.pages.dev/guide/platform-compatibility) for required JavaScript capabilities, supplied standard methods, and optional instrumentation fallbacks.
 
@@ -95,51 +89,19 @@ If nothing shows up, first check the DSN, trusted domain, initialization placeme
 
 ### 🤖 AI Coding Agent Setup
 
-When working inside the sentry-miniapp repository, agents that support repository Agent Skills can usually auto-discover `sentry-miniapp-sdk`.
-
-For your own mini program / mini game project, install the skill into the project's `.agents/skills/` directory so agents that support repository Agent Skills can auto-discover it:
+Install the setup skill in your own mini program / mini game project:
 
 ```bash
 npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agents/skills/sentry-miniapp-sdk
 ```
 
-Then say from your project:
-
-> Use the `sentry-miniapp-sdk` skill to set up sentry-miniapp: detect the platform and framework first, then update the entry file and give me verification steps.
-
-To reuse it across multiple projects, change the command's destination path to your agent's global skills directory. If your agent does not auto-load the skill, point it to `.agents/skills/sentry-miniapp-sdk/SKILL.md`. The agent can then follow the repo guidance to check native mini program / Taro / uni-app setup, entry-file placement, initialization order, and production configuration notes.
+Ask your agent to use `sentry-miniapp-sdk` to detect the platform and framework, initialize the SDK, and provide verification steps. If it does not auto-discover the skill, point it to `.agents/skills/sentry-miniapp-sdk/SKILL.md`; see the [skill guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/.agents/skills/sentry-miniapp-sdk/SKILL.md).
 
 ---
 
-## 📚 Common APIs
+## 📚 Configure The Monitoring You Need
 
-```javascript
-// Manual capture
-Sentry.captureException(new Error('Payment API parsing failed'));
-Sentry.captureMessage('User cancelled authorization', 'info');
-
-// User & tags
-Sentry.setUser({ id: 'user_12345', username: 'John Doe' });
-Sentry.setTag('page_module', 'checkout');
-
-// Breadcrumb
-Sentry.addBreadcrumb({ message: 'Tapped [Confirm Payment]', category: 'action', level: 'info' });
-
-// Independent business logs; filter with beforeSendLog
-Sentry.logger.info('User completed payment', { orderId: 'order_123' });
-
-// Custom span
-await Sentry.startSpan({ name: 'checkout.submit', op: 'ui.action' }, async () => { /* business operation */ });
-
-// User feedback: mini programs have no DOM, so submit from your own native form
-Sentry.captureFeedback({ message: 'The page is frozen', name: 'John Doe', email: 'john@example.com' });
-
-// Diagnostics: attach the output to issues when troubleshooting SDK setup
-console.log(Sentry.getDiagnostics());
-
-// Privacy consent: set requireConsent: true during initialization, then flush once granted
-Sentry.setConsent(true);
-```
+Once error delivery works, [add user and business context or record logs](https://sentry-miniapp.pages.dev/guide/errors-and-context), or [measure requests and business operations](https://sentry-miniapp.pages.dev/guide/performance-and-tracing). If delivery must wait for user consent, configure and verify the [consent gate](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy). See the [API](https://sentry-miniapp.pages.dev/guide/api) and [configuration reference](https://sentry-miniapp.pages.dev/guide/configuration) for methods and options (Chinese).
 
 ---
 

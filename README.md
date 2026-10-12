@@ -35,21 +35,15 @@
 
 ---
 
-## 选择版本与 Sentry 后台
+## 接入要求
 
-| 当前场景 | 版本选择 |
-| --- | --- |
-| 1.x 已满足需求且运行稳定 | 可以继续使用 1.x，无需仅为 Core 版本升级而迁移 |
-| 自建 Sentry 低于 26.4.2，暂时无法升级后台 | 保持项目已验收的 1.x 版本；参考 [1.20.4 README](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/README.md) 与 [v1 文档归档](https://github.com/lizhiyao/sentry-miniapp/tree/v1.20.4/website/guide) |
-| 使用官方云服务或受支持的自建后台，需要流式性能监控或业务 Metrics | 可接入 2.x，先阅读[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)，在测试项目中验证后上线 |
-
-官方云服务（sentry.io）与受支持的新自建后台均可接收 v1、v2 数据，项目和 DSN 可以沿用。2.0 所依赖的 Core v11 以自建 Sentry **26.4.2 及以上**为[官方支持基线](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x)；更旧版本可能部分可用，但不受支持。2.0 只支持流式性能上报，没有旧性能格式的兼容开关；仅收到异常或关闭 tracing 不能证明旧后台完整兼容。
+使用 Sentry 官方云服务，或 **26.4.2 及以上的自建 Sentry**。更旧的自建后台不在 2.x 支持范围内；只收到错误事件不能证明其它监控能力兼容。已有项目升级或后台暂时无法升级时，先看[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
 
 ## 🚀 5 分钟跑通
 
 **接入前确认**：
 
-- 已按上面的版本选择确认 Sentry 后台，创建好项目并复制该项目的 DSN。
+- 已确认 Sentry 后台满足接入要求，创建好项目并复制该项目的 DSN。
 - 小程序后台已把 Sentry 上报域名加入 `request` 合法域名。
 - 宿主具备基础 JavaScript 能力；标准方法补齐和可选观测的降级边界见[运行时兼容说明](https://sentry-miniapp.pages.dev/guide/platform-compatibility)。
 
@@ -91,53 +85,19 @@ Sentry.captureException(new Error('sentry test'));
 
 ### 🤖 AI Coding Agent 辅助接入
 
-在 sentry-miniapp 仓库内使用时，支持仓库内 Agent Skills 的工具通常会自动发现 `sentry-miniapp-sdk`。
-
-如果你是在自己的小程序 / 小游戏项目里接入，推荐把 skill 安装到当前项目的 `.agents/skills/`，这样支持仓库内 Agent Skills 的工具进入项目后就能自动发现：
+在自己的小程序 / 小游戏项目中安装接入 skill：
 
 ```bash
 npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agents/skills/sentry-miniapp-sdk
 ```
 
-然后在你的项目里直接说：
-
-> 使用 `sentry-miniapp-sdk` skill 帮我接入 sentry-miniapp：先识别平台和框架，再完成初始化并给出验证步骤。
-
-如果想跨多个项目复用，也可以把命令最后的目标路径换成你的 Agent 全局 skills 目录。Agent 没有自动加载时，让它读取 `.agents/skills/sentry-miniapp-sdk/SKILL.md` 即可。这样 Agent 会按仓库约定检查原生小程序 / Taro / uni-app、入口文件位置、初始化顺序和生产配置注意事项。
+然后让 Agent「使用 `sentry-miniapp-sdk` skill，识别平台和框架，完成初始化并给出验证步骤」。未自动发现时，让它读取 `.agents/skills/sentry-miniapp-sdk/SKILL.md`；使用方法见 [skill 指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/.agents/skills/sentry-miniapp-sdk/SKILL.md)。
 
 ---
 
-## 📚 常用 API
+## 📚 配置你需要的监控
 
-```javascript
-// 手动捕获异常 / 消息
-Sentry.captureException(new Error('支付接口解析失败'));
-Sentry.captureMessage('用户主动取消了授权', 'info');
-
-// 用户与标签
-Sentry.setUser({ id: 'user_12345', username: 'John Doe' });
-Sentry.setTag('page_module', 'checkout');
-
-// 业务面包屑
-Sentry.addBreadcrumb({ message: '点击了[确认支付]', category: 'action', level: 'info' });
-
-// 独立业务日志；beforeSendLog 可过滤
-Sentry.logger.info('用户完成支付', { orderId: 'order_123' });
-
-// 自定义测速
-await Sentry.startSpan({ name: 'checkout.submit', op: 'ui.action' }, async () => { /* 业务操作 */ });
-
-// 用户反馈：小程序无 DOM，请自行实现原生表单后提交
-Sentry.captureFeedback({ message: '页面卡住了', name: '张三', email: 'zhangsan@example.com' });
-
-// 接入诊断：排查接入问题时，可将诊断结果附到 issue
-console.log(Sentry.getDiagnostics());
-
-// 隐私合规：初始化时设置 requireConsent: true，用户同意后再补发缓冲事件
-Sentry.setConsent(true);
-```
-
-如需关闭错误事件的后台 IP 自动补充，设置 `dataCollection: { userInfo: false }`；显式 `setUser()` 数据仍保留。独立日志、指标和 span 分别使用各自的过滤回调，详见[配置参考](https://sentry-miniapp.pages.dev/guide/configuration)。已有项目升级前阅读[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
+基础错误上报打通后，可以[补充用户与业务上下文、记录日志](https://sentry-miniapp.pages.dev/guide/errors-and-context)，或[测量请求与业务操作耗时](https://sentry-miniapp.pages.dev/guide/performance-and-tracing)。需要用户同意后才能发送数据时，按[隐私同意指南](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy)配置并验证；方法和参数见[常用 API](https://sentry-miniapp.pages.dev/guide/api)与[配置参考](https://sentry-miniapp.pages.dev/guide/configuration)。
 
 ---
 
