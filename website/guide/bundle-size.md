@@ -8,6 +8,21 @@
 - 用平台开发者工具或框架构建分析查看最终 JS 属于主包还是分包，并检查是否出现 SDK 或 Core 的重复副本。
 - 关闭性能、日志等可选采集会改变运行行为，不保证对应代码从产物中移除。ESM 的按需裁剪取决于打包器和实际引用；独立 CommonJS／UMD 文件包含完整 SDK。
 
+## 框架项目先检查 ESM 按需打包
+
+Taro、uni-app 等构建项目，先确认打包器实际使用 ESM 入口，再查看最终包分析。明确引用使用的 API；需要宿主性能条目时才添加 `performanceIntegration()`。没有使用的 Performance API、HTTP 上下文集成可以被支持 tree-shaking 的打包器移除，已有的默认集成和跨端回退仍会保留。
+
+```javascript
+import { init, performanceIntegration } from 'sentry-miniapp';
+
+init({
+  dsn: 'YOUR_DSN',
+  integrations: [performanceIntegration()], // 需要宿主性能条目时添加
+});
+```
+
+不需要该能力时移除这项导入和配置。避免通过动态属性名读取整个 SDK 或集成命名空间，这可能让打包器保留所有出口。不同工具链的结果可能不同，仍须以最终小程序产物为准；这项裁剪不会让独立 CommonJS 文件变成按需版本。
+
 ## 方案 A：微信原生分包异步化
 
 微信原生支持[分包异步化](https://developers.weixin.qq.com/miniprogram/dev/framework/subpackages/async.html)，可用 `require.async` 跨分包加载 SDK。

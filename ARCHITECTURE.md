@@ -93,7 +93,7 @@ flowchart TD
 
 ### 集成实例与默认组合
 
-集成的公共形式是 factory，返回类型只承诺 Core `Integration`，内部清理方法不作为公共 API。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
+集成的公共形式是 factory，返回类型只承诺 Core `Integration`，内部清理方法不作为公共 API。集成名称直接保存在实例上，不通过 class 静态赋值初始化，避免模块求值副作用让消费端保留未使用的可选集成。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
 
 默认装配显式包含 `spanStreamingIntegration()`：自定义 `Client` 不会自动获得其它官方宿主 SDK 的集成组合。移除它后，业务 span 和请求 span 都不会经默认 stream 管道发送。性能 Observer 和 FPS 属于可选宿主能力，不能成为基础 HTTP tracing 的前提。
 

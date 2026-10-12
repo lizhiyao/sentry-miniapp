@@ -6,8 +6,7 @@ import { OwnerToken } from '../owner';
 
 /** 每次异步调度单独持有归属，业务回调不在 SDK scope 内运行。 */
 export class TryCatch implements Integration {
-  public static id = 'TryCatch';
-  public name = TryCatch.id;
+  public name = 'TryCatch';
   private readonly _clients = new WeakSet<Client>();
 
   public setup(client: Client): void {

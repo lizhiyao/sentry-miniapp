@@ -179,3 +179,7 @@ CD 只复用本仓库 `.github/workflows/ci.yml` 在 **master push、精确发�
 CD 核对 tag、package.json、SDK_VERSION、tarball 元数据，保存提交 SHA、CI 证据、SHA-256/SHA-512 摘要和安装锁文件，并只发布验收过的 tarball，显式禁用发布生命周期脚本以避免再次构建。
 同版本已经存在时仅在 registry integrity 与本次 tarball 一致时跳过发布；网络或鉴权失败不会被当成“版本不存在”。
 发布成功后 GitHub Release 额外附带 tarball 和来源清单；完整诊断、CI 证据与安装记录在 Actions artifact 中。
+
+### 消费端按需打包检查
+
+实际安装包检查还会把基础接入与显式启用 Performance API 的 ESM 项目重新打包：基础项目不能保留未引用的 Performance API／HTTP 上下文集成，性能项目必须仍能安装和清理 observer。两者都运行异常发送与 flush 检查，并分别限制在 235／240 KiB 的原始 JS 内。探针含测试驱动代码，其数字不能直接当作任意框架项目的 SDK 增量；发布文件预算与消费端预算保护不同的打包边界。
