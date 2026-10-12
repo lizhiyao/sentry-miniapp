@@ -1,5 +1,7 @@
 # Sentry Miniapp SDK — Mini Program Monitoring SDK
 
+Monitor **WeChat mini programs and mini games** with Sentry. Investigate production errors and performance bottlenecks in native, **Taro** and **uni-app** projects.
+
 [![npm version](https://img.shields.io/npm/v/sentry-miniapp)](https://www.npmjs.com/package/sentry-miniapp)
 [![npm downloads/month](https://img.shields.io/npm/dm/sentry-miniapp)](https://www.npmjs.com/package/sentry-miniapp)
 [![github forks](https://img.shields.io/github/forks/lizhiyao/sentry-miniapp?style=social)](https://github.com/lizhiyao/sentry-miniapp/network/members)
@@ -13,7 +15,7 @@
 
 > This README and the current docs site cover the **stable 2.x release**. New projects can install `sentry-miniapp`; existing 1.x projects should read the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. For device or platform issues, [submit a bug report](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose).
 
-A **mini program monitoring SDK** built on `@sentry/core`, providing **error monitoring**, **performance monitoring**, offline caching, and distributed tracing. It supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, **WeChat / Douyin mini games**, and Taro / uni-app mini program builds.
+Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, plus WeChat / Douyin mini games. Built on `@sentry/core`, it provides error monitoring, opt-in performance monitoring and distributed tracing, and offline caching. Automatic collection depends on host capabilities; source mapping requires uploading Source Maps from the matching build.
 
 Mini program runtimes may expose a window alias without DOM or browser request APIs, so this SDK uses native platform APIs for delivery and automatic capture. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); for mini programs or mini games, use this SDK.
 
