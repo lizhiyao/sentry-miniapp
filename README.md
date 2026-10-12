@@ -17,7 +17,11 @@
 
 > 本文与当前官网面向 **2.x 正式版**。新项目安装 `sentry-miniapp`；已有 1.x 项目先阅读[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。遇到真实设备或跨端问题，请[提交缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)。
 
-支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手等多端小程序，以及微信 / 抖音小游戏。基于 `@sentry/core`，提供异常监控、按需开启的性能监控与链路追踪、离线缓存等能力；自动采集范围取决于宿主平台，源码定位需要上传对应构建的 Source Map。
+帮助小程序与小游戏项目排查线上异常，结合设备、操作和请求记录还原出错经过；开启性能采样后，可分析请求和业务操作的耗时。
+
+支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手小程序，以及微信和抖音小游戏，兼容 Taro / uni-app。
+
+自动采集范围取决于宿主平台；源码定位需要上传对应构建的 Source Map。
 
 > **📖 接入细节与生产配置**：[sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) —— 快速接入、框架指南、配置项、Source Map、FAQ、示例工程都在文档站。
 

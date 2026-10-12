@@ -15,7 +15,11 @@ Monitor **WeChat mini programs and mini games** with Sentry. Investigate product
 
 > This README and the current docs site cover the **stable 2.x release**. New projects can install `sentry-miniapp`; existing 1.x projects should read the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. For device or platform issues, [submit a bug report](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose).
 
-Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, plus WeChat / Douyin mini games. Built on `@sentry/core`, it provides error monitoring, opt-in performance monitoring and distributed tracing, and offline caching. Automatic collection depends on host capabilities; source mapping requires uploading Source Maps from the matching build.
+Help mini program and mini game teams investigate production errors using device, interaction and request details. Enable performance sampling to measure the duration of requests and business operations.
+
+Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, plus WeChat and Douyin mini games. Works with Taro / uni-app.
+
+Automatic collection depends on host capabilities; source mapping requires uploading Source Maps from the matching build.
 
 Mini program runtimes may expose a window alias without DOM or browser request APIs, so this SDK uses native platform APIs for delivery and automatic capture. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); for mini programs or mini games, use this SDK.
 
