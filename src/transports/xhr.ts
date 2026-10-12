@@ -208,7 +208,7 @@ export function createMiniappTransport(
         } else if (!hasConsent()) {
           cancel(new Error('Sentry request blocked by consent'));
         } else if (typeof requestApi === 'function') {
-          requestTask = requestApi.call(currentSdk, requestOptions) as
+          requestTask = Function.prototype.apply.call(requestApi, currentSdk, [requestOptions]) as
             MiniappRequestTask | undefined;
           // 撤回或关闭可先于 task 返回；重新同意也不能撤销原请求的取消决定。
           if (abortRequested || stopped || !canSend() || !hasConsent()) abort();

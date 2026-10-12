@@ -79,7 +79,9 @@ class PerformanceController {
         ...(this._options.enableUserTiming ? ['measure', 'mark'] : []),
       ];
       if (entryTypes.length === 0) return;
-      const observer = createObserver.call(manager, (entries) => this._observe(entries));
+      const observer = Function.prototype.apply.call(createObserver, manager, [
+        (entries: unknown) => this._observe(entries),
+      ]);
       if (!this._isActiveClient()) {
         observer.disconnect();
         return;
@@ -133,7 +135,10 @@ class PerformanceController {
     else {
       const reader = (entries as { getEntries?: () => PerformanceEntry[] }).getEntries;
       if (!this._isActiveClient()) return;
-      values = typeof reader === 'function' ? reader.call(entries) : [entries];
+      values =
+        typeof reader === 'function'
+          ? Function.prototype.apply.call(reader, entries, [])
+          : [entries];
     }
     if (!Array.isArray(values)) return;
     for (const entry of values) {

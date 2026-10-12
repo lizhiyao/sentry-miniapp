@@ -82,6 +82,11 @@ describe('Transport', () => {
           header: {},
         });
       });
+      Object.defineProperty(mockRequest, 'call', {
+        get() {
+          throw new Error('request.call is an unrelated extension');
+        },
+      });
       (global as any).wx = { request: mockRequest };
       resetPlatformCache();
 
@@ -115,6 +120,7 @@ describe('Transport', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.headers).toBeDefined();
+      expect(mockRequest.mock.contexts).toEqual([(global as any).wx]);
     });
 
     it('aborts a hanging request at the default timeout to release the network slot', async () => {
