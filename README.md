@@ -1,9 +1,5 @@
 # Sentry Miniapp SDK — 小程序监控 SDK
 
-为微信等多端**小程序与小游戏**接入 Sentry，帮助定位线上异常和性能瓶颈，支持原生项目、**Taro** 和 **uni-app**。
-
-*Sentry SDK for WeChat mini programs and mini games, Taro and uni-app — error monitoring, performance monitoring and Source Maps.*
-
 [![npm version](https://img.shields.io/npm/v/sentry-miniapp)](https://www.npmjs.com/package/sentry-miniapp)
 [![npm download](https://img.shields.io/npm/dm/sentry-miniapp)](https://www.npmjs.com/package/sentry-miniapp)
 [![github forks](https://img.shields.io/github/forks/lizhiyao/sentry-miniapp?style=social)](https://github.com/lizhiyao/sentry-miniapp/network/members)
@@ -15,15 +11,11 @@
 
 简体中文 | [English](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/README.en.md)
 
-> 本文与当前官网面向 **2.x 正式版**。新项目安装 `sentry-miniapp`；已有 1.x 项目先阅读[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。遇到真实设备或跨端问题，请[提交缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)。
+为**小程序与小游戏**接入 Sentry，结合设备、操作和请求记录排查线上异常；按需开启性能采样，分析请求与业务操作的耗时。
 
-帮助小程序与小游戏项目排查线上异常，结合设备、操作和请求记录还原出错经过；开启性能采样后，可分析请求和业务操作的耗时。
+支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手小程序，以及微信和抖音小游戏，适用于原生、**Taro** 和 **uni-app** 项目。
 
-支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手小程序，以及微信和抖音小游戏，兼容 Taro / uni-app。
-
-自动采集范围取决于宿主平台；源码定位需要上传对应构建的 Source Map。
-
-> **📖 接入细节与生产配置**：[sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) —— 快速接入、框架指南、配置项、Source Map、FAQ、示例工程都在文档站。
+**[快速开始](https://sentry-miniapp.pages.dev/guide/getting-started)** · [完整文档](https://sentry-miniapp.pages.dev/) · [示例工程](https://sentry-miniapp.pages.dev/guide/examples)
 
 ---
 
@@ -45,7 +37,9 @@
 
 ## 接入要求
 
-使用 Sentry 官方云服务，或 **26.4.2 及以上的自建 Sentry**。更旧的自建后台不在 2.x 支持范围内；只收到错误事件不能证明其它监控能力兼容。已有项目升级或后台暂时无法升级时，先看[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+> 本文与当前官网面向 **2.x 正式版**。已有 1.x 项目升级，或自建后台暂时无法升级时，先看[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+
+使用 Sentry 官方云服务，或 **26.4.2 及以上的自建 Sentry**。更旧的自建后台不在 2.x 支持范围内；只收到错误事件不能证明其它监控能力兼容。
 
 ## 🚀 5 分钟跑通
 

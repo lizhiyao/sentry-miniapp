@@ -1,7 +1,5 @@
 # Sentry Miniapp SDK — Mini Program Monitoring SDK
 
-Monitor **WeChat mini programs and mini games** with Sentry. Investigate production errors and performance bottlenecks in native, **Taro** and **uni-app** projects.
-
 [![npm version](https://img.shields.io/npm/v/sentry-miniapp)](https://www.npmjs.com/package/sentry-miniapp)
 [![npm downloads/month](https://img.shields.io/npm/dm/sentry-miniapp)](https://www.npmjs.com/package/sentry-miniapp)
 [![github forks](https://img.shields.io/github/forks/lizhiyao/sentry-miniapp?style=social)](https://github.com/lizhiyao/sentry-miniapp/network/members)
@@ -13,19 +11,13 @@ Monitor **WeChat mini programs and mini games** with Sentry. Investigate product
 
 [简体中文](../README.md) | English
 
-> This README and the current docs site cover the **stable 2.x release**. New projects can install `sentry-miniapp`; existing 1.x projects should read the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) first. For device or platform issues, [submit a bug report](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose).
+Monitor **mini programs and mini games** with Sentry. Investigate production errors using device, interaction and request details; enable performance sampling as needed to measure the duration of requests and business operations.
 
-Help mini program and mini game teams investigate production errors using device, interaction and request details. Enable performance sampling to measure the duration of requests and business operations.
+Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, plus WeChat and Douyin mini games. Works with native, **Taro** and **uni-app** projects.
 
-Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, plus WeChat and Douyin mini games. Works with Taro / uni-app.
+**[Quick Start](https://sentry-miniapp.pages.dev/guide/getting-started)** · [Full Documentation](https://sentry-miniapp.pages.dev/) · [Examples](https://sentry-miniapp.pages.dev/guide/examples)
 
-Automatic collection depends on host capabilities; source mapping requires uploading Source Maps from the matching build.
-
-Mini program runtimes may expose a window alias without DOM or browser request APIs, so this SDK uses native platform APIs for delivery and automatic capture. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); for mini programs or mini games, use this SDK.
-
-> **Mini programs** are apps hosted inside platforms such as WeChat, Alipay and Douyin. Their JavaScript runtimes use platform-specific networking and lifecycle APIs rather than the browser DOM and request APIs.
-
-> **📖 Setup details and production configuration**: [sentry-miniapp.pages.dev](https://sentry-miniapp.pages.dev/) — getting started, framework guides, configuration, Source Maps, FAQ, and examples live on the docs site (Chinese for now).
+The docs site is in Chinese.
 
 ---
 
@@ -47,7 +39,11 @@ Automatic collection depends on host capabilities. React / Vue component errors 
 
 ## Setup Requirements
 
-Use Sentry SaaS or **self-hosted Sentry 26.4.2 or higher**. Older self-hosted deployments are outside the supported range for 2.x; receiving errors alone does not establish support for other monitoring features. Before upgrading an existing project, or if your deployment cannot be upgraded, read the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese).
+> This README and the current docs site cover the **stable 2.x release**. Before upgrading an existing 1.x project, or if your self-hosted deployment cannot be upgraded, read the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese).
+
+Use Sentry SaaS or **self-hosted Sentry 26.4.2 or higher**. Older self-hosted deployments are outside the supported range for 2.x; receiving errors alone does not establish support for other monitoring features.
+
+Mini programs are apps hosted inside platforms such as WeChat, Alipay and Douyin. Their JavaScript runtimes use platform-specific networking and lifecycle APIs rather than the browser DOM and request APIs. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); use this SDK for mini program and mini game builds.
 
 ## 🚀 Get It Working In 5 Minutes
 
