@@ -12,8 +12,7 @@ import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 
 /** 前台 episode 的 owner session；不通过全局 endSession 结束另一个 owner。 */
 export class SessionIntegration implements Integration {
-  public static id: string = 'Session';
-  public name: string = SessionIntegration.id;
+  public name = 'Session';
   private readonly _clients = new WeakSet<Client>();
   private readonly _initialSessions = new WeakMap<Client, () => void>();
 

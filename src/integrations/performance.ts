@@ -297,8 +297,7 @@ class PerformanceController {
 
 /** 配置对象可复用；每次 setup 的 observer 与状态归属独立 client。 */
 export class PerformanceIntegration implements Integration {
-  public static id = 'PerformanceAPI';
-  public name = PerformanceIntegration.id;
+  public name = 'PerformanceAPI';
   private readonly _clients = new WeakSet<Client>();
   private readonly _cleanups = new Set<() => void>();
 

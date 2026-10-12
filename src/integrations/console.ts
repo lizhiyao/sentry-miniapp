@@ -36,8 +36,7 @@ export interface ConsoleBreadcrumbsOptions {
  * 默认不启用，需通过 enableConsoleBreadcrumbs: true 开启。
  */
 export class ConsoleBreadcrumbs implements Integration {
-  public static id: string = 'ConsoleBreadcrumbs';
-  public name: string = ConsoleBreadcrumbs.id;
+  public name = 'ConsoleBreadcrumbs';
 
   private readonly _levels: ConsoleLevel[];
 

@@ -7,8 +7,7 @@ import { getClientLifetime, withTelemetryCritical } from '../lifecycle';
 
 /** 网络状态属于 client；同一 integration 对象可以被多个 client 复用。 */
 export class NetworkStatusIntegration implements Integration {
-  public static id = 'NetworkStatus';
-  public name = NetworkStatusIntegration.id;
+  public name = 'NetworkStatus';
   private readonly _owners = new WeakSet<Client>();
 
   public setup(client: Client): void {
