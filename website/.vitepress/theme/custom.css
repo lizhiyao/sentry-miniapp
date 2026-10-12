@@ -79,12 +79,16 @@
   letter-spacing: -0.3px;
 }
 .VPNavBarTitle .logo {
-  width: 27px;
-  height: 27px;
-  border-radius: 5px;
-}
-.dark .VPNavBarTitle .logo {
-  filter: invert(1);
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  margin-right: 10px;
+  padding: 3px;
+  object-fit: contain;
+  border: 1px solid #d7ddd4;
+  border-radius: 7px;
+  background: #edeee9;
 }
 .VPNavBar:not(.home.top) {
   box-shadow: 0 1px 0 var(--sm-line);
