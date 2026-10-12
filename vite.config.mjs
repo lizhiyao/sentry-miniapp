@@ -4,6 +4,7 @@ import { resolve } from 'path';
 import { transformAsync } from '@babel/core';
 import transformRegenerator from '@babel/plugin-transform-regenerator';
 import dts from 'vite-plugin-dts';
+import { shareCorejsHelpers } from './scripts/internal/share-corejs-helpers.mjs';
 
 function isolateUmdHelpers({ types }) {
   return {
@@ -118,7 +119,7 @@ export default defineConfig(({ mode }) => {
       define: {
         __DEV__: mode === 'development'
       },
-      plugins: [transformGenerators(), bundledNotices()],
+      plugins: [shareCorejsHelpers(), transformGenerators(), bundledNotices()],
     };
   }
 
@@ -138,7 +139,9 @@ export default defineConfig(({ mode }) => {
           {
             format: 'es',
             entryFileNames: 'sentry-miniapp.mjs',
-            exports: 'named'
+            exports: 'named',
+            // 保留 PURE 注释供消费端 tree-shaking，同时压缩发布文件的空白。
+            minify: { codegen: true }
           },
           {
             format: 'cjs',
@@ -156,6 +159,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     plugins: [
+      shareCorejsHelpers(),
       transformGenerators(),
       bundledNotices(),
       // 生成 TypeScript 类型定义文件

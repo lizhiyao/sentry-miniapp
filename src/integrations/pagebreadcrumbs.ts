@@ -211,8 +211,7 @@ function invokePage(original: Function, thisArg: unknown, args: unknown[]): unkn
  * 只注册 subscriber，乱序 close 不会拆掉当前 client 的包装或复活旧配置。
  */
 export class PageBreadcrumbs implements Integration {
-  public static id: string = 'PageBreadcrumbs';
-  public name: string = PageBreadcrumbs.id;
+  public name = 'PageBreadcrumbs';
 
   private readonly _options: Required<PageBreadcrumbsOptions>;
 

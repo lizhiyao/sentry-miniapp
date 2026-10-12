@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { pack, unpack } from '@publint/pack';
+import { checkPackageTreeShaking } from './check-package-tree-shaking.mjs';
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -505,7 +506,7 @@ miniappStackParser;
 
 const suppliedTarball = process.argv[2] ? resolve(process.argv[2]) : undefined;
 const tempRoot = await mkdtemp(join(tmpdir(), 'sentry-miniapp-package-consumers-'));
-const expectedBehaviorScenarios = 21;
+const expectedBehaviorScenarios = 22;
 
 try {
   const tarball =
@@ -578,6 +579,8 @@ try {
     join(tempRoot, 'package.json'),
     JSON.stringify({ name: 'sentry-miniapp-consumer-smoke', private: true, type: 'module' }),
   );
+
+  await checkPackageTreeShaking(tempRoot, runNode);
 
   const cjsConsumer = join(tempRoot, 'consumer.cjs');
   const esmConsumer = join(tempRoot, 'consumer.mjs');

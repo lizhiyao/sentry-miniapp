@@ -35,6 +35,7 @@ yarn install
 | `yarn test:shuffle` | 随机化用例顺序，排查测试状态污染与顺序依赖 |
 | `yarn lint` | 运行 ESLint 检查 |
 | `yarn typecheck` | 严格检查源码与测试代码的 TypeScript 类型 |
+| `yarn check:bundle-size` | 检查已构建 ESM/CJS/UMD 的原始 JS 字节预算，并报告 gzip 大小 |
 | `yarn docs:dev` | 本地查看和编辑用户文档站 |
 | `yarn docs:build` | 构建文档站，检查页面生成与站内文件链接 |
 | `yarn docs:preview` | 预览已经构建的文档站 |
@@ -50,6 +51,12 @@ yarn install
 Vite 的 ES2015 target 负责语法降级，其中 async 的降级会生成 generator；Babel 的 generator 转换因此仍是必要步骤，`check:build-output` 拒绝产物中残留的 generator／yield 和外部 Babel runtime。语法降级不补齐运行时 API；`polyfills-bootstrap` 的 core-js 按需模块负责 Core 与 SDK 使用的标准方法，URLSearchParams 通过 core-js-pure 的公开入口安装以保留宿主 fetch／Request，宿主接口仍须特性检测或降级。新增 API 前同时检查内联 Core 的调用及实际 tarball，不能仅根据 Node 单测或构建成功判断兼容。
 
 内联依赖的完整许可证保存在 `THIRD_PARTY_NOTICES.md`，构建同时把该内容放入每个独立 JS 的声明注释，覆盖 npm 安装和单文件下载两种分发。只列实际进入运行时的第三方代码，不列整个开发依赖树；新增内联依赖时核对所安装包的 LICENSE。core-js-pure 的版本补丁保存在 `.yarn/patches/`：pure 入口提供独立查询参数回退，跳过完整 URL 和 fetch／Request／Headers 的探测与包装，并复用同库 String.prototype.toWellFormed 规范化输入。升级时在未修补版本上复核[退出条件](docs/query-runtime-decision.md#补丁范围与维护规则)，上游修复后移除对应 patch，不机械续接。实际包消费检查同时覆盖冻结 Request 原型、只读的正常查询构造器及缺少 keys() 的部分实现。
+
+### 构建体积与共享依赖
+
+标准构建和小程序构建都会执行 JS 体积预算检查：ESM 上限 260 KiB，CommonJS／UMD／小程序独立 bundle 上限 255 KiB。预算包含内联依赖和许可证注释，不包含 Source Map 或类型声明。超限时先核对依赖重复、可选能力与构建输出；有必要的新增能力再在同一 PR 说明成本并调整预算，不能通过 gzip 数字掩盖原始包增长。测量基线见[包体积审查](docs/bundle-size-review.md)。
+
+两种 core-js 模式共享基础模块的构建插件锁定在已审查版本。升级依赖时同时审查源码、间接依赖和可变模块状态，复核实际包在缺失／原生／只读宿主能力下的行为，再更新插件版本守卫；不能仅更新版本字符串通过检查。
 
 ### 示例产物
 
@@ -172,3 +179,7 @@ CD 只复用本仓库 `.github/workflows/ci.yml` 在 **master push、精确发�
 CD 核对 tag、package.json、SDK_VERSION、tarball 元数据，保存提交 SHA、CI 证据、SHA-256/SHA-512 摘要和安装锁文件，并只发布验收过的 tarball，显式禁用发布生命周期脚本以避免再次构建。
 同版本已经存在时仅在 registry integrity 与本次 tarball 一致时跳过发布；网络或鉴权失败不会被当成“版本不存在”。
 发布成功后 GitHub Release 额外附带 tarball 和来源清单；完整诊断、CI 证据与安装记录在 Actions artifact 中。
+
+### 消费端按需打包检查
+
+实际安装包检查还会把基础接入与显式启用 Performance API 的 ESM 项目重新打包：基础项目不能保留未引用的 Performance API／HTTP 上下文集成，性能项目必须仍能安装和清理 observer。两者都运行异常发送与 flush 检查，并分别限制在 235／240 KiB 的原始 JS 内。探针含测试驱动代码，其数字不能直接当作任意框架项目的 SDK 增量；发布文件预算与消费端预算保护不同的打包边界。

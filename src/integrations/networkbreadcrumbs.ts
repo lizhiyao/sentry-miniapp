@@ -39,12 +39,11 @@ export class NetworkBreadcrumbs implements Integration {
   /**
    * @inheritDoc
    */
-  public static id: string = 'NetworkBreadcrumbs';
 
   /**
    * @inheritDoc
    */
-  public name: string = NetworkBreadcrumbs.id;
+  public name = 'NetworkBreadcrumbs';
 
   private readonly _traceNetworkBody: boolean;
   private readonly _sensitiveKeys: string[];

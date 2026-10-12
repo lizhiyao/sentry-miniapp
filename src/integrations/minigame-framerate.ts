@@ -103,8 +103,7 @@ function percentile95(samples: number[], fallback: number): number {
  * 双线程架构、逻辑层无全局 requestAnimationFrame，缺失时安全降级（不工作）。
  */
 export class MinigameFrameRateIntegration implements Integration {
-  public static id: string = 'MinigameFrameRate';
-  public name: string = MinigameFrameRateIntegration.id;
+  public name = 'MinigameFrameRate';
 
   private _options: Required<Omit<MinigameFrameRateOptions, 'jankLevels'>>;
   // 分级卡顿模型（构造时规范化）：_tiers 升序，空表示未启用分级。

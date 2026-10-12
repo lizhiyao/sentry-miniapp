@@ -78,6 +78,8 @@ flowchart TD
 
 自身的 flush 清理通过成功／失败两条 then 分支完成，不依赖 Promise.finally。core-js 不提供 TextEncoder，SDK 的字节预算也需要无需分配编码结果的长度计算，因此 `coreCompat` 保留共用 UTF-8 标量转换；精确 ArrayBuffer 复制属于宿主请求适配。TextEncoder 经过构造及 UTF-8 标量编码检查；缺失、空壳或编码失败时，通过 Core 公开 singleton 注册现有 UTF-8 回退，保留已有编码 singleton，不改写宿主 TextEncoder。构建语法转换、标准库补齐和宿主 API 检测分别解决不同层面的兼容性，不能相互替代。
 
+构建通过 `scripts/internal/share-corejs-helpers.mjs` 共享固定版本两种 core-js 模式中源码及完整依赖闭包一致的基础模块。全局安装、pure 的 path／export、模式标记和可变注册表保持独立；构建不复制标准算法，也不把整个 pure 包替换为全局包。依赖升级前必须复核共享边界，版本守卫会阻止未经复核的构建。ESM 产物压缩格式空白并保留 PURE 注释供消费端 tree-shaking；独立 JS 的原始字节预算由 `check:bundle-size` 在标准与小程序构建中检查，测量方法和证据见[包体积审查](docs/bundle-size-review.md)。
+
 ### runtime 构造与替换
 
 `init()` 的主要顺序是：
@@ -91,7 +93,7 @@ flowchart TD
 
 ### 集成实例与默认组合
 
-集成的公共形式是 factory，返回类型只承诺 Core `Integration`，内部清理方法不作为公共 API。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
+集成的公共形式是 factory，返回类型只承诺 Core `Integration`，内部清理方法不作为公共 API。集成名称直接保存在实例上，不通过 class 静态赋值初始化，避免模块求值副作用让消费端保留未使用的可选集成。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。
 
 默认装配显式包含 `spanStreamingIntegration()`：自定义 `Client` 不会自动获得其它官方宿主 SDK 的集成组合。移除它后，业务 span 和请求 span 都不会经默认 stream 管道发送。性能 Observer 和 FPS 属于可选宿主能力，不能成为基础 HTTP tracing 的前提。
 
@@ -257,7 +259,7 @@ client 构造时选择 transport 组合，前三行适用于 `init()` 管理的 
 
 SDK 复用 `makeOfflineTransport` 管理入库和重试，只补 `shouldSend`／`shouldStore`、受控 store 与重放句柄。重放在授权、前台恢复、网络恢复或 flush 入口唤醒；不另写第二个 backoff 引擎，也不把 offline 重放当成持久 ACK。
 
-Core 11.4 没有公开的 offline timer 取消接口。永久 shutdown 先关闭重放／存储门禁，再用公开无参数 transport flush 将长退避替换为一次最短 tick（当前 100ms）；该 tick 不读盘、不发网。已关闭的底层 flush 门禁避免清理时再启动用户任务；晚到发送的 SDK 等待已结算，不会把原响应的 Retry-After 重新带回重试。临时 stopReplay 保留暂停／恢复语义，不当作永久关闭。
+Core 11.6 没有公开的 offline timer 取消接口。永久 shutdown 先关闭重放／存储门禁，再用公开无参数 transport flush 将长退避替换为一次最短 tick（当前 100ms）；该 tick 不读盘、不发网。已关闭的底层 flush 门禁避免清理时再启动用户任务；晚到发送的 SDK 等待已结算，不会把原响应的 Retry-After 重新带回重试。临时 stopReplay 保留暂停／恢复语义，不当作永久关闭。
 
 Core 默认 transport 将发送 Promise 拒绝记为 `network_error` client report；撤回同意导致在途／排队请求取消时也沿用这一语义。符合缓存策略的原 envelope 可同时入库，重新同意后仍可能送达。因此该计数不能解释成最终永久丢失条数，也不能仅凭它判断 consent 失效。SDK 不拦截或重写 Core outcome 管道；回归检查取消后的缓存、重放事件和最终 client report 三者，而不是消除这个计数。
 
@@ -289,6 +291,8 @@ UTF-8 编码与字节预算共用 `coreCompat` 的标量转换，TextEncoder 不
 集成使用 factories，性能数据使用单一 stream 管道，buffer 由 Core 管理。评判替换实现的依据是：是否减少重复算法、能否保留可观察语义，以及是否缩小升级时需要复核的接缝。与同版本 Browser、Node、Deno、Cloudflare 的实践对照及本项目取舍见[官方 SDK 对照](docs/sdk-official-practices.md)。
 
 升级 Core 必须阅读候选源码的签名、调用顺序和实现差异，检查上述接缝、公开 hook、stream 格式、offline 行为与编码契约，并运行真实 Core 和实际发布包回归。类型检查通过不能替代行为验证；调整精确依赖和结论应一并写入升级 PR。
+
+重新初始化时先退休旧 MiniappClient，再通过公开 Scope API 解除仍指向它的当前绑定；旧实例继续通过自己的 scope 排空。这避免 Core 将已退休实例当作活动 client，不依赖 Core 的私有关闭标记。顶层 close 的解除绑定由 Core 负责，实例 close／dispose 只负责自己的资源。具体版本差异与证据见 [Core 11.6 升级复核](docs/core-11.6-review.md)。
 
 ## 8. 构建、映射与发布的职责关系
 

@@ -1,6 +1,29 @@
-# 主包体积优化（分包异步加载）
+# 主包体积优化
+
+<span id="主包体积优化-分包异步加载"></span>
 
 小程序「主包体积」很宝贵。`sentry-miniapp` 包含 `@sentry/core` 引擎与多端适配，实际占用随 SDK 版本、构建格式和打包方式变化，应以项目的最终产物和平台包体积分析为准；gzip 后的大小不能代替小程序包体积。如果你很在意主包体积，可以把 SDK 放到分包并异步初始化。
+
+## 先确认实际占用
+
+- npm 展示的解包总量包含 ESM／CommonJS／UMD、类型声明和 Source Map，不代表小程序需要打入的体积；项目只应使用所需的构建格式。
+- 用平台开发者工具或框架构建分析查看最终 JS 属于主包还是分包，并检查是否出现 SDK 或 Core 的重复副本。
+- 关闭性能、日志等可选采集会改变运行行为，不保证对应代码从产物中移除。ESM 的按需裁剪取决于打包器和实际引用；独立 CommonJS／UMD 文件包含完整 SDK。
+
+## 框架项目先检查 ESM 按需打包
+
+Taro、uni-app 等构建项目，先确认打包器实际使用 ESM 入口，再查看最终包分析。明确引用使用的 API；需要宿主性能条目时才添加 `performanceIntegration()`。没有使用的 Performance API、HTTP 上下文集成可以被支持 tree-shaking 的打包器移除，已有的默认集成和跨端回退仍会保留。
+
+```javascript
+import { init, performanceIntegration } from 'sentry-miniapp';
+
+init({
+  dsn: 'YOUR_DSN',
+  integrations: [performanceIntegration()], // 需要宿主性能条目时添加
+});
+```
+
+不需要该能力时移除这项导入和配置。避免通过动态属性名读取整个 SDK 或集成命名空间，这可能让打包器保留所有出口。不同工具链的结果可能不同，仍须以最终小程序产物为准；这项裁剪不会让独立 CommonJS 文件变成按需版本。
 
 ## 方案 A：微信原生分包异步化
 

@@ -90,12 +90,11 @@ export class GlobalHandlers implements Integration {
   /**
    * @inheritDoc
    */
-  public static id: string = 'GlobalHandlers';
 
   /**
    * @inheritDoc
    */
-  public name: string = GlobalHandlers.id;
+  public name = 'GlobalHandlers';
 
   /** JSDoc */
   private readonly _options: GlobalHandlersIntegrations;

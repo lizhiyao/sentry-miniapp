@@ -19,8 +19,7 @@ import type { MiniappOptions } from '../types';
  * - 监听 onShow / onHide 记录前后台切换面包屑（携带场景值）。
  */
 export class MinigameIntegration implements Integration {
-  public static id: string = 'Minigame';
-  public name: string = MinigameIntegration.id;
+  public name = 'Minigame';
 
   // _initTs 用时长时钟（now()）测量耗时；_initEpoch 用 epochNow() 表达 span 的绝对起点。
   // 两者目前同为墙钟毫秒，但保留语义区分：前者只做差值，后者用于 Sentry 时间戳。

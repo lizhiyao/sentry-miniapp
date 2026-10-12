@@ -4,12 +4,12 @@
 
 ## Core 接缝与宿主职责
 
-当前 SDK 的实际 ESM／CJS 产物包含两条读取全局 `URLSearchParams` 的 Core 11.4.0 路径：
+当前 SDK 的实际 ESM／CJS 产物包含两条读取全局 `URLSearchParams` 的 Core 11.6.0 路径：
 
-- [envelope 鉴权地址](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/api.ts)：由 record 生成查询字符串。
-- [查询参数过滤](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/utils/data-collection/filterQueryParams.ts)：网络 span 的 `getHttpSpanDetailsFromUrlObject` 路径解码参数名称，保留原编码、顺序和重复键。宿主缺完整 URL 时，该 URL 对象路径跳过，SDK 仍通过自身的采集策略生成属性。
+- [envelope 鉴权地址](https://github.com/getsentry/sentry-javascript/blob/11.6.0/packages/core/src/api.ts)：由 record 生成查询字符串。
+- [查询参数过滤](https://github.com/getsentry/sentry-javascript/blob/11.6.0/packages/core/src/utils/data-collection/filterQueryParams.ts)：网络 span 的 `getHttpSpanDetailsFromUrlObject` 路径解码参数名称，保留原编码、顺序和重复键。宿主缺完整 URL 时，该 URL 对象路径跳过，SDK 仍通过自身的采集策略生成属性。
 
-Core 的[请求数据规范化集成](https://github.com/getsentry/sentry-javascript/blob/11.4.0/packages/core/src/integrations/requestdata.ts)另有 pair 序列输入，但本 SDK 没有装配或重导出该集成，实际产物也不包含它。不能用这条未使用的路径证明本项目必须增加兼容实现。
+Core 的[请求数据规范化集成](https://github.com/getsentry/sentry-javascript/blob/11.6.0/packages/core/src/integrations/requestdata.ts)另有 pair 序列输入，但本 SDK 没有装配或重导出该集成，实际产物也不包含它。不能用这条未使用的路径证明本项目必须增加兼容实现。
 
 Core 没有公开的查询参数构造器注入接缝。只设置 tunnel 可以绕开鉴权地址构造，不能补齐实际使用的查询参数过滤；自行复制 endpoint 或过滤算法也会扩大 Core 升级时需要维护的实现范围。
 
@@ -17,7 +17,7 @@ SDK 在 `coreCompat.ensureURLSearchParams` 中只检查实际路径需要的 rec
 
 ## 必要性与取舍的证据
 
-[v1.20.4](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/src/polyfills.ts) 已经包含手写 URLSearchParams 回退，并非完全依靠宿主。其 [Core 10.74.0](https://github.com/getsentry/sentry-javascript/blob/10.74.0/packages/core/src/api.ts) 与当前 Core 11.4.0 的 endpoint 都使用 record 构造查询字符串；正常 DSN 鉴权与固定 SDK 名称／版本主要是 ASCII 输入。复核 v1 回退与真实 Core 11 的组合，普通 endpoint 和 `safe=a+b&token=secret&dup=1&dup=2` 的 span 查询脱敏均可正常工作。没有用户报告故障，与常见路径能够工作并不矛盾；升级 Core 本身不能证明必须替换这个回退。
+[v1.20.4](https://github.com/lizhiyao/sentry-miniapp/blob/v1.20.4/src/polyfills.ts) 已经包含手写 URLSearchParams 回退，并非完全依靠宿主。其 [Core 10.74.0](https://github.com/getsentry/sentry-javascript/blob/10.74.0/packages/core/src/api.ts) 与当前 Core 11.6.0 的 endpoint 都使用 record 构造查询字符串；正常 DSN 鉴权与固定 SDK 名称／版本主要是 ASCII 输入。复核 v1 回退与真实 Core 11 的组合，普通 endpoint 和 `safe=a+b&token=secret&dup=1&dup=2` 的 span 查询脱敏均可正常工作。没有用户报告故障，与常见路径能够工作并不矛盾；升级 Core 本身不能证明必须替换这个回退。
 
 改用成熟依赖的主要收益是删除重复维护的解析、编码与迭代算法。v1 回退在直接解析 `+`、非法 UTF-8 或序列化孤立 surrogate 时存在标准行为差异，但这些独立输入探针不能证明常规 SDK 上报失败。不能仅为扩大标准测试覆盖而无限增加兼容范围。
 
@@ -48,6 +48,10 @@ SDK 在 `coreCompat.ensureURLSearchParams` 中只检查实际路径需要的 rec
 行为对照使用同一组输入：`{ key: '\ud800' }` 与 `'key=\ud800'` 的 get 结果应为 U+FFFD；Symbol 值应抛 TypeError；`'key=%ED%A0%80%E4%B8%41%C2%C2%A9'` 解码应为 `'����A�©'`；迭代中删除下一条再修改后一条，应读取当前后一条。这些差异通过独立进程加载候选发布包检查，并非从 README 的功能列表推断。
 
 同版本 core-js-pure 加小范围补丁是当前保留行为和跨端边界的选择；无需重新维护编解码器、迭代器或引入完整浏览器请求模型。这组候选探针支持当前取舍，但没有证明所有差异都影响 SDK 上报，也没有穷尽其它可行方案。
+
+## 构建体积边界
+
+全局 core-js 与 core-js-pure 保留不同的安装与导出语义，不能整包互相 alias。构建只共享已审查版本中源码及完整依赖闭包一致的基础模块，并排除两种模式的注册表、强制配置与 UID 状态；间接依赖不同的模块同样保持独立。版本升级会触发构建守卫，须先审查共享边界并验证实际安装包的宿主能力场景。当前收益、消费端构建结果和预算见[包体积审查](bundle-size-review.md)。
 
 ## 补丁范围与维护规则
 
