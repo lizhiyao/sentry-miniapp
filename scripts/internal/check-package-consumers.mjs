@@ -10,6 +10,7 @@ import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { pack, unpack } from '@publint/pack';
 import { checkPackageTreeShaking } from './check-package-tree-shaking.mjs';
+import { checkPackageLite } from './check-package-lite.mjs';
 
 const execFileAsync = promisify(execFile);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -81,7 +82,7 @@ async function unpackPackage(tarball, packageRoot) {
   }
 }
 
-function runtimeProbe(moduleSyntax) {
+function runtimeProbe(moduleSyntax, specifier = 'sentry-miniapp') {
   const required = JSON.stringify(requiredExports);
   const platforms = JSON.stringify(platformContracts);
   const load = `${moduleSyntax === 'esm' ? "import assert from 'node:assert/strict';" : "const assert = require('node:assert/strict');"}
@@ -152,7 +153,7 @@ if (runtimeMode === 'native-query-only') {
 } else if (runtimeMode === 'partial-encoder') {
   globalThis.TextEncoder = class TextEncoder {};
 }
-const sdk = ${moduleSyntax === 'esm' ? "await import('sentry-miniapp')" : "require('sentry-miniapp')"};
+const sdk = ${moduleSyntax === 'esm' ? 'await import(' + JSON.stringify(specifier) + ')' : 'require(' + JSON.stringify(specifier) + ')'};
 if (runtimeMode === 'unreadable-browser') {
   assert.equal(browserReads, 0, 'SDK inspected unrelated browser transports');
   for (const [index, name] of browserNames.entries()) Object.defineProperty(globalThis, name, browserDescriptors[index]);
@@ -489,6 +490,10 @@ import {
   type PerformanceIntegrationOptions,
 } from 'sentry-miniapp';
 
+import { init as initLite, type MiniappOptions as LiteOptions } from 'sentry-miniapp/lite';
+declare const liteOptions: LiteOptions;
+initLite(liteOptions);
+
 declare const options: MiniappOptions;
 const miniappPlatform: MiniappPlatform = 'wechat';
 const performanceOptions: PerformanceIntegrationOptions = {};
@@ -556,7 +561,13 @@ try {
     ).trim();
     assert.ok(notices.includes(license), `Missing bundled license: ${dependency}`);
   }
-  for (const bundle of ['sentry-miniapp.cjs.js', 'sentry-miniapp.mjs', 'sentry-miniapp.umd.js']) {
+  for (const bundle of [
+    'sentry-miniapp.cjs.js',
+    'sentry-miniapp.mjs',
+    'sentry-miniapp.umd.js',
+    'sentry-miniapp-lite.mjs',
+    'sentry-miniapp-lite.cjs.js',
+  ]) {
     assert.ok(
       (await readFile(join(packageRoot, 'dist', bundle), 'utf8')).includes(notices.trim()),
       `Standalone bundle omitted notices: ${bundle}`,
@@ -574,6 +585,8 @@ try {
     access(join(packageRoot, wechatEntry)),
     access(join(packageRoot, packageJson.exports['.'].import.types)),
     access(join(packageRoot, packageJson.exports['.'].require.types)),
+    access(join(packageRoot, packageJson.exports['./lite'].import.types)),
+    access(join(packageRoot, packageJson.exports['./lite'].require.types)),
   ]);
   await writeConsumer(
     join(tempRoot, 'package.json'),
@@ -581,6 +594,17 @@ try {
   );
 
   await checkPackageTreeShaking(tempRoot, runNode);
+  await checkPackageLite(tempRoot, packageRoot, runNode);
+  for (const format of ['cjs', 'esm']) {
+    const liteConsumer = join(tempRoot, `lite-platform.${format === 'esm' ? 'mjs' : 'cjs'}`);
+    await writeConsumer(liteConsumer, runtimeProbe(format, 'sentry-miniapp/lite'));
+    for (const contract of platformContracts) {
+      const result = await runNode(liteConsumer, tempRoot, {
+        scriptArgs: [contract.platform, 'native-builtins'],
+      });
+      assert.equal(result.stderr, '', result.stderr);
+    }
+  }
 
   const cjsConsumer = join(tempRoot, 'consumer.cjs');
   const esmConsumer = join(tempRoot, 'consumer.mjs');

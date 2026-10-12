@@ -57,6 +57,8 @@ Install:
 npm install sentry-miniapp
 ```
 
+> The next release will provide `sentry-miniapp/lite` for apps that already supply the required runtime capabilities, avoiding duplicated standard-library polyfills. It is not available in npm version 2.0.0. See [requirements and release status](https://sentry-miniapp.pages.dev/guide/bundle-size#已有兼容能力的项目使用精简入口).
+
 For native WeChat projects, run **Tools → Build npm** in WeChat Developer Tools after installing or updating the SDK. See [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started#_1-安装) for directory requirements. Taro and uni-app handle dependencies through their framework builds.
 
 > Not using npm? Download the versioned `sentry-miniapp.umd.js` asset from [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases), place it in your project's `lib/` directory, and replace the import below with `const Sentry = require('./lib/sentry-miniapp.umd.js');`. To run the WeChat example from source, generate its local bundle with `yarn build:miniapp`.
