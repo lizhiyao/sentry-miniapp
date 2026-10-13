@@ -28,6 +28,7 @@ export const REPLAY_STYLES = [
   'zIndex',
   'borderLeftWidth',
   'borderTopWidth',
+  'borderBottomWidth',
 ] as const;
 const PRIVATE_KINDS = new Set([
   'input',
@@ -193,7 +194,18 @@ export function projectFrame(
       // 内联 text 的测量宽度可能正好等于字形总宽；浏览器字体差异不能多造一行。
       const fontSize = parseFloat(String(raw['fontSize']));
       const lineHeight = parseFloat(String(raw['lineHeight'])) || fontSize * 1.6;
-      if (kind === 'text' && !text.includes('\n') && h <= lineHeight) style += 'white-space:pre;';
+      const inset = (key: string, fallback = 0): number => {
+        const value = parseFloat(String(raw[key]));
+        return Math.max(0, Number.isFinite(value) ? value : fallback);
+      };
+      const textHeight =
+        h -
+        inset('paddingTop') -
+        inset('paddingBottom') -
+        inset('borderTopWidth', inset('borderWidth')) -
+        inset('borderBottomWidth', inset('borderWidth'));
+      if (kind === 'text' && !text.includes('\n') && textHeight <= lineHeight)
+        style += 'white-space:pre;';
       const clip = ancestor?.box.clip ?? { left: 0, top: 0, right: width, bottom: height };
       const visible = {
         left: Math.max(left, clip.left),

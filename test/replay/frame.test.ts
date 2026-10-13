@@ -274,7 +274,13 @@ describe('布局投影与官方 rrweb 播放', () => {
   ])('非法或超量结果跳过：%j', (results) =>
     expect(projectFrame(results, 'page', 1)).toBeUndefined(),
   );
-  it('坏节点、零尺寸和屏幕外节点跳过，点击落在最后一个可见盒子', () => {
+  it.each([
+    { height: 20, nowrap: true },
+    { height: 21, fontSize: '11px', paddingTop: '3px', paddingBottom: '3px', nowrap: true },
+    { height: 31, paddingTop: '3px', paddingBottom: '3px', borderWidth: '2px', nowrap: true },
+    { height: 24, borderWidth: '2px', borderTopWidth: '0px', borderBottomWidth: '0px', nowrap: false },
+    { height: 48, paddingTop: '3px', paddingBottom: '3px', nowrap: false },
+  ])('坏节点跳过，文字按内容高度保留换行：%j', ({ nowrap, ...metrics }) => {
     const bad = {
       get dataset() {
         throw new Error('blocked');
@@ -292,14 +298,14 @@ describe('布局投影与官方 rrweb 播放', () => {
           box({ left: 1000 }),
           box({ dataset: {} }),
           box({ dataset: { sentryReplayType: 'video' } }),
-          box({ height: 20, fontSize: '14px', lineHeight: 'normal' }),
+          box({ fontSize: '14px', lineHeight: 'normal', ...metrics }),
         ],
       ],
       'page',
       20,
     )!;
     expect(frame.nodes.map((node) => node.text)).toEqual(['', '[video]', '*** ***********']);
-    expect(frame.nodes[2]!.style).toContain('white-space:pre;');
+    expect(frame.nodes[2]!.style.includes('white-space:pre;')).toBe(nowrap);
     for (const x of [NaN, -1, 376]) expect(clickEvent(frame, x, 0, 0)).toBeUndefined();
     expect(clickEvent(frame, 10, 10, 0)).toMatchObject({ data: { id: 5 } });
     expect(clickEvent(frame, 30, 50, 0)).toMatchObject({ data: { id: 14 } });
