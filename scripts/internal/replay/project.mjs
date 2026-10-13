@@ -10,15 +10,53 @@ function within(root, path) {
   return rel !== '' && !rel.startsWith('..' + sep) && rel !== '..' && !isAbsolute(rel);
 }
 function local(root, from, name, extension) {
-  if (typeof name !== 'string' || name.includes('{{') || /^(?:plugin|dynamicLib):/.test(name))
+  if (typeof name !== 'string' || !name || name.includes('{{') || /\0|^[\w+-]+:/.test(name))
     throw new Error('Unsupported replay dependency: ' + name);
+  name = name.replace(/\\/g, '/');
   const file = resolve(
     name.startsWith('/') ? root : dirname(from),
     '.' + (name.startsWith('/') ? name : sep + name),
   );
   const resolved = extname(file) === extension ? file : file + extension;
   if (!within(root, resolved)) throw new Error('Replay dependency escapes project: ' + name);
+  if (
+    relative(root, resolved)
+      .split(sep)
+      .some((part) => ignored.has(part))
+  )
+    throw new Error('Replay dependency uses excluded directory: ' + name);
   return resolved;
+}
+async function isFile(path) {
+  try {
+    return (await lstat(path)).isFile();
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return false;
+    throw error;
+  }
+}
+async function component(root, { from, name }) {
+  const candidates = [];
+  const add = (file) => candidates.push(file, join(file.slice(0, -5), 'index.wxml'));
+  // 与微信编译器一致：本地文件／目录入口优先，再逐级查找已构建 npm。
+  add(local(root, from, name, '.wxml'));
+  if (!name.startsWith('.') && !name.startsWith('/')) {
+    for (let folder = dirname(from); ; folder = dirname(folder)) {
+      add(local(root, join(folder, 'miniprogram_npm', '_resolver.json'), name, '.wxml'));
+      if (folder === root) break;
+    }
+  }
+  for (const file of candidates)
+    if ((await isFile(file)) && (await isFile(file.replace(/\.wxml$/, '.json')))) return file;
+  throw new Error(
+    'Replay component not found: ' +
+      name +
+      ' in ' +
+      relative(root, from) +
+      '。若使用 npm 组件，请先在微信开发者工具执行「工具 → 构建 npm」，' +
+      '再对包含 miniprogram_npm 的项目生成回放标记。Searched: ' +
+      candidates.map((file) => relative(root, file)).join(', '),
+  );
 }
 async function json(path, optional = false) {
   try {
@@ -54,9 +92,26 @@ export async function instrumentWechatProject({ input, output, pages }) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  // 在读取依赖前检查链接，避免先跟随项目外资源；node_modules 不复制。
+  const check = async (folder) => {
+    for (const entry of await readdir(folder, { withFileTypes: true })) {
+      if (ignored.has(entry.name)) continue;
+      const path = join(folder, entry.name);
+      if (entry.isSymbolicLink())
+        throw new Error('Symlinks are unsupported in replay output: ' + relative(source, path));
+      if (entry.isDirectory()) await check(path);
+    }
+  };
+  await check(source);
   const config = await json(join(source, 'project.config.json'), true);
   const root = resolve(source, config.miniprogramRoot || '.');
   if (root !== source && !within(source, root)) throw new Error('miniprogramRoot escapes project');
+  if (
+    relative(source, root)
+      .split(sep)
+      .some((part) => ignored.has(part))
+  )
+    throw new Error('miniprogramRoot uses excluded directory');
   const app = await json(join(root, 'app.json'));
   const knownPages = new Set([
     ...(app.pages || []),
@@ -72,12 +127,17 @@ export async function instrumentWechatProject({ input, output, pages }) {
   );
   const sources = new Map(),
     componentMaps = new Map(),
+    ownTags = new Map(),
     imported = new Map();
   const collect = async (file, inherited = new Map()) => {
     if (sources.has(file)) {
       const previous = componentMaps.get(file);
-      for (const [tag, target] of inherited) {
-        if (previous.has(tag) && previous.get(tag) !== target)
+      for (const [tag, binding] of inherited) {
+        if (
+          previous.has(tag) &&
+          !ownTags.get(file).has(tag) &&
+          previous.get(tag) !== (await component(root, binding))
+        )
           throw new Error(
             'Conflicting template component binding: ' + tag + ' in ' + relative(root, file),
           );
@@ -89,6 +149,7 @@ export async function instrumentWechatProject({ input, output, pages }) {
     const imports = dependencies(sourceText).map((name) => local(root, file, name, '.wxml'));
     imported.set(file, imports);
     const metadata = await json(file.replace(/\.wxml$/, '.json'), true);
+    ownTags.set(file, new Set(Object.keys(metadata.usingComponents || {})));
     const tags = new Set();
     const visit = (nodes) =>
       nodes.forEach((node) => {
@@ -96,16 +157,27 @@ export async function instrumentWechatProject({ input, output, pages }) {
         visit(node.children);
       });
     visit(parseWxml(sourceText));
+    const relativeFile = relative(root, file).split(sep).join('/');
+    const independent = (app.subPackages || app.subpackages || []).some(
+      (pkg) => pkg.independent && relativeFile.startsWith(pkg.root.replace(/\/$/, '') + '/'),
+    );
+    // npm 内部组件与独立分包不继承 app.json 的全局组件声明。
+    const globals =
+      relativeFile.split('/').includes('miniprogram_npm') || independent
+        ? {}
+        : app.usingComponents || {};
     const map = new Map(
-      Object.entries(app.usingComponents || {}).map(([tag, path]) => [
+      Object.entries(globals).map(([tag, path]) => [
         tag,
-        local(root, join(root, 'app.json'), path, '.wxml'),
+        { from: join(root, 'app.json'), name: path },
       ]),
     );
     for (const [tag, target] of inherited) map.set(tag, target);
     for (const [tag, path] of Object.entries(metadata.usingComponents || {}))
-      map.set(tag, local(root, file, path, '.wxml'));
-    const used = new Map([...map].filter(([tag]) => tags.has(tag)));
+      map.set(tag, { from: file, name: path });
+    const used = new Map();
+    for (const [tag, binding] of map)
+      if (tags.has(tag)) used.set(tag, await component(root, binding));
     // 全局组件路径相对于 app.json，局部定义相对于当前页面或组件。
     componentMaps.set(file, used);
     for (const dependency of imports) await collect(dependency, map);
@@ -150,17 +222,6 @@ export async function instrumentWechatProject({ input, output, pages }) {
       instrumentWxml(content, { sourceId: ids.get(file), components, page: selected.has(file) }),
     );
   }
-  // 检查所有源文件的符号链接，副本不跟随项目外资源或循环链接。
-  const check = async (folder) => {
-    for (const entry of await readdir(folder, { withFileTypes: true })) {
-      if (ignored.has(entry.name)) continue;
-      const path = join(folder, entry.name);
-      if (entry.isSymbolicLink())
-        throw new Error('Symlinks are unsupported in replay output: ' + relative(source, path));
-      if (entry.isDirectory()) await check(path);
-    }
-  };
-  await check(source);
   await mkdir(dirname(destination), { recursive: true });
   await cp(source, destination, {
     recursive: true,

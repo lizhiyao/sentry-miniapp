@@ -56,12 +56,14 @@ Envelope 头复用 Core 的 `createEventEnvelopeHeaders` 与 `getSdkMetadataForE
 
 同一录制已在 Sentry Replay 列表和播放器读回：初始布局、状态更新、节点消失、点击指针与输入占位可见，页面地址正常展示。错误 `3a045f435bf8493281e368885d070e14` 已列入录制活动，错误详情可反向打开同一回放。设置 `dataCollection.userInfo: false` 后，实际分段携带 `infer_ip: never`，后台显示匿名用户。示例仍保留 `setUser()` 的固定演示值，不将自动 IP 开关描述为删除所有业务显式数据。
 
-以上证据来自 IDE 模拟器与 Sentry SaaS；iPhone 真机、设备性能、其它基础库、跨组件框架产物和自建 Sentry 部署未作验收保证。实施与验收证据持续维护在 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
+以上证据来自 IDE 模拟器与 Sentry SaaS；iPhone 真机、设备性能、其它基础库、跨组件框架产物和自建 Sentry 部署未作验收保证。已有实现与验收证据保留在 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)，后续任务统一由 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533) 跟踪。
 
 
 ## 构建适配与复杂组件
 
 Node 工具使用 htmlparser2 解析 WXML、Babel Parser 验证绑定边界、entities 编码 XML 属性，不 eval 业务表达式。只输出独立项目副本，保留业务 JS/map、原绑定和样式；解析依赖及其许可证归入独立 Node 构建产物，不进入小程序执行代码。静态组件图按 app/局部 usingComponents、import/include 解析；模板型框架入口明确拒绝，不能无证据扩大框架覆盖。
+
+组件路径解析以微信已经构建的项目为输入，遵循本地文件／目录入口优先、再逐级查找 `miniprogram_npm` 的顺序，并要求组件的 JSON 与 WXML 均存在；不替代微信 npm 构建，也不读取或复制 `node_modules`。声明保留自己的来源文件，避免全局引用被错误解释成页面相对路径；只有实际出现的组件标签才解析依赖。npm 内部组件与独立分包不继承 app 的全局声明，import/include 继续继承引用处的组件环境，相同模板被不同组件绑定引用时明确拒绝。读取依赖前检查源项目中的符号链接，拒绝外部资源、路径逃逸和被排除目录。
 
 微信实际查询证明 mark 只保留当前组件内的祖先，进入组件内部会重置。生成标记包含来源、直接父节点和组件目标来源闭包；查询前序用于进入新组件实例，局部 mark 注册表区分重复列表，slot 返回声明它的作用域。父信息缺失时保守跳过；遮蔽与 block 在读取后代文字前继承。快照按 rrweb 的标准 childNodes 重建树，位置相对父盒子和边框，scroll-view 的 overflow 用于裁剪与点击可见范围。私人输入和媒体无论 unmask 均使用占位。
 

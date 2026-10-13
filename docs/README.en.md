@@ -37,7 +37,7 @@ Automatic collection depends on host capabilities. React / Vue component errors 
 
 ---
 
-Experimental WeChat page replay is available in source builds through a separate entry, with build-generated annotations for selected pages and bounded layout coverage. npm `2.0.2` does not include it. See the [guide](https://sentry-miniapp.pages.dev/guide/page-replay) and [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) for implementation and backend acceptance.
+Experimental WeChat page replay is available in source builds through a separate entry, with build-generated annotations for selected pages and bounded layout coverage. Build WeChat npm components before generating annotations. npm `2.0.2` does not include it. See the [guide](https://sentry-miniapp.pages.dev/guide/page-replay), [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) for existing implementation and backend evidence, and [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533) for component compatibility and remaining acceptance work.
 
 ## Setup Requirements
 
@@ -138,7 +138,7 @@ After the first event is working, pick the guide based on what you are doing nex
 - **Why do uni-app / Taro component errors need extra wiring?** Frameworks may catch component errors before they reach the platform global `onError`. Use `app.config.errorHandler` / `Vue.config.errorHandler` for Vue, and an Error Boundary for Taro React.
 - **Will it send requests before privacy consent?** By default the SDK reports normally according to your config. If your app must avoid network requests before consent, enable `requireConsent` and call `Sentry.setConsent(true)` once the user grants consent.
 - **Can I disable automatic IP enrichment for error events?** Set `dataCollection: { userInfo: false }`. Explicit `setUser()` fields remain; filter them before capture when needed. Existing applications should follow the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) before updating.
-- **Session Replay or H5 builds?** Mini programs have no DOM, so official Session Replay is not supported. For H5 builds, use official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); keep `sentry-miniapp` for mini program builds.
+- **Session Replay or H5 builds?** Mini program logic cannot directly access the rendering layer's DOM, so official browser Session Replay cannot run there. Source builds provide [experimental WeChat layout replay](https://sentry-miniapp.pages.dev/guide/page-replay) through public node queries, with limited coverage. For H5 builds, use official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); keep `sentry-miniapp` for mini program builds.
 
 > Full answers on the **[docs site · FAQ](https://sentry-miniapp.pages.dev/guide/faq)**.
 

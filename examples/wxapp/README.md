@@ -10,7 +10,7 @@
 
 仅运行 `yarn build:miniapp` 时，原始项目会生成 SDK 与可选录制器，自动回放页提示先生成标记；功能验证中的低层手动标记示例仍可使用。新页面的录制导出只用于开发验收，最多保留最近 20 个已提交分段，业务不要复制这套导出钩子。
 
-这是实验性布局投影，不复制输入值、图片地址或页面 data，不保证原生绘制、字体与动画完全复现。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，实际验收进展见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
+这是实验性布局投影，不复制输入值、图片地址或页面 data，不保证原生绘制、字体与动画完全复现。使用 npm 组件时，先完成微信的 npm 构建，再对包含 `miniprogram_npm` 的项目生成回放标记。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，已有验收证据见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)，后续任务见 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
 
 示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，保留其它演示中的固定 `setUser()` 调用，分别核对自动采集与显式数据。`miniapp.invalid` 仅用于展示，不需要配置合法域名。示例文案允许显示，输入框不要填写真实个人信息。
 
