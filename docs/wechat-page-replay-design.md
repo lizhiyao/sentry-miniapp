@@ -30,9 +30,13 @@
 
 默认只读取 `.sentry-replay` 的位置、尺寸、白名单样式和明确的文字标记。输入、图片与原生绘制内容使用占位；不复制页面 data、任意 dataset 或输入值。Meta 的路由去掉 query/fragment。
 
+回放的页面地址使用保留域名 `https://miniapp.invalid/` 加实际路由，只用于播放器展示，不执行网络请求。Sentry 播放器按标准 URL 的 origin 展示页面，使用自定义协议会出现 `null` 前缀。堆栈与 Source Map 的 `app:///` 路径保持原有职责。
+
 每个异步查询固定开始时的页面与录制 generation，提交前再次核对活动 client 和页面。查询超时、后台、停止、同意撤回及 client 关闭会结清等待；留在宿主中的旧回调释放 Recorder 和 Promise resolver 引用。销毁控制器清空 client 引用；公开 start 不能复活已替换的实例。
 
 Replay 与错误使用官方的 `event.tags.replayId` 关联；已有标识不覆盖。`preprocessEvent` 将捕获时的录制标识绑定到 EventHint 的 WeakMap，`postprocessEvent` 在 scope 合并之后写入标签，避免异步 processor 把旧错误归到新录制。只有 afterSendEvent 返回 2xx 的错误 ID 才进入录制 metadata。Replay event 与 recording 组成一个 envelope；recording 为 segment header 换行加 rrweb 数组，header length 使用 UTF-8 字节数。
+
+Envelope 头复用 Core 的 `createEventEnvelopeHeaders` 与 `getSdkMetadataForEnvelopeHeader`，遵循官方 Replay 的 SDK／tunnel 字段处理。Replay payload 携带当前 Client 的 SDK metadata，其中自动 IP 推断沿用 `dataCollection.userInfo` 对应的 `infer_ip`；模板文字的显式解除遮蔽仍由业务控制。
 
 ## 预算
 
@@ -48,6 +52,8 @@ Replay 与错误使用官方的 `event.tags.replayId` 关联；已有标识不�
 - 微信开发者工具／目标设备：真实节点字段、作用域、性能及平台覆盖。
 - 目标 Sentry：实际接收、关联和播放。协议构建、本地播放和 HTTP 成功分别记录。
 
-实际微信 CLI 已验证标记布局、状态变化、节点消失、滚动和输入占位，并导出录制让官方 rrweb 在 jsdom 重建。CLI 的 Element.tap 交付的事件没有坐标，不补造点击位置来声称真实点击通过；坐标接缝以官方事件定义和 Core 用例验证，原生点击仍待验收。示例导出仅包含本页面的录制、分段元数据和关联错误回执；错误 HTTP 200 仍不代表后台回放播放通过。
+2026-10-13 微信开发者工具 Stable 2.02.2608080／基础库 3.17.4 验证了实际标记布局、状态变化、节点消失、滚动和输入占位。CLI 的 Element.tap 不提供坐标，后续使用原生 UI 控件点击取得真实坐标，没有注入替代位置。最终录制 `98250ea5bfb94a0597139c99c5ee5593` 导出 20 个事件／8 个快照，官方 rrweb 在 jsdom 可重建上述变化；实际测试输入未进入录制。
 
-实施与验收证据持续维护在 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。未完成后台验收时不把本地结果写成已支持的后台能力。
+同一录制已在 Sentry Replay 列表和播放器读回：初始布局、状态更新、节点消失、点击指针与输入占位可见，页面地址正常展示。错误 `3a045f435bf8493281e368885d070e14` 已列入录制活动，错误详情可反向打开同一回放。设置 `dataCollection.userInfo: false` 后，实际分段携带 `infer_ip: never`，后台显示匿名用户。示例仍保留 `setUser()` 的固定演示值，不将自动 IP 开关描述为删除所有业务显式数据。
+
+以上证据来自 IDE 模拟器与 Sentry SaaS；iPhone 真机、设备性能、其它基础库、跨组件框架产物和自建 Sentry 部署未作验收保证。实施与验收证据持续维护在 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。

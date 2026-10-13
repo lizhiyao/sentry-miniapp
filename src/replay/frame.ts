@@ -114,7 +114,8 @@ export function projectFrame(
     nodes,
     scrollLeft: finiteNumber(viewport['scrollLeft']),
     scrollTop: finiteNumber(viewport['scrollTop']),
-    href: 'app:///' + route.split(/[?#]/)[0]!.slice(0, 256),
+    // Sentry 播放器按 URL.origin 展示地址；使用保留域名标识页面，不发起请求。
+    href: 'https://miniapp.invalid/' + route.split(/[?#]/)[0]!.replace(/^\/+/, '').slice(0, 256),
   };
 }
 

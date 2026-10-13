@@ -17,6 +17,7 @@ Page({
             replayId: metadata[1].replay_id,
             segmentId: metadata[1].segment_id,
             errorIds: metadata[1].error_ids,
+            inferIp: metadata[1].sdk?.settings?.infer_ip,
           });
         const recording = envelope[1].find((item) => item[0].type === 'replay_recording');
         if (recording) {

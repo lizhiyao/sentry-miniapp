@@ -31,6 +31,8 @@ Sentry.init({
   dsn: 'https://47703e01ba4344b8b252c15e8fd980fd@o113510.ingest.us.sentry.io/1528228',
   environment: 'production',
   debug: false,
+  // 后台回放验收同时检查关闭自动 IP 推断；setUser 的演示值仍是显式采集。
+  dataCollection: { userInfo: false },
 
   // 小程序特有配置
   enableSystemInfo: true,

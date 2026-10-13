@@ -123,7 +123,10 @@ describe('微信回放真实 Core / 生命周期', () => {
     resetPlatformCache();
   });
   it('公开查询、遮蔽、标准分段和错误关联使用同一 client', async () => {
-    const { client, replay } = make({}, { release: 'replay-test', environment: 'test' });
+    const { client, replay } = make(
+      {},
+      { release: 'replay-test', environment: 'test', dataCollection: { userInfo: false } },
+    );
     expect(replay.getDiagnostics().state).toBe('recording');
     expect(await replay.capture()).toBe(true);
     client.emit('preprocessEvent', { message: 'no hint' }, undefined);
@@ -140,7 +143,13 @@ describe('微信回放真实 Core / 生命周期', () => {
       replay_type: 'session',
       release: 'replay-test',
       environment: 'test',
-      urls: ['app:///pages/replay/index'],
+      urls: ['https://miniapp.invalid/pages/replay/index'],
+      sdk: { settings: { infer_ip: 'never' } },
+    });
+    expect(envelopes[0][0]).toMatchObject({
+      event_id: id,
+      sent_at: '2026-10-13T00:00:00.000Z',
+      sdk: { name: 'sentry.javascript.miniapp', version: client.getSdkMetadata()?.sdk?.version },
     });
     const item = envelopes[0][1].find(([header]) => header.type === 'replay_recording')!;
     expect(item[0].length).toBe(utf8ByteLength(item[1] as string));
@@ -452,6 +461,9 @@ describe('微信回放真实 Core / 生命周期', () => {
     await replay.capture();
     expect(await replay.flush()).toBe(false);
     expect(envelopes[0][0].dsn).toBe('https://test@o0.ingest.sentry.io/0');
+    expect(
+      collectEnvelopePayloads<ReplayEvent>(envelopes, ['replay_event'])[0].sdk?.settings,
+    ).toMatchObject({ infer_ip: 'auto' });
     client.captureException(new Error('not accepted'));
     await vi.advanceTimersByTimeAsync(5);
     expect(recordings()).toHaveLength(1);

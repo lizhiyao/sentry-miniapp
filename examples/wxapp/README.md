@@ -8,6 +8,8 @@
 
 它是实验性布局投影，不复制 input 值、图片地址或页面 data；未标记区域和原生绘制不作完整复现。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，实施证据见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
 
+示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，并保留 `setUser()` 的固定演示值，便于分别核对自动采集和业务显式数据。回放地址中的 `miniapp.invalid` 是展示标识，不需要配置合法域名。
+
 ## 能力概览
 
 - ✅ 应用启动链路监控

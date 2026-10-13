@@ -1,9 +1,10 @@
 import type { eventWithTime } from '@rrweb/types';
 import {
   createEnvelope,
-  dsnToString,
+  createEventEnvelopeHeaders,
   getClient,
   getDiagnostics,
+  getSdkMetadataForEnvelopeHeader,
   MiniappClient,
   utf8ByteLength,
   uuid4,
@@ -527,11 +528,12 @@ class Recorder implements WechatPageReplay {
       const dsn = client.getDsn();
       if (!dsn) return Promise.resolve(false);
       const envelope = createEnvelope(
-        {
-          event_id: replayId,
-          sent_at: new Date().toISOString(),
-          ...(options.tunnel ? { dsn: dsnToString(dsn) } : {}),
-        },
+        createEventEnvelopeHeaders(
+          replayEvent,
+          getSdkMetadataForEnvelopeHeader(replayEvent),
+          options.tunnel,
+          dsn,
+        ),
         [
           [{ type: 'replay_event' }, replayEvent],
           [{ type: 'replay_recording', length: utf8ByteLength(recording) }, recording],

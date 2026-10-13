@@ -68,7 +68,9 @@ describe('布局投影与官方 rrweb 播放', () => {
       '[input]',
       '确认订单',
     ]);
-    expect(frame.href).toBe('app:///pages/order/index');
+    expect(frame.href).toBe('https://miniapp.invalid/pages/order/index');
+    expect(new URL(frame.href).origin).toBe('https://miniapp.invalid');
+    expect(projectFrame([viewport, []], '/pages/order/index?secret', 20)?.href).toBe(frame.href);
     const payload = JSON.stringify(frameEvents(frame, 1000));
     for (const secret of ['13800000000', 'secret', 'private.invalid', 'url('])
       expect(payload).not.toContain(secret);
