@@ -39,6 +39,7 @@ export default defineConfig({
           { text: '异常、日志与上下文', link: '/guide/errors-and-context' },
           { text: '性能与链路追踪', link: '/guide/performance-and-tracing' },
           { text: '可靠上报与隐私同意', link: '/guide/reliability-and-privacy' },
+          { text: '微信页面回放（实验性）', link: '/guide/page-replay' },
         ],
       },
       {
@@ -73,6 +74,7 @@ export default defineConfig({
             { text: '异常、日志与上下文', link: '/guide/errors-and-context' },
             { text: '性能与链路追踪', link: '/guide/performance-and-tracing' },
             { text: '可靠上报与隐私同意', link: '/guide/reliability-and-privacy' },
+            { text: '微信页面回放（实验性）', link: '/guide/page-replay' },
           ],
         },
         {

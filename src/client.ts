@@ -32,6 +32,7 @@ import type {
 } from '@sentry/core';
 
 import { resolveMiniappPlatform } from './crossPlatform';
+import { subscribeMiniappLifecycle } from './appLifecycle';
 import { EnvironmentState, registerClientEnvironment } from './clientState';
 import { ensureEnvelopeEncoding } from './coreCompat';
 import { resolveNonNegativeInteger } from './numericOptions';
@@ -88,6 +89,15 @@ export type MiniappClientOptions = Omit<
 export type MiniappLowLevelClientOptions = MiniappOptions & {
   transport: NonNullable<MiniappOptions['transport']>;
 };
+
+/** 可选宿主 producer 的资源与授权边界；与 Core hook 保持分工。 */
+export interface MiniappAutomaticProducer {
+  onShow: () => void;
+  onHide: () => void;
+  onConsentChange: (granted: boolean) => void;
+  flush: () => void;
+  stop: () => void;
+}
 
 const clientsWithCustomTransport = new WeakSet<MiniappClient>();
 type DefaultIntegrationsMode = 'enabled' | 'disabled' | 'custom';
@@ -167,6 +177,7 @@ function waitForTransport<T>(
  * @see SentryClient for usage documentation.
  */
 export class MiniappClient extends Client<MiniappClientOptions> {
+  private readonly _automaticProducers = new Set<MiniappAutomaticProducer>();
   private readonly _disposeCallbacks: Array<() => void> = [];
   private readonly _lifetime: ClientLifetime;
   private readonly _consent: ConsentController;
@@ -620,7 +631,13 @@ export class MiniappClient extends Client<MiniappClientOptions> {
 
   public setConsent(granted: boolean): void {
     if (this._lifetime.state !== 'open' || !this._consent.config.required) return;
+    const changed = this._consent.isGranted() !== granted;
     this._consent.setGranted(granted);
+    for (const producer of changed ? [...this._automaticProducers] : []) {
+      if (!this._lifetime.canCollectAutomatic()) break;
+      if (!this._automaticProducers.has(producer)) continue;
+      this._runCleanup(() => withTelemetryCritical(() => producer.onConsentChange(granted)));
+    }
     if (!granted) {
       this._transportRuntime?.stopReplay();
       this._revokeTransport();
@@ -643,6 +660,59 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   /** SDK summary 的同步收尾独立于只解除资源的 cleanup。 */
   public registerFinalizer(callback: () => void): () => void {
     return this._lifetime.registerFinalizer(callback);
+  }
+
+  /** 当前实例是否仍拥有 init 的自动观测权限。 */
+  public isActiveRuntime(): boolean {
+    return this._lifetime.canCollectAutomatic() && this.getOptions().enabled !== false;
+  }
+
+  /** 可选入口复用主 SDK 的共享生命周期与停止门，不另装全局监听。 */
+  public registerAutomaticProducer(producer: MiniappAutomaticProducer): () => void {
+    if (!this.isActiveRuntime()) {
+      this._runCleanup(() => producer.stop());
+      return () => {};
+    }
+    this._automaticProducers.add(producer);
+    let current: MiniappAutomaticProducer | undefined = producer;
+    const releases: (() => void)[] = [];
+    const invoke = (key: 'onShow' | 'onHide' | 'flush'): void => {
+      const value = current;
+      if (value) this._runCleanup(() => withTelemetryCritical(() => value[key]()));
+    };
+    const cleanup = (): void => {
+      const value = current;
+      if (!value) return;
+      current = undefined;
+      this._automaticProducers.delete(value);
+      releases.splice(0).forEach((release) => this._runCleanup(release));
+      this._runCleanup(() => value.stop());
+    };
+    const adopt = (release: () => void): void => {
+      if (current) releases.push(release);
+      else this._runCleanup(release);
+    };
+    // 先建立停止门，宿主同步回调关闭 client 时也不会留下半安装资源。
+    adopt(this._lifetime.registerStop(cleanup));
+    const subscription = subscribeMiniappLifecycle(
+      this,
+      {
+        onShow: () => invoke('onShow'),
+        onHide: () => invoke('onHide'),
+      },
+      'after',
+    );
+    adopt(subscription.stop);
+    adopt(
+      this.on('flush', () => {
+        if (this._lifetime.canSend()) invoke('flush');
+      }),
+    );
+    adopt(this.registerFinalizer(() => invoke('flush')));
+    this.registerCleanup(cleanup);
+    if (subscription.initialForeground || this._lifetime.visibility === 'foreground')
+      invoke('onShow');
+    return cleanup;
   }
 
   public retireRuntime(): Promise<boolean> {

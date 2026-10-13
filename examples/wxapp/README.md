@@ -2,6 +2,14 @@
 
 这是一个使用 `sentry-miniapp` SDK 的微信小程序示例项目，覆盖了从应用启动、首页访问、网络请求、性能采集，到测试页手动异常/消息/反馈上报的一整套能力演示。
 
+## 页面回放原型
+
+运行 `yarn build:miniapp` 会生成主 SDK 和可选录制器两个文件。实验室新增“页面回放验证”，可测试标记布局、文字变化、节点出现／消失、输入占位、点击、滚动和错误关联。复制录制仅用于开发验证，最多保留当前页面最近 10 个已提交分段。
+
+它是实验性布局投影，不复制 input 值、图片地址或页面 data；未标记区域和原生绘制不作完整复现。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，实施证据见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
+
+示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，并保留 `setUser()` 的固定演示值，便于分别核对自动采集和业务显式数据。回放地址中的 `miniapp.invalid` 是展示标识，不需要配置合法域名。
+
 ## 能力概览
 
 - ✅ 应用启动链路监控

@@ -1,0 +1,21 @@
+<view class="page">
+  <text class="title sentry-replay" data-sentry-replay-type="text" data-sentry-replay-text="页面回放验证" data-sentry-replay-unmask="true">页面回放验证</text>
+  <text class="description">只录制标记的布局与文本；输入内容保持遮蔽。</text>
+  <view class="card sentry-replay">
+    <text class="status sentry-replay" data-sentry-replay-type="text" data-sentry-replay-text="{{status}}" data-sentry-replay-unmask="true">{{status}}</text>
+    <text class="count sentry-replay" data-sentry-replay-type="text" data-sentry-replay-text="点击次数：{{count}}" data-sentry-replay-unmask="true">点击次数：{{count}}</text>
+    <input class="input sentry-replay" data-sentry-replay-type="input" placeholder="输入测试内容（不录制输入值）" />
+    <button class="button sentry-replay" data-sentry-replay-type="button" data-sentry-replay-text="改变状态" data-sentry-replay-unmask="true" bindtap="onChangeState">改变状态</button>
+    <button class="button secondary sentry-replay" data-sentry-replay-type="button" data-sentry-replay-text="显示或隐藏节点" data-sentry-replay-unmask="true" bindtap="onToggleNode">显示或隐藏节点</button>
+    <text wx:if="{{visible}}" class="extra sentry-replay" data-sentry-replay-type="text" data-sentry-replay-text="这是可出现与消失的节点" data-sentry-replay-unmask="true">这是可出现与消失的节点</text>
+  </view>
+  <view class="controls">
+    <button class="button" bindtap="onCaptureError">触发关联错误</button>
+    <button class="button secondary" bindtap="onFlushReplay">发送当前录制</button>
+    <button class="button secondary" bindtap="onExportRecording">导出录制到页面数据（开发验证）</button>
+    <button class="button secondary" bindtap="onCopyRecording">复制已提交的录制（开发验证）</button>
+  </view>
+  <text class="diagnostics">{{diagnostics}}</text>
+  <view class="spacer"><text>向下滚动，验证节点位置变化。</text></view>
+  <text class="footer sentry-replay" data-sentry-replay-type="text" data-sentry-replay-text="页面底部" data-sentry-replay-unmask="true">页面底部</text>
+</view>

@@ -91,6 +91,8 @@
     </view>
   </view>
 
+<navigator url="/pages/replay/replay" class="card action-item">页面回放验证</navigator>
+
   <!-- 高级功能 -->
   <view class="section-title">高级功能</view>
   <view class="card action-list">

@@ -9,13 +9,13 @@
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
     "build": "npm run build:release && npm run check:package-consumers",
-    "build:release": "vite build && npm run build:type-entrypoints && npm run check:build-output && npm run check:bundle-size && npm run check:package",
+    "build:release": "vite build && vite build --mode replay && npm run build:type-entrypoints && npm run check:build-output && npm run check:bundle-size && npm run check:package",
     "build:type-entrypoints": "node scripts/internal/create-type-entrypoints.mjs",
-    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
-    "check:bundle-size": "node scripts/internal/check-bundle-size.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js",
+    "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js dist/sentry-miniapp-replay.mjs dist/sentry-miniapp-replay.cjs.js",
+    "check:bundle-size": "node scripts/internal/check-bundle-size.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js dist/sentry-miniapp-replay.mjs dist/sentry-miniapp-replay.cjs.js",
     "check:package": "publint --level error",
     "check:package-consumers": "node scripts/internal/check-package-consumers.mjs",
-    "build:miniapp": "vite build --mode miniapp && node scripts/internal/check-build-output.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-bundle-size.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-miniapp-bundle.mjs examples/wxapp/lib/sentry-miniapp.js",
+    "build:miniapp": "vite build --mode miniapp && vite build --mode miniapp-replay && node scripts/internal/check-build-output.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-bundle-size.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-miniapp-bundle.mjs examples/wxapp/lib/sentry-miniapp.js && node scripts/internal/check-build-output.mjs examples/wxapp/lib/sentry-miniapp-replay.js && node scripts/internal/check-bundle-size.mjs examples/wxapp/lib/sentry-miniapp-replay.js",
     "build:types": "vite build && tsc --emitDeclarationOnly --outDir dist/types && npm run build:type-entrypoints",
     "dev": "vite build --watch",
     "dev:miniapp": "vite build --mode miniapp --watch",
@@ -58,6 +58,16 @@
         "types": "./dist/types/index.d.cts",
         "default": "./dist/sentry-miniapp.cjs.js"
       }
+    },
+    "./replay": {
+      "import": {
+        "types": "./dist/types/replay/index.d.mts",
+        "default": "./dist/sentry-miniapp-replay.mjs"
+      },
+      "require": {
+        "types": "./dist/types/replay/index.d.cts",
+        "default": "./dist/sentry-miniapp-replay.cjs.js"
+      }
     }
   },
   "files": [
@@ -75,6 +85,9 @@
     "@eslint/js": "^10.0.1",
     "@jridgewell/trace-mapping": "0.3.31",
     "@publint/pack": "^0.1.7",
+    "@rrweb/replay": "2.1.7",
+    "@rrweb/types": "2.1.7",
+    "@types/jsdom": "^27",
     "@types/node": "^20.19.11",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.70.0",
@@ -86,6 +99,7 @@
     "globals": "^17.12.0",
     "husky": "^9.1.7",
     "js-yaml": "5.4.3",
+    "jsdom": "27.2.0",
     "lint-staged": "^16.4.0",
     "lodash": "4.18.1",
     "prettier": "^3.9.6",

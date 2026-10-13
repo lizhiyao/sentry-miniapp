@@ -21,6 +21,7 @@ export type {
   Transport,
   BaseTransportOptions,
   DataCollection,
+  ReplayEvent,
   SerializedStreamedSpan,
   SpanJSON,
   StreamedSpanJSON,
@@ -61,6 +62,10 @@ export {
   addBreadcrumb,
   flush,
   close,
+  createEnvelope,
+  createEventEnvelopeHeaders,
+  getSdkMetadataForEnvelopeHeader,
+  uuid4,
   lastEventId,
   isEnabled,
   // 用户可显式装配 core 原生 SpanStreaming；只提供 stream 回调契约。
@@ -91,7 +96,8 @@ export type {
   MiniappPlatform,
 } from './types';
 export { MiniappClient } from './client';
-export type { MiniappLowLevelClientOptions } from './client';
+export type { MiniappLowLevelClientOptions, MiniappAutomaticProducer } from './client';
+export { utf8ByteLength } from './coreCompat';
 export * as Integrations from './integrations/index';
 export * as Transports from './transports/index';
 

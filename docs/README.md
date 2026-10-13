@@ -18,6 +18,7 @@
 
 以下文档解释仍在使用的实现及其取舍，与架构文档一起维护：
 
+- [微信页面回放设计](wechat-page-replay-design.md)：公开节点采样、隐私、独立入口、生命周期及后台验收边界。
 - [官方 SDK 实践对照](sdk-official-practices.md)：哪些能力复用 Core，哪些边界需要小程序适配。
 - [查询参数运行时取舍](query-runtime-decision.md)：兼容层的选择、补丁范围和移除条件。
 

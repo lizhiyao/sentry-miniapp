@@ -6,7 +6,7 @@
 
 ## 1. 设计目标与支持边界
 
-小程序宿主提供平台请求、存储和生命周期 API，没有可依赖的浏览器 DOM、`fetch` 或 `XMLHttpRequest`。部分宿主的 `window` 只是全局别名，不能作为浏览器能力判断。SDK 因而复用 Core 的遥测模型与处理管道，在宿主相关入口适配微信、支付宝、字节跳动、钉钉、QQ、百度和快手。
+小程序宿主提供平台请求、存储和生命周期 API。传统微信渲染层使用 WebView，但逻辑层 SDK 无法直接访问其 DOM，也没有可依赖的浏览器 `fetch` 或 `XMLHttpRequest`。部分宿主的 `window` 只是全局别名，不能作为浏览器能力判断。SDK 因而复用 Core 的遥测模型与处理管道，在宿主相关入口适配微信、支付宝、字节跳动、钉钉、QQ、百度和快手。
 
 设计遵循四项约束：
 
@@ -143,6 +143,16 @@ Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业
 可选 Performance observer 注册失败时立即释放该 controller 的 owner，再尝试 `disconnect()`；即使宿主部分注册或解除抛错，迟到条目也不能继续读取或发送。此故障不关闭整个 client，告警输出故障也不能升级为初始化失败。宿主 `getPerformance` 只读取一次并保留 receiver，避免 getter 返回值变化影响调用。FPS 的非法分档阈值同样须在告警输出失败时回退为单档，而不影响初始化。
 
 对应回归见 [client-capture](test/client-capture.realcore.test.ts)、[producer-session](test/producer-session.realcore.test.ts)、[performance-owner](test/performance-owner.realcore.test.ts)和[span-dimensions](test/span-dimensions.realcore.test.ts)。
+
+## 可选微信页面回放
+
+传统微信小程序的渲染层使用 WebView，逻辑层 SDK 无法直接访问它的 DOM。可选 `sentry-miniapp/replay` 因而通过公开 SelectorQuery 对显式标记的节点采样，生成 rrweb 的标准布局快照与点击事件；它不包装业务 setData，不复制页面 data，也不声称覆盖未标记区域或原生组件绘制。其它宿主、小游戏和 Skyline 跳过。
+
+录制器复用 `MiniappClient.registerAutomaticProducer()` 的共享生命周期、同意更新和停止门；查询完成时复核页面与录制身份，取消后的宿主回调释放 owner 引用。每段容量和时长有界，发送复用 Core envelope 与现有 transport。主入口不导入录制器，播放器只用于开发验证或后台播放；可选 ESM/CJS 产物引用相同格式的主入口，保持 Client 与 Core scope 身份一致。
+
+回放仍按普通 integration factory 安装；独立子入口保护预打包 CJS/UMD 的按需成本，不另发 npm 包或引入第二套初始化。构建对照与官方 SDK 的分发差异见[回放设计](docs/wechat-page-replay-design.md#为什么按普通-integration-安装却保留独立入口)。
+
+职责、协议与验证接缝见[回放设计](docs/wechat-page-replay-design.md)，接入与覆盖范围见[实验性指南](https://sentry-miniapp.pages.dev/guide/page-replay)。
 
 ## 5. 生命周期与共享宿主观测
 
