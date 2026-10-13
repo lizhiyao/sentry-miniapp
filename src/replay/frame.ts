@@ -58,6 +58,7 @@ interface Projection {
   mask: boolean;
   unmask: boolean;
   block: boolean;
+  hiddenTree: boolean;
   depth: number;
 }
 
@@ -131,6 +132,63 @@ export function projectFrame(
       }
       const ancestor = projected[parent];
       if (ancestor?.block) {
+        // 屏蔽组件可能只有零面积宿主；只合并可见后代的布局作占位和点击拒绝区域。
+        // display:none／透明祖先的整棵树不可见，不从后代扩大占位。
+        if (
+          !ancestor.hiddenTree &&
+          raw['display'] !== 'none' &&
+          raw['visibility'] !== 'hidden' &&
+          raw['opacity'] !== '0'
+        ) {
+          const left = number(raw['left'], NaN),
+            top = number(raw['top'], NaN);
+          const width = number(raw['width']),
+            height = number(raw['height']);
+          const box = ancestor.box,
+            clip = box.clip!;
+          const next = {
+            left: Math.max(left, clip.left),
+            top: Math.max(top, clip.top),
+            right: Math.min(left + width, clip.right),
+            bottom: Math.min(top + height, clip.bottom),
+          };
+          if (
+            Number.isFinite(left) &&
+            Number.isFinite(top) &&
+            width > 0 &&
+            height > 0 &&
+            next.right > next.left &&
+            next.bottom > next.top
+          ) {
+            const own = box.visible!;
+            const visible =
+              own.right > own.left && own.bottom > own.top
+                ? {
+                    left: Math.min(own.left, next.left),
+                    top: Math.min(own.top, next.top),
+                    right: Math.max(own.right, next.right),
+                    bottom: Math.max(own.bottom, next.bottom),
+                  }
+                : next;
+            box.visible = visible;
+            box.left = visible.left;
+            box.top = visible.top;
+            box.width = visible.right - visible.left;
+            box.height = visible.bottom - visible.top;
+            box.text = '[blocked]';
+            const origin = projected[box.parent ?? -1]?.box;
+            box.style =
+              'position:absolute;box-sizing:border-box;overflow:hidden;left:' +
+              (box.left - (origin?.left ?? 0) - (origin?.borderX ?? 0)) +
+              'px;top:' +
+              (box.top - (origin?.top ?? 0) - (origin?.borderY ?? 0)) +
+              'px;width:' +
+              box.width +
+              'px;height:' +
+              box.height +
+              'px;';
+          }
+        }
         if (scope && compiled) {
           scope.nodes.set(own, { value: mark![own], index: parent });
           if (typeof data['sentryReplayTarget'] === 'string')
@@ -155,18 +213,25 @@ export function projectFrame(
         raw['opacity'] === '0';
       const mask = !!ancestor?.mask || truth(data['sentryReplayMask']);
       const unmask = !mask && (!!ancestor?.unmask || truth(data['sentryReplayUnmask']));
-      const block = hidden || truth(data['sentryReplayBlock']);
+      // 零面积或 visibility:hidden 只描述当前盒子，后代仍可能可见。
+      const hiddenTree = raw['display'] === 'none' || raw['opacity'] === '0';
+      const block = hiddenTree || truth(data['sentryReplayBlock']);
       const kind =
         typeof data['sentryReplayType'] === 'string'
           ? (data['sentryReplayType'] as string)
           : 'view';
       let text = '';
-      if (block) text = hidden ? '' : '[blocked]';
+      if (hidden || block) text = hidden ? '' : '[blocked]';
       else if (PRIVATE_KINDS.has(kind)) text = '[' + kind + ']';
       else {
         const content = data['sentryReplayText'];
-        if (typeof content === 'string')
-          text = unmask ? content.slice(0, 256) : content.slice(0, 256).replace(/\S/g, '*');
+        if (typeof content === 'string') {
+          const value =
+            data['sentryReplayTextFormat'] === 'wxml' && content.charAt(0) === '\u200b'
+              ? content.slice(1)
+              : content;
+          text = unmask ? value.slice(0, 256) : value.slice(0, 256).replace(/\S/g, '*');
+        }
       }
       const origin = ancestor?.box;
       const borderX = origin?.borderX ?? 0,
@@ -224,7 +289,7 @@ export function projectFrame(
         width: w,
         height: h,
         kind,
-        blocked: block,
+        blocked: hidden || block,
         text,
         style,
         parent,
@@ -239,7 +304,7 @@ export function projectFrame(
         },
       };
       const index = projected.length;
-      projected.push({ box, mask, unmask, block, depth: (ancestor?.depth ?? -1) + 1 });
+      projected.push({ box, mask, unmask, block, hiddenTree, depth: (ancestor?.depth ?? -1) + 1 });
       if (scope && compiled) scope.nodes.set(own, { value: mark![own], index });
       if (compiled && kind === 'component' && typeof data['sentryReplayTarget'] === 'string')
         pending = {
@@ -342,16 +407,28 @@ export function clickEvent(
     y > frame.height
   )
     return undefined;
-  let index = frame.nodes.length - 1;
-  for (; index >= 0; index--) {
-    const box = frame.nodes[index]!;
+  const hit = (box: ReplayBox): boolean => {
     const rect = box.visible ?? {
       left: box.left,
       top: box.top,
       right: box.left + box.width,
       bottom: box.top + box.height,
     };
-    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) break;
+    return (
+      rect.right > rect.left &&
+      rect.bottom > rect.top &&
+      x >= rect.left &&
+      x <= rect.right &&
+      y >= rect.top &&
+      y <= rect.bottom
+    );
+  };
+  // 近似层叠不能证明后来查询的节点盖住了屏蔽区域；命中任何屏蔽盒子都不记录坐标。
+  if (frame.nodes.some((box) => box.blocked && hit(box))) return undefined;
+  let index = frame.nodes.length - 1;
+  for (; index >= 0; index--) {
+    const box = frame.nodes[index]!;
+    if (hit(box)) break;
   }
   if (index >= 0 && frame.nodes[index]!.blocked) return undefined;
   return {

@@ -17,6 +17,99 @@ const privateKinds = new Set([
   'live-pusher',
 ]);
 
+function binding(source, start) {
+  for (let end = source.indexOf('}}', start + 2); end >= 0; end = source.indexOf('}}', end + 1)) {
+    const expression = source.slice(start + 2, end);
+    try {
+      try {
+        parseExpression(expression);
+      } catch {
+        parseExpression('({' + expression + '})');
+      }
+      return { expression, end: end + 2 };
+    } catch {
+      /* 结束括号可能位于字符串中。 */
+    }
+  }
+  throw new Error('Unclosed or unsupported WXML binding at ' + start);
+}
+
+function constant(value, context) {
+  let index = context.literals.indexOf(value);
+  if (index < 0) {
+    index = context.literals.length;
+    context.literals.push(value);
+  }
+  return context.name + '.s[' + index + ']';
+}
+function expression(source, context) {
+  const tree = parseExpression(source),
+    edits = [];
+  const visit = (node, parent, key) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'CallExpression')
+      throw new Error(
+        'Automatic replay text cannot call functions; provide explicit data-sentry-replay-text',
+      );
+    if (node.type === 'StringLiteral') {
+      if (node.extra?.raw?.includes('\\'))
+        throw new Error('Escaped WXML text literals need explicit data-sentry-replay-text');
+      if (parent?.type === 'ObjectProperty' && key === 'key' && !parent.computed) {
+        if (!/^[$A-Z_a-z][$\w]*$/.test(node.value))
+          throw new Error('Unsupported quoted WXML object key');
+        edits.push({ start: node.start, end: node.end, text: node.value });
+      } else edits.push({ start: node.start, end: node.end, text: constant(node.value, context) });
+      return;
+    }
+    for (const [field, value] of Object.entries(node)) {
+      if (Array.isArray(value)) value.forEach((child) => visit(child, node, field));
+      else if (value && typeof value === 'object') visit(value, node, field);
+    }
+  };
+  visit(tree);
+  for (const edit of edits.sort((a, b) => b.start - a.start))
+    source = source.slice(0, edit.start) + edit.text + source.slice(edit.end);
+  return source;
+}
+export function textModules(modules) {
+  // WXS 会把转义引号／反斜杠变成字面量 \x22／\x27／\x5c，按原字符拼接。
+  // 拆开 <，防止常量中的 </wxs> 提前结束脚本块。
+  const literal = (value) =>
+    "'" +
+    value.replace(/[\\'<\r\n]/g, (character) => {
+      if (character === '\\') return "'+'\\\\'.charAt(0)+'";
+      if (character === "'") return "'+\"'\"+'";
+      if (character === '<') return "'+'<'+'";
+      return character === '\r' ? '\\r' : '\\n';
+    }) +
+    "'";
+  return [...modules.values()]
+    .filter((context) => context?.literals.length)
+    .map(
+      (context) =>
+        '<wxs module="' +
+        context.name +
+        '">' +
+        'var s=' +
+        '[' +
+        context.literals.map(literal).join(',') +
+        ']' +
+        ';module.exports={s:s};</wxs>\n',
+    )
+    .join('');
+}
+function wxmlAttribute(value) {
+  let result = '',
+    cursor = 0;
+  for (let start = value.indexOf('{{'); start >= 0; start = value.indexOf('{{', cursor)) {
+    result += escapeAttribute(value.slice(cursor, start));
+    const current = binding(value, start);
+    result += value.slice(start, current.end);
+    cursor = current.end;
+  }
+  return result + escapeAttribute(value.slice(cursor));
+}
+
 // XML 解析保持原始位置；绑定中的比较运算与 WXS 源码不参与标签解析。
 function shield(source) {
   const blank = (value) => value.replace(/[^\r\n]/g, ' ');
@@ -27,25 +120,8 @@ function shield(source) {
       (_value, open, body, close) => open + blank(body) + close,
     );
   for (let start = safe.indexOf('{{'); start >= 0; start = safe.indexOf('{{', start + 2)) {
-    let end = safe.indexOf('}}', start + 2);
-    for (; end >= 0; end = safe.indexOf('}}', end + 1)) {
-      const expression = decodeXML(source.slice(start + 2, end));
-      try {
-        try {
-          parseExpression(expression);
-        } catch {
-          parseExpression('({' + expression + '})');
-        }
-        break;
-      } catch {
-        /* 结束括号可能位于字符串中。 */
-      }
-    }
-    if (end < 0) throw new Error('Unclosed or unsupported WXML binding at ' + start);
-    safe =
-      safe.slice(0, start) +
-      safe.slice(start, end + 2).replace(/[^\r\n]/g, 'x') +
-      safe.slice(end + 2);
+    const { end } = binding(source, start);
+    safe = safe.slice(0, start) + safe.slice(start, end).replace(/[^\r\n]/g, 'x') + safe.slice(end);
   }
   return safe;
 }
@@ -70,7 +146,7 @@ export function parseWxml(source) {
           value = source.slice(start, end);
           if (quote) end++;
         } else end = parser.startIndex + name.length;
-        attributes.push({ name, value, start: parser.startIndex, end });
+        attributes.push({ name, value, quote, start: parser.startIndex, end });
       },
       onopentag(name) {
         const node = {
@@ -81,13 +157,17 @@ export function parseWxml(source) {
           parent: stack.at(-1),
           children: [],
           text: [],
+          content: [],
         };
         attributes = [];
         (node.parent?.children ?? roots).push(node);
+        node.parent?.content.push(node);
         stack.push(node);
       },
       ontext() {
-        stack.at(-1)?.text.push(source.slice(parser.startIndex, parser.endIndex + 1));
+        const text = source.slice(parser.startIndex, parser.endIndex + 1);
+        stack.at(-1)?.text.push(text);
+        stack.at(-1)?.content.push(text);
       },
       onclosetag(name, implied) {
         const node = stack.pop();
@@ -105,6 +185,76 @@ export function parseWxml(source) {
   return roots;
 }
 
+function condition(attr, context) {
+  if (attr.value.startsWith('{{')) {
+    const result = binding(attr.value, 0);
+    if (result.end === attr.value.length) return '(' + expression(result.expression, context) + ')';
+  } else if (!attr.value.includes('{{')) return constant(attr.value, context);
+  throw new Error('Replay conditional text needs one WXML binding: ' + attr.name);
+}
+
+function guardedText(value, guard, context) {
+  let result = '',
+    cursor = 0;
+  const emit = (text) =>
+    '{{ ' + (guard ? '(' + guard + ') ? ' : '') + text + (guard ? " : ''" : '') + ' }}';
+  const literal = (text) => (text ? emit(constant(text, context)) : '');
+  for (let start = value.indexOf('{{'); start >= 0; start = value.indexOf('{{', cursor)) {
+    result += literal(value.slice(cursor, start));
+    const current = binding(value, start);
+    result += emit(expression(current.expression, context));
+    cursor = current.end;
+  }
+  return result + literal(value.slice(cursor));
+}
+
+// block 没有布局盒子；文字留在现有容器，用宿主的插值与条件转换，不另造 DOM。
+function hasInlineText(node) {
+  return node.content.some((part) =>
+    typeof part === 'string' ? !!part.trim() : part.name === 'block' && hasInlineText(part),
+  );
+}
+
+function inlineText(node, context, outer = '') {
+  let result = '',
+    branches = [];
+  for (const part of node.content) {
+    if (typeof part === 'string') {
+      if (part.trim() || !part.includes('\n')) result += guardedText(part, outer, context);
+      continue;
+    }
+    const first = part.attrs.find((attr) => attr.name === 'wx:if');
+    const next = part.attrs.find((attr) => attr.name === 'wx:elif');
+    const last = part.attrs.some((attr) => attr.name === 'wx:else');
+    let own = '';
+    if (first) {
+      own = condition(first, context);
+      branches = [own];
+    } else if (next || last) {
+      if (!branches.length) throw new Error('Replay conditional text has an unmatched else');
+      own = '!(' + branches.join(' || ') + ')';
+      if (next) {
+        const value = condition(next, context);
+        own += ' && ' + value;
+        branches.push(value);
+      } else branches = [];
+    } else branches = [];
+    if (part.name !== 'block' || !hasInlineText(part)) continue;
+    const text = inlineText(
+      part,
+      context,
+      [outer, own]
+        .filter(Boolean)
+        .map((value) => '(' + value + ')')
+        .join(' && '),
+    );
+    if (part.attrs.some((attr) => attr.name === 'wx:for'))
+      throw new Error('Replay text inside wx:for block needs a rendered text/view boundary');
+    result += text;
+  }
+  return result;
+}
+
 export function dependencies(source) {
   const files = [];
   const visit = (nodes) =>
@@ -120,19 +270,31 @@ export function dependencies(source) {
 }
 
 /** 只改 WXML 元数据与中性 capture handler；不改业务 JS、事件绑定或样式值。 */
-export function instrumentWxml(source, { sourceId, components = {}, page = false }) {
-  if (source.startsWith(HEADER)) return source;
+export function instrumentWxml(source, { sourceId, components = {}, page = false, modules }) {
+  if (source.startsWith(HEADER)) {
+    if (modules) throw new Error('Replay project input must be a clean build');
+    return source;
+  }
+  const context = { name: 'sr_replay_' + sourceId.replace(/[^$\w]/g, '_'), literals: [] };
+  if (source.includes(context.name)) throw new Error('Reserved replay WXS module: ' + context.name);
   const roots = parseWxml(source),
     edits = [];
   let serial = 0;
-  const put = (node, name, value, append = false) => {
+  const put = (node, name, value, append = false, decoded = false) => {
     const attr = node.attrs.find((item) => item.name === name);
     if (attr && !append) return;
+    // 追加 class 保留原引号和绑定源码；绑定内部不是 XML 转义文本。
+    const quote = append && attr?.quote ? attr.quote : '"';
     const text =
       name +
-      '="' +
-      escapeAttribute((append && attr ? decodeXML(attr.value) + ' ' : '') + decodeXML(value)) +
-      '"';
+      '=' +
+      quote +
+      (append && attr
+        ? attr.value + ' ' + escapeAttribute(value)
+        : decoded
+          ? wxmlAttribute(value)
+          : escapeAttribute(decodeXML(value))) +
+      quote;
     if (attr) edits.push({ start: attr.start, end: attr.end, text });
     else {
       const end = source[node.end - 2] === '/' ? node.end - 2 : node.end - 1;
@@ -143,11 +305,17 @@ export function instrumentWxml(source, { sourceId, components = {}, page = false
     nodes.forEach((node) => {
       if (
         node.attrs.some((attr) =>
-          /^data-sentry-replay-(node|parent|source|target|root)$|^mark:sr_/.test(attr.name),
+          /^data-sentry-replay-(node|parent|source|target|root|text-format)$|^mark:sr_/.test(
+            attr.name,
+          ),
         )
       )
         throw new Error('Reserved replay metadata in source; instrument a clean build');
       if (structural.has(node.name)) {
+        if (node.attrs.some((attr) => /^data-sentry-replay-(mask|block|unmask)$/.test(attr.name)))
+          throw new Error(
+            'Replay privacy controls need a rendered view/text/component, not ' + node.name,
+          );
         visit(node.children, renderParent);
         return;
       }
@@ -175,8 +343,20 @@ export function instrumentWxml(source, { sourceId, components = {}, page = false
         if (!node.attrs.some((attr) => /^capture-(bind|catch):?tap$/.test(attr.name)))
           put(node, 'capture-bind:tap', '__sentryReplayTap');
       }
-      if (!privateKinds.has(node.name) && node.text.some((text) => text.trim()))
-        put(node, 'data-sentry-replay-text', node.text.join('').trim());
+      if (
+        !privateKinds.has(node.name) &&
+        !node.attrs.some((attr) => attr.name === 'data-sentry-replay-text')
+      ) {
+        const decode = node.attrs.find((attr) => attr.name === 'decode');
+        if (node.name === 'text' && decode && decode.value !== '{{false}}')
+          throw new Error('Decoded text needs an explicit data-sentry-replay-text value');
+        const text = hasInlineText(node) ? inlineText(node, context).trim() : '';
+        if (text) {
+          // 非空常量前缀强制 data 属性走微信文字插值；保留 0、false 和空值的宿主语义。
+          put(node, 'data-sentry-replay-text', '\u200b' + text, false, true);
+          put(node, 'data-sentry-replay-text-format', 'wxml');
+        }
+      }
       visit(node.children, node);
     });
   visit(roots, undefined);
@@ -184,5 +364,6 @@ export function instrumentWxml(source, { sourceId, components = {}, page = false
   let output = source;
   for (const edit of edits)
     output = output.slice(0, edit.start) + edit.text + output.slice(edit.end);
-  return HEADER + '\n' + output;
+  if (modules) modules.set(sourceId, context);
+  return HEADER + '\n' + (modules ? '' : textModules(new Map([[sourceId, context]]))) + output;
 }

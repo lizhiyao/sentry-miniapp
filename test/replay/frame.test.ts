@@ -143,7 +143,7 @@ describe('布局投影与官方 rrweb 播放', () => {
     ).toHaveLength(1);
   });
   it.each(['blocked', 'hidden', 'transparent', 'zero'] as const)(
-    '父节点 %s 时不读取后代私密文本，组件边界也不泄漏',
+    '屏蔽或实际隐藏的 %s 节点不读取私密文本，组件边界也不泄漏',
     (mode) => {
       const data = {
         sentryReplaySource: 'p',
@@ -167,6 +167,7 @@ describe('布局投影与官方 rrweb 播放', () => {
                 : {}),
         }),
         box({
+          ...(mode === 'zero' ? { width: 0 } : {}),
           mark: { inner: true },
           dataset: {
             sentryReplaySource: 'c',
@@ -178,6 +179,7 @@ describe('布局投影与官方 rrweb 播放', () => {
           },
         }),
         box({
+          ...(mode === 'zero' ? { width: 0 } : {}),
           mark: { inner: true, child: true },
           dataset: {
             sentryReplaySource: 'c',
@@ -187,6 +189,7 @@ describe('布局投影与官方 rrweb 播放', () => {
           },
         }),
         box({
+          ...(mode === 'zero' ? { width: 0 } : {}),
           mark: { leaf: true },
           dataset: {
             sentryReplaySource: 'deep',
@@ -200,6 +203,110 @@ describe('布局投影与官方 rrweb 播放', () => {
       const frame = projectFrame([viewport, raw], 'page', 20)!;
       expect(frame.nodes.map((node) => node.text)).toEqual(mode === 'blocked' ? ['[blocked]'] : []);
       if (mode === 'blocked') expect(clickEvent(frame, 30, 50, 0)).toBeUndefined();
+    },
+  );
+  it.each(['public', 'mask', 'block'] as const)(
+    '零宽组件宿主下的可见浮层保留布局，%s 隐私规则仍继承',
+    (mode) => {
+      const raw = [
+        box({
+          left: 0,
+          top: 0,
+          width: 375,
+          height: 700,
+          mark: { root: true },
+          dataset: {
+            sentryReplaySource: 'p',
+            sentryReplayNode: 'root',
+            sentryReplayRoot: true,
+            sentryReplayUnmask: true,
+            sentryReplayType: 'view',
+          },
+        }),
+        box({
+          left: 256,
+          top: 249,
+          width: 0,
+          height: 18,
+          mark: { root: true, host: true },
+          dataset: {
+            sentryReplaySource: 'p',
+            sentryReplayNode: 'host',
+            sentryReplayParent: 'root',
+            sentryReplayType: 'component',
+            sentryReplayTarget: 'popup',
+            ...(mode === 'mask'
+              ? { sentryReplayMask: true }
+              : mode === 'block'
+                ? { sentryReplayBlock: true }
+                : {}),
+          },
+        }),
+        box({
+          left: 109,
+          top: 330,
+          width: 172,
+          height: 92,
+          mark: { panel: true },
+          dataset: {
+            sentryReplaySource: 'popup',
+            sentryReplayNode: 'panel',
+            sentryReplayType: 'view',
+          },
+        }),
+        box({
+          left: 133,
+          top: 365,
+          width: 64,
+          height: 18,
+          mark: { root: true, host: true, content: true },
+          dataset: {
+            sentryReplaySource: 'p',
+            sentryReplayNode: 'content',
+            sentryReplayParent: 'host',
+            sentryReplayText: '验收弹窗',
+            sentryReplayUnmask: true,
+            sentryReplayType: 'text',
+          },
+        }),
+      ];
+      const frame = projectFrame([viewport, raw], 'page', 20)!;
+      const texts = frame.nodes.map((node) => node.text).filter(Boolean);
+      expect(texts).toEqual(
+        mode === 'public' ? ['验收弹窗'] : mode === 'mask' ? ['****'] : ['[blocked]'],
+      );
+      if (mode !== 'block') {
+        expect(frame.nodes.map((node) => node.parent)).toEqual([-1, 0, 1, 1]);
+        expect(frame.nodes[2].style).toContain('left:-147px');
+        expect(frame.nodes[3].visible).toMatchObject({
+          left: 133,
+          top: 365,
+          right: 197,
+          bottom: 383,
+        });
+        expect(clickEvent(frame, 140, 370, 0)).toBeDefined();
+      } else {
+        expect(clickEvent(frame, 140, 370, 0)).toBeUndefined();
+        raw.push(
+          box({
+            left: 130,
+            top: 360,
+            width: 100,
+            height: 40,
+            mark: { root: true, cover: true },
+            dataset: {
+              sentryReplaySource: 'p',
+              sentryReplayNode: 'cover',
+              sentryReplayParent: 'root',
+              sentryReplayText: 'public overlap',
+              sentryReplayType: 'text',
+            },
+          }),
+        );
+        expect(clickEvent(projectFrame([viewport, raw], 'page', 20)!, 140, 370, 0)).toBeUndefined();
+      }
+      const serialized = JSON.stringify(frameEvents(frame, 1));
+      if (mode !== 'public') expect(serialized).not.toContain('验收弹窗');
     },
   );
   let player: Replayer | undefined;
@@ -245,6 +352,15 @@ describe('布局投影与官方 rrweb 播放', () => {
             color: 'red;content:secret',
             borderRadius: '8px',
           }),
+          box({
+            dataset: {
+              sentryReplayText: '\u200b0',
+              sentryReplayTextFormat: 'wxml',
+              sentryReplayUnmask: true,
+            },
+          }),
+          box({ dataset: { sentryReplayText: '\u200bfalse', sentryReplayTextFormat: 'wxml' } }),
+          box({ dataset: { sentryReplayText: '\u200b', sentryReplayTextFormat: 'wxml' } }),
         ],
       ],
       'pages/order/index?secret#private',
@@ -254,6 +370,9 @@ describe('布局投影与官方 rrweb 播放', () => {
       '*** ***********',
       '[input]',
       '确认订单',
+      '0',
+      '*****',
+      '',
     ]);
     expect(frame.href).toBe('https://miniapp.invalid/pages/order/index');
     expect(new URL(frame.href).origin).toBe('https://miniapp.invalid');
@@ -278,7 +397,13 @@ describe('布局投影与官方 rrweb 播放', () => {
     { height: 20, nowrap: true },
     { height: 21, fontSize: '11px', paddingTop: '3px', paddingBottom: '3px', nowrap: true },
     { height: 31, paddingTop: '3px', paddingBottom: '3px', borderWidth: '2px', nowrap: true },
-    { height: 24, borderWidth: '2px', borderTopWidth: '0px', borderBottomWidth: '0px', nowrap: false },
+    {
+      height: 24,
+      borderWidth: '2px',
+      borderTopWidth: '0px',
+      borderBottomWidth: '0px',
+      nowrap: false,
+    },
     { height: 48, paddingTop: '3px', paddingBottom: '3px', nowrap: false },
   ])('坏节点跳过，文字按内容高度保留换行：%j', ({ nowrap, ...metrics }) => {
     const bad = {
