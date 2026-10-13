@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { cp, lstat, mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { dependencies, instrumentWxml, parseWxml } from './wxml.mjs';
+import { dependencies, instrumentWxml, parseWxml, textModules } from './wxml.mjs';
 
 const ignored = new Set(['.git', 'node_modules', '.DS_Store']);
 const hash = (name) => createHash('sha256').update(name).digest('hex').slice(0, 12);
@@ -210,17 +210,35 @@ export async function instrumentWechatProject({ input, output, pages }) {
     for (const importedFile of imported.get(file) || []) closure(importedFile, visited);
     return visited;
   };
-  const changed = new Map();
+  const changed = new Map(),
+    modules = new Map();
   for (const [file, content] of sources) {
     const components = Object.fromEntries(
       [...componentMaps.get(file)]
         .filter(([, target]) => ids.has(target))
         .map(([tag, target]) => [tag, [...closure(target)].map((item) => ids.get(item))]),
     );
-    changed.set(
-      file,
-      instrumentWxml(content, { sourceId: ids.get(file), components, page: selected.has(file) }),
+    try {
+      changed.set(
+        file,
+        instrumentWxml(content, {
+          sourceId: ids.get(file),
+          components,
+          page: selected.has(file),
+          modules,
+        }),
+      );
+    } catch (error) {
+      throw new Error(relative(root, file) + ': ' + error.message, { cause: error });
+    }
+  }
+  // include 不保留被引用文件的 WXS 声明；引用者补齐模板闭包的专属辅助模块。
+  for (const [file, content] of changed) {
+    const definitions = textModules(
+      new Map([...closure(file)].map((target) => [ids.get(target), modules.get(ids.get(target))])),
     );
+    const at = content.indexOf('\n') + 1;
+    changed.set(file, content.slice(0, at) + definitions + content.slice(at));
   }
   await mkdir(dirname(destination), { recursive: true });
   await cp(source, destination, {

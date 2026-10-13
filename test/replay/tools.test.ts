@@ -2,12 +2,26 @@ import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, rename } from 'node:f
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
+import { decodeXML } from 'entities';
+import { runInNewContext } from 'node:vm';
 // @ts-expect-error Node 工具实现为 ESM JS，安装消费检查另外验证公开声明。
 import { instrumentWechatProject } from '../../scripts/internal/replay/project.mjs';
 // @ts-expect-error WXML 编译器为内部 Node 工具，不进入 SDK 声明。
 import { instrumentWxml, parseWxml } from '../../scripts/internal/replay/wxml.mjs';
 
 const folders: string[] = [];
+function rendered(source: string) {
+  return parseWxml(source).filter((node: { name: string }) => node.name !== 'wxs');
+}
+function literals(source: string): string[] {
+  return parseWxml(source)
+    .filter((node: { name: string }) => node.name === 'wxs')
+    .flatMap((node: { text: string[] }) => {
+      const module: { exports: { s?: string[] } } = { exports: {} };
+      runInNewContext(node.text.join(''), { module });
+      return module.exports.s || [];
+    });
+}
 afterEach(async () => {
   await Promise.all(folders.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
@@ -30,7 +44,7 @@ async function fixture() {
     '<view><card wx:for="{{items}}" wx:for-index="row" /><include src="./template.wxml" /></view>',
   );
   await writeFile(join(input, 'pages/b.wxml'), '<text>unselected</text>');
-  await writeFile(join(input, 'pages/template.wxml'), '<text>{{title}}</text>');
+  await writeFile(join(input, 'pages/template.wxml'), '<text>名称：{{title}}</text>');
   await writeFile(
     join(input, 'components/card.wxml'),
     '<view><text>{{title}}</text><input value="{{private}}" /></view>',
@@ -56,14 +70,18 @@ describe('WXML 构建工具的实际项目输出', () => {
     expect(page).toContain('sentry-replay-root');
     expect(page).toContain('="{{row}}"');
     expect(page).toContain('data-sentry-replay-target=');
-    expect(parseWxml(page)).toHaveLength(1);
+    expect(rendered(page)).toHaveLength(1);
+    // include 的 WXS 声明被微信忽略，引用页必须带齐被引用模板的独立辅助模块。
+    const template = await readFile(join(options.output, 'pages/template.wxml'), 'utf8');
+    const module = template.match(/<wxs module="([^"]+)"/)![1];
+    expect(page).toContain('<wxs module="' + module + '"');
     for (const file of ['pages/a.js', 'pages/a.js.map', 'pages/b.wxml'])
       expect(await readFile(join(options.output, file), 'utf8')).toBe(
         await readFile(join(options.input, file), 'utf8'),
       );
     const component = await readFile(join(options.output, 'components/card.wxml'), 'utf8');
-    expect(component).toContain('data-sentry-replay-text="{{title}}"');
-    const inputNode = parseWxml(component)[0].children[1];
+    expect(component).toContain('data-sentry-replay-text="\u200b{{ title }}"');
+    const inputNode = rendered(component)[0].children[1];
     expect(
       inputNode.attrs.some((attr: { name: string }) => attr.name === 'data-sentry-replay-text'),
     ).toBe(false);
@@ -74,15 +92,27 @@ describe('WXML 构建工具的实际项目输出', () => {
     const original = `<wxs module="m">var x = '<view>'; module.exports=x;</wxs><view class='a&amp;b' hidden wx:if="{{a < b}}"><text>{{'x}}' + name}}</text><button disabled>确定 &amp; 继续</button></view>`;
     const output = instrumentWxml(original, { sourceId: 'test', page: true });
     expect(output).toContain(`<wxs module="m">var x = '<view>'; module.exports=x;</wxs>`);
-    expect(output).toContain('class="a&amp;b sentry-replay sentry-replay-root"');
+    expect(output).toContain("class='a&amp;b sentry-replay sentry-replay-root'");
     expect(output).toContain('wx:if="{{a < b}}"');
+    const classBinding = '<view class=\'{{ active && m.label("x&y") }}\' />';
+    expect(instrumentWxml(classBinding, { sourceId: 'class', page: true })).toContain(
+      'class=\'{{ active && m.label("x&y") }} sentry-replay sentry-replay-root\'',
+    );
     const nodes = parseWxml(output).filter((node: { name: string }) => node.name !== 'wxs');
     expect(nodes[0].children).toHaveLength(2);
     expect(
       nodes[0].children[1].attrs.find(
         (attr: { name: string }) => attr.name === 'data-sentry-replay-text',
       ).value,
-    ).toBe('确定 &amp; 继续');
+    ).toMatch(/^\u200b{{ sr_replay_test\.s\[\d+\] }}$/);
+    expect(literals(output)).toContain('确定 &amp; 继续');
+    const special = instrumentWxml("<text>订单\\'s \"确认\" \\\\path\n下一行 {{'</wxs>'}}</text>", {
+      sourceId: 'special',
+      page: true,
+    });
+    expect(literals(special)).toContain('订单\\\'s "确认" \\\\path\n下一行 ');
+    expect(literals(special)).toContain('</wxs>');
+    expect(special.split('</wxs>')[0]).not.toContain("'</wxs>'");
     expect(output).not.toContain('data-sentry-replay-text="var x');
     expect(
       instrumentWxml(
@@ -98,8 +128,20 @@ describe('WXML 构建工具的实际项目输出', () => {
       '<view>{{unclosed</view>',
       '<view data-sentry-replay-node="owned"/>',
       '<view wx:for="{{list}}" wx:for-index="a-b"/>',
+      '<view><block data-sentry-replay-mask="true">私密</block></view>',
+      '<view><block wx:for="{{list}}">{{item}}</block></view>',
+      '<text>{{m.format(value)}}</text>',
+      '<text decode>内容 &amp;</text>',
     ])
       expect(() => instrumentWxml(bad, { sourceId: 'a' })).toThrow();
+    expect(
+      literals(instrumentWxml('<text decode="{{false}}">0</text>', { sourceId: 'decode' })),
+    ).toContain('0');
+    expect(
+      instrumentWxml('<text decode data-sentry-replay-text="内容 &amp;">内容 &amp;</text>', {
+        sourceId: 'manual',
+      }),
+    ).toContain('data-sentry-replay-text="内容 &amp;"');
   });
   it('拒绝路径逃逸、嵌套输出、未知页面、外部链接，失败前不写输出', async () => {
     const options = await fixture();
@@ -221,9 +263,7 @@ describe('WXML 构建工具的实际项目输出', () => {
       expect(await readFile(join(output, 'pages/a.wxml'), 'utf8')).toContain(
         'data-sentry-replay-target=',
       );
-      expect(await readFile(join(output, target + '.wxml'), 'utf8')).toContain(
-        'data-sentry-replay-text="组件"',
-      );
+      expect(literals(await readFile(join(output, target + '.wxml'), 'utf8'))).toContain('组件');
     },
   );
   it('组件查找优先本地再逐级 npm，忽略未使用声明；缺失依赖提供构建步骤且不写输出', async () => {
@@ -265,6 +305,39 @@ describe('WXML 构建工具的实际项目输出', () => {
     await expect(readFile(join(missing.output, 'app.json'))).rejects.toThrow();
     await writeFile(join(options.input, 'pages/a.wxml'), '<view><unused /></view>');
     await expect(instrumentWechatProject(missing)).rejects.toThrow('Unsupported replay dependency');
+  });
+  it('结构条件文字留在原容器，分支顺序、实体和私密子节点边界不丢失', () => {
+    const source = `<view data-sentry-replay-unmask="true"><block wx:if="{{ value || value === 0 }}">{{value}}</block><block wx:elif="{{ pending }}">待处理 &quot; &amp; &amp;amp;</block><block wx:else>{{'x}}' + fallback}}</block><view data-sentry-replay-mask="true">私密子区域</view></view>`;
+    const output = instrumentWxml(source, { sourceId: 'conditional', page: true });
+    const node = rendered(output)[0];
+    expect(node.children.map((child: { name: string }) => child.name)).toEqual([
+      'block',
+      'block',
+      'block',
+      'view',
+    ]);
+    for (const block of source.match(/<block[\s\S]*?<\/block>/g)!) expect(output).toContain(block);
+    const text = decodeXML(
+      node.attrs.find((attr: { name: string }) => attr.name === 'data-sentry-replay-text').value,
+    );
+    expect(text).toContain('( value || value === 0 )');
+    expect(text).toContain('!((');
+    expect(text).toContain('&& ( pending )');
+    expect(literals(output)).toContain('待处理 &quot; &amp; &amp;amp;');
+    expect(text).not.toContain('&amp;');
+    expect(text).not.toContain('&quot;');
+    expect(text).not.toContain('私密子区域');
+    expect(
+      node.attrs.some(
+        (attr: { name: string; value: string }) =>
+          attr.name === 'data-sentry-replay-text-format' && attr.value === 'wxml',
+      ),
+    ).toBe(true);
+    const loop = instrumentWxml(
+      '<view><block wx:if="{{show}}" wx:for="{{list}}"><text>{{item}}</text></block></view>',
+      { sourceId: 'loop', page: true },
+    );
+    expect(loop).toContain('data-sentry-replay-text="\u200b{{ item }}"');
   });
   it('保留方法冲突和纯模板入口明确失败，符号链接别名不能绕过输出隔离', async () => {
     const options = await fixture();

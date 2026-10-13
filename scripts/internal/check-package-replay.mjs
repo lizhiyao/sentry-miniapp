@@ -18,7 +18,8 @@ async function run() {
     const q={in(scope){assert.equal(scope,page);return q;},
       selectViewport(){return {fields(){return q;}};},selectAll(){return {fields(){return q;}};},
       exec(cb){cb([{width:375,height:700},[{left:20,top:40,width:100,height:40,
-        dataset:{sentryReplayText:'private input'}}]]);}};
+        dataset:{sentryReplayText:'private input'}},{left:20,top:100,width:100,height:40,
+        dataset:{sentryReplayText:'\\u200b0',sentryReplayTextFormat:'wxml',sentryReplayUnmask:true}}]]);}};
     return q;
   }};
   const client=sdk.init({dsn:'https://key@example.com/1',defaultIntegrations:false,enableOfflineCache:false,
@@ -33,6 +34,8 @@ async function run() {
   assert.equal(envelopes[0][1][1][0].type,'replay_recording');
   assert.ok(!JSON.stringify(envelopes).includes('private input'));
   const recording=envelopes[0][1][1];
+  const events=JSON.parse(recording[1].slice(recording[1].indexOf('\\n')+1));
+  assert.ok(JSON.stringify(events).includes('"textContent":"0"'));
   assert.equal(Buffer.byteLength(recording[1],'utf8'),recording[0].length);
   sdk.init({dsn:'https://key@example.com/1',defaultIntegrations:false,enableOfflineCache:false,
     transport:()=>({send:()=>Promise.resolve({statusCode:200}),flush:()=>Promise.resolve(true)})});
