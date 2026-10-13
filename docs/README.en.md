@@ -37,7 +37,7 @@ Automatic collection depends on host capabilities. React / Vue component errors 
 
 ---
 
-Experimental WeChat page replay is available in source builds through a separate entry, with explicit template annotations and limited layout coverage. npm `2.0.2` does not include it. See the [guide](https://sentry-miniapp.pages.dev/guide/page-replay) and [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) for implementation and backend acceptance.
+Experimental WeChat page replay is available in source builds through a separate entry, with build-generated annotations for selected pages and bounded layout coverage. npm `2.0.2` does not include it. See the [guide](https://sentry-miniapp.pages.dev/guide/page-replay) and [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) for implementation and backend acceptance.
 
 ## Setup Requirements
 

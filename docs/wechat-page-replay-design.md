@@ -28,7 +28,7 @@
 
 ## 数据与归属
 
-默认只读取 `.sentry-replay` 的位置、尺寸、白名单样式和明确的文字标记。输入、图片与原生绘制内容使用占位；不复制页面 data、任意 dataset 或输入值。Meta 的路由去掉 query/fragment。
+默认查询页面标记与所选页面根节点跨组件标记的并集，读取位置、尺寸、白名单样式、mark 与生成的文字绑定。输入、图片与原生绘制内容使用占位；不复制页面 data、任意 dataset 或输入值。Meta 的路由去掉 query/fragment。
 
 回放的页面地址使用保留域名 `https://miniapp.invalid/` 加实际路由，只用于播放器展示，不执行网络请求。Sentry 播放器按标准 URL 的 origin 展示页面，使用自定义协议会出现 `null` 前缀。堆栈与 Source Map 的 `app:///` 路径保持原有职责。
 
@@ -42,7 +42,7 @@ Envelope 头复用 Core 的 `createEventEnvelopeHeaders` 与 `getSdkMetadataForE
 
 单一在途查询，默认 500ms 采样、10 秒排放、200 节点、128KiB 分段、5 分钟时长。内容未变化时不追加快照。每段以完整快照作为基线；新关键帧可替换未变动的基线，点击必须保留基线。容量排放后再次核对预算与活动身份。
 
-这里没有自动 DOM 树、任意文本、图像像素、动画或原生组件绘制的保证；父子裁剪和层叠通过平面可见盒子近似。Skyline、其它宿主和小游戏明确跳过。自定义组件需要使用宿主允许的显式跨组件选择器。
+这里没有自动 DOM 树、任意文本、图像像素、动画或原生组件绘制的保证；父子结构和滚动裁剪通过编译元数据、组件作用域和宿主查询前序重建；复杂层叠仍有近似。Skyline、其它宿主和小游戏明确跳过。编译后的所选页面使用默认跨组件查询。
 
 ## 验证接缝
 
@@ -57,3 +57,16 @@ Envelope 头复用 Core 的 `createEventEnvelopeHeaders` 与 `getSdkMetadataForE
 同一录制已在 Sentry Replay 列表和播放器读回：初始布局、状态更新、节点消失、点击指针与输入占位可见，页面地址正常展示。错误 `3a045f435bf8493281e368885d070e14` 已列入录制活动，错误详情可反向打开同一回放。设置 `dataCollection.userInfo: false` 后，实际分段携带 `infer_ip: never`，后台显示匿名用户。示例仍保留 `setUser()` 的固定演示值，不将自动 IP 开关描述为删除所有业务显式数据。
 
 以上证据来自 IDE 模拟器与 Sentry SaaS；iPhone 真机、设备性能、其它基础库、跨组件框架产物和自建 Sentry 部署未作验收保证。实施与验收证据持续维护在 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
+
+
+## 构建适配与复杂组件
+
+Node 工具使用 htmlparser2 解析 WXML、Babel Parser 验证绑定边界、entities 编码 XML 属性，不 eval 业务表达式。只输出独立项目副本，保留业务 JS/map、原绑定和样式；解析依赖及其许可证归入独立 Node 构建产物，不进入小程序执行代码。静态组件图按 app/局部 usingComponents、import/include 解析；模板型框架入口明确拒绝，不能无证据扩大框架覆盖。
+
+微信实际查询证明 mark 只保留当前组件内的祖先，进入组件内部会重置。生成标记包含来源、直接父节点和组件目标来源闭包；查询前序用于进入新组件实例，局部 mark 注册表区分重复列表，slot 返回声明它的作用域。父信息缺失时保守跳过；遮蔽与 block 在读取后代文字前继承。快照按 rrweb 的标准 childNodes 重建树，位置相对父盒子和边框，scroll-view 的 overflow 用于裁剪与点击可见范围。私人输入和媒体无论 unmask 均使用占位。
+
+点击捕获复用共享函数 instrumentation 的 client 参数观察者。观察者不能执行或重试业务原函数，与主 handler 共用一个包装和最后退订恢复；中性 Page/Component 方法在调用时读取当前录制器，退休 client 不持有组件回调。已有业务 capture 绑定和保留方法不覆盖；冻结定义或无法包装的构造入口安全降级。
+
+自动 session/error 采样只决定本录制器发送资格，不替代 Core 的错误采样。默认 session=0、error=1，未触发的缓冲受 60 秒与 UTF-8 字节预算限制，截断时重建完整基线。错误捕获时抽样及固定身份，metadata 的 error_ids 仍只接受 2xx 回执，异步 processor 不转移录制归属。后台或时长结束不发送未抽中的缓冲；手动停止不能被前台事件复活。
+
+本轮主 CJS 261100 B（主预算 261120 B 保持不变），可选 CJS 24856 B（gzip 9072 B），比基础入口增加 5491 B，覆盖组件树、裁剪、隐私继承、构造观测和错误前缓冲。可选入口预算调整为 26 KiB，保留约 1.7 KiB 修复余量；Node 工具约 423 KiB、gzip 109 KiB，不计小程序运行包，但计入 npm 安装大小。未启用项目只承担主文件的共享观察桥接增量，未增加第二条 SDK 发行线。

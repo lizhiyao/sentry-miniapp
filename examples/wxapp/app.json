@@ -2,7 +2,8 @@
   "pages": [
     "pages/index/index",
     "pages/test/test",
-    "pages/replay/replay"
+    "pages/replay/replay",
+    "pages/replay-components/index"
   ],
   "window": {
     "backgroundTextStyle": "dark",
@@ -27,9 +28,15 @@
       },
       {
         "pagePath": "pages/test/test",
-        "text": "实验室",
+        "text": "功能验证",
         "iconPath": "images/test.png",
         "selectedIconPath": "images/test-active.png"
+      },
+      {
+        "pagePath": "pages/replay-components/index",
+        "text": "页面回放",
+        "iconPath": "images/replay.png",
+        "selectedIconPath": "images/replay-active.png"
       }
     ]
   }

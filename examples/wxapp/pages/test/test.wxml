@@ -1,7 +1,7 @@
 <!--test.wxml-->
 <view class="container">
   <view class="header-section">
-    <text class="page-title">功能实验室</text>
+    <text class="page-title">功能验证</text>
     <text class="page-desc">触发不同类型的事件以测试 Sentry 监控能力</text>
   </view>
 

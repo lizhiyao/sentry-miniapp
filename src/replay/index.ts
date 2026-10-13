@@ -8,6 +8,7 @@ import {
   MiniappClient,
   utf8ByteLength,
   uuid4,
+  _addFunctionInstrumentationObserver,
 } from '../index';
 import type { Breadcrumb, Event, EventHint, Integration, ReplayEvent } from '../index';
 import { clickEvent, frameEvents, projectFrame, REPLAY_STYLES } from './frame';
@@ -39,7 +40,10 @@ interface Page {
 
 const recorders = new WeakMap<MiniappClient, { recorder: Recorder; stop: () => void }>();
 const DEFAULTS = {
-  selector: '.sentry-replay',
+  sessionSampleRate: 0,
+  errorSampleRate: 1,
+  bufferDurationMs: 60000,
+  selector: '.sentry-replay, .sentry-replay-root >>> .sentry-replay',
   intervalMs: 500,
   flushIntervalMs: 10000,
   maxNodes: 200,
@@ -58,6 +62,9 @@ export function wechatPageReplayIntegration(
   options: WechatPageReplayOptions = {},
 ): ReplayIntegration {
   const config = {
+    sessionSampleRate: rate(options.sessionSampleRate, 0),
+    errorSampleRate: rate(options.errorSampleRate, 1),
+    bufferDurationMs: bounded(options.bufferDurationMs, DEFAULTS.bufferDurationMs, 1000, 60000),
     selector:
       typeof options.selector === 'string' &&
       options.selector.length > 0 &&
@@ -104,6 +111,31 @@ export function wechatPageReplayIntegration(
           /* Replay does not block business telemetry. */
         }
       };
+      // 构造期只安装中性方法；调用时读取当前 client，不把组件绑定到退休 recorder。
+      for (const name of getDiagnostics().platform.name === 'wechat' &&
+      !getDiagnostics().platform.isMinigame
+        ? ['Page', 'Component']
+        : []) {
+        adopt(
+          _addFunctionInstrumentationObserver(globalThis, name, client, (args) => {
+            const definition = args[0] as Record<string, unknown> | undefined;
+            if (!definition || typeof definition !== 'object') return;
+            const methods =
+              name === 'Component'
+                ? ((definition['methods'] ??= {}) as Record<string, unknown>)
+                : definition;
+            if (!methods || typeof methods !== 'object' || '__sentryReplayTap' in methods) return;
+            const handler = (event: Record<string, unknown>): void => {
+              const current = getClient();
+              if (current instanceof MiniappClient)
+                recorders.get(current)?.recorder.recordTap(event);
+            };
+            // PageBreadcrumbs 不再把私有 capture 方法当作业务交互重复包装。
+            Object.defineProperty(handler, '__sentryPageCallbackWrapper', { value: true });
+            methods['__sentryReplayTap'] = handler;
+          }),
+        );
+      }
       adopt(
         client.on('preprocessEvent', (event, hint) =>
           observe(() => recorder.rememberError(event, hint)),
@@ -152,6 +184,11 @@ interface ReplayIntegration extends Integration {
 }
 
 type Config = typeof DEFAULTS;
+function rate(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1
+    ? value
+    : fallback;
+}
 
 class Recorder implements WechatPageReplay {
   private state: WechatPageReplayDiagnostics['state'] = 'waiting';
@@ -163,6 +200,7 @@ class Recorder implements WechatPageReplay {
   private bytes = 0;
   private segmentId = 0;
   private startedAt = 0;
+  private bufferStart = 0;
   private lastSent = 0;
   private generation = 0;
   private foreground = false;
@@ -170,10 +208,13 @@ class Recorder implements WechatPageReplay {
   private cancelQuery: (() => void) | undefined;
   private errors = new Set<string>();
   private dirty = false;
-  private recordedPage: Page | undefined;
+  private framePage: Page | undefined;
   private destroyed = false;
-  private manuallyStopped = false;
-  private readonly capturedErrors = new WeakMap<EventHint, string>();
+  private manualStop = false;
+  private lastTap = '';
+  private sampled = false;
+  private mode: 'session' | 'buffer' = 'session';
+  private readonly errorLinks = new WeakMap<EventHint, string>();
 
   constructor(
     private client: MiniappClient | undefined,
@@ -216,9 +257,13 @@ class Recorder implements WechatPageReplay {
   }
 
   start(): boolean {
+    return this.begin(true);
+  }
+
+  private begin(explicit: boolean): boolean {
     const client = this.client;
     if (this.destroyed || !client?.isActiveRuntime()) return false;
-    this.manuallyStopped = false;
+    this.manualStop = false;
     this.foreground = true;
     if (!client.getConsent()) {
       this.reason = 'consent_required';
@@ -235,17 +280,26 @@ class Recorder implements WechatPageReplay {
       this.reason = 'unreadable_host';
       return false;
     }
+    if (explicit) this.sampled = true;
     if (this.state === 'recording') return true;
+    this.sampled = explicit || Math.random() < this.config.sessionSampleRate;
+    this.mode = this.sampled ? 'session' : 'buffer';
+    if (!this.sampled && this.config.errorSampleRate === 0) {
+      this.reason = 'sampled_out';
+      return false;
+    }
     this.state = 'recording';
     this.reason = undefined;
     this.replayId = uuid4();
     this.startedAt = this.lastSent = Date.now();
+    this.bufferStart = this.startedAt;
     this.segmentId = 0;
     this.frame = undefined;
     this.frameKey = '';
+    this.lastTap = '';
     this.events = [];
     this.dirty = false;
-    this.recordedPage = undefined;
+    this.framePage = undefined;
     this.bytes = 0;
     this.errors.clear();
     this.generation++;
@@ -255,7 +309,7 @@ class Recorder implements WechatPageReplay {
 
   resume(): void {
     this.foreground = true;
-    if (!this.manuallyStopped) this.start();
+    if (!this.manualStop) this.begin(false);
   }
 
   destroy(): void {
@@ -275,13 +329,13 @@ class Recorder implements WechatPageReplay {
   }
 
   stop(): void {
-    this.manuallyStopped = true;
+    this.manualStop = true;
     this.pause();
     this.state = 'stopped';
     this.replayId = undefined;
     this.events = [];
     this.dirty = false;
-    this.recordedPage = undefined;
+    this.framePage = undefined;
     this.bytes = 0;
     this.frame = undefined;
     this.frameKey = '';
@@ -290,12 +344,12 @@ class Recorder implements WechatPageReplay {
 
   consentChanged(granted: boolean): void {
     const foreground = this.foreground;
-    const manuallyStopped = this.manuallyStopped;
+    const manualStop = this.manualStop;
     this.stop();
-    this.manuallyStopped = manuallyStopped;
+    this.manualStop = manualStop;
     this.foreground = foreground;
     this.reason = granted ? undefined : 'consent_required';
-    if (granted && foreground && !manuallyStopped) this.start();
+    if (granted && foreground && !manualStop) this.begin(false);
   }
 
   private currentPage(): Page | undefined {
@@ -320,6 +374,7 @@ class Recorder implements WechatPageReplay {
     if (Date.now() - this.startedAt >= this.config.maxDurationMs) {
       void this.flush();
       this.stop();
+      this.manualStop = false;
       this.reason = 'duration_limit';
       return false;
     }
@@ -363,6 +418,7 @@ class Recorder implements WechatPageReplay {
           query.selectViewport().fields({ size: true, scrollOffset: true });
           query.selectAll(this.config.selector).fields({
             dataset: true,
+            mark: true,
             rect: true,
             size: true,
             computedStyle: [...REPLAY_STYLES],
@@ -392,13 +448,18 @@ class Recorder implements WechatPageReplay {
       }
       const key = JSON.stringify(frame);
       if (key === this.frameKey) {
+        if (!this.sampled && Date.now() - this.bufferStart > this.config.bufferDurationMs) {
+          this.events = frameEvents(frame, Date.now());
+          this.bufferStart = Date.now();
+          this.bytes = utf8ByteLength(JSON.stringify(this.events));
+        }
         if (Date.now() - this.lastSent >= this.config.flushIntervalMs) void this.flush();
         return true;
       }
       const events = frameEvents(frame, Date.now());
       if (!this.append(events, true)) return false;
       this.frame = frame;
-      this.recordedPage = page;
+      this.framePage = page;
       this.frameKey = key;
       this.reason = frame.nodes.length ? undefined : 'no_marked_nodes';
       if (Date.now() - this.lastSent >= this.config.flushIntervalMs) void this.flush();
@@ -418,7 +479,16 @@ class Recorder implements WechatPageReplay {
     // 新布局快照可替换尚未变动的分段基线，点击则必须保留基线。
     if (keyframe && !this.dirty) this.events = [];
     let merged = [...this.events, ...events];
+    if (
+      !this.sampled &&
+      (Date.now() - (merged[0]?.timestamp ?? Date.now()) > this.config.bufferDurationMs ||
+        utf8ByteLength(JSON.stringify(merged)) > limit)
+    )
+      merged = keyframe
+        ? events
+        : [...(this.frame ? frameEvents(this.frame, Date.now()) : []), ...events];
     let bytes = utf8ByteLength(JSON.stringify(merged));
+    if (!this.sampled) this.bufferStart = merged[0]?.timestamp ?? Date.now();
     if (bytes > limit) {
       void this.flush();
       if (keyframe && !this.dirty) this.events = [];
@@ -439,37 +509,70 @@ class Recorder implements WechatPageReplay {
   recordInteraction(breadcrumb: Breadcrumb): void {
     if (
       !this.eligible() ||
-      !this.frame ||
-      this.currentPage() !== this.recordedPage ||
+      !this.frame?.nodes.length ||
+      this.currentPage() !== this.framePage ||
       breadcrumb.category !== 'user.interaction'
     )
       return;
     const data = breadcrumb.data;
     if (!data || !['tap', 'click'].includes(String(data['eventType']))) return;
+    if (this.frame.instrumented) return;
     // 微信 tap detail 与 touches 的 page 坐标均相对文档，转换到快照视口。
     const pageX = data['x'] ?? data['touchX'];
     const pageY = data['y'] ?? data['touchY'];
     if (typeof pageX !== 'number' || typeof pageY !== 'number') return;
     const x = pageX - this.frame.scrollLeft;
     const y = pageY - this.frame.scrollTop;
-    if (typeof x !== 'number' || typeof y !== 'number') return;
     const event = clickEvent(this.frame, x, y, Date.now());
     if (event) this.append([event]);
+  }
+
+  recordTap(event: Record<string, unknown>): void {
+    if (
+      !this.eligible() ||
+      !this.frame?.nodes.length ||
+      this.currentPage() !== this.framePage ||
+      this.client!.getOptions().enableUserInteractionBreadcrumbs === false
+    )
+      return;
+    try {
+      const detail = event['detail'] as Record<string, unknown> | undefined;
+      const touches = event['touches'] as Record<string, unknown>[] | undefined;
+      const x = detail?.['x'] ?? touches?.[0]?.['pageX'];
+      const y = detail?.['y'] ?? touches?.[0]?.['pageY'];
+      if (typeof x !== 'number' || typeof y !== 'number') return;
+      const stamp = event['timeStamp'];
+      const key = JSON.stringify([stamp, x, y]);
+      if (typeof stamp === 'number' && key === this.lastTap) return;
+      this.lastTap = typeof stamp === 'number' ? key : '';
+      const click = clickEvent(
+        this.frame,
+        x - this.frame.scrollLeft,
+        y - this.frame.scrollTop,
+        Date.now(),
+      );
+      if (click) this.append([click]);
+    } catch {
+      /* 不读取输入值或修改业务事件。 */
+    }
   }
 
   rememberError(event: Event, hint: EventHint | undefined): void {
     if (
       hint &&
       this.eligible() &&
-      this.frame &&
-      this.currentPage() === this.recordedPage &&
+      this.frame?.nodes.length &&
+      this.currentPage() === this.framePage &&
       !event.type
     )
-      this.capturedErrors.set(hint, this.replayId!);
+      if (this.sampled || Math.random() < this.config.errorSampleRate) {
+        this.sampled = true;
+        this.errorLinks.set(hint, this.replayId!);
+      }
   }
 
   linkError(event: Event, hint: EventHint | undefined): void {
-    const replayId = hint && this.capturedErrors.get(hint);
+    const replayId = hint && this.errorLinks.get(hint);
     if (replayId && !event.type && !event.tags?.['replayId'])
       event.tags = { ...event.tags, replayId };
   }
@@ -491,6 +594,7 @@ class Recorder implements WechatPageReplay {
     const client = this.client;
     if (
       !client ||
+      !this.sampled ||
       !this.dirty ||
       !this.replayId ||
       !this.events.length ||
@@ -509,8 +613,8 @@ class Recorder implements WechatPageReplay {
         event_id: replayId,
         replay_id: replayId,
         segment_id: this.segmentId,
-        replay_type: 'session',
-        replay_start_timestamp: this.startedAt / 1000,
+        replay_type: this.mode,
+        replay_start_timestamp: (this.mode === 'buffer' ? this.bufferStart : this.startedAt) / 1000,
         timestamp: Date.now() / 1000,
         urls: this.frame ? [this.frame.href] : [],
         error_ids: [...this.errors],

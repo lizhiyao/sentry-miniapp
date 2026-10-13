@@ -22,7 +22,7 @@ async function run() {
     return q;
   }};
   const client=sdk.init({dsn:'https://key@example.com/1',defaultIntegrations:false,enableOfflineCache:false,
-    integrations:[optional.wechatPageReplayIntegration()],transport:()=>({
+    integrations:[optional.wechatPageReplayIntegration({sessionSampleRate:1})],transport:()=>({
       send(envelope){envelopes.push(envelope);return Promise.resolve({statusCode:200});},
       flush:()=>Promise.resolve(true)})});
   const replay=optional.getWechatPageReplay();
@@ -50,4 +50,21 @@ run().catch(error=>{console.error(error);process.exitCode=1;});
   console.log(
     'Installed replay ESM/CJS entrypoints share root state and emit bounded, masked recordings.',
   );
+  const file = join(tempRoot, 'replay-tool-consumer.mjs');
+  await writeFile(
+    file,
+    `import assert from 'node:assert/strict';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import {instrumentWechatProject} from 'sentry-miniapp/replay-tools';
+await mkdir('tool-source');
+await writeFile('tool-source/app.json',JSON.stringify({pages:['index']}));
+await writeFile('tool-source/index.wxml','<view class="root"><text>{{a < b ? "yes" : "no"}}</text></view>');
+await writeFile('tool-source/index.js','Page({});');
+await instrumentWechatProject({input:'tool-source',output:'tool-output',pages:['index']});
+assert.match(await readFile('tool-output/index.wxml','utf8'),/sentry-replay-root/);
+assert.equal(await readFile('tool-output/index.js','utf8'),'Page({});');
+`,
+  );
+  const tool = await runNode(file, tempRoot);
+  assert.equal(tool.stderr, '');
 }

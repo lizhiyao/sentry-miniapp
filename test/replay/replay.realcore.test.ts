@@ -16,6 +16,109 @@ import { _resetAppLifecycle } from '../../src/appLifecycle';
 import { collectEnvelopePayloads, createCapturingTransport } from '../support/envelopes';
 
 describe('微信回放真实 Core / 生命周期', () => {
+  it('编译捕获方法复用共享包装，组件真实 tap 去重，错误／冻结定义安全降级', async () => {
+    const registered: Record<string, any>[] = [];
+    const nativePage = vi.fn((definition: Record<string, any>) => {
+      registered.push(definition);
+      return 'page';
+    });
+    const nativeComponent = vi.fn((definition: Record<string, any>) => {
+      registered.push(definition);
+      return 'component';
+    });
+    vi.stubGlobal('Page', nativePage);
+    vi.stubGlobal('Component', nativeComponent);
+    const { client, replay } = make();
+    const definition = {},
+      component: Record<string, any> = {};
+    expect((globalThis as any).Page(definition)).toBe('page');
+    expect((globalThis as any).Component(component)).toBe('component');
+    (globalThis as any).Page(undefined);
+    (globalThis as any).Component({ methods: 'unavailable' });
+    (globalThis as any).Page(Object.freeze({}));
+    (globalThis as any).Page({ __sentryReplayTap: () => 'business' });
+    const pageHandler = registered[0]!['__sentryReplayTap'];
+    const componentHandler = component['methods']['__sentryReplayTap'];
+    expect(pageHandler.__sentryPageCallbackWrapper).toBe(true);
+    (result as any)[1][0].dataset.sentryReplayRoot = true;
+    await replay.capture();
+    addBreadcrumb({ category: 'user.interaction', data: { eventType: 'tap', x: 30, y: 50 } });
+    const tap = { timeStamp: 100, detail: { x: 30, y: 50 } };
+    pageHandler(tap);
+    componentHandler(tap);
+    pageHandler({ touches: [{ pageX: 30, pageY: 50 }] });
+    pageHandler({ detail: { x: 'bad', y: 50 } });
+    pageHandler({
+      get detail() {
+        throw new Error('unreadable');
+      },
+    });
+    await replay.flush();
+    expect(
+      recordings()[0].events.filter((event: { type: number }) => event.type === 3),
+    ).toHaveLength(2);
+    client.getOptions().enableUserInteractionBreadcrumbs = false;
+    pageHandler({ detail: { x: 10, y: 20 } });
+    expect(await replay.flush()).toBe(false);
+    client.dispose();
+    pageHandler(tap);
+    expect((globalThis as any).Page).toBe(nativePage);
+    expect((globalThis as any).Component).toBe(nativeComponent);
+  });
+  it('默认只在错误前缓冲，采样成功才排放；滚动窗口、时长与空页面关联有界', async () => {
+    const { client, replay } = make({
+      sessionSampleRate: 0,
+      bufferDurationMs: 1000,
+      maxDurationMs: 10000,
+    });
+    await replay.capture();
+    expect(await replay.flush()).toBe(false);
+    expect(envelopes).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(replay.getDiagnostics().bufferedBytes).toBeGreaterThan(0);
+    client.captureException(new Error('trigger buffer'));
+    await vi.advanceTimersByTimeAsync(5);
+    expect(collectEnvelopePayloads<ReplayEvent>(envelopes, ['replay_event'])[0]).toMatchObject({
+      replay_type: 'buffer',
+      replay_start_timestamp: Date.now() / 1000 - 0.005,
+    });
+    expect(collectEnvelopePayloads<Event>(envelopes, ['event'])[0].tags?.replayId).toBe(
+      replay.getReplayId(),
+    );
+    (result as any)[1] = [];
+    await replay.capture();
+    client.captureException(new Error('uncovered'));
+    await vi.advanceTimersByTimeAsync(5);
+    expect(
+      collectEnvelopePayloads<Event>(envelopes, ['event']).at(-1)?.tags?.replayId,
+    ).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(replay.getDiagnostics().reason).toBe('duration_limit');
+    hide();
+    show();
+    expect(replay.getDiagnostics().state).toBe('recording');
+  });
+  it('关闭两种采样不查询，显式 start 可启动；未抽中错误不关联也不发送', async () => {
+    const { client, replay } = make({ sessionSampleRate: 0, errorSampleRate: 0 });
+    expect(replay.getDiagnostics().reason).toBe('sampled_out');
+    expect(await replay.capture()).toBe(false);
+    expect(queryCalls).toBe(0);
+    expect(replay.start()).toBe(true);
+    await replay.capture();
+    expect(await replay.flush()).toBe(true);
+    client.dispose();
+    vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    const next = make({ sessionSampleRate: 0, errorSampleRate: 0.1 });
+    await next.replay.capture();
+    next.client.captureException(new Error('unsampled'));
+    await vi.advanceTimersByTimeAsync(5);
+    expect(
+      collectEnvelopePayloads<Event>(envelopes, ['event']).at(-1)?.tags?.replayId,
+    ).toBeUndefined();
+    expect(await next.replay.flush()).toBe(false);
+    expect(next.replay.start()).toBe(true);
+    expect(await next.replay.flush()).toBe(true);
+  });
   const clients: MiniappClient[] = [];
   let envelopes: Envelope[], result: unknown, queued: ((result: unknown) => void)[];
   let page: { route: string; renderer?: string }, host: Record<string, unknown>;
@@ -27,7 +130,7 @@ describe('微信回放真实 Core / 生命周期', () => {
       defaultIntegrations: false,
       enableOfflineCache: false,
       transport: createCapturingTransport(envelopes),
-      integrations: [wechatPageReplayIntegration(options)],
+      integrations: [wechatPageReplayIntegration({ sessionSampleRate: 1, ...options })],
       ...extra,
     })!;
     clients.push(client);
@@ -88,7 +191,7 @@ describe('微信回放真实 Core / 生命周期', () => {
             },
           }),
           selectAll: (selector: string) => {
-            expect(selector).toBe('.sentry-replay');
+            expect(selector).toBe('.sentry-replay, .sentry-replay-root >>> .sentry-replay');
             return {
               fields: (value: object) => {
                 fields.push(value);
@@ -184,9 +287,12 @@ describe('微信回放真实 Core / 生命周期', () => {
       client.emit('beforeAddBreadcrumb', { category: 'user.interaction', data }, undefined),
     ).not.toThrow();
     await replay.flush();
-    expect(recordings()[0].events.map((event: { type: number }) => event.type)).toEqual([4, 2, 3, 3]);
+    expect(recordings()[0].events.map((event: { type: number }) => event.type)).toEqual([
+      4, 2, 3, 3,
+    ]);
     expect(recordings()[0].events.slice(-2)).toMatchObject([
-      { data: { id: 10, x: 30, y: 50 } }, { data: { id: 10, x: 30, y: 50 } },
+      { data: { id: 10, x: 30, y: 50 } },
+      { data: { id: 10, x: 30, y: 50 } },
     ]);
     client.captureEvent({ message: 'existing', tags: { replayId: 'other-replay' } });
     page = { route: 'pages/other/index' };
@@ -270,7 +376,11 @@ describe('微信回放真实 Core / 生命周期', () => {
     expect(replay.getDiagnostics().nodes).toBe(0);
     deferred = false;
     await vi.advanceTimersByTimeAsync(3000);
-    expect(replay.getDiagnostics()).toMatchObject({ state: 'recording', nodes: 1, reason: undefined });
+    expect(replay.getDiagnostics()).toMatchObject({
+      state: 'recording',
+      nodes: 1,
+      reason: undefined,
+    });
     replay.stop();
     expect(vi.getTimerCount()).toBe(0);
   });

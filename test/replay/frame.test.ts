@@ -15,6 +15,193 @@ const box = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 describe('布局投影与官方 rrweb 播放', () => {
+  it('跨组件重复实例、slot 和滚动裁剪维持树与隐私继承，未选页面不采集', () => {
+    const compiled = (
+      source: string,
+      node: string,
+      mark: Record<string, unknown>,
+      extra: Record<string, unknown> = {},
+      data: Record<string, unknown> = {},
+    ) =>
+      box({
+        ...extra,
+        mark: { ...mark, [node]: 'true' },
+        dataset: {
+          sentryReplaySource: source,
+          sentryReplayNode: node,
+          sentryReplayType: 'view',
+          ...data,
+        },
+      });
+    const raw = [
+      compiled(
+        'page',
+        'root',
+        {},
+        { left: 0, top: 0, width: 375, height: 700 },
+        { sentryReplayRoot: true, sentryReplayUnmask: true },
+      ),
+      compiled(
+        'page',
+        'host',
+        { root: 'true' },
+        {},
+        {
+          sentryReplayType: 'component',
+          sentryReplayTarget: 'card,shared',
+          sentryReplayMask: true,
+        },
+      ),
+      compiled('card', 'cardRoot', {}, {}, { sentryReplayText: '私密卡片' }),
+      compiled(
+        'card',
+        'scroll',
+        { cardRoot: 'true' },
+        { height: 40, overflow: 'hidden', borderTopWidth: '2px' },
+      ),
+      compiled(
+        'card',
+        'rowHost',
+        { cardRoot: 'true', scroll: 'true' },
+        { top: 60, height: 40 },
+        { sentryReplayType: 'component', sentryReplayTarget: 'row' },
+      ),
+      compiled(
+        'row',
+        'rowRoot',
+        {},
+        { top: 60, height: 40 },
+        { sentryReplayText: '私密行', sentryReplayUnmask: true },
+      ),
+      compiled(
+        'row',
+        'offscreen',
+        { rowRoot: 'true' },
+        { top: 120 },
+        { sentryReplayText: '裁剪外' },
+      ),
+      compiled(
+        'shared',
+        'slot',
+        { root: 'true', host: 'true' },
+        { top: 85 },
+        { sentryReplayText: '插槽仍归页面' },
+      ),
+      compiled(
+        'page',
+        'secondHost',
+        { root: 'true' },
+        { top: 150 },
+        { sentryReplayType: 'component', sentryReplayTarget: 'card' },
+      ),
+      compiled('card', 'cardRoot', {}, { top: 150 }, { sentryReplayText: '第二个实例' }),
+    ];
+    const frame = projectFrame([viewport, raw], 'page', 20)!;
+    expect(frame.nodes.map((node) => node.parent)).toEqual([-1, 0, 1, 2, 3, 4, 1, 0, 7]);
+    expect(frame.nodes.map((node) => node.text)).toEqual([
+      '',
+      '',
+      '****',
+      '',
+      '',
+      '***',
+      '******',
+      '',
+      '第二个实例',
+    ]);
+    expect(frame.nodes[4].style).toContain('top:18px');
+    expect(frame.nodes[5].visible?.bottom).toBe(80);
+    (raw[1]!.dataset as Record<string, unknown>)['sentryReplayParent'] = 'root';
+    (raw[2]!.dataset as Record<string, unknown>)['sentryReplayParent'] = '';
+    expect(projectFrame([viewport, raw], 'page', 20)?.nodes).toHaveLength(frame.nodes.length);
+    (raw[1]!.dataset as Record<string, unknown>)['sentryReplayParent'] = 'missing';
+    expect(
+      projectFrame([viewport, raw], 'page', 20)?.nodes.some((node) => node.text.includes('私密')),
+    ).toBe(false);
+    expect(clickEvent(frame, 30, 70, 0)).toMatchObject({ data: { id: 20 } });
+    expect(JSON.stringify(frameEvents(frame, 1))).not.toContain('裁剪外');
+    const body = (frameEvents(frame, 1)[1] as any).data.node.childNodes[1].childNodes[1];
+    expect(body.childNodes[0].childNodes).toHaveLength(3); // 文本 + 两个组件宿主。
+    const unselected = raw.map((node) => ({
+      ...node,
+      dataset: { ...node.dataset, sentryReplayRoot: false },
+    }));
+    expect(projectFrame([viewport, unselected], 'other', 20)?.nodes).toEqual([]);
+    expect(
+      projectFrame(
+        [
+          viewport,
+          [
+            compiled('unknown', 'own', {}, {}, { sentryReplayRoot: false }),
+            raw[0],
+            compiled('other', 'missingMark', {}, { mark: {} }),
+          ],
+        ],
+        'page',
+        20,
+      )?.nodes,
+    ).toHaveLength(1);
+  });
+  it.each(['blocked', 'hidden', 'transparent', 'zero'] as const)(
+    '父节点 %s 时不读取后代私密文本，组件边界也不泄漏',
+    (mode) => {
+      const data = {
+        sentryReplaySource: 'p',
+        sentryReplayNode: 'root',
+        sentryReplayRoot: true,
+        sentryReplayType: 'component',
+        sentryReplayTarget: 'c',
+        sentryReplayUnmask: true,
+        ...(mode === 'blocked' ? { sentryReplayBlock: true } : {}),
+      };
+      const raw = [
+        box({
+          mark: { root: true },
+          dataset: data,
+          ...(mode === 'hidden'
+            ? { display: 'none' }
+            : mode === 'transparent'
+              ? { opacity: '0' }
+              : mode === 'zero'
+                ? { width: 0 }
+                : {}),
+        }),
+        box({
+          mark: { inner: true },
+          dataset: {
+            sentryReplaySource: 'c',
+            sentryReplayNode: 'inner',
+            sentryReplayUnmask: true,
+            get sentryReplayText() {
+              throw new Error('must not read');
+            },
+          },
+        }),
+        box({
+          mark: { inner: true, child: true },
+          dataset: {
+            sentryReplaySource: 'c',
+            sentryReplayNode: 'child',
+            sentryReplayType: 'component',
+            sentryReplayTarget: 'deep',
+          },
+        }),
+        box({
+          mark: { leaf: true },
+          dataset: {
+            sentryReplaySource: 'deep',
+            sentryReplayNode: 'leaf',
+            get sentryReplayText() {
+              throw new Error('must not read');
+            },
+          },
+        }),
+      ];
+      const frame = projectFrame([viewport, raw], 'page', 20)!;
+      expect(frame.nodes.map((node) => node.text)).toEqual(mode === 'blocked' ? ['[blocked]'] : []);
+      if (mode === 'blocked') expect(clickEvent(frame, 30, 50, 0)).toBeUndefined();
+    },
+  );
   let player: Replayer | undefined;
   const sandboxDescriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'sandbox');
   beforeAll(() => {
@@ -105,15 +292,17 @@ describe('布局投影与官方 rrweb 播放', () => {
           box({ left: 1000 }),
           box({ dataset: {} }),
           box({ dataset: { sentryReplayType: 'video' } }),
+          box({ height: 20, fontSize: '14px', lineHeight: 'normal' }),
         ],
       ],
       'page',
       20,
     )!;
-    expect(frame.nodes.map((node) => node.text)).toEqual(['', '[video]']);
+    expect(frame.nodes.map((node) => node.text)).toEqual(['', '[video]', '*** ***********']);
+    expect(frame.nodes[2]!.style).toContain('white-space:pre;');
     for (const x of [NaN, -1, 376]) expect(clickEvent(frame, x, 0, 0)).toBeUndefined();
     expect(clickEvent(frame, 10, 10, 0)).toMatchObject({ data: { id: 5 } });
-    expect(clickEvent(frame, 30, 50, 0)).toMatchObject({ data: { id: 12 } });
+    expect(clickEvent(frame, 30, 50, 0)).toMatchObject({ data: { id: 14 } });
   });
   it('真实播放器重建初始界面、点击、文本变化、滚动位置和节点消失', async () => {
     vi.useFakeTimers();

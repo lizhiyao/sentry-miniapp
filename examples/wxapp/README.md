@@ -2,13 +2,17 @@
 
 这是一个使用 `sentry-miniapp` SDK 的微信小程序示例项目，覆盖了从应用启动、首页访问、网络请求、性能采集，到测试页手动异常/消息/反馈上报的一整套能力演示。
 
-## 页面回放原型
+## 页面回放示例
 
-运行 `yarn build:miniapp` 会生成主 SDK 和可选录制器两个文件。实验室新增“页面回放验证”，可测试标记布局、文字变化、节点出现／消失、输入占位、点击、滚动和错误关联。复制录制仅用于开发验证，最多保留当前页面最近 10 个已提交分段。
+运行 `yarn build:replay-example`，在微信开发者工具打开命令输出的独立项目，进入底部的“页面回放”。导航依次为“概览 / 功能验证 / 页面回放”。
 
-它是实验性布局投影，不复制 input 值、图片地址或页面 data；未标记区域和原生绘制不作完整复现。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，实施证据见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
+页面可确认订单、打开弹窗、滚动两层自定义组件中的列表、更新 slot、切换祖先文字遮蔽、输入测试文本，并关联 Sentry 错误。布局与文字绑定由构建工具生成，不需要逐节点手写标记。输入只显示占位；发送结果区被整块屏蔽，诊断不会再递归进入录制。
 
-示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，并保留 `setUser()` 的固定演示值，便于分别核对自动采集和业务显式数据。回放地址中的 `miniapp.invalid` 是展示标识，不需要配置合法域名。
+仅运行 `yarn build:miniapp` 时，原始项目会生成 SDK 与可选录制器，自动回放页提示先生成标记；功能验证中的低层手动标记示例仍可使用。新页面的录制导出只用于开发验收，最多保留最近 20 个已提交分段，业务不要复制这套导出钩子。
+
+这是实验性布局投影，不复制输入值、图片地址或页面 data，不保证原生绘制、字体与动画完全复现。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，实际验收进展见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
+
+示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，保留其它演示中的固定 `setUser()` 调用，分别核对自动采集与显式数据。`miniapp.invalid` 仅用于展示，不需要配置合法域名。示例文案允许显示，输入框不要填写真实个人信息。
 
 ## 能力概览
 
