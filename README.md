@@ -35,7 +35,7 @@
 
 ---
 
-源码中的[实验性微信页面回放](https://sentry-miniapp.pages.dev/guide/page-replay)可按需录制明确标记的页面区域；当前 npm `2.0.2` 尚无此入口。实现和后台验收进展见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
+源码中的[实验性微信页面回放](https://sentry-miniapp.pages.dev/guide/page-replay)可按需录制选定页面，构建工具自动生成普通节点与组件标记；当前 npm `2.0.2` 尚无此入口。实现和后台验收进展见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)。
 
 ## 接入要求
 

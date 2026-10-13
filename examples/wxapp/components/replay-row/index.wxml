@@ -1,0 +1,1 @@
+<view class="replay-row"><text class="row-label">{{text}}</text><text class="row-state">{{updated ? '完成' : '待确认'}}</text></view>

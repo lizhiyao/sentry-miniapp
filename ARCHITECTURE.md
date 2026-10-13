@@ -146,11 +146,13 @@ Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业
 
 ## 可选微信页面回放
 
-传统微信小程序的渲染层使用 WebView，逻辑层 SDK 无法直接访问它的 DOM。可选 `sentry-miniapp/replay` 因而通过公开 SelectorQuery 对显式标记的节点采样，生成 rrweb 的标准布局快照与点击事件；它不包装业务 setData，不复制页面 data，也不声称覆盖未标记区域或原生组件绘制。其它宿主、小游戏和 Skyline 跳过。
+传统微信小程序的渲染层使用 WebView，逻辑层 SDK 无法直接访问它的 DOM。可选 `sentry-miniapp/replay` 因而通过公开 SelectorQuery 对选定页面的生成标记或低层手动标记采样，生成 rrweb 的标准布局快照与点击事件；它不包装业务 setData，不复制页面 data，也不声称覆盖未标记区域或原生组件绘制。其它宿主、小游戏和 Skyline 跳过。
 
 录制器复用 `MiniappClient.registerAutomaticProducer()` 的共享生命周期、同意更新和停止门；查询完成时复核页面与录制身份，取消后的宿主回调释放 owner 引用。每段容量和时长有界，发送复用 Core envelope 与现有 transport。主入口不导入录制器，播放器只用于开发验证或后台播放；可选 ESM/CJS 产物引用相同格式的主入口，保持 Client 与 Core scope 身份一致。
 
 回放仍按普通 integration factory 安装；独立子入口保护预打包 CJS/UMD 的按需成本，不另发 npm 包或引入第二套初始化。构建对照与官方 SDK 的分发差异见[回放设计](docs/wechat-page-replay-design.md#为什么按普通-integration-安装却保留独立入口)。
+
+Node-only 构建入口 `sentry-miniapp/replay-tools` 生成 WXML 类型、文字和组件关系标记，只输出独立项目副本，不改业务 JS/map。运行时按组件作用域、查询前序和 mark 重建父子关系，继承隐私控制并裁剪滚动区域；构造参数观察共用 instrumentation，不重试业务函数。自动会话与错误采样围绕有界缓冲工作，未触发的缓冲不发送。模板型框架入口、原生绘制及未知组件范围保留明确适配边界，Node 解析依赖不进入主 SDK 或小程序录制器。
 
 职责、协议与验证接缝见[回放设计](docs/wechat-page-replay-design.md)，接入与覆盖范围见[实验性指南](https://sentry-miniapp.pages.dev/guide/page-replay)。
 

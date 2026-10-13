@@ -2,7 +2,7 @@ import { getClient } from '@sentry/core';
 import type { Client } from '@sentry/core';
 
 import { createFunctionWrapper, fill } from './helpers';
-import { getClientLifetime } from './lifecycle';
+import { getClientLifetime, withTelemetryCritical } from './lifecycle';
 
 export type FunctionInstrumentationHandler = (
   original: Function,
@@ -12,6 +12,7 @@ export type FunctionInstrumentationHandler = (
 
 interface FunctionInstrumentationState {
   handlers: Map<Client, FunctionInstrumentationHandler>;
+  observers: Map<Client, Set<(args: unknown[]) => void>>;
   restore: () => void;
   wrapper: Function;
 }
@@ -67,6 +68,7 @@ function createState(
     existingState ??
     ({
       handlers: new Map<Client, FunctionInstrumentationHandler>(),
+      observers: new Map(),
     } as FunctionInstrumentationState);
   const target = source as Record<string, unknown>;
 
@@ -78,8 +80,20 @@ function createState(
 
       const activeClient = getClient();
       const lifetime = activeClient && getClientLifetime(activeClient);
+      const observers = activeClient && state.observers.get(activeClient);
+      for (const observer of [...(observers || [])]) {
+        if (getClient() !== activeClient || (lifetime && !lifetime.canCollectAutomatic())) break;
+        if (!observers!.has(observer)) continue;
+        try {
+          withTelemetryCritical(() => observer(args));
+        } catch (_error) {
+          // 观察失败不重试业务函数，也不改变其返回值或异常。
+        }
+      }
       const handler =
-        activeClient && (!lifetime || lifetime.canCollectAutomatic())
+        activeClient &&
+        getClient() === activeClient &&
+        (!lifetime || lifetime.canCollectAutomatic())
           ? state.handlers.get(activeClient)
           : undefined;
       return handler
@@ -129,7 +143,7 @@ function ensureState(source: object, name: string): FunctionInstrumentationState
 }
 
 function restoreIfIdle(source: object, name: string, state: FunctionInstrumentationState): void {
-  if (state.handlers.size > 0) return;
+  if (state.handlers.size > 0 || state.observers.size) return;
 
   // 只恢复自己仍直接拥有的 wrapper。若第三方后来又包了一层，保留当前调用链，
   // 空 handler 的 Sentry wrapper 会透明转发，避免覆盖第三方修改。
@@ -138,6 +152,27 @@ function restoreIfIdle(source: object, name: string, state: FunctionInstrumentat
     state.restore();
     getStateMap(source).delete(name);
   }
+}
+
+/** 共用既有 wrapper 的参数观察，不取得或重试业务调用。 */
+export function addFunctionInstrumentationObserver(
+  source: object,
+  name: string,
+  client: Client,
+  observer: (args: unknown[]) => void,
+): () => void {
+  const state = ensureState(source, name);
+  if (!state) return () => {};
+  const owners = state.observers;
+  let callbacks = owners.get(client);
+  if (!callbacks) owners.set(client, (callbacks = new Set()));
+  const callback = (args: unknown[]): void => observer(args);
+  callbacks.add(callback);
+  return () => {
+    callbacks!.delete(callback);
+    if (!callbacks!.size && owners.get(client) === callbacks) owners.delete(client);
+    restoreIfIdle(source, name, state);
+  };
 }
 
 /**

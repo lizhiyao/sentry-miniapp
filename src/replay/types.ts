@@ -1,5 +1,10 @@
 export interface WechatPageReplayOptions {
-  /** 标记允许录制的节点；自定义组件内部须使用显式跨组件选择器。 */
+  /** 自动完整录制采样率，默认 0；错误前缓冲采样率默认 1。 */
+  sessionSampleRate?: number;
+  errorSampleRate?: number;
+  /** 未触发错误时仅保留此时间窗内的有界布局缓冲，默认 60s。 */
+  bufferDurationMs?: number;
+  /** 默认查询页面标记及所选页面的自定义组件内部标记。 */
   selector?: string;
   /** 布局采样间隔，默认 500ms，最小 100ms。 */
   intervalMs?: number;
@@ -37,6 +42,7 @@ export interface WechatPageReplay {
 }
 
 export interface ReplayFrame {
+  instrumented?: boolean;
   width: number;
   height: number;
   scrollLeft: number;
@@ -51,6 +57,12 @@ export interface ReplayBox {
   width: number;
   height: number;
   kind: string;
+  blocked?: boolean;
   style: string;
   text: string;
+  parent?: number;
+  borderX?: number;
+  borderY?: number;
+  visible?: { left: number; top: number; right: number; bottom: number };
+  clip?: { left: number; top: number; right: number; bottom: number };
 }

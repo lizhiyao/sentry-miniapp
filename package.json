@@ -9,7 +9,7 @@
   "homepage": "https://github.com/lizhiyao/sentry-miniapp",
   "scripts": {
     "build": "npm run build:release && npm run check:package-consumers",
-    "build:release": "vite build && vite build --mode replay && npm run build:type-entrypoints && npm run check:build-output && npm run check:bundle-size && npm run check:package",
+    "build:release": "vite build && vite build --mode replay && vite build --mode replay-tools && npm run build:type-entrypoints && npm run check:build-output && npm run check:bundle-size && npm run check:package",
     "build:type-entrypoints": "node scripts/internal/create-type-entrypoints.mjs",
     "check:build-output": "node scripts/internal/check-build-output.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js dist/sentry-miniapp-replay.mjs dist/sentry-miniapp-replay.cjs.js",
     "check:bundle-size": "node scripts/internal/check-bundle-size.mjs dist/sentry-miniapp.mjs dist/sentry-miniapp.cjs.js dist/sentry-miniapp.umd.js dist/sentry-miniapp-replay.mjs dist/sentry-miniapp-replay.cjs.js",
@@ -31,7 +31,8 @@
     "test:shuffle": "vitest run --sequence.shuffle",
     "prepublishOnly": "npm run build",
     "prepare": "husky",
-    "release": "commit-and-tag-version"
+    "release": "commit-and-tag-version",
+    "build:replay-example": "npm run build:miniapp && vite build --mode replay-tools && node scripts/internal/prepare-replay-example.mjs"
   },
   "author": "dancerlzy@gmail.com",
   "license": "MIT",
@@ -45,6 +46,7 @@
   "module": "dist/sentry-miniapp.mjs",
   "types": "dist/types/index.d.ts",
   "bin": {
+    "sentry-miniapp-replay-instrument": "scripts/replay-instrument.mjs",
     "sentry-miniapp-sourcemap-doctor": "scripts/doctor-sourcemap.mjs",
     "sentry-miniapp-sourcemap-merge": "scripts/merge-sourcemap.mjs"
   },
@@ -68,6 +70,12 @@
         "types": "./dist/types/replay/index.d.cts",
         "default": "./dist/sentry-miniapp-replay.cjs.js"
       }
+    },
+    "./replay-tools": {
+      "import": {
+        "types": "./scripts/replay-tools.d.mts",
+        "default": "./dist/sentry-miniapp-replay-tools.mjs"
+      }
     }
   },
   "files": [
@@ -75,10 +83,12 @@
     "scripts/*.mjs",
     "README.md",
     "LICENSE",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "scripts/replay-tools.d.mts"
   ],
   "devDependencies": {
     "@babel/core": "^7.29.7",
+    "@babel/parser": "7.29.7",
     "@babel/plugin-transform-regenerator": "^7.29.8",
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
@@ -95,8 +105,10 @@
     "commit-and-tag-version": "^12.7.3",
     "core-js": "3.50.0",
     "core-js-pure": "patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch",
+    "entities": "8.1.0",
     "eslint": "^10.10.0",
     "globals": "^17.12.0",
+    "htmlparser2": "12.0.0",
     "husky": "^9.1.7",
     "js-yaml": "5.4.3",
     "jsdom": "27.2.0",

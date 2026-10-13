@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "页面回放",
+  "usingComponents": {
+    "replay-card": "../../components/replay-card/index"
+  }
+}

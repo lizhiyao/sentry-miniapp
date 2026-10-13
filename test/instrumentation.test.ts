@@ -8,10 +8,65 @@ import { getLastNativeEvent, subscribeNativeEvent } from '../src/nativeEvents';
 
 import {
   addFunctionInstrumentationHandler,
+  addFunctionInstrumentationObserver,
   ensureFunctionInstrumentation,
 } from '../src/instrumentation';
 
 describe('共享函数 instrumentation', () => {
+  it('参数观察与主 handler 共用包装，退订／异常／client 切换不重复执行业务', () => {
+    const first = {} as any,
+      second = {} as any;
+    const original = vi.fn((value: { observed?: boolean }) => value.observed);
+    const source = { run: original };
+    const observed = vi.fn((args: unknown[]) => {
+      (args[0] as any).observed = true;
+    });
+    const release = addFunctionInstrumentationObserver(source, 'run', first, observed);
+    const primary = vi.fn((fn: Function, receiver: unknown, args: unknown[]) =>
+      fn.apply(receiver, args),
+    );
+    const stop = addFunctionInstrumentationHandler(source, 'run', first, primary);
+    mockGetClient.mockReturnValue(first);
+    expect(source.run({})).toBe(true);
+    expect(observed).toHaveBeenCalledOnce();
+    expect(primary).toHaveBeenCalledOnce();
+    expect(original).toHaveBeenCalledOnce();
+    const failing = addFunctionInstrumentationObserver(source, 'run', first, () => {
+      throw new Error('observation');
+    });
+    const retired = addFunctionInstrumentationObserver(source, 'run', first, () => {
+      failing();
+      mockGetClient.mockReturnValue(second);
+    });
+    expect(source.run({})).toBe(true);
+    expect(primary).toHaveBeenCalledOnce();
+    retired();
+    failing();
+    stop();
+    release();
+    release();
+    expect(source.run).toBe(original);
+    const fresh = addFunctionInstrumentationObserver(source, 'run', first, observed);
+    release();
+    mockGetClient.mockReturnValue(first);
+    expect(source.run({})).toBe(true);
+    fresh();
+    expect(addFunctionInstrumentationObserver({}, 'missing', first, observed)()).toBeUndefined();
+    const owner = {} as any;
+    const order: string[] = [];
+    const a = addFunctionInstrumentationObserver(source, 'run', owner, () => {
+      order.push('a');
+      later();
+    });
+    const later = addFunctionInstrumentationObserver(source, 'run', owner, () =>
+      order.push('later'),
+    );
+    mockGetClient.mockReturnValue(owner);
+    source.run({});
+    expect(order).toEqual(['a']);
+    a();
+    later();
+  });
   beforeEach(() => {
     mockGetClient.mockReset();
     mockGetClient.mockReturnValue(undefined);

@@ -98,6 +98,7 @@ export type {
 export { MiniappClient } from './client';
 export type { MiniappLowLevelClientOptions, MiniappAutomaticProducer } from './client';
 export { utf8ByteLength } from './coreCompat';
+export { addFunctionInstrumentationObserver as _addFunctionInstrumentationObserver } from './instrumentation';
 export * as Integrations from './integrations/index';
 export * as Transports from './transports/index';
 

@@ -1,0 +1,5 @@
+.replay-card { margin-bottom: 20rpx; padding: 28rpx; background: #fff; border-radius: 24rpx; }
+.card-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24rpx; }
+.card-title { font-size: 30rpx; font-weight: 600; color: #1E293B; }
+.card-status { font-size: 22rpx; color: #56479D; background: #F0EDF9; padding: 6rpx 12rpx; border-radius: 8rpx; }
+.replay-scroll { height: 180rpx; overflow: hidden; }

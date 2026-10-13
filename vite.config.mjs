@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'path';
 import { transformAsync } from '@babel/core';
 import transformRegenerator from '@babel/plugin-transform-regenerator';
@@ -94,6 +94,52 @@ const baseConfig = {
 };
 
 export default defineConfig(({ mode }) => {
+  if (mode === 'replay-tools') {
+    return {
+      build: {
+        emptyOutDir: false,
+        target: 'node20',
+        minify: 'oxc',
+        lib: {
+          entry: resolve(import.meta.dirname, 'scripts/internal/replay/project.mjs'),
+          formats: ['es'],
+          fileName: () => 'sentry-miniapp-replay-tools.mjs',
+        },
+        rolldownOptions: { external: (id) => id.startsWith('node:') },
+      },
+      plugins: [
+        {
+          name: 'replay-tool-notices',
+          generateBundle(_options, bundle) {
+            const notices = new Map();
+            for (const chunk of Object.values(bundle)) {
+              if (chunk.type !== 'chunk') continue;
+              for (const id of Object.keys(chunk.modules)) {
+                const match = id.match(/^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//);
+                if (!match || notices.has(match[1])) continue;
+                const root = match[1];
+                const metadata = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
+                const license = ['LICENSE', 'LICENSE.txt', 'LICENSE.md'].find((name) =>
+                  existsSync(resolve(root, name)),
+                );
+                if (!license)
+                  throw new Error(`Missing bundled Node tool license: ${metadata.name}`);
+                notices.set(
+                  root,
+                  `${metadata.name} ${metadata.version}\n${readFileSync(resolve(root, license), 'utf8')}`,
+                );
+              }
+            }
+            this.emitFile({
+              type: 'asset',
+              fileName: 'replay-tools.NOTICES.txt',
+              source: [...notices.values()].join('\n\n'),
+            });
+          },
+        },
+      ],
+    };
+  }
   if (mode === 'replay' || mode === 'miniapp-replay') {
     const miniapp = mode === 'miniapp-replay';
     return {
