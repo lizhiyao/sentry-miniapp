@@ -14,6 +14,8 @@
 
 示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，保留其它演示中的固定 `setUser()` 调用，分别核对自动采集与显式数据。`miniapp.invalid` 仅用于展示，不需要配置合法域名。示例文案允许显示，输入框不要填写真实个人信息。
 
+参与真机或组件兼容验证时，按[回放验收步骤](../../docs/wechat-page-replay-acceptance.md)记录构建、设备、操作和后台结果。IDE 的采集与请求成功不代表手机开销或最终播放已通过。
+
 ## 能力概览
 
 - ✅ 应用启动链路监控
