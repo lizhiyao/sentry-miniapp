@@ -29,6 +29,23 @@ yarn build:replay-example
 
 ### 1. 安装录制器
 
+当前需从源码构建候选包。在 SDK 仓库运行：
+
+```bash
+corepack enable
+yarn install
+yarn build
+yarn pack --out ../sentry-miniapp-replay-preview.tgz
+```
+
+然后在**业务项目**安装这份包，将路径替换为实际生成位置：
+
+```bash
+npm install /path/to/sentry-miniapp-replay-preview.tgz
+```
+
+业务项目使用 Yarn／pnpm 时，通过对应包管理器安装同一份本地包。记录源码提交和包摘要；候选包的版本号可能与已发布版本相同，不能用 `npm install sentry-miniapp@2.0.2` 代替这一步。
+
 在 `App()` 之前初始化，可选入口不进入未使用它的主 SDK，播放器也不进入小程序。
 
 ```js
@@ -54,13 +71,13 @@ App({});
 对微信项目或框架构建出的微信目录运行 Node 工具，输出必须是不存在的独立目录：
 
 ```bash
-sentry-miniapp-replay-instrument \
+npx --no-install sentry-miniapp-replay-instrument \
   --input ./weapp \
   --output ./weapp-replay \
   --page pages/checkout/index
 ```
 
-多个页面可重复提供 `--page`。打开、预览或上传**输出项目**。每次重新构建后重新生成，使用新的输出目录；不要把带标记的副本作为业务源码再次编译。
+命令在已安装候选包的业务项目中运行，使用本地 CLI，不临时下载另一份版本；也可从业务项目的 npm script 调用 `sentry-miniapp-replay-instrument`。多个页面可重复提供 `--page`。打开、预览或上传**输出项目**。每次重新构建后重新生成，使用新的输出目录；不要把带标记的副本作为业务源码再次编译。
 
 工具处理选定页面及其静态组件、import/include 依赖，自动加入布局、文字绑定、组件边界和点击捕获标记。业务 JS、Source Map、原有事件绑定和样式值不改。Node 编译依赖只在电脑构建时执行，不进入小程序 bundle。工具拒绝路径逃逸、符号链接、已有输出目录和保留方法 `__sentryReplayTap` 的冲突。
 
