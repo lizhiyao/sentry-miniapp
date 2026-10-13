@@ -6,6 +6,9 @@ import { gzipSync } from 'node:zlib';
 
 // 只约束实际执行的 JS；Source Map、声明文件和 npm 总量不能代表小程序接入成本。
 const budgets = {
+  'sentry-miniapp-replay.mjs': 24 * 1024,
+  'sentry-miniapp-replay.cjs.js': 24 * 1024,
+  'sentry-miniapp-replay.js': 24 * 1024,
   'sentry-miniapp.mjs': 260 * 1024,
   'sentry-miniapp.cjs.js': 255 * 1024,
   'sentry-miniapp.umd.js': 255 * 1024,

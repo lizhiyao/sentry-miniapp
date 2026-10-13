@@ -11,6 +11,7 @@ import {
   spanToJSON,
 } from '@sentry/core';
 import * as Sentry from '../src/index';
+import * as Replay from '../src/replay';
 import { resetPlatformCache } from '../src/crossPlatform';
 import { _resetAppLifecycle } from '../src/appLifecycle';
 import {
@@ -72,6 +73,7 @@ describe('仓库示例的真实 init／生命周期契约', () => {
     const source = readFileSync(new URL('../examples/wxapp/app.js', import.meta.url), 'utf8');
     runInNewContext(source, {
       require: (path: string) => {
+        if (path === './lib/sentry-miniapp-replay.js') return Replay;
         expect(path).toBe('./lib/sentry-miniapp.js');
         return facade;
       },

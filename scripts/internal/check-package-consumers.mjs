@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { runInNewContext } from 'node:vm';
 import { pack, unpack } from '@publint/pack';
+import { checkPackageReplay } from './check-package-replay.mjs';
 import { checkPackageTreeShaking } from './check-package-tree-shaking.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -490,6 +491,10 @@ import {
 } from 'sentry-miniapp';
 
 declare const options: MiniappOptions;
+import { getWechatPageReplay, wechatPageReplayIntegration, type WechatPageReplayOptions } from 'sentry-miniapp/replay';
+const replayOptions: WechatPageReplayOptions = { intervalMs: 500 };
+init({ integrations: [wechatPageReplayIntegration(replayOptions)] });
+getWechatPageReplay()?.capture();
 const miniappPlatform: MiniappPlatform = 'wechat';
 const performanceOptions: PerformanceIntegrationOptions = {};
 
@@ -581,6 +586,7 @@ try {
   );
 
   await checkPackageTreeShaking(tempRoot, runNode);
+  await checkPackageReplay(tempRoot, runNode);
 
   const cjsConsumer = join(tempRoot, 'consumer.cjs');
   const esmConsumer = join(tempRoot, 'consumer.mjs');

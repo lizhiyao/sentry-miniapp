@@ -97,7 +97,7 @@ Sentry.setConsent(true);
 
 ## 支持 Session Replay（屏幕操作回放）吗？
 
-**不支持。** Sentry 官方 Replay 强依赖浏览器 DOM（rrweb 录制），小程序双线程架构、无开放 DOM 接口，无法直接复用。建议用**丰富的面包屑路径** + 自定义日志还原现场。
+当前 npm `2.0.2` 不包含回放入口。源码中提供[实验性微信页面回放](/guide/page-replay)，通过公开节点 API 采样明确标记区域的布局、文本变化与点击，并关联 Sentry 错误。它需要模板标记，不能完整复现未标记内容或原生绘制；其它平台、小游戏和 Skyline 跳过。Sentry 官方浏览器录制器仍不能直接装入小程序逻辑层。
 
 ## uni-app / Taro 的 H5 端如何监控？
 

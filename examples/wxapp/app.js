@@ -1,6 +1,7 @@
 // 示例：在微信小程序中使用 sentry-miniapp
 // 引用 npm 包
 const Sentry = require('./lib/sentry-miniapp.js');
+const Replay = require('./lib/sentry-miniapp-replay.js');
 
 const launchState = {
   launchId: '',
@@ -94,6 +95,7 @@ Sentry.init({
 
   // 可选宿主性能采集；不重复展开默认集成，不添加第二次采样／定时汇总。
   integrations: [
+    Replay.wechatPageReplayIntegration(),
     Sentry.performanceIntegration({
       enableNavigation: true,
       enableRender: true,

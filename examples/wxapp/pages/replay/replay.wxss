@@ -1,0 +1,12 @@
+.page{padding:24px 20px 40px;background:#f5f7fa;color:#20232a;min-height:100vh;box-sizing:border-box}
+.title{display:block;font-size:26px;font-weight:600;margin-bottom:12px}
+.description{display:block;font-size:14px;color:#64748b;line-height:1.6}
+.card{margin-top:24px;padding:20px;background:#fff;border-radius:12px}
+.status,.count,.extra{display:block;margin-bottom:16px;font-size:18px}
+.input{height:44px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;margin-bottom:16px;font-size:14px}
+.button{margin-top:12px;background:#5845a3;color:#fff;font-size:15px;border-radius:6px}
+.secondary{background:#e9e5f5;color:#493583}
+.controls{margin-top:20px}
+.diagnostics{display:block;font-family:monospace;font-size:12px;line-height:1.6;margin-top:16px;word-break:break-all}
+.spacer{height:420px;padding-top:24px;color:#64748b;font-size:14px}
+.footer{display:block;padding:24px;background:#fff;border-radius:12px;font-size:18px}
