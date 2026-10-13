@@ -156,14 +156,20 @@ describe('WXML 构建工具的实际项目输出', () => {
     for (const [reference, reason] of [
       ['../../secret', 'escapes'],
       ['../node_modules/ui/index', 'excluded'],
+      ['plugin://widget', 'Unsupported'],
       ['plugin-private://widget', 'Unsupported'],
       ['dynamicLib://widget', 'Unsupported'],
+      ['{{componentPath}}', 'Unsupported'],
     ]) {
       await writeFile(
         join(options.input, 'pages/a.json'),
         JSON.stringify({ usingComponents: { widget: reference } }),
       );
-      await expect(instrumentWechatProject(options)).rejects.toThrow(reason);
+      await expect(instrumentWechatProject(options)).rejects.toThrow(
+        reason === 'Unsupported'
+          ? /Unsupported replay dependency: .* in pages\/a.wxml。.*请改选/
+          : reason,
+      );
     }
     await writeFile(
       join(options.input, 'project.config.json'),
@@ -348,7 +354,10 @@ describe('WXML 构建工具的实际项目输出', () => {
       join(options.input, 'pages/a.wxml'),
       '<block><template is="{{kind}}" data="{{...state}}" /></block>',
     );
-    await expect(instrumentWechatProject(options)).rejects.toThrow('framework adapter');
+    await expect(instrumentWechatProject(options)).rejects.toThrow(
+      'Template-only page needs a framework adapter: pages/a.wxml。纯模板页面',
+    );
+    await expect(readFile(join(options.output, 'app.json'))).rejects.toThrow();
     const alias = join(options.input, '..', 'alias');
     await symlink(options.input, alias);
     await expect(

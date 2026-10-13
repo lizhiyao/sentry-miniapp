@@ -11,7 +11,14 @@ function within(root, path) {
 }
 function local(root, from, name, extension) {
   if (typeof name !== 'string' || !name || name.includes('{{') || /\0|^[\w+-]+:/.test(name))
-    throw new Error('Unsupported replay dependency: ' + name);
+    throw new Error(
+      'Unsupported replay dependency: ' +
+        name +
+        ' in ' +
+        relative(root, from) +
+        '。回放标记需要项目内可读取的静态 WXML；插件、动态库及动态路径暂不支持。' +
+        '请改选不依赖它们的关键页面，不会跳过依赖生成不完整的录制。',
+    );
   name = name.replace(/\\/g, '/');
   const file = resolve(
     name.startsWith('/') ? root : dirname(from),
@@ -199,7 +206,12 @@ export async function instrumentWechatProject({ input, output, pages }) {
           : !['wxs', 'import', 'include', 'template', 'slot'].includes(node.name),
       );
     if (!hasRenderedRoot(parseWxml(sources.get(page))))
-      throw new Error('Template-only page needs a framework adapter: ' + relative(root, page));
+      throw new Error(
+        'Template-only page needs a framework adapter: ' +
+          relative(root, page) +
+          '。纯模板页面（例如 Taro 递归模板）暂不支持自动标记；' +
+          '请改选普通 WXML 页面。标记工具不会跳过模板或修改业务渲染结构。',
+      );
   }
   const ids = new Map(
     [...sources.keys()].map((file) => [file, hash(relative(root, file).split(sep).join('/'))]),

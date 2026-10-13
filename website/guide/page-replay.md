@@ -78,7 +78,16 @@ sentry-miniapp-replay-instrument \
 
 **构建工具找到组件，不等于该组件的录制与后台播放已验收。** 第三方组件库、框架、设备与开销的后续验证由 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533) 跟踪。
 
-普通原生 WXML 和自定义组件是当前验证范围。只有 template 调用的页面入口（例如 Taro 的递归模板）需要专门的框架适配，工具会明确报错。uni-app 的微信产物也须实际核验组件、模板和事件处理；不能把输出了标记直接当作框架回放支持已经通过。不依赖 renderjs 或 WebView 私有接口。
+### 项目类型与组件边界
+
+| 页面或依赖 | 当前处理方式 |
+| --- | --- |
+| 原生普通 WXML、可读取的静态自定义／npm 组件 | 生成标记；仍须核验实际组件的交互、隐私和播放 |
+| uni-app 编译出的普通 WXML | 示例已在微信 IDE 完成基础采集与上报；复杂组件、交互、真机和播放未完成框架级验收 |
+| 只有 template 调用的页面（如 Taro 递归模板入口） | 拒绝生成，需要专门的框架适配；不要仅添加一个外层 view 来消除报错 |
+| 已使用的 `plugin:`／`dynamicLib:` 或动态依赖路径 | 拒绝生成，无法取得完整静态标记与隐私关系；改选不依赖它们的关键页面 |
+
+拒绝发生在输出项目之前，并带上文件与原因；工具不会静默跳过所选页面依赖。未使用的组件声明不影响生成。普通监控支持某个框架，也不意味着它的所有页面都能回放；不依赖 renderjs 或 WebView 私有接口。
 
 ## 隐私控制
 
@@ -167,4 +176,6 @@ replay.start();         // 显式开始并允许上传，不受自动采样率�
 
 播放器的 `https://miniapp.invalid/` 加小程序路由是展示标识，不会发起请求，也不用配置合法域名。真实上报地址仍来自 DSN 或 tunnel，堆栈的 `app:///` 不受影响。
 
-发送复用现有 transport 的限流、并发、离线策略与同意门禁。目标 Sentry 必须实际启用并支持 Replay，自建部署需核验对应能力。未采样会话、查询遗漏和原生组件占位不应被描述为完整操作录像。
+发送复用现有 transport 的限流、并发、离线策略与同意门禁。目标 Sentry 必须实际启用并支持 Replay；当前后台验证来自 Sentry SaaS，**尚未验收自建 Sentry 的回放**。2.x 的服务端版本要求也不能代替 Replay 验收：自建部署在接入前须确认 Replay 接收、处理与播放器可用，并完成以上三步。未采样会话、查询遗漏和原生组件占位不应被描述为完整操作录像。
+
+维护者与参与测试的用户可按[项目验收步骤](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/wechat-page-replay-acceptance.md)复核组件、真机、隐私和开销，将结果附到 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
