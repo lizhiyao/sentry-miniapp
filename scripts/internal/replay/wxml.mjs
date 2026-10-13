@@ -215,6 +215,39 @@ function hasInlineText(node) {
   );
 }
 
+function defaultSlotBoundary(node, components) {
+  const slot = node.children[0];
+  return (
+    !structural.has(node.name) &&
+    !components[node.name] &&
+    !privateKinds.has(node.name) &&
+    node.children.length === 1 &&
+    slot.name === 'slot' &&
+    slot.attrs.length === 0 &&
+    slot.children.length === 0 &&
+    !slot.text.join('').trim() &&
+    !hasInlineText(node) &&
+    !node.attrs.some((attr) => attr.name === 'data-sentry-replay-text')
+  );
+}
+
+/** 裸插槽文字没有可查询节点，只接受唯一且具备实际布局边界的默认插槽。 */
+export function defaultSlotLayout(source, components = {}) {
+  let slots = 0,
+    boundaries = 0;
+  const visit = (nodes, parent, repeated = false) =>
+    nodes.forEach((node) => {
+      const loop = repeated || node.attrs.some((attr) => attr.name === 'wx:for');
+      if (node.name === 'slot' && !node.attrs.some((attr) => attr.name === 'name')) {
+        slots++;
+        if (!loop && parent && defaultSlotBoundary(parent, components)) boundaries++;
+      }
+      visit(node.children, node, loop);
+    });
+  visit(parseWxml(source));
+  return { slots, boundaries };
+}
+
 function inlineText(node, context, outer = '') {
   let result = '',
     branches = [];
@@ -270,7 +303,10 @@ export function dependencies(source) {
 }
 
 /** 只改 WXML 元数据与中性 capture handler；不改业务 JS、事件绑定或样式值。 */
-export function instrumentWxml(source, { sourceId, components = {}, page = false, modules }) {
+export function instrumentWxml(
+  source,
+  { sourceId, components = {}, slotLayouts, page = false, modules },
+) {
   if (source.startsWith(HEADER)) {
     if (modules) throw new Error('Replay project input must be a clean build');
     return source;
@@ -305,7 +341,7 @@ export function instrumentWxml(source, { sourceId, components = {}, page = false
     nodes.forEach((node) => {
       if (
         node.attrs.some((attr) =>
-          /^data-sentry-replay-(node|parent|source|target|root|text-format)$|^mark:sr_/.test(
+          /^data-sentry-replay-(node|parent|source|target|root|text-format|slot)$|^mark:sr_/.test(
             attr.name,
           ),
         )
@@ -337,6 +373,7 @@ export function instrumentWxml(source, { sourceId, components = {}, page = false
       put(node, 'data-sentry-replay-type', components[node.name] ? 'component' : node.name);
       if (components[node.name])
         put(node, 'data-sentry-replay-target', components[node.name].join(','));
+      if (defaultSlotBoundary(node, components)) put(node, 'data-sentry-replay-slot', 'true');
       if (!renderParent) {
         if (page) put(node, 'data-sentry-replay-root', 'true');
         // 已有 capture 绑定不可覆盖，避免改变业务语义；记录诊断而非重试业务 handler。
@@ -352,6 +389,13 @@ export function instrumentWxml(source, { sourceId, components = {}, page = false
           throw new Error('Decoded text needs an explicit data-sentry-replay-text value');
         const text = hasInlineText(node) ? inlineText(node, context).trim() : '';
         if (text) {
+          if (components[node.name] && slotLayouts?.[node.name] === false)
+            throw new Error(
+              'Replay component bare text needs one default slot with a direct rendered boundary: ' +
+                node.name +
+                '。无法确定裸文字的实际插槽位置；请在调用处使用已有布局的 text/view，' +
+                '或改选其它页面。不会把文字画在组件宿主或添加包装节点。',
+            );
           // 非空常量前缀强制 data 属性走微信文字插值；保留 0、false 和空值的宿主语义。
           put(node, 'data-sentry-replay-text', '\u200b' + text, false, true);
           put(node, 'data-sentry-replay-text-format', 'wxml');

@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto';
 import { cp, lstat, mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { dependencies, instrumentWxml, parseWxml, textModules } from './wxml.mjs';
+import {
+  defaultSlotLayout,
+  dependencies,
+  instrumentWxml,
+  parseWxml,
+  textModules,
+} from './wxml.mjs';
 
 const ignored = new Set(['.git', 'node_modules', '.DS_Store']);
 const hash = (name) => createHash('sha256').update(name).digest('hex').slice(0, 12);
@@ -224,11 +230,29 @@ export async function instrumentWechatProject({ input, output, pages }) {
   };
   const changed = new Map(),
     modules = new Map();
+  const layouts = new Map(
+    [...sources].map(([file, content]) => [
+      file,
+      defaultSlotLayout(content, Object.fromEntries(componentMaps.get(file))),
+    ]),
+  );
   for (const [file, content] of sources) {
     const components = Object.fromEntries(
       [...componentMaps.get(file)]
         .filter(([, target]) => ids.has(target))
         .map(([tag, target]) => [tag, [...closure(target)].map((item) => ids.get(item))]),
+    );
+    const slotLayouts = Object.fromEntries(
+      [...componentMaps.get(file)].map(([tag, target]) => {
+        const layout = [...closure(target)].reduce(
+          (total, file) => ({
+            slots: total.slots + layouts.get(file).slots,
+            boundaries: total.boundaries + layouts.get(file).boundaries,
+          }),
+          { slots: 0, boundaries: 0 },
+        );
+        return [tag, layout.slots === 1 && layout.boundaries === 1];
+      }),
     );
     try {
       changed.set(
@@ -236,6 +260,7 @@ export async function instrumentWechatProject({ input, output, pages }) {
         instrumentWxml(content, {
           sourceId: ids.get(file),
           components,
+          slotLayouts,
           page: selected.has(file),
           modules,
         }),
