@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -35,6 +35,7 @@ async function fixture() {
     join(input, 'components/card.wxml'),
     '<view><text>{{title}}</text><input value="{{private}}" /></view>',
   );
+  await writeFile(join(input, 'components/card.json'), '{"component":true}');
   await writeFile(
     join(input, 'pages/a.js'),
     'Page({onTap(){return 42}});\n//# sourceMappingURL=a.js.map\n',
@@ -109,6 +110,25 @@ describe('WXML 构建工具的实际项目输出', () => {
     ).rejects.toThrow('separate');
     await writeFile(join(options.input, 'pages/a.wxml'), '<include src="../../secret.wxml"/>');
     await expect(instrumentWechatProject(options)).rejects.toThrow('escapes');
+    await writeFile(join(options.input, 'pages/a.wxml'), '<view><widget/></view>');
+    for (const [reference, reason] of [
+      ['../../secret', 'escapes'],
+      ['../node_modules/ui/index', 'excluded'],
+      ['plugin-private://widget', 'Unsupported'],
+      ['dynamicLib://widget', 'Unsupported'],
+    ]) {
+      await writeFile(
+        join(options.input, 'pages/a.json'),
+        JSON.stringify({ usingComponents: { widget: reference } }),
+      );
+      await expect(instrumentWechatProject(options)).rejects.toThrow(reason);
+    }
+    await writeFile(
+      join(options.input, 'project.config.json'),
+      '{"miniprogramRoot":"node_modules/app"}',
+    );
+    await expect(instrumentWechatProject(options)).rejects.toThrow('excluded');
+    await rm(join(options.input, 'project.config.json'));
     await writeFile(join(options.input, 'pages/a.wxml'), '<view/>');
     await symlink('/tmp', join(options.input, 'outside'));
     await expect(instrumentWechatProject(options)).rejects.toThrow('Symlinks');
@@ -141,6 +161,110 @@ describe('WXML 构建工具的实际项目输出', () => {
     expect(await readFile(join(options.output, 'pages/template.wxml'), 'utf8')).toContain(
       'data-sentry-replay-target=',
     );
+  });
+  it.each([
+    {
+      declaration: 'page',
+      reference: '@ui/weapp/button/index',
+      target: 'miniprogram_npm/@ui/weapp/button/index',
+    },
+    {
+      declaration: 'global',
+      reference: '@ui/weapp/button',
+      target: 'miniprogram_npm/@ui/weapp/button/index',
+      miniprogramRoot: 'miniprogram',
+    },
+    {
+      declaration: 'subpackage',
+      reference: 'ui-button',
+      target: 'pages/miniprogram_npm/ui-button/index',
+    },
+    {
+      declaration: 'page',
+      reference: '../components/directory',
+      target: 'components/directory/index',
+    },
+  ])(
+    '解析 $declaration 的 $reference 及目录入口',
+    async ({ declaration, reference, target, miniprogramRoot }) => {
+      const options = await fixture();
+      await writeFile(
+        join(options.input, 'app.json'),
+        JSON.stringify({
+          ...(declaration === 'subpackage'
+            ? { subPackages: [{ root: 'pages', pages: ['a'] }] }
+            : { pages: ['pages/a'] }),
+          usingComponents: declaration === 'global' ? { widget: reference } : {},
+        }),
+      );
+      await writeFile(join(options.input, 'pages/a.wxml'), '<view><widget /></view>');
+      if (declaration !== 'global')
+        await writeFile(
+          join(options.input, 'pages/a.json'),
+          JSON.stringify({ usingComponents: { widget: reference } }),
+        );
+      await mkdir(join(options.input, target, '..'), { recursive: true });
+      await writeFile(join(options.input, target + '.json'), '{"component":true}');
+      await writeFile(join(options.input, target + '.wxml'), '<text>组件</text>');
+      if (miniprogramRoot) {
+        await rename(options.input, options.input + '-original');
+        await mkdir(options.input);
+        await rename(options.input + '-original', join(options.input, miniprogramRoot));
+        await writeFile(
+          join(options.input, 'project.config.json'),
+          JSON.stringify({ miniprogramRoot }),
+        );
+      }
+      const report = await instrumentWechatProject(options);
+      expect(report.files.sort()).toEqual([target + '.wxml', 'pages/a.wxml'].sort());
+      const output = join(options.output, miniprogramRoot || '');
+      expect(await readFile(join(output, 'pages/a.wxml'), 'utf8')).toContain(
+        'data-sentry-replay-target=',
+      );
+      expect(await readFile(join(output, target + '.wxml'), 'utf8')).toContain(
+        'data-sentry-replay-text="组件"',
+      );
+    },
+  );
+  it('组件查找优先本地再逐级 npm，忽略未使用声明；缺失依赖提供构建步骤且不写输出', async () => {
+    const options = await fixture();
+    await writeFile(
+      join(options.input, 'app.json'),
+      JSON.stringify({
+        pages: ['pages/a'],
+        usingComponents: { unused: 'plugin://unused/widget' },
+      }),
+    );
+    await writeFile(
+      join(options.input, 'pages/a.json'),
+      JSON.stringify({ usingComponents: { widget: 'ui/button' } }),
+    );
+    await writeFile(join(options.input, 'pages/a.wxml'), '<view><widget /></view>');
+    for (const path of [
+      'pages/ui/button',
+      'pages/miniprogram_npm/ui/button',
+      'miniprogram_npm/ui/button',
+    ]) {
+      await mkdir(join(options.input, path, '..'), { recursive: true });
+      await writeFile(join(options.input, path + '.json'), '{"component":true}');
+      await writeFile(join(options.input, path + '.wxml'), '<text>组件</text>');
+    }
+    expect((await instrumentWechatProject(options)).files).toContain('pages/ui/button.wxml');
+    // 只有 WXML 而缺少 JSON 的本地文件不是有效组件，继续查找完整 npm 产物。
+    await rm(join(options.input, 'pages/ui/button.json'));
+    const nested = { ...options, output: options.output + '-nested' };
+    expect((await instrumentWechatProject(nested)).files).toContain(
+      'pages/miniprogram_npm/ui/button.wxml',
+    );
+    await rm(join(options.input, 'pages/miniprogram_npm'), { recursive: true });
+    const root = { ...options, output: options.output + '-root' };
+    expect((await instrumentWechatProject(root)).files).toContain('miniprogram_npm/ui/button.wxml');
+    await rm(join(options.input, 'miniprogram_npm'), { recursive: true });
+    const missing = { ...options, output: options.output + '-missing' };
+    await expect(instrumentWechatProject(missing)).rejects.toThrow('构建 npm');
+    await expect(readFile(join(missing.output, 'app.json'))).rejects.toThrow();
+    await writeFile(join(options.input, 'pages/a.wxml'), '<view><unused /></view>');
+    await expect(instrumentWechatProject(missing)).rejects.toThrow('Unsupported replay dependency');
   });
   it('保留方法冲突和纯模板入口明确失败，符号链接别名不能绕过输出隔离', async () => {
     const options = await fixture();

@@ -154,6 +154,8 @@ Performance 的 mark 分支还保留实际 delivery scope 的 active span 和业
 
 Node-only 构建入口 `sentry-miniapp/replay-tools` 生成 WXML 类型、文字和组件关系标记，只输出独立项目副本，不改业务 JS/map。运行时按组件作用域、查询前序和 mark 重建父子关系，继承隐私控制并裁剪滚动区域；构造参数观察共用 instrumentation，不重试业务函数。自动会话与错误采样围绕有界缓冲工作，未触发的缓冲不发送。模板型框架入口、原生绘制及未知组件范围保留明确适配边界，Node 解析依赖不进入主 SDK 或小程序录制器。
 
+构建工具消费已完成微信 npm 构建的项目：静态组件先解析本地文件／目录入口，再逐级查找 `miniprogram_npm`。只遍历实际使用的依赖，保留全局与局部声明的路径来源及模板引用环境；构建解析成功不作为组件库、框架或目标设备回放已验收的证据。
+
 职责、协议与验证接缝见[回放设计](docs/wechat-page-replay-design.md)，接入与覆盖范围见[实验性指南](https://sentry-miniapp.pages.dev/guide/page-replay)。
 
 ## 5. 生命周期与共享宿主观测
