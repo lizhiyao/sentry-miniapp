@@ -2,6 +2,8 @@
 import { Replayer } from '@rrweb/replay';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { clickEvent, frameEvents, projectFrame } from '../../src/replay/frame';
+// @ts-expect-error 本地导入器是开发工具 JS，不进入 SDK 声明。
+import { parseRecording } from '../../scripts/internal/replay-local/recording.mjs';
 
 const viewport = { width: 375, height: 700, scrollTop: 0 };
 const box = (extra: Record<string, unknown> = {}) => ({
@@ -693,15 +695,19 @@ describe('布局投影与官方 rrweb 播放', () => {
       20,
     )!;
     const empty = projectFrame([viewport, []], 'pages/next/index', 20)!;
-    player = new Replayer(
-      [
+    const recording = JSON.stringify({
+      events: [
         ...frameEvents(first, 1000),
         clickEvent(first, 30, 50, 1400)!,
         ...frameEvents(changed, 2000),
         ...frameEvents(empty, 3000),
       ],
-      { root: document.body, showWarning: false, showDebug: false },
-    );
+    });
+    player = new Replayer(parseRecording(recording).replays[0].events, {
+      root: document.body,
+      showWarning: false,
+      showDebug: false,
+    });
     if (player.iframe.contentWindow) player.iframe.contentWindow.scrollTo = vi.fn();
     await vi.advanceTimersByTimeAsync(2);
     player.pause(0);

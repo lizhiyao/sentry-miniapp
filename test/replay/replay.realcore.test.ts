@@ -14,6 +14,12 @@ import { frameEvents, projectFrame } from '../../src/replay/frame';
 import { resetPlatformCache } from '../../src/crossPlatform';
 import { _resetAppLifecycle } from '../../src/appLifecycle';
 import { collectEnvelopePayloads, createCapturingTransport } from '../support/envelopes';
+import { createRequire } from 'node:module';
+// @ts-expect-error 本地开发工具是 ESM JS，不进入 SDK 的声明或运行包。
+import { parseRecording } from '../../scripts/internal/replay-local/recording.mjs';
+const { createLocalRecorder } = createRequire(import.meta.url)(
+  '../../examples/wxapp/utils/replay-validation.js',
+);
 
 describe('微信回放真实 Core / 生命周期', () => {
   it('编译捕获方法复用共享包装，组件真实 tap 去重，错误／冻结定义安全降级', async () => {
@@ -224,6 +230,47 @@ describe('微信回放真实 Core / 生命周期', () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     resetPlatformCache();
+  });
+  it('本地验证 transport 留存真实 Core 录制与错误 ID，不伪造 HTTP 回执且容量有界', async () => {
+    const local = createLocalRecorder({ byteLength: utf8ByteLength, maxSegments: 1 });
+    const { client, replay } = make({}, { transport: () => local.transport });
+    (result as any)[1].push({
+      left: 20,
+      top: 100,
+      width: 180,
+      height: 40,
+      dataset: {
+        sentryReplayType: 'text',
+        sentryReplayText: '公开本地验收',
+        sentryReplayUnmask: true,
+      },
+    });
+    await replay.capture();
+    expect(await replay.flush()).toBe(false);
+    await vi.advanceTimersByTimeAsync(5);
+    const eventId = client.captureException(new Error('local validation'));
+    await vi.advanceTimersByTimeAsync(5);
+    await Promise.all([client.flush(), vi.advanceTimersByTimeAsync(100)]);
+    (result as any)[1][1].dataset.sentryReplayText = '公开状态更新';
+    await replay.capture();
+    await replay.flush();
+    const text = local.exportRecording(),
+      report = JSON.parse(text);
+    expect(report.mode).toBe('local');
+    expect(report.summary.droppedSegments).toBeGreaterThan(0);
+    expect(report.segments).toHaveLength(1);
+    expect(report.errors).toContainEqual({ eventId, replayId: replay.getReplayId() });
+    expect(text).not.toContain('13800000000');
+    expect(text).toContain('公开状态更新');
+    expect(text).toContain('****');
+    expect((host.request as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+    const parsed = parseRecording(text);
+    expect(parsed.replays[0].errorIds).toContain(eventId);
+    expect(parsed.replays[0].events.some((event: { type: number }) => event.type === 2)).toBe(true);
+    expect(await local.transport.send([{}, []])).toEqual({});
+    expect(() => createLocalRecorder({ byteLength: utf8ByteLength, maxBytes: Infinity })).toThrow();
+    local.clear();
+    expect(JSON.parse(local.exportRecording()).segments).toHaveLength(0);
   });
   it('公开查询、遮蔽、标准分段和错误关联使用同一 client', async () => {
     const { client, replay } = make(

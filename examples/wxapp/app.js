@@ -2,6 +2,10 @@
 // 引用 npm 包
 const Sentry = require('./lib/sentry-miniapp.js');
 const Replay = require('./lib/sentry-miniapp-replay.js');
+const validationConfig = require('./replay-validation.config');
+const { createLocalRecorder } = require('./utils/replay-validation');
+const localRecorder = validationConfig.mode === 'local'
+  ? createLocalRecorder({ byteLength: Sentry.utf8ByteLength }) : undefined;
 
 const launchState = {
   launchId: '',
@@ -28,8 +32,9 @@ function buildLaunchContext(options) {
 
 // 在 App() 之前初始化 Sentry
 Sentry.init({
-  dsn: 'https://47703e01ba4344b8b252c15e8fd980fd@o113510.ingest.us.sentry.io/1528228',
-  environment: 'production',
+  dsn: localRecorder ? 'https://local@miniapp.invalid/1' : 'https://47703e01ba4344b8b252c15e8fd980fd@o113510.ingest.us.sentry.io/1528228',
+  environment: localRecorder ? 'local-validation' : 'production',
+  ...(localRecorder ? { transport: () => localRecorder.transport, enableOfflineCache: false } : {}),
   debug: false,
   // 后台回放验收同时检查关闭自动 IP 推断；setUser 的演示值仍是显式采集。
   dataCollection: { userInfo: false },
@@ -224,6 +229,7 @@ App({
   },
 
   globalData: {
+    replayValidation: localRecorder,
     userInfo: null
   }
 });

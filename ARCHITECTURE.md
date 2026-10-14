@@ -170,6 +170,8 @@ Node-only 构建入口 `sentry-miniapp/replay-tools` 生成 WXML 类型、文字
 
 普通节点文字在遮蔽与序列化前截取到 256 个 UTF-16 码元，形成独立于总分段预算的节点边界；提高 maxSegmentBytes 不扩大单节点文字范围。字节预算仍按实际 UTF-8 计算，多节点大帧可能被拒收。原始宿主查询、布局投影与序列化分别有开销，固定文字上限不等于目标设备性能已验收。
 
+本地验证属于开发工具：`yarn build:replay-local` 为示例生成显式本地配置，使用有界内存 transport，不产生 HTTP 回执或 SDK 持久缓存；录制保持原 Core／回放处理路径。`yarn replay:local` 只在回环地址提供固定资源，用已安装的官方 rrweb 读取导出文件，不重新实现播放算法。录制按 ID 分组、按实际段编号／时间播放，缺段提示保留；工具和播放器不进入 npm SDK 运行入口。该证据不替代网络或 Sentry 后台验收。
+
 职责、协议与验证接缝见[回放设计](docs/wechat-page-replay-design.md)，接入与覆盖范围见[实验性指南](https://sentry-miniapp.pages.dev/guide/page-replay)。
 
 ## 5. 生命周期与共享宿主观测
