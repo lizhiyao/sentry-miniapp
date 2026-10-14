@@ -15,6 +15,92 @@ const box = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 describe('布局投影与官方 rrweb 播放', () => {
+  it.each(['public', 'host-mask', 'slot-mask', 'slot-block', 'zero-host', 'missing-slot'])(
+    '组件裸默认插槽文字归属实际布局，%s 不越过隐私边界',
+    (mode) => {
+      const raw = [
+        box({
+          left: 0,
+          top: 0,
+          width: 375,
+          height: 700,
+          mark: { root: true },
+          dataset: {
+            sentryReplaySource: 'page',
+            sentryReplayNode: 'root',
+            sentryReplayRoot: true,
+            sentryReplayUnmask: true,
+          },
+        }),
+        box({
+          width: mode === 'zero-host' ? 0 : 60,
+          height: 30,
+          mark: { root: true, host: true },
+          dataset: {
+            sentryReplaySource: 'page',
+            sentryReplayNode: 'host',
+            sentryReplayParent: 'root',
+            sentryReplayType: 'component',
+            sentryReplayTarget: 'button',
+            sentryReplayTextFormat: 'wxml',
+            sentryReplayText: '\u200b确认',
+            sentryReplayMask: mode === 'host-mask',
+          },
+        }),
+        box({
+          width: 60,
+          height: 30,
+          backgroundColor: '#07c160',
+          mark: { button: true },
+          dataset: { sentryReplaySource: 'button', sentryReplayNode: 'button' },
+        }),
+        box({
+          left: 38,
+          top: 45,
+          width: 24,
+          height: 20,
+          color: '#fff',
+          backgroundColor: 'transparent',
+          mark: { button: true, slot: true },
+          dataset: {
+            sentryReplaySource: 'button',
+            sentryReplayNode: 'slot',
+            sentryReplayParent: 'button',
+            sentryReplaySlot: mode !== 'missing-slot',
+            sentryReplayUnmask: true,
+            sentryReplayMask: mode === 'slot-mask',
+            sentryReplayBlock: mode === 'slot-block',
+          },
+        }),
+      ];
+      raw.push(
+        { ...raw[1]!, top: 90, dataset: { ...raw[1]!.dataset, sentryReplayText: '\u200b再确认' } },
+        { ...raw[2]!, top: 90 },
+        { ...raw[3]!, top: 95 },
+      );
+      const frame = projectFrame([viewport, raw], 'page', 10)!;
+      expect(frame.nodes[1].text).toBe('');
+      const text = frame.nodes[3].text;
+      expect(text).toBe(
+        mode === 'public' || mode === 'zero-host'
+          ? '确认'
+          : mode === 'host-mask' || mode === 'slot-mask'
+            ? '**'
+            : mode === 'slot-block'
+              ? '[blocked]'
+              : '',
+      );
+      expect(frame.nodes[4].text).toBe('');
+      expect(frame.nodes[6].text).toBe(text === '确认' ? '再确认' : text === '**' ? '***' : text);
+      const events = frameEvents(frame, 1);
+      const body = (events[1] as any).data.node.childNodes[1].childNodes[1];
+      const host = body.childNodes[0].childNodes[1];
+      expect(host.childNodes[0].textContent).toBe('');
+      expect(host.childNodes[1].childNodes[1].childNodes[0].textContent).toBe(text);
+      if (mode === 'slot-mask' || mode === 'host-mask' || mode === 'slot-block')
+        expect(JSON.stringify(events)).not.toContain('确认');
+    },
+  );
   it('跨组件重复实例、slot 和滚动裁剪维持树与隐私继承，未选页面不采集', () => {
     const compiled = (
       source: string,

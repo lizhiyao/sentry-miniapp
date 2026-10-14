@@ -123,10 +123,17 @@ describe('WXML 构建工具的实际项目输出', () => {
     expect(
       instrumentWxml('<view capture-bind:tap="business" />', { sourceId: 'a', page: true }),
     ).not.toContain('__sentryReplayTap');
+    const slot = instrumentWxml('<view class="label"><slot /></view>', { sourceId: 'slot' });
+    expect(slot).toContain('data-sentry-replay-slot="true"');
+    expect(rendered(slot)[0].children.map((node: { name: string }) => node.name)).toEqual(['slot']);
+    expect(
+      instrumentWxml('<view><slot name="title" /></view>', { sourceId: 'named' }),
+    ).not.toContain('data-sentry-replay-slot=');
     for (const bad of [
       '<view><text></view>',
       '<view>{{unclosed</view>',
       '<view data-sentry-replay-node="owned"/>',
+      '<view data-sentry-replay-slot="true"/>',
       '<view wx:for="{{list}}" wx:for-index="a-b"/>',
       '<view><block data-sentry-replay-mask="true">私密</block></view>',
       '<view><block wx:for="{{list}}">{{item}}</block></view>',
@@ -245,7 +252,7 @@ describe('WXML 构建工具的实际项目输出', () => {
           usingComponents: declaration === 'global' ? { widget: reference } : {},
         }),
       );
-      await writeFile(join(options.input, 'pages/a.wxml'), '<view><widget /></view>');
+      await writeFile(join(options.input, 'pages/a.wxml'), '<view><widget>确认</widget></view>');
       if (declaration !== 'global')
         await writeFile(
           join(options.input, 'pages/a.json'),
@@ -253,7 +260,10 @@ describe('WXML 构建工具的实际项目输出', () => {
         );
       await mkdir(join(options.input, target, '..'), { recursive: true });
       await writeFile(join(options.input, target + '.json'), '{"component":true}');
-      await writeFile(join(options.input, target + '.wxml'), '<text>组件</text>');
+      await writeFile(
+        join(options.input, target + '.wxml'),
+        '<button><view><slot /></view></button>',
+      );
       if (miniprogramRoot) {
         await rename(options.input, options.input + '-original');
         await mkdir(options.input);
@@ -269,9 +279,29 @@ describe('WXML 构建工具的实际项目输出', () => {
       expect(await readFile(join(output, 'pages/a.wxml'), 'utf8')).toContain(
         'data-sentry-replay-target=',
       );
-      expect(literals(await readFile(join(output, target + '.wxml'), 'utf8'))).toContain('组件');
+      expect(literals(await readFile(join(output, 'pages/a.wxml'), 'utf8'))).toContain('确认');
+      expect(await readFile(join(output, target + '.wxml'), 'utf8')).toContain(
+        'data-sentry-replay-slot="true"',
+      );
     },
   );
+  it.each([
+    '<view />',
+    '<view>前缀<slot /></view>',
+    '<view><slot name="title" /></view>',
+    '<view><slot wx:if="{{show}}" /></view>',
+    '<view><view><slot /></view><view><slot /></view></view>',
+    '<slot />',
+    '<view wx:for="{{items}}"><view><slot /></view></view>',
+  ])('无法确定默认插槽裸文字位置时明确拒绝、不写输出：%s', async (template) => {
+    const options = await fixture();
+    await writeFile(join(options.input, 'pages/a.wxml'), '<view><card>确认</card></view>');
+    await writeFile(join(options.input, 'components/card.wxml'), template);
+    await expect(instrumentWechatProject(options)).rejects.toThrow(
+      /pages\/a.wxml: Replay component bare text.*card。.*实际插槽位置/,
+    );
+    await expect(readFile(join(options.output, 'app.json'))).rejects.toThrow();
+  });
   it('组件查找优先本地再逐级 npm，忽略未使用声明；缺失依赖提供构建步骤且不写输出', async () => {
     const options = await fixture();
     await writeFile(

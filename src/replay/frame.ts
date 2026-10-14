@@ -52,6 +52,7 @@ interface Scope {
   sources: Set<string>;
   parent: number;
   nodes: Map<string, { value: unknown; index: number }>;
+  slotText?: string | undefined;
 }
 interface Projection {
   box: ReplayBox;
@@ -131,6 +132,9 @@ export function projectFrame(
         }
       }
       const ancestor = projected[parent];
+      // 插槽文字已继承宿主遮蔽；进入实际容器后再次应用组件内部隐私规则。
+      const slotText = compiled && truth(data['sentryReplaySlot']) ? scope?.slotText : undefined;
+      if (slotText !== undefined && scope) scope.slotText = undefined;
       if (ancestor?.block) {
         // 屏蔽组件可能只有零面积宿主；只合并可见后代的布局作占位和点击拒绝区域。
         // display:none／透明祖先的整棵树不可见，不从后代扩大占位。
@@ -220,11 +224,13 @@ export function projectFrame(
         typeof data['sentryReplayType'] === 'string'
           ? (data['sentryReplayType'] as string)
           : 'view';
+      const slotHost =
+        compiled && kind === 'component' && data['sentryReplayTextFormat'] === 'wxml';
       let text = '';
-      if (hidden || block) text = hidden ? '' : '[blocked]';
+      if ((hidden && !slotHost) || block) text = hidden ? '' : '[blocked]';
       else if (PRIVATE_KINDS.has(kind)) text = '[' + kind + ']';
       else {
-        const content = data['sentryReplayText'];
+        const content = data['sentryReplayText'] ?? slotText;
         if (typeof content === 'string') {
           const value =
             data['sentryReplayTextFormat'] === 'wxml' && content.charAt(0) === '\u200b'
@@ -290,7 +296,7 @@ export function projectFrame(
         height: h,
         kind,
         blocked: hidden || block,
-        text,
+        text: slotHost && !block ? '' : text,
         style,
         parent,
         borderX: Math.max(0, parseFloat(String(raw['borderLeftWidth'])) || 0),
@@ -311,6 +317,7 @@ export function projectFrame(
           sources: new Set(data['sentryReplayTarget'].split(',')),
           parent: index,
           nodes: new Map(),
+          slotText: slotHost && !block ? text : undefined,
         };
     } catch {
       /* 不可读节点安全跳过，不保留原始结果。 */
