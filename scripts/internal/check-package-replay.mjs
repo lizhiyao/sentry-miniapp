@@ -42,8 +42,34 @@ async function run() {
   assert.equal(replay.start(),false,'Replaced recorder cannot restart');
   assert.equal(optional.getWechatPageReplay(),undefined);
   sdk.getClient().dispose();
+  let filter='processor';
+  const buffered=sdk.init({dsn:'https://key@example.com/1',defaultIntegrations:false,enableOfflineCache:false,
+    beforeSend:event=>filter==='beforeSend'?null:event,
+    integrations:[optional.wechatPageReplayIntegration({sessionSampleRate:0})],transport:()=>({
+      send(envelope){envelopes.push(envelope);return Promise.resolve({statusCode:200});},
+      flush:()=>Promise.resolve(true)})});
+  buffered.addEventProcessor(event=>filter==='processor'?null:event);
+  const buffer=optional.getWechatPageReplay();
+  assert.equal(await buffer.capture(),true);
+  for(const stage of ['processor','beforeSend']){
+    filter=stage;
+    const count=envelopes.length;
+    buffered.captureException(new Error('filtered package replay'));
+    assert.equal(await buffered.flush(1000),true);
+    assert.equal(await buffer.flush(),false,'Filtered errors cannot unlock the buffer');
+    assert.ok(envelopes.slice(count).flatMap(envelope=>envelope[1]).every(([header])=>
+      header.type==='client_report'),'Only Core drop reports may be sent for filtered errors');
+  }
+  filter=undefined;
+  const eventId=buffered.captureException(new Error('accepted package replay'));
+  assert.equal(await buffered.flush(1000),true);
+  assert.ok(envelopes.flatMap(envelope=>envelope[1]).some(([header,event])=>
+    header.type==='event'&&event.event_id===eventId&&event.tags.replayId===buffer.getReplayId()));
+  assert.ok(envelopes.flatMap(envelope=>envelope[1]).some(([header,event])=>
+    header.type==='replay_event'&&event.error_ids.includes(eventId)));
+  buffered.dispose();
 }
-run().catch(error=>{console.error(error);process.exitCode=1;});
+run().catch(error=>{console.error(error);sdk.getClient()?.dispose();process.exitCode=1;});
 `;
     const file = join(tempRoot, 'replay-consumer.' + mode);
     await writeFile(file, source);
@@ -71,6 +97,8 @@ assert.match(await readFile('tool-output/index.wxml','utf8'),/sentry-replay-root
 assert.equal(await readFile('tool-output/index.js','utf8'),'Page({});');
 assert.match(await readFile('tool-output/index.wxml','utf8'),/data-sentry-replay-target=/);
 assert.match(await readFile('tool-output/miniprogram_npm/@ui/widget/index.wxml','utf8'),/sentry-miniapp replay metadata/);
+await writeFile('tool-source/index.wxml','<input data-sentry-replay-type="text" data-sentry-replay-text="{{private}}"/>');
+await assert.rejects(()=>instrumentWechatProject({input:'tool-source',output:'private-output',pages:['index']}),/Replay private node type conflicts/);
 `,
   );
   const tool = await runNode(file, tempRoot);

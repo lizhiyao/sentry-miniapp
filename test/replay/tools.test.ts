@@ -85,6 +85,18 @@ describe('WXML 构建工具的实际项目输出', () => {
     expect(
       inputNode.attrs.some((attr: { name: string }) => attr.name === 'data-sentry-replay-text'),
     ).toBe(false);
+    for (const kind of ['input', 'textarea', 'image']) {
+      const value = `<${kind} data-sentry-replay-type="${kind}" value="{{private}}" />`;
+      expect(instrumentWxml(value, { sourceId: 'private-kind', page: true })).toContain(
+        `data-sentry-replay-type="${kind}"`,
+      );
+      expect(() =>
+        instrumentWxml(
+          `<${kind} data-sentry-replay-type="text" data-sentry-replay-text="{{private}}" />`,
+          { sourceId: 'private-kind', page: true },
+        ),
+      ).toThrow('Replay private node type conflicts');
+    }
     expect(instrumentWxml(page, { sourceId: 'new', page: true })).toBe(page);
     await expect(instrumentWechatProject(options)).rejects.toThrow('already exists');
   });

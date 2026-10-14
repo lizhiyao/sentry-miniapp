@@ -405,6 +405,17 @@ export function instrumentWxml(
         visit(node.children, renderParent, assigned);
         return;
       }
+      const explicitType = node.attrs.find((attr) => attr.name === 'data-sentry-replay-type');
+      if (
+        privateKinds.has(node.name) &&
+        explicitType &&
+        decodeXML(explicitType.value) !== node.name
+      )
+        throw new Error(
+          'Replay private node type conflicts with ' +
+            node.name +
+            '；请删除冲突的 data-sentry-replay-type，由构建工具生成实际节点类型。',
+        );
       const own = 'sr_' + sourceId + '_' + serial++;
       node.replayNode = own;
       const loop = node.attrs.find((attr) => attr.name === 'wx:for');
