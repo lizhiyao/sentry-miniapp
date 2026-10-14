@@ -231,6 +231,50 @@ function defaultSlotBoundary(node, components) {
   );
 }
 
+function slotKey(node, attribute) {
+  const attr = node.attrs.find((item) => item.name === attribute);
+  if (!attr) return 'd';
+  const name = decodeXML(attr.value);
+  if (!name || name.includes('{{'))
+    throw new Error(
+      'Replay slot names need a static non-empty name: ' +
+        node.name +
+        '。默认插槽请省略名称属性；具名插槽使用静态非空 name/slot，动态名称暂不支持。',
+    );
+  const key = 'n' + encodeURIComponent(name);
+  if (key.length > 256) throw new Error('Replay slot name exceeds metadata budget');
+  return key;
+}
+
+function slotContainers(roots, components) {
+  const containers = new Map(),
+    links = new Map();
+  const visit = (nodes, parent) =>
+    nodes.forEach((node) => {
+      if (node.name === 'slot') {
+        if (!parent || privateKinds.has(parent.name))
+          throw new Error(
+            'Replay slot needs a rendered container or static component forwarding boundary',
+          );
+        if (components[parent.name]) {
+          const routes = links.get(parent) || new Set();
+          routes.add(slotKey(node, 'name') + '>' + slotKey(node, 'slot'));
+          if ([...routes].join(',').length > 1024)
+            throw new Error('Replay slot forwarding exceeds metadata budget');
+          links.set(parent, routes);
+          return;
+        }
+        const keys = containers.get(parent) || new Set();
+        keys.add(slotKey(node, 'name'));
+        if ([...keys].join(',').length > 1024)
+          throw new Error('Replay slot container exceeds metadata budget');
+        containers.set(parent, keys);
+      } else visit(node.children, structural.has(node.name) ? parent : node);
+    });
+  visit(roots);
+  return { containers, links };
+}
+
 /** 裸插槽文字没有可查询节点，只接受唯一且具备实际布局边界的默认插槽。 */
 export function defaultSlotLayout(source, components = {}) {
   let slots = 0,
@@ -315,6 +359,7 @@ export function instrumentWxml(
   if (source.includes(context.name)) throw new Error('Reserved replay WXS module: ' + context.name);
   const roots = parseWxml(source),
     edits = [];
+  const slots = slotContainers(roots, components);
   let serial = 0;
   const put = (node, name, value, append = false, decoded = false) => {
     const attr = node.attrs.find((item) => item.name === name);
@@ -337,11 +382,11 @@ export function instrumentWxml(
       edits.push({ start: end, end, text: ' ' + text });
     }
   };
-  const visit = (nodes, renderParent) =>
+  const visit = (nodes, renderParent, assignment) =>
     nodes.forEach((node) => {
       if (
         node.attrs.some((attr) =>
-          /^data-sentry-replay-(node|parent|source|target|root|text-format|slot)$|^mark:sr_/.test(
+          /^data-sentry-replay-(node|parent|source|target|root|text-format|slot|slots|assigned)$|^mark:sr_/.test(
             attr.name,
           ),
         )
@@ -352,7 +397,12 @@ export function instrumentWxml(
           throw new Error(
             'Replay privacy controls need a rendered view/text/component, not ' + node.name,
           );
-        visit(node.children, renderParent);
+        const assigned = node.attrs.some((attr) => attr.name === 'slot')
+          ? slotKey(node, 'slot')
+          : assignment;
+        if (assigned && (node.name === 'import' || node.name === 'include'))
+          throw new Error('Replay named slot include needs an existing rendered boundary');
+        visit(node.children, renderParent, assigned);
         return;
       }
       const own = 'sr_' + sourceId + '_' + serial++;
@@ -373,6 +423,12 @@ export function instrumentWxml(
       put(node, 'data-sentry-replay-type', components[node.name] ? 'component' : node.name);
       if (components[node.name])
         put(node, 'data-sentry-replay-target', components[node.name].join(','));
+      const entries = slots.containers.get(node) || slots.links.get(node);
+      if (entries) put(node, 'data-sentry-replay-slots', [...entries].join(','));
+      const assigned = node.attrs.some((attr) => attr.name === 'slot')
+        ? slotKey(node, 'slot')
+        : assignment;
+      if (assigned) put(node, 'data-sentry-replay-assigned', assigned);
       if (defaultSlotBoundary(node, components)) put(node, 'data-sentry-replay-slot', 'true');
       if (!renderParent) {
         if (page) put(node, 'data-sentry-replay-root', 'true');

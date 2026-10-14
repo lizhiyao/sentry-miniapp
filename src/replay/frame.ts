@@ -63,6 +63,30 @@ interface Projection {
   depth: number;
 }
 
+function createScope(sources: string[], parent: number, slotText?: string): Scope {
+  return { sources: new Set(sources), parent, nodes: new Map(), slotText };
+}
+
+function layoutStyle(
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+  origin?: ReplayBox,
+): string {
+  return (
+    'position:absolute;box-sizing:border-box;left:' +
+    (left - (origin?.left ?? 0) - (origin?.borderX ?? 0)) +
+    'px;top:' +
+    (top - (origin?.top ?? 0) - (origin?.borderY ?? 0)) +
+    'px;width:' +
+    width +
+    'px;height:' +
+    height +
+    'px;'
+  );
+}
+
 /** mark 只表示组件内祖先；编译元数据及查询前序共同确定跨组件归属。 */
 export function projectFrame(
   results: unknown,
@@ -85,6 +109,24 @@ export function projectFrame(
   });
   const projected: Projection[] = [];
   const scopes: Scope[] = [];
+  // 数字定位渲染容器，字符串沿后续组件实例转发；关联只存在于当前帧。
+  const slots = new Map<string, number | string>();
+  const registerSlots = (
+    scope: Scope | undefined,
+    data: Record<string, unknown>,
+    index: number,
+  ): void => {
+    if (!scope || scope.parent < 0) return;
+    const names = data['sentryReplaySlots'];
+    if (typeof names === 'string' && names.length <= 1024)
+      for (const name of names.split(',')) {
+        const [key, forward] = name.split('>');
+        slots.set(
+          scope.parent + '/' + key,
+          forward && index > scope.parent ? index + '/' + forward : index,
+        );
+      }
+  };
   let pending: Scope | undefined;
   for (const raw of rawNodes) {
     try {
@@ -112,7 +154,7 @@ export function projectFrame(
           ) ?? ordered.find((candidate) => candidate.sources.has(source));
         if (!scope) {
           if (!truth(data['sentryReplayRoot'])) continue;
-          scope = { sources: new Set([source]), parent: -1, nodes: new Map() };
+          scope = createScope([source], -1);
           scopes.push(scope);
         }
         scope.sources.add(source);
@@ -131,11 +173,27 @@ export function projectFrame(
             parent = entry.index;
         }
       }
+      // 组件内部根沿自己的作用域；调用方节点才重定向到实际插槽容器。
+      const slotted =
+        compiled && scope && parent !== scope.parent && projected[parent]?.box.kind === 'component';
+      const assigned = data['sentryReplayAssigned'];
+      const name =
+        assigned === undefined
+          ? 'd'
+          : typeof assigned === 'string' && assigned.length <= 256
+            ? assigned
+            : undefined;
+      let target = slotted && name !== undefined ? slots.get(parent + '/' + name) : undefined;
+      for (let remaining = rawNodes.length; typeof target === 'string' && remaining-- > 0;)
+        target = slots.get(target);
+      const missingSlot = slotted && typeof target !== 'number';
+      if (typeof target === 'number') parent = target;
       const ancestor = projected[parent];
       // 插槽文字已继承宿主遮蔽；进入实际容器后再次应用组件内部隐私规则。
       const slotText = compiled && truth(data['sentryReplaySlot']) ? scope?.slotText : undefined;
       if (slotText !== undefined && scope) scope.slotText = undefined;
       if (ancestor?.block) {
+        registerSlots(scope, data, parent);
         // 屏蔽组件可能只有零面积宿主；只合并可见后代的布局作占位和点击拒绝区域。
         // display:none／透明祖先的整棵树不可见，不从后代扩大占位。
         if (
@@ -182,25 +240,13 @@ export function projectFrame(
             box.text = '[blocked]';
             const origin = projected[box.parent ?? -1]?.box;
             box.style =
-              'position:absolute;box-sizing:border-box;overflow:hidden;left:' +
-              (box.left - (origin?.left ?? 0) - (origin?.borderX ?? 0)) +
-              'px;top:' +
-              (box.top - (origin?.top ?? 0) - (origin?.borderY ?? 0)) +
-              'px;width:' +
-              box.width +
-              'px;height:' +
-              box.height +
-              'px;';
+              layoutStyle(box.left, box.top, box.width, box.height, origin) + 'overflow:hidden;';
           }
         }
         if (scope && compiled) {
           scope.nodes.set(own, { value: mark![own], index: parent });
           if (typeof data['sentryReplayTarget'] === 'string')
-            pending = {
-              sources: new Set(data['sentryReplayTarget'].split(',')),
-              parent,
-              nodes: new Map(),
-            };
+            pending = createScope(data['sentryReplayTarget'].split(','), parent);
         }
         continue;
       }
@@ -219,7 +265,7 @@ export function projectFrame(
       const unmask = !mask && (!!ancestor?.unmask || truth(data['sentryReplayUnmask']));
       // 零面积或 visibility:hidden 只描述当前盒子，后代仍可能可见。
       const hiddenTree = raw['display'] === 'none' || raw['opacity'] === '0';
-      const block = hiddenTree || truth(data['sentryReplayBlock']);
+      const block = hiddenTree || truth(data['sentryReplayBlock']) || !!missingSlot;
       const kind =
         typeof data['sentryReplayType'] === 'string'
           ? (data['sentryReplayType'] as string)
@@ -232,26 +278,16 @@ export function projectFrame(
       else {
         const content = data['sentryReplayText'] ?? slotText;
         if (typeof content === 'string') {
-          const value =
+          const value = (
             data['sentryReplayTextFormat'] === 'wxml' && content.charAt(0) === '\u200b'
               ? content.slice(1)
-              : content;
-          text = unmask ? value.slice(0, 256) : value.slice(0, 256).replace(/\S/g, '*');
+              : content
+          ).slice(0, 256);
+          text = unmask ? value : value.replace(/\S/g, '*');
         }
       }
       const origin = ancestor?.box;
-      const borderX = origin?.borderX ?? 0,
-        borderY = origin?.borderY ?? 0;
-      let style =
-        'position:absolute;box-sizing:border-box;white-space:pre-wrap;overflow:visible;left:' +
-        (left - (origin?.left ?? 0) - borderX) +
-        'px;top:' +
-        (top - (origin?.top ?? 0) - borderY) +
-        'px;width:' +
-        w +
-        'px;height:' +
-        h +
-        'px;';
+      let style = layoutStyle(left, top, w, h, origin) + 'white-space:pre-wrap;overflow:visible;';
       for (const key of REPLAY_STYLES) {
         const value = raw[key];
         if (
@@ -311,14 +347,14 @@ export function projectFrame(
       };
       const index = projected.length;
       projected.push({ box, mask, unmask, block, hiddenTree, depth: (ancestor?.depth ?? -1) + 1 });
+      registerSlots(scope, data, index);
       if (scope && compiled) scope.nodes.set(own, { value: mark![own], index });
       if (compiled && kind === 'component' && typeof data['sentryReplayTarget'] === 'string')
-        pending = {
-          sources: new Set(data['sentryReplayTarget'].split(',')),
-          parent: index,
-          nodes: new Map(),
-          slotText: slotHost && !block ? text : undefined,
-        };
+        pending = createScope(
+          data['sentryReplayTarget'].split(','),
+          index,
+          slotHost && !block ? text : undefined,
+        );
     } catch {
       /* 不可读节点安全跳过，不保留原始结果。 */
     }
