@@ -6,27 +6,45 @@
   <link rel="stylesheet" href="/rrweb.css"><link rel="stylesheet" href="/viewer.css">
 </head>
 <body>
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-replay" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m10 8 6 4-6 4Z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4M4 16v4h16v-4"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 4H6a2 2 0 0 0-2 2v9"/></symbol>
+  </defs></svg>
+  <header class="app-header"><div class="brand"><svg class="icon brand-icon" aria-hidden="true"><use href="#i-replay"/></svg><span>sentry-miniapp</span><span class="brand-divider"></span><h1 class="tool-name">回放工作台</h1></div><span class="local-badge"><span class="local-dot"></span>仅本机播放 · 不上传 Sentry</span></header>
   <main>
-    <header><h1>本地回放验证</h1><p>查看小程序界面变化、点击与遮蔽。录制留在本机，不上传 Sentry。</p></header>
-    <section class="import-panel" aria-labelledby="import-title">
-      <h2 id="import-title">导入录制</h2>
-      <div class="import-actions"><label class="file-button">选择 JSON 文件<input id="file" type="file" accept=".json,application/json"></label><span>或粘贴小程序复制的 JSON</span></div>
-      <label for="input" class="sr-only">录制 JSON</label><textarea id="input" rows="4" placeholder="粘贴完整 JSON；支持本地验证导出与 rrweb events 文件"></textarea>
-      <button id="import">导入并查看</button><p id="status" role="status" aria-live="polite">等待录制。可运行 yarn build:replay-local，操作「页面回放」页后复制 JSON。</p>
-    </section>
+    <div id="page-heading" class="page-heading"><div><h2>导入一份录制，开始验证</h2><p>查看操作前后的界面变化，检查隐私遮蔽和错误关联。</p></div></div>
+    <details id="import-panel" class="import-panel" open>
+      <summary><span class="summary-title"><svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>导入录制</span><span class="import-hint">选择文件，也可拖入或粘贴 JSON</span><svg class="icon disclosure" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+      <div class="import-body">
+        <div class="file-import"><label class="file-button"><svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg>选择 JSON 文件<input id="file" type="file" accept=".json,application/json"></label><p>支持本地验证导出与 rrweb 事件文件，最大 8 MiB。</p></div>
+        <div class="paste-import"><label for="input">从小程序复制的 JSON</label><textarea id="input" rows="3" placeholder="粘贴完整录制 JSON"></textarea><button id="import" class="primary">导入并查看</button></div>
+      </div>
+      <p class="getting-started">还没有录制？运行 <code>yarn build:replay-local</code>，操作小程序「页面回放」页后复制 JSON。</p>
+    </details>
+    <p id="status" class="status" role="status" aria-live="polite">等待导入录制。文件只在本机读取和播放。</p>
     <section id="workspace" hidden aria-labelledby="play-title">
-      <div class="workspace-heading"><h2 id="play-title">录制画面</h2><label>选择录制 <select id="sessions"></select></label></div>
-      <p id="details"></p>
+      <div class="workspace-heading"><h2 id="play-title">录制画面</h2><label class="session-picker">选择录制<select id="sessions"></select></label></div>
       <div class="workspace-grid">
-        <div class="playback"><div id="viewport"><div id="player"></div></div>
-          <div class="controls"><button id="start">回到开头</button><button id="play">播放</button><label>速度 <select id="speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label><output id="time">0.0 / 0.0 秒</output></div>
-          <label class="timeline" for="seek">播放位置<input id="seek" type="range" min="0" max="1" value="0" step="10"></label>
+        <div class="playback">
+          <div class="stage-heading"><span>页面画面 <output id="viewport-size"></output></span><label><span class="sr-only">画面缩放</span><select id="zoom"><option value="fit">适应窗口</option><option value="1">100%</option></select></label></div>
+          <div id="stage"><div id="viewport"><div id="player"></div></div></div>
+          <div class="playback-controls">
+            <label class="sr-only" for="seek">播放位置</label><input id="seek" type="range" min="0" max="1" value="0" step="10">
+            <div class="controls"><button id="start" class="icon-button" title="回到开头" aria-label="回到开头"><svg class="icon" aria-hidden="true"><use href="#i-restart"/></svg></button><button id="play" class="primary play-button" aria-pressed="false"><svg id="play-icon" class="icon" aria-hidden="true"><use href="#i-play"/></svg><span id="play-label">播放</span></button><output id="time" class="time">00:00 / 00:00</output><label class="speed-picker"><span class="sr-only">播放速度</span><select id="speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label></div>
+            <p class="keyboard-help"><kbd>空格</kbd> 播放 / 暂停 <span>·</span> <kbd>←</kbd> <kbd>→</kbd> 前后跳转 5 秒</p>
+          </div>
         </div>
-        <aside><h3>已保留的分段</h3><div id="segments"></div><h3>关联错误 ID</h3><div id="errors"></div><p class="boundary">这些是本地录制中的关联标识，不代表 Sentry 已收到或建立后台链接。</p></aside>
+        <aside class="recording-info" aria-label="录制信息"><section><h3>录制信息</h3><p id="details"></p><div class="info-label">页面</div><p id="route" class="route"></p><div class="info-label">录制 ID</div><code id="replay-id" class="identifier"></code></section><section><div class="section-heading"><h3>录制分段</h3><span id="segment-count"></span></div><div id="segments"></div></section><section><div class="section-heading"><h3>关联错误</h3><button id="copy-errors" class="icon-button" title="复制错误 ID" aria-label="复制错误 ID" hidden><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg></button></div><div id="errors" class="identifier"></div><p class="boundary">本地关联标识；不代表 Sentry 已接收或建立后台链接。</p></section></aside>
       </div>
     </section>
-    <footer>本地播放不验证 Sentry 的接收、处理与播放器，也不替代真机弱网、存储或性能验收。</footer>
+    <footer><span>录制留在本机，公开解除遮蔽的文字仍会进入文件。</span><span>本地播放不替代 Sentry 后台、真机弱网、存储或性能验收。</span></footer>
   </main>
+  <div id="drop-hint" hidden>松开文件，导入本地录制</div>
   <script src="/rrweb.js"></script><script type="module" src="/viewer.mjs"></script>
 </body>
 </html>
