@@ -154,7 +154,7 @@ yarn dev:miniapp
 
 保留最多 20 段，段数据按 SDK UTF-8 计算总预算 1 MiB；错误 ID 最多 50 个。导出文件上限 8 MiB，错误上下文和输入值不由导出器另行复制。退出小程序会丢失内存记录；复制失败时可从开发者工具页面 data 的 `localRecording` 保存 JSON。只使用合成演示数据，解除遮蔽后的公开文字仍会进入文件。
 
-此模式禁用 SDK 持久离线缓存，不能验证实际 HTTP、弱网补发、手机持久存储或 Sentry 接收／播放。测试结果继续按 [验收步骤](../../docs/wechat-page-replay-acceptance.md) 分项记录。
+此模式使用内存 transport，禁用 SDK 持久离线缓存，也不产生 HTTP 回执。需要向 Sentry 发送录制时，使用下一节的构建方式。
 
 ### 在 Sentry 验证
 
@@ -164,11 +164,9 @@ yarn dev:miniapp
 
 仅运行 `yarn build:miniapp` 时，原始项目会生成 SDK 与可选录制器，自动回放页提示先生成标记；功能验证中的低层手动标记示例仍可使用。录制导出只用于开发验收，最多保留最近 20 个已提交分段，业务不要复制这套导出钩子。
 
-这是实验性布局投影，不复制输入值、图片地址或页面 data，不保证原生绘制、字体与动画完全复现。使用 npm 组件时，先完成微信的 npm 构建，再对包含 `miniprogram_npm` 的项目生成回放标记。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，已有验收证据见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)，后续任务见 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
+这是实验性布局投影，不复制输入值、图片地址或页面 data，不保证原生绘制、字体与动画完全复现。使用 npm 组件时，先完成微信的 npm 构建，再对包含 `miniprogram_npm` 的项目生成回放标记。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)。
 
 示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，保留其它演示中的固定 `setUser()` 调用，分别核对自动采集与显式数据。`miniapp.invalid` 仅用于展示，不需要配置合法域名。示例文案允许显示，输入框不要填写真实个人信息。
-
-参与真机或组件兼容验证时，按[回放验收步骤](../../docs/wechat-page-replay-acceptance.md)记录构建、设备、操作和后台结果。IDE 的采集与请求成功不代表手机开销或最终播放已通过。
 
 ## 注意事项
 

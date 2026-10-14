@@ -131,7 +131,7 @@ After the first event is working, pick the guide based on what you are doing nex
 
 To inspect UI changes before an error, try [WeChat page replay](https://sentry-miniapp.pages.dev/guide/page-replay) from source. It records sampled layouts, text changes and clicks on selected pages; the build tool annotates supported nodes and static components. **npm `2.0.2` does not include replay**. Install a source candidate following the guide.
 
-The source example supports [local recording and playback](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry) without using Sentry cloud quota. Recording coverage, component compatibility, device overhead and target-backend behavior require separate validation. See the guide for limits and [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) / [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533) for progress.
+The source example also supports [local recording and playback](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry): export a recording and inspect it in a PC browser without using Sentry cloud quota.
 
 ---
 
