@@ -1,6 +1,6 @@
 # Source Map 上线指南
 
-Source Map 让 Sentry 把线上压缩代码的堆栈还原到 `.ts`、`.tsx` 或 `.vue` 源码。第一次配置时只沿着本页主线完成：**release 一致、生成 map、同时上传 JS 与 map、真机验证**。
+Source Map 让 Sentry 把线上压缩代码的堆栈还原到 `.ts`、`.tsx` 或 `.vue` 源码。本页使用 **release + 文件路径** 的接入主线：release 一致、生成 map、同时上传 JS 与 map，再用新事件验证。已经使用构建插件注入 Debug ID 时，按[Debug ID 指南](/guide/sourcemap-advanced#debug-id-与自定义-stackparser)核对另一条匹配路径，避免混淆。
 
 > 真机堆栈如果是 `app:///appservice.app.js`，或者项目使用 Cocos、Debug ID、私有引擎，请直接看 [Source Map 进阶与排障](/guide/sourcemap-advanced)。
 
@@ -15,7 +15,7 @@ tt://pages/index.js          -> app:///pages/index.js
 swan://pages/index.js        -> app:///pages/index.js
 ```
 
-上传后的 artifact 名称必须与事件堆栈中的文件名一致，Sentry 才能找到对应 Source Map。
+按 release 与路径匹配时，上传 artifact 的名称须与事件堆栈文件名对应；Debug ID 匹配则另外核对注入的 ID 和上传 bundle。两种方式都要求 JS 与 map 来自实际运行的同一次构建，见 [Sentry 官方匹配说明](https://blog.sentry.io/how-to-fix-source-map-upload-errors/)。
 
 ```text
 同一次构建生成 .js + .map
@@ -126,7 +126,7 @@ export default defineConfig({
 
 uni-app 的 map 生成方式取决于构建器和插件版本，请按 [uni-app 示例](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp#本地映射与-sdk-版本)配置并运行带 `--sourcemap` 的构建。示例的 map 位于 `dist/build/.sourcemap/mp-weixin`，JS 位于 `dist/build/mp-weixin`；上传前将它们按相同相对路径放入同一目录，并检查实际产物。
 
-`hidden-source-map` 会生成独立 map，但不会在生产 JS 中留下可公开加载的 `sourceMappingURL`。上传完成后，不要把 `.map` 发布进小程序包。
+Webpack 的 `hidden-source-map` 与 Vite 的 `sourcemap: 'hidden'` 生成独立 map，但不在 JS 中写入 `sourceMappingURL`。它们不会自动删除 map；上传完成后，从小程序发布目录移除 `.map`。
 
 ## 第四步：上传 Source Map
 

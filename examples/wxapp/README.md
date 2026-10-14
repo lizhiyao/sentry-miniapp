@@ -1,46 +1,28 @@
 # 微信小程序示例
 
-这是一个使用 `sentry-miniapp` SDK 的微信小程序示例项目，覆盖了从应用启动、首页访问、网络请求、性能采集，到测试页手动异常/消息/反馈上报的一整套能力演示。
+用这个示例先确认错误上报，再观察请求和业务耗时，或试用源码中的页面回放。它用于功能验收，启用了全量采样、console 面包屑与正文采集；生产项目从[最小配置](https://sentry-miniapp.pages.dev/guide/getting-started)开始。
 
-## 页面回放示例
+## 先选体验方式
 
-### 不消耗 Sentry 额度的本地验证
+| 你想验证什么 | 在仓库根运行 | 打开哪里 |
+| --- | --- | --- |
+| 异常、请求和业务性能 | `yarn build:miniapp` | `examples/wxapp` |
+| 本地录制与播放，不占云端额度 | `yarn build:replay-local` | 命令输出的独立项目，再用 `yarn replay:local` 启动 PC 查看器 |
+| Sentry 回放与错误关联 | `yarn build:replay-example` | 命令输出的独立项目与自己的 Sentry 后台 |
 
-在仓库根目录运行 `yarn build:replay-local`，打开输出的小程序项目，进入「页面回放」tab。该副本明确显示本地模式：SDK transport 只留存内存录制，不请求 Sentry；普通 `yarn build:replay-example` 仍按现有配置发送。
-
-确认订单、打开弹窗、滚动列表、输入非个人信息的测试文字并开启遮蔽后，点击「关联测试错误并本地保存」，再点击「复制录制 JSON」。也可不触发错误，直接复制录制；停止后已保存的段仍可导出。
-
-在另一个终端运行 `yarn replay:local`，用 Chrome 打开命令打印的本机地址，粘贴 JSON 并导入；也可选择 JSON 文件。已保存文件可用 `yarn replay:local --file /绝对路径/录制.json` 自动加载；端口占用时加 `--port 8772`。
-
-工作台面向 PC 浏览器，建议窗口宽度不低于 960px。支持拖入文件，导入后以居中的录制画面为主，显示录制序号／时长和分段开始时间，可切换适应窗口／100% 缩放并复制关联错误 ID。焦点不在输入控件时，空格播放／暂停，方向键跳转 5 秒。
-
-播放器复用已安装的官方 `@rrweb/replay`，资源和录制不上传，不依赖 CDN。支持多次录制选择、播放／暂停、速度、时间轴与分段跳转；关联错误只显示本地 ID。超过保留预算时会提示缺段，不补造被移除的画面。
-
-保留最多 20 段，段数据按 SDK UTF-8 计算总预算 1 MiB；错误 ID 最多 50 个。导出文件上限 8 MiB，错误上下文和输入值不由导出器另行复制。退出小程序会丢失内存记录；复制失败时可从开发者工具页面 data 的 `localRecording` 保存 JSON。只使用合成演示数据，解除遮蔽后的公开文字仍会进入文件。
-
-此模式禁用 SDK 持久离线缓存，不能验证实际 HTTP、弱网补发、手机持久存储或 Sentry 接收／播放。测试结果继续按 [验收步骤](../../docs/wechat-page-replay-acceptance.md) 分项记录。
-
-运行 `yarn build:replay-example`，在微信开发者工具打开命令输出的独立项目，进入底部的“页面回放”。导航依次为“概览 / 功能验证 / 页面回放”。
-
-页面可确认订单、打开弹窗、滚动两层自定义组件中的列表、更新 slot、切换祖先文字遮蔽、输入测试文本，并关联 Sentry 错误。布局与文字绑定由构建工具生成，不需要逐节点手写标记。输入只显示占位；发送结果区被整块屏蔽，诊断不会再递归进入录制。
-
-仅运行 `yarn build:miniapp` 时，原始项目会生成 SDK 与可选录制器，自动回放页提示先生成标记；功能验证中的低层手动标记示例仍可使用。新页面的录制导出只用于开发验收，最多保留最近 20 个已提交分段，业务不要复制这套导出钩子。
-
-这是实验性布局投影，不复制输入值、图片地址或页面 data，不保证原生绘制、字体与动画完全复现。使用 npm 组件时，先完成微信的 npm 构建，再对包含 `miniprogram_npm` 的项目生成回放标记。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，已有验收证据见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)，后续任务见 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
-
-示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，保留其它演示中的固定 `setUser()` 调用，分别核对自动采集与显式数据。`miniapp.invalid` 仅用于展示，不需要配置合法域名。示例文案允许显示，输入框不要填写真实个人信息。
-
-参与真机或组件兼容验证时，按[回放验收步骤](../../docs/wechat-page-replay-acceptance.md)记录构建、设备、操作和后台结果。IDE 的采集与请求成功不代表手机开销或最终播放已通过。
+首次先按[运行方式](#运行方式)安装仓库依赖。普通示例与 Sentry 回放模式会发送到配置的 DSN；本地模式的 SDK 遥测不请求 Sentry。**回放是源码实验能力，当前 npm `2.0.2` 不含该入口**，完整范围见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)。
 
 ## 能力概览
 
-- ✅ 应用启动链路监控
-- ✅ 页面生命周期 Breadcrumb
-- ✅ 首页请求 Span 与失败告警
-- ✅ 自动异常捕获与 Promise 异常捕获
-- ✅ 手动消息、异常、用户反馈上报
-- ✅ 用户身份、标签、上下文管理
-- ✅ 页面加载性能测量
+底部导航为「概览 / 功能验证 / 页面回放」：
+
+| 页面 | 可以怎样验证 |
+| --- | --- |
+| 概览（`pages/index`） | 查看初始化状态、访问标识与请求结果；在后台核对请求和业务 span |
+| 功能验证（`pages/test`） | 触发异常、消息、反馈和业务操作，并按本次触发标识定位事件 |
+| 页面回放（`pages/replay-components`） | 操作嵌套组件、slot、列表、弹窗与遮蔽；须生成标记后录制 |
+
+`pages/replay` 另保留低层手动标记示例，不是自动回放 tab。初始化状态不代表后台已接收。
 
 ## 这个示例重点演示什么
 
@@ -53,7 +35,7 @@
 - 使用 `beforeSend` 控制事件大小，避免超大事件被服务端拒绝
 - 在启动时生成唯一 `launchId`
 - 通过 `setTag`、`setContext`、`addBreadcrumb` 记录启动参数与显示状态
-- 通过 `startInactiveSpan` 覆盖启动到首屏、首页加载等跨生命周期性能区间
+- 通过 `startInactiveSpan` 测量业务定义的启动到首页就绪区间；它不等于宿主完整冷启动
 
 ### 2. 首页访问阶段
 
@@ -105,7 +87,7 @@
 
 ### 1. 构建 SDK
 
-在项目根目录运行：
+在 SDK 仓库根目录运行；Node.js 版本见[开发环境要求](../../DEVELOPMENT.md#0-环境要求)：
 
 ```bash
 corepack enable
@@ -113,7 +95,7 @@ yarn install
 yarn run build:miniapp
 ```
 
-该命令会在本地生成 `examples/wxapp/lib/sentry-miniapp.js` 与 Source Map，并检查产物能否脱离仓库依赖独立加载。`lib/` 是生成目录，不提交到 Git。
+该命令生成主 SDK、可选录制器及各自的 Source Map，并检查主 SDK 能否脱离仓库依赖独立加载。`lib/` 是生成目录，不提交到 Git；自动回放页面仍须另生成标记项目。
 
 如果你在开发 SDK，本地持续构建可以运行：
 
@@ -132,7 +114,7 @@ yarn dev:miniapp
 
 ### 3. 调试建议
 
-- 修改 SDK 源码后，重新运行 `yarn build:miniapp`；持续调试时保持 `yarn dev:miniapp` 运行
+- 修改主 SDK 时可保持 `yarn dev:miniapp` 运行；它不监听回放入口。修改录制器后重新构建，自动标记项目还须重新生成
 - 修改 `examples/wxapp` 示例代码后，在开发者工具中重新编译
 - 需要观察原始上报时，优先看 Sentry 的事件明细而不是只看 Issues 列表
 
@@ -155,6 +137,38 @@ yarn dev:miniapp
 - 用户身份与业务标签
 
 作为接入模板进行裁剪。
+
+## 页面回放示例
+
+### 不消耗 Sentry 额度的本地验证
+
+在仓库根目录运行 `yarn build:replay-local`，打开输出的小程序项目，进入「页面回放」tab。该副本明确显示本地模式：SDK transport 只留存内存录制，不请求 Sentry；普通 `yarn build:replay-example` 仍按现有配置发送。
+
+确认订单、打开弹窗、滚动列表、输入非个人信息的测试文字并开启遮蔽后，点击「关联测试错误并本地保存」，再点击「复制录制 JSON」。也可不触发错误，直接复制录制；停止后已保存的段仍可导出。
+
+在另一个终端运行 `yarn replay:local`，用 Chrome 打开命令打印的本机地址，粘贴 JSON 并导入；也可选择 JSON 文件。已保存文件可用 `yarn replay:local --file /绝对路径/录制.json` 自动加载；端口占用时加 `--port 8772`。
+
+工作台面向 PC 浏览器，建议窗口宽度不低于 960px。支持拖入文件，导入后以居中的录制画面为主，显示录制序号／时长和分段开始时间，可切换适应窗口／100% 缩放并复制关联错误 ID。焦点不在输入控件时，空格播放／暂停，方向键跳转 5 秒。
+
+播放器复用已安装的官方 `@rrweb/replay`，资源和录制不上传，不依赖 CDN。支持多次录制选择、播放／暂停、速度、时间轴与分段跳转；关联错误只显示本地 ID。超过保留预算时会提示缺段，不补造被移除的画面。
+
+保留最多 20 段，段数据按 SDK UTF-8 计算总预算 1 MiB；错误 ID 最多 50 个。导出文件上限 8 MiB，错误上下文和输入值不由导出器另行复制。退出小程序会丢失内存记录；复制失败时可从开发者工具页面 data 的 `localRecording` 保存 JSON。只使用合成演示数据，解除遮蔽后的公开文字仍会进入文件。
+
+此模式禁用 SDK 持久离线缓存，不能验证实际 HTTP、弱网补发、手机持久存储或 Sentry 接收／播放。测试结果继续按 [验收步骤](../../docs/wechat-page-replay-acceptance.md) 分项记录。
+
+### 在 Sentry 验证
+
+运行 `yarn build:replay-example`，在微信开发者工具打开命令输出的独立项目，配置自己的 DSN、AppID 和实际上报域名，再进入底部的“页面回放”。导航依次为“概览 / 功能验证 / 页面回放”；目标项目须有可用 Replay 配额。
+
+页面可确认订单、打开弹窗、滚动两层自定义组件中的列表、更新 slot、切换祖先文字遮蔽、输入测试文本，并关联 Sentry 错误。布局与文字绑定由构建工具生成，不需要逐节点手写标记。输入只显示占位；发送结果区被整块屏蔽，诊断不会再递归进入录制。
+
+仅运行 `yarn build:miniapp` 时，原始项目会生成 SDK 与可选录制器，自动回放页提示先生成标记；功能验证中的低层手动标记示例仍可使用。录制导出只用于开发验收，最多保留最近 20 个已提交分段，业务不要复制这套导出钩子。
+
+这是实验性布局投影，不复制输入值、图片地址或页面 data，不保证原生绘制、字体与动画完全复现。使用 npm 组件时，先完成微信的 npm 构建，再对包含 `miniprogram_npm` 的项目生成回放标记。接入和限制见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)，已有验收证据见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)，后续任务见 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
+
+示例设置 `dataCollection: { userInfo: false }` 关闭自动 IP 推断，保留其它演示中的固定 `setUser()` 调用，分别核对自动采集与显式数据。`miniapp.invalid` 仅用于展示，不需要配置合法域名。示例文案允许显示，输入框不要填写真实个人信息。
+
+参与真机或组件兼容验证时，按[回放验收步骤](../../docs/wechat-page-replay-acceptance.md)记录构建、设备、操作和后台结果。IDE 的采集与请求成功不代表手机开销或最终播放已通过。
 
 ## 注意事项
 
@@ -183,14 +197,17 @@ wxapp/
 ├── project.config.json     # 微信开发者工具配置
 ├── lib/
 │   ├── sentry-miniapp.js
-│   └── sentry-miniapp.js.map
+│   ├── sentry-miniapp.js.map
+│   ├── sentry-miniapp-replay.js
+│   └── sentry-miniapp-replay.js.map
 └── pages/
     ├── index/
     │   ├── index.js        # 首页监控与请求演示
     │   ├── index.wxml
     │   └── index.wxss
-    └── test/
-        ├── test.js         # 异常、消息、反馈、性能测试
-        ├── test.wxml
-        └── test.wxss
+    ├── test/               # 异常、消息、反馈与业务性能验证
+    ├── replay/             # 低层手动标记示例
+    └── replay-components/  # 自动标记的页面回放 tab
 ```
+
+自动回放项目由构建命令生成，包含 `components/replay-*` 的嵌套组件演示；路径以命令输出为准。

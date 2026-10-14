@@ -60,7 +60,7 @@ npm run build:weapp
 
 三个示例共用演示 DSN，查看该项目后台需要相应账号权限。要自行验证接收结果，在 `src/utils/sentry.ts` 中替换为自己的 DSN，并在微信后台配置其上报域名。
 
-> 三个示例共用同一项目，后台事件会混在一起。本示例给所有事件打了 `app.framework: taro-react` 标签，需要区分时在 Sentry 后台按 `app.framework:taro-react` 过滤即可。
+> 三个示例共用同一项目。本示例使用 `app.framework: taro-react` 标签，在 Sentry 按 `app.framework:taro-react` 过滤，再核对本次错误的消息、时间与事件 ID。
 
 微信开发者工具中还需把 Sentry 上报域名加入小程序后台「合法域名」（开发期可临时勾选「不校验合法域名」）。
 
@@ -81,7 +81,7 @@ node ../../scripts/internal/check-framework-sourcemaps.mjs \
   src/pages/test/test.tsx dist/pages/test/test.js dist/pages/test/test.js.map
 ```
 
-2.0 已提供正式版；本示例仍使用仓库构建。改为发布包时，安装 `sentry-miniapp@2` 并提交锁文件，核对其 API 与[2.0 迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
+接入独立业务项目时，安装正式版 `sentry-miniapp@2` 并保留业务项目的锁文件。仓库示例的安装文件被忽略，不能用示例 fresh install 代替生产项目的依赖锁定；升级已有配置时先看[迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0)。
 
 ## 说明
 

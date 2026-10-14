@@ -89,6 +89,8 @@ Sentry.withScope(scope => {
 
 高级场景还可使用 `getCurrentScope()`、`getIsolationScope()`、`getGlobalScope()`（对所有事件生效）和 `addEventProcessor()`。
 
+上例在同步回调内捕获已取得的 `error`。多个任务并行跨 `await` 时，小程序不保证各自的临时上下文仍然隔离；先完成异步工作，再在同步 `withScope` 中设置本次事件的字段并捕获。
+
 ## Logs
 
 显式调用 logger 即采集业务日志，用 `beforeSendLog` 修改或返回 `null` 丢弃：

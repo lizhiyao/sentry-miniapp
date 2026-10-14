@@ -6,7 +6,7 @@ Read the [upload guide](https://sentry-miniapp.pages.dev/guide/sourcemap) for bu
 
 ## Prepare the same build
 
-1. Set an application `release` and inject exactly that value into SDK initialization and upload commands.
+1. For release-based matching, inject the same application `release` into SDK initialization and upload commands. With Debug IDs, additionally verify the event and uploaded bundle IDs; release equality alone does not establish that match.
 2. Generate maps for the production target and retain the corresponding final JavaScript.
 3. Match actual event filenames, usually normalized to `app:///`, to artifact relative paths.
 4. Keep maps and `sourcesContent` out of the public deployment package.

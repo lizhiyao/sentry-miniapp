@@ -196,6 +196,8 @@ npx --no-install sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" ./sent
 
 使用构建插件注入 Debug ID 时，上传和部署须使用同一份注入后的 JS 与 map。SDK 负责把宿主可见的 Debug ID 交给 Sentry；仍应核对新事件的 `debug_meta` 与上传文件的 ID。额外的微信编译可能改变代码和映射，需要按前面的两层映射流程检查。
 
+Debug ID 与 release + 路径是不同的匹配依据。使用 Debug ID 时，不能仅凭 release 相同判断匹配成功；使用本页的 release 上传命令时，也不能仅凭注入代码存在判断匹配成功。先确认本次上传和事件实际具备哪种匹配信息，详见 [Sentry 官方排障说明](https://blog.sentry.io/how-to-fix-source-map-upload-errors/)。
+
 大多数项目无需设置 `stackParser`。内置 `miniappStackParser` 已覆盖常见 V8、Safari、JavaScriptCore 以及小程序虚拟路径格式。
 
 只有私有引擎、特殊打包器或非标准堆栈无法解析时才覆盖：

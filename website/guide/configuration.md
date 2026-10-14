@@ -13,7 +13,7 @@
 | `dsn` | `string` | — | Sentry DSN（必填，否则不上报） |
 | `enabled` | `boolean` | `true` | 是否启用遥测；若不希望安装任何自动监听，应按业务条件决定是否调用 `init()` |
 | `tunnel` | `string` | — | 自管的 envelope 转发地址；配置后将此地址加入宿主 request 合法域名 |
-| `release` | `string` | — | 版本号；**Source Map 解析的关键**，需与上传时的 release 完全一致 |
+| `release` | `string` | — | 应用发布标识；按 release 上传 Source Map 时须与上传值一致。Debug ID 匹配见[进阶指南](/guide/sourcemap-advanced#debug-id-与自定义-stackparser) |
 | `environment` | `string` | 'production' | 环境标识，如 `production` / `staging` |
 | `debug` | `boolean` | `false` | 开启 SDK 调试日志 |
 | `miniappPlatform` | `MiniappPlatform` | 自动识别 | 小程序宿主标记，写入 `contexts.miniapp.platform`。事件顶层 `platform` 固定为 Sentry 标准值 `javascript`。SDK 会结合平台对象、宿主名称、数据路径和 AppID 消除歧义；仅在信息缺失或冲突时手动指定。该选项不切换底层运行时 API。可选 `wechat`、`alipay`、`bytedance`、`qq`、`swan`、`dingtalk`、`kuaishou`；百度使用 `swan` |
@@ -156,7 +156,7 @@ console.log(diagnostics.warnings);
 
 缓存条数、字节数和 TTL 须为非负安全整数，非法值回落默认；条数／字节上限为 0 时不保留记录，TTL 为 0 时立即过期。
 
-## 隐私合规（同意后上报）
+## 隐私同意（同意后上报） {#隐私合规-同意后上报}
 
 开始配置前建议先阅读[用户同意前不发送 Sentry 网络](/guide/reliability-and-privacy#用户同意前不发送-sentry-网络)。
 
@@ -246,7 +246,7 @@ await Sentry.startSpan({
 
 ## 运行环境与自建 Sentry
 
-安装和构建工具的 Node.js 要求由 npm 包的 `engines.node` 声明；开发本仓库的要求见[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)。这些要求不能当作手机宿主版本要求；实际运行时能力见[跨平台差异与降级](/guide/platform-compatibility)。
+npm 包的 `engines.node` 声明 SDK 与 Core 的 Node.js 依赖范围；业务构建器还有自己的 Node.js 要求，应同时满足。开发本仓库时使用[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)列出的工具链版本。Node.js 版本不能当作手机宿主版本要求；实际运行时能力见[跨平台差异与降级](/guide/platform-compatibility)。
 
 自建 Sentry 版本基线、1.x 文档归档和升级步骤集中在[版本选择与迁移](/guide/migration-2.0#version-choice)。
 

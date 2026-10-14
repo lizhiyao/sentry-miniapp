@@ -35,10 +35,6 @@
 
 ---
 
-源码中的[实验性微信页面回放](https://sentry-miniapp.pages.dev/guide/page-replay)可按需录制选定页面，构建工具自动生成普通节点与静态组件标记；使用 npm 组件时先完成微信 npm 构建。纯模板入口、插件及动态库暂不支持自动标记，真机开销与自建后台仍待验收。当前 npm `2.0.2` 尚无此入口。已有实现和后台证据见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530)，组件兼容与后续验收见 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
-
-源码示例还提供[本地回放验证](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry)：导出录制后在本机查看，不占 Sentry 云服务额度；本地结果与后台验收分别记录。
-
 ## 接入要求
 
 > 本文与当前官网面向 **2.x 正式版**。已有 1.x 项目升级，或自建后台暂时无法升级时，先看[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
@@ -101,11 +97,8 @@ npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agent
 
 ---
 
-## 📚 配置你需要的监控
-
-基础错误上报打通后，可以[补充用户与业务上下文、记录日志](https://sentry-miniapp.pages.dev/guide/errors-and-context)，或[测量请求与业务操作耗时](https://sentry-miniapp.pages.dev/guide/performance-and-tracing)。需要用户同意后才能发送数据时，按[隐私同意指南](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy)配置并验证；方法和参数见[常用 API](https://sentry-miniapp.pages.dev/guide/api)与[配置参考](https://sentry-miniapp.pages.dev/guide/configuration)。
-
----
+<span id="-配置你需要的监控"></span>
+<span id="📚-配置你需要的监控"></span>
 
 ## 🧭 下一步看哪里
 
@@ -116,7 +109,9 @@ npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agent
 | 按原生小程序完整接一遍 | [快速接入](https://sentry-miniapp.pages.dev/guide/getting-started) |
 | 在 Taro / uni-app 项目中接入，并处理组件错误 | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
 | 接入微信 / 抖音小游戏和性能监控 | [小游戏接入与性能](https://sentry-miniapp.pages.dev/guide/minigame) |
-| 配异常上下文、Logs、性能、追踪或隐私同意 | [能力指南](https://sentry-miniapp.pages.dev/guide/errors-and-context) |
+| 为错误补充用户、操作和业务日志 | [异常、日志与上下文](https://sentry-miniapp.pages.dev/guide/errors-and-context) |
+| 排查慢请求或关联后端链路 | [性能与链路追踪](https://sentry-miniapp.pages.dev/guide/performance-and-tracing) |
+| 配置弱网补发或用户同意后发送 | [可靠上报与隐私同意](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy) |
 | 查公开方法和完整初始化参数 | [常用 API](https://sentry-miniapp.pages.dev/guide/api) / [配置项参考](https://sentry-miniapp.pages.dev/guide/configuration) |
 | 上传 Source Map 或排查 Debug ID、微信合并文件 | [上线指南](https://sentry-miniapp.pages.dev/guide/sourcemap) / [进阶排障](https://sentry-miniapp.pages.dev/guide/sourcemap-advanced) |
 | 确认各平台、小程序 / 小游戏能力差异 | [支持范围](https://sentry-miniapp.pages.dev/guide/platforms) |
@@ -125,6 +120,14 @@ npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agent
 | 排查没有事件、自动捕获、追踪或隐私同意问题 | [常见问题](https://sentry-miniapp.pages.dev/guide/faq) |
 | 查看版本历史与每次发布内容 | [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) |
 | 参与开发或贡献 | [架构文档](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md) / [开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [贡献指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
+
+---
+
+## 实验性微信页面回放
+
+想查看出错前的界面变化，可从源码体验[微信页面回放](https://sentry-miniapp.pages.dev/guide/page-replay)。它录制选定页面的采样布局、文字变化与点击；构建工具为支持的节点和静态组件生成标记。**当前 npm `2.0.2` 不包含回放入口**，需要按指南安装源码候选包。
+
+源码示例提供[本地录制与播放](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry)，不使用 Sentry 云服务额度。录制覆盖、组件兼容、真机开销和目标后台须分别验收，不能把本地播放当作生产验证；支持范围见指南，进展见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) / [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
 
 ---
 

@@ -25,19 +25,22 @@ yarn install
 
 | 命令 | 说明 |
 |------|------|
-| `yarn dev` | 监听源码并持续构建标准 ESM/CJS/UMD 产物 |
-| `yarn build` | 构建标准 ESM/CJS/UMD 产物与类型声明，并检查 npm 包入口、七平台消费与自请求递归 |
-| `yarn build:miniapp` | 构建微信示例使用的独立 CommonJS bundle，并执行兼容性与加载检查 |
-| `yarn dev:miniapp` | 监听源码并持续构建微信示例 bundle |
+| `yarn dev` | 监听主 SDK 源码并持续构建标准 ESM/CJS/UMD；不构建回放与 Node 工具入口 |
+| `yarn build` | 构建主 SDK、可选回放、Node 工具与类型入口，检查同一 tarball 的安装和公开行为 |
+| `yarn build:miniapp` | 构建微信示例的主 SDK 与可选回放 CommonJS 文件，并执行兼容性、体积与加载检查 |
+| `yarn dev:miniapp` | 只持续构建微信示例主 SDK；修改录制器后重新执行 `yarn build:miniapp` |
+| `yarn build:replay-example` | 构建并为回放示例生成标记，输出独立微信项目；默认发送到配置的 Sentry |
+| `yarn build:replay-local` | 生成本地验证副本；SDK 遥测仅保留在内存，不请求 Sentry |
+| `yarn replay:local` | 启动 PC 录制查看器，导入示例导出的 JSON；详见[回放验收](docs/wechat-page-replay-acceptance.md#无云端额度时的本地验证) |
 | `yarn build:types` | 先构建运行时代码，再生成类型定义文件（d.ts） |
 | `yarn test` | 运行单元测试（Vitest） |
 | `yarn test:coverage` | 运行单元测试并检查覆盖率门槛 |
 | `yarn test:shuffle` | 随机化用例顺序，排查测试状态污染与顺序依赖 |
 | `yarn lint` | 运行 ESLint 检查 |
 | `yarn typecheck` | 严格检查源码与测试代码的 TypeScript 类型 |
-| `yarn check:bundle-size` | 检查已构建 ESM/CJS/UMD 的原始 JS 字节预算，并报告 gzip 大小 |
+| `yarn check:bundle-size` | 检查已构建主 SDK 与回放入口的原始 JS 字节预算，并报告 gzip 大小 |
 | `yarn docs:dev` | 本地查看和编辑用户文档站 |
-| `yarn docs:build` | 构建文档站，检查页面生成与站内文件链接 |
+| `yarn docs:build` | 构建文档站并检查站内页面链接；标题锚点和仓库文档链接还需核对 |
 | `yarn docs:preview` | 预览已经构建的文档站 |
 
 ---
@@ -54,21 +57,21 @@ Vite 的 ES2015 target 负责语法降级，其中 async 的降级会生成 gene
 
 ### 构建体积与共享依赖
 
-标准构建和小程序构建都会执行 JS 体积预算检查：ESM 上限 260 KiB，CommonJS／UMD／小程序独立 bundle 上限 255 KiB。预算包含内联依赖和许可证注释，不包含 Source Map 或类型声明。超限时先核对依赖重复、可选能力与构建输出；有必要的新增能力再在同一 PR 说明成本并调整预算，不能通过 gzip 数字掩盖原始包增长。测量基线见[包体积审查](docs/bundle-size-review.md)。
+标准构建和小程序构建都会执行 JS 体积预算检查：主 SDK 的 ESM 上限 260 KiB，CommonJS／UMD／小程序独立 bundle 上限 255 KiB；可选录制器单独限制在 26.5 KiB。预算包含内联依赖和许可证注释，不包含 Source Map 或类型声明，实际门槛以[检查脚本](scripts/internal/check-bundle-size.mjs)为准。超限时先核对依赖重复、可选能力与构建输出；有必要的新增能力再在同一 PR 说明成本并调整预算。测量基线见[包体积审查](docs/bundle-size-review.md)。
 
 两种 core-js 模式共享基础模块的构建插件锁定在已审查版本。升级依赖时同时审查源码、间接依赖和可变模块状态，复核实际包在缺失／原生／只读宿主能力下的行为，再更新插件版本守卫；不能仅更新版本字符串通过检查。
 
 ### 示例产物
 
-`examples/wxapp/lib/` 是本地生成目录，不进入版本控制。标准 `yarn build` 只负责 npm 包产物；需要运行微信示例时，使用专用的小程序构建命令，避免日常构建产生无关的大文件 diff。
+`examples/wxapp/lib/` 是本地生成目录，不进入版本控制。标准 `yarn build` 负责 npm 包产物；需要运行微信示例时，使用专用的小程序构建命令。回放自动标记另由 `build:replay-example`／`build:replay-local` 输出独立项目，不修改原始示例；修改 WXML 或录制器后须重新生成该副本。
 
 ### 调试步骤
 
-1. **启动监听**：在终端运行 `yarn dev:miniapp`。
+1. **启动监听**：先运行 `yarn build:miniapp` 生成示例依赖，再运行 `yarn dev:miniapp` 监听主 SDK。
 2. **修改源码**：在 `src/` 目录下修改 TypeScript 代码。保存后会自动重新生成 `examples/wxapp/lib/sentry-miniapp.js` 与 Source Map。
 3. **微信开发者工具**：
    - 打开微信开发者工具，导入 `examples/wxapp` 目录。
-   - 每次代码保存后，开发者工具会自动热更新。
+   - 确认开发者工具已重新编译，观察修改后的行为；是否自动刷新取决于工具设置。
    - 开发版本默认开启了 **Source Map**，您可以在开发者工具的 Sources 面板中直接对 TS 源码打断点调试。
 4. **Console 调试**：您也可以在源码中临时添加 `console.log('🐛 [DEBUG]', data)` 来快速验证。
 
@@ -82,12 +85,16 @@ sentry-miniapp/
 │   ├── index.ts                  # SDK 主入口
 │   ├── client.ts                 # Core Client 与宿主资源边界适配
 │   ├── integrations/             # 宿主异常、请求、页面、会话和性能采集
+│   ├── replay/                   # 实验性微信布局录制器，独立子入口
 │   └── transports/               # 宿主请求、同意门与离线存储适配
 ├── test/                         # 单元测试（Vitest）
 ├── examples/wxapp/               # 用于调试的微信小程序示例
 │   ├── lib/                      # [自动生成] SDK 构建产物目录
 │   ├── app.js                    # 小程序入口，SDK 初始化处
-│   └── pages/                    # 测试页面
+│   └── pages/                    # 概览、功能验证与回放页面
+├── website/                      # 用户文档站
+├── docs/                         # 设计补充、验收步骤与历史记录
+├── scripts/                      # Source Map 工具与内部构建／验证工具
 └── package.json
 ```
 
@@ -119,6 +126,12 @@ yarn lint && yarn typecheck && yarn test:coverage
 ```
 
 ---
+
+## 文档维护
+
+按[文档索引](docs/README.md)选择修改位置：用户操作放官网，README 保留概览与接入入口，实现原因放架构或设计补充，版本证据保留在审查记录。不要把临时验收流水复制进用户指南。
+
+从实际源码、默认值与 `package.json` 核对示例；执行 `yarn docs:build`，检查涉及的链接、标题锚点和生成 HTML。中英文 README 同步修改并检查渲染。完整站点约定见 [website/README.md](website/README.md)。
 
 ## 发布流程 (Maintainers Only)
 

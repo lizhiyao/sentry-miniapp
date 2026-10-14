@@ -27,6 +27,8 @@ yarn run dev
 - Use [GitHub Issues](https://github.com/lizhiyao/sentry-miniapp/issues) to report bugs.
 - Include steps to reproduce, expected behavior, and actual behavior.
 - Mention the mini program platform (WeChat, Alipay, etc.) and SDK version.
+- Include framework, host/base-library versions and redacted `Sentry.getDiagnostics()` output when relevant. Source candidates also need a commit or package hash; a package version alone may match a published release with different contents.
+- Report vulnerabilities privately using [SECURITY.md](./SECURITY.md). Remove credentials and personal data from public reports.
 
 ### Submitting Changes
 

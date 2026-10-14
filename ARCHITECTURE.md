@@ -1,6 +1,6 @@
 # Sentry Miniapp SDK 架构
 
-本文面向 SDK 维护者和贡献者，说明 2.0 实现的职责边界、关键数据流和设计取舍。阅读后，应能判断一项能力应放在哪一层、哪些行为必须保留，以及改动需要哪些验证。
+本文面向 SDK 维护者和贡献者，说明当前 2.x 源码的职责边界、关键数据流和设计取舍。阅读后，应能判断一项能力应放在哪一层、哪些行为必须保留，以及改动需要哪些验证。源码中的实验性能力不代表已发布到 npm；发布状态以 Release 和实际安装包为准。
 
 当前实现复用 `@sentry/core` v11；精确依赖版本以 [package.json](package.json) 为准。接入方式见[用户文档](https://sentry-miniapp.pages.dev/)，开发、调试和发版操作见 [DEVELOPMENT.md](DEVELOPMENT.md)。设计补充与历史验收证据由[文档索引](docs/README.md)统一导航。
 
@@ -66,6 +66,7 @@ flowchart TD
 | 环境维度             | [clientState.ts](src/clientState.ts)、[spanDimensions.ts](src/spanDimensions.ts)：client 自有环境状态，经 Core hook／processor 填充         |
 | 共享观测             | [instrumentation.ts](src/instrumentation.ts)、[nativeEvents.ts](src/nativeEvents.ts)、[appLifecycle.ts](src/appLifecycle.ts)：全局函数包装、原生共享监听和前后台协调 |
 | 采集集成             | [integrations/](src/integrations/)：宿主异常、请求、页面、Session、网络状态和可选性能 producers                                             |
+| 可选页面回放         | [replay/](src/replay/)：微信布局采样、隐私投影与分段；[Node 工具](scripts/replay-instrument.mjs)负责生成标记，不进入手机运行代码 |
 | 数据处理与 Core 接缝 | [dataCollection.ts](src/dataCollection.ts)、[coreCompat.ts](src/coreCompat.ts)：自动采集字段过滤、正文策略和公共编码回退                    |
 | 发送与离线存储       | [transports/](src/transports/)：宿主请求、同意门、Core offline 适配、typed records 和 envelope codec                                        |
 | 映射与诊断           | [stacktrace.ts](src/stacktrace.ts)、[debugIds.ts](src/debugIds.ts)、[diagnostics.ts](src/diagnostics.ts)：栈输入、Debug ID 桥接及可解释诊断 |

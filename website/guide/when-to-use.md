@@ -33,13 +33,11 @@
 | **小游戏帧率监控依赖全局 `requestAnimationFrame`** | 默认关闭，需手动开启；缺少该 API 时跳过。普通小程序逻辑层通常不提供该能力。 |
 | **框架组件内错误需接框架错误处理** | 框架可能先于宿主监听处理错误；Vue 使用 [errorHandler](/guide/uniapp)，React 使用[错误边界](/guide/taro)。 |
 
-> 我们把限制讲在前面，是因为**知道边界比功能清单更省你时间**。
-
 ## 为什么可以信任它
 
 - **已被收录进 [Sentry 官方文档](https://docs.sentry.io/platforms/#sdks-supported-by-our-community)** 的 community-supported SDK 列表。
-- 覆盖 **7 大平台 + Taro / uni-app**，通过自动化测试和 GitHub Actions 持续验证。
-- 有真实社区在用（微信交流群、GitHub fork / star）。
+- 测试覆盖 Core 的真实事件处理、实际安装包及 Taro / uni-app 微信构建；检查范围和结果可在[仓库 Actions](https://github.com/lizhiyao/sentry-miniapp/actions)中查看。
+- 能力边界、源码和[缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)公开维护。自动化检查不能代替你的设备与后台验收，按项目实际启用的功能验证后再上线。
 
 ## 判断完了？
 

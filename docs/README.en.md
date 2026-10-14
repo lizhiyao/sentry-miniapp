@@ -37,10 +37,6 @@ Automatic collection depends on host capabilities. React / Vue component errors 
 
 ---
 
-Experimental WeChat page replay is available in source builds through a separate entry, with build-generated annotations for selected pages and static components. Build WeChat npm components before generating annotations. Template-only entry points, plugins and dynamic libraries are not supported by the annotation tool; device overhead and self-hosted Replay still need validation. npm `2.0.2` does not include it. See the [guide](https://sentry-miniapp.pages.dev/guide/page-replay), [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) for existing implementation and backend evidence, and [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533) for component compatibility and remaining acceptance work.
-
-The source example also supports [local replay validation](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry): export a recording and inspect it on your computer without using Sentry cloud quota. Local playback and backend acceptance are recorded separately.
-
 ## Setup Requirements
 
 > This README and the current docs site cover the **stable 2.x release**. Before upgrading an existing 1.x project, or if your self-hosted deployment cannot be upgraded, read the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese).
@@ -105,11 +101,8 @@ Ask your agent to use `sentry-miniapp-sdk` to detect the platform and framework,
 
 ---
 
-## 📚 Configure The Monitoring You Need
-
-Once error delivery works, [add user and business context or record logs](https://sentry-miniapp.pages.dev/guide/errors-and-context), or [measure requests and business operations](https://sentry-miniapp.pages.dev/guide/performance-and-tracing). If delivery must wait for user consent, configure and verify the [consent gate](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy). See the [API](https://sentry-miniapp.pages.dev/guide/api) and [configuration reference](https://sentry-miniapp.pages.dev/guide/configuration) for methods and options (Chinese).
-
----
+<span id="-configure-the-monitoring-you-need"></span>
+<span id="📚-configure-the-monitoring-you-need"></span>
 
 ## 🧭 Where To Go Next
 
@@ -120,29 +113,31 @@ After the first event is working, pick the guide based on what you are doing nex
 | Follow the full native mini program setup | [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started) |
 | Set up Taro / uni-app projects and handle component errors | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
 | Set up WeChat / Douyin mini games and performance monitoring | [Mini Game Guide](https://sentry-miniapp.pages.dev/guide/minigame) |
-| Configure error context, Logs, performance, tracing, or privacy consent | [Capability Guides](https://sentry-miniapp.pages.dev/guide/errors-and-context) |
+| Add user, interaction and business log details | [Errors, Logs and Context](https://sentry-miniapp.pages.dev/guide/errors-and-context) |
+| Investigate slow requests or connect backend traces | [Performance and Tracing](https://sentry-miniapp.pages.dev/guide/performance-and-tracing) |
+| Configure weak-network retries or consent-gated delivery | [Reliability and Privacy Consent](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy) |
 | Look up public methods and initialization options | [Common APIs](https://sentry-miniapp.pages.dev/guide/api) / [Configuration Reference](https://sentry-miniapp.pages.dev/guide/configuration) |
 | Upload Source Maps or troubleshoot Debug IDs and WeChat merged bundles | [Deployment Guide](https://sentry-miniapp.pages.dev/guide/sourcemap) / [Advanced Troubleshooting](https://sentry-miniapp.pages.dev/guide/sourcemap-advanced) |
 | Check platform, mini program, and mini game capability differences | [Supported Scope](https://sentry-miniapp.pages.dev/guide/platforms) |
 | Reduce main-package size | [Bundle Size](https://sentry-miniapp.pages.dev/guide/bundle-size) |
 | See runnable examples | [Examples](https://sentry-miniapp.pages.dev/guide/examples) |
+| Troubleshoot missing events or component errors | [FAQ](https://sentry-miniapp.pages.dev/guide/faq) |
 | Check version history and release notes | [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases) |
 | Contribute to the project | [Architecture (Chinese)](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md) / [Development Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md) / [Contributing Guide](https://github.com/lizhiyao/sentry-miniapp/blob/master/CONTRIBUTING.md) |
 
 ---
 
+## Experimental WeChat Page Replay
+
+To inspect UI changes before an error, try [WeChat page replay](https://sentry-miniapp.pages.dev/guide/page-replay) from source. It records sampled layouts, text changes and clicks on selected pages; the build tool annotates supported nodes and static components. **npm `2.0.2` does not include replay**. Install a source candidate following the guide.
+
+The source example supports [local recording and playback](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry) without using Sentry cloud quota. Recording coverage, component compatibility, device overhead and target-backend behavior require separate validation. See the guide for limits and [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) / [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533) for progress.
+
+---
+
 ## ❓ FAQ
 
-- **No events in Sentry after initialization?** Send a test event with `captureException`, then check the DSN, `request` trusted domain, whether `Sentry.init` runs before `App()`, whether `sampleRate` is too low, and whether you only called `addBreadcrumb`. Breadcrumbs are not sent alone; they ship with the next captured event.
-- **Must I report manually in `onError`?** No. `Sentry.init` registers available platform global error listeners automatically. Initialize before `App()` to observe startup. Late initialization cannot recover earlier startup errors or `onLaunch` breadcrumbs; native foreground/background listeners can still support sessions after initialization when both are available. Check `getDiagnostics()` for lifecycle warnings.
-- **Are network requests included with errors?** Yes, as breadcrumbs containing a filtered URL, method, status and duration. Bodies are off by default. Enabling `traceNetworkBody` collects recognized JSON/form data, filters sensitive keys and applies the size limit; it does not sanitize manual application data.
-- **Are trace headers sent to every API by default?** No. Mini programs have no reliable same-origin baseline, so an empty `tracePropagationTargets` list injects nothing. Allowlist only backend origins you control.
-- **Why do uni-app / Taro component errors need extra wiring?** Frameworks may catch component errors before they reach the platform global `onError`. Use `app.config.errorHandler` / `Vue.config.errorHandler` for Vue, and an Error Boundary for Taro React.
-- **Will it send requests before privacy consent?** By default the SDK reports normally according to your config. If your app must avoid network requests before consent, enable `requireConsent` and call `Sentry.setConsent(true)` once the user grants consent.
-- **Can I disable automatic IP enrichment for error events?** Set `dataCollection: { userInfo: false }`. Explicit `setUser()` fields remain; filter them before capture when needed. Existing applications should follow the [migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0) before updating.
-- **Session Replay or H5 builds?** Mini program logic cannot directly access the rendering layer's DOM, so official browser Session Replay cannot run there. Source builds provide [experimental WeChat layout replay](https://sentry-miniapp.pages.dev/guide/page-replay) through public node queries, with limited coverage. For H5 builds, use official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); keep `sentry-miniapp` for mini program builds.
-
-> Full answers on the **[docs site · FAQ](https://sentry-miniapp.pages.dev/guide/faq)**.
+No events, missing component errors, privacy consent and Source Map issues are covered in the [FAQ](https://sentry-miniapp.pages.dev/guide/faq) (Chinese). Start with a new test error and `Sentry.getDiagnostics()`, then check the actual request and the corresponding event in your Sentry project.
 
 ---
 

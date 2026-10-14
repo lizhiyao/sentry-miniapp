@@ -21,7 +21,7 @@ npm install sentry-miniapp --save
 
 ## 2. 初始化
 
-**务必让 `Sentry.init` 在 `App()` 调用之前执行**，这样才能捕获到应用启动阶段的异常、并在业务请求之前装好网络面包屑。
+**在入口顶部、业务模块加载与 `App()` 调用之前执行 `Sentry.init`**，让监听尽早安装。初始化之前已经发生的异常和请求无法补采。
 
 ```js
 // app.js；放在现有 App() 调用之前
@@ -30,7 +30,7 @@ const Sentry = require('sentry-miniapp');
 Sentry.init({
   dsn: 'YOUR_DSN', // 替换为 Sentry 项目中的完整 DSN
 
-  // release 是 Source Map 生效的关键，需与上传 Source Map 时的 release 完全一致
+  // 标识这次发布；按 release 上传 Source Map 时，两边的值须一致
   release: 'my-miniapp@1.0.0',
   environment: 'production',
 });
