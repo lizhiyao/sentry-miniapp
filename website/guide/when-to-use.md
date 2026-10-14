@@ -37,7 +37,7 @@
 
 - **已被收录进 [Sentry 官方文档](https://docs.sentry.io/platforms/#sdks-supported-by-our-community)** 的 community-supported SDK 列表。
 - 测试覆盖 Core 的真实事件处理、实际安装包及 Taro / uni-app 微信构建；检查范围和结果可在[仓库 Actions](https://github.com/lizhiyao/sentry-miniapp/actions)中查看。
-- 能力边界、源码和[缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)公开维护。自动化检查不能代替你的设备与后台验收，按项目实际启用的功能验证后再上线。
+- 能力说明、源码和[缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new/choose)公开维护，接入步骤与配置可以对照实现查阅。
 
 ## 判断完了？
 

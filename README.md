@@ -127,7 +127,7 @@ npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agent
 
 想查看出错前的界面变化，可从源码体验[微信页面回放](https://sentry-miniapp.pages.dev/guide/page-replay)。它录制选定页面的采样布局、文字变化与点击；构建工具为支持的节点和静态组件生成标记。**当前 npm `2.0.2` 不包含回放入口**，需要按指南安装源码候选包。
 
-源码示例提供[本地录制与播放](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry)，不使用 Sentry 云服务额度。录制覆盖、组件兼容、真机开销和目标后台须分别验收，不能把本地播放当作生产验证；支持范围见指南，进展见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) / [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
+源码示例也提供[本地录制与播放](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry)：导出录制后在 PC 浏览器查看，不使用 Sentry 云服务额度。
 
 ---
 
