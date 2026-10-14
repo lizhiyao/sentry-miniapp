@@ -2,6 +2,8 @@
 
 录制器通过微信公开 SelectorQuery 读取标记节点的可见布局，生成 rrweb 标准 Meta、FullSnapshot 与点击事件。它是采样布局投影，不持有或遍历 WebView 的私有 DOM，也不包装业务 setData。
 
+本文解释源码实现与取舍，不代表已经发布的 npm 包包含回放。接入见[用户指南](https://sentry-miniapp.pages.dev/guide/page-replay)，操作见[验收步骤](wechat-page-replay-acceptance.md)，最新证据与待验收项见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) / [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
+
 ## 职责
 
 - `src/replay/frame.ts`：读取允许的标记和样式，在进入缓冲前遮蔽文本、移除资源加载样式，生成标准 rrweb 快照。
@@ -17,14 +19,14 @@
 
 [官方 Browser npm 入口](https://github.com/getsentry/sentry-javascript/blob/11.6.0/packages/browser/src/index.ts)从根重导出 Replay，但其 [npm 构建](https://github.com/getsentry/sentry-javascript/blob/11.6.0/packages/browser/rollup.npm.config.mjs)保留模块、包标记 `sideEffects: false`；[浏览器 bundle](https://github.com/getsentry/sentry-javascript/blob/11.6.0/packages/browser/rollup.bundle.config.mjs)分别提供普通和包含 Replay 的构建。这里的主 CJS/UMD 已预先合并，根导出会让不启用回放的单文件消费端也携带录制器。
 
-2026-10-13 使用同一 Vite 配置比较，仅改变入口导出、不计 Source Map：
+以下是 **2026-10-13 的构建对照快照**，不是当前文件大小。使用同一 Vite 配置，仅改变入口导出、不计 Source Map：
 
 | 产物 | 独立入口时的主文件 | 根导出回放的主文件 | 增加 |
 | --- | --- | --- | --- |
 | CJS | 260620 B | 272299 B | 11679 B，gzip 增加 4007 B |
 | UMD | 260425 B | 272092 B | 11667 B，gzip 增加 4004 B |
 
-独立 CJS 回放入口约 19 KiB，含自身 helper 与声明注释；启用它时两个文件的总量会高于合并构建，因此独立入口的收益主要属于不启用回放的用户。当前采用按需入口，避免新增 lite/full 发行线。若以后主包改为模块化分发，应重新评估根导出，不能仅凭源码 import 断言消费端已经裁剪。
+该次对照的独立 CJS 回放入口约 19 KiB，含自身 helper 与声明注释。启用它时两个文件的总量会高于合并构建，因此独立入口的收益主要属于不启用回放的用户。当前采用按需入口，避免新增 lite/full 发行线；当前预算见下文，实际大小从同一构建测量。若以后主包改为模块化分发，应重新评估根导出，不能仅凭源码 import 断言消费端已经裁剪。
 
 ## 数据与归属
 
@@ -53,6 +55,10 @@ Envelope 头复用 Core 的 `createEventEnvelopeHeaders` 与 `getSdkMetadataForE
 - 安装后的 npm 包：ESM/CJS 共享主入口、NodeNext 声明、主包和可选包预算。
 - 微信开发者工具／目标设备：真实节点字段、作用域、性能及平台覆盖。
 - 目标 Sentry：实际接收、关联和播放。协议构建、本地播放和 HTTP 成功分别记录。
+
+### 阶段验证记录（2026-10-13）
+
+下列 ID 和设备信息只对应当时构建；后续候选的验收结果以 issue 中记录的提交与包摘要为准，不能据此确认新候选已经通过。
 
 2026-10-13 微信开发者工具 Stable 2.02.2608080／基础库 3.17.4 验证了实际标记布局、状态变化、节点消失、滚动和输入占位。CLI 的 Element.tap 不提供坐标，后续使用原生 UI 控件点击取得真实坐标，没有注入替代位置。最终录制 `98250ea5bfb94a0597139c99c5ee5593` 导出 20 个事件／8 个快照，官方 rrweb 在 jsdom 可重建上述变化；实际测试输入未进入录制。
 
@@ -89,4 +95,4 @@ WXML 绑定中的运算符不能按静态 XML 内容转义，原 class 追加保
 
 可选录制器的原始字节预算为 26.5 KiB，标准构建与微信独立 bundle 均检查；主 CJS 的 255 KiB 预算不因回放放宽。Node 工具包含解析器与独立许可文件，只计入 npm 安装大小；生成的 WXML/WXS 标记仍须计入实际小程序包增量。未启用回放的单文件消费端不携带录制器，项目不增加第二条 SDK 发行线。具体构建、项目包与设备开销证据由 [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533) 跟踪。
 
-静态插槽的容器／转发关联增加了必要的隐私与位置处理。共享组件作用域创建和布局样式计算后，微信录制器实测 26821 B，比不含此关联的构建增加 281 B；预算仅增加 512 B，主 SDK 预算与实际大小保持原值。该体积与真机查询开销分别验收，不以字节变化替代设备性能测量。
+静态插槽关联的阶段构建测得微信录制器 26821 B，比不含此关联的对照增加 281 B；这是当次优化记录，不是当前大小。预算与实际字节由构建脚本持续检查；真机查询开销另行测量，不以包大小代替设备性能。

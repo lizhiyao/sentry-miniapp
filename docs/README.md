@@ -1,6 +1,6 @@
 # 文档索引
 
-接入和日常使用以[文档站](https://sentry-miniapp.pages.dev/)为主；仓库文档补充开发、设计取舍和审查记录。当前用户指南面向 2.x 正式版，1.x 入口见[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
+接入和日常使用以[文档站](https://sentry-miniapp.pages.dev/)为主；仓库文档补充开发、设计取舍和审查记录。常规接入面向 2.x 正式版，1.x 入口见[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。标为实验性的回放文档描述源码候选；是否可用须核对实际安装包，不能由 master 的功能反推 npm 已发布。
 
 ## 按任务阅读
 
@@ -9,10 +9,12 @@
 | 了解能力、安装并发出第一个事件 | [中文 README](../README.md) / [English README](README.en.md) |
 | 接入原生小程序、Taro、uni-app 或小游戏 | [快速接入](https://sentry-miniapp.pages.dev/guide/getting-started)、[框架与示例](https://sentry-miniapp.pages.dev/guide/examples) |
 | 配置 Source Map、隐私同意、性能或排查没有数据 | [用户文档站](https://sentry-miniapp.pages.dev/) |
+| 体验微信页面回放或在 PC 查看本地录制 | [实验性接入与本地验证](https://sentry-miniapp.pages.dev/guide/page-replay) |
 | 理解模块职责、生命周期、Core 接缝与设计原因 | [架构文档](../ARCHITECTURE.md) |
 | 构建、调试、验证或发布 SDK | [开发指南](../DEVELOPMENT.md)、[贡献指南](../CONTRIBUTING.md) |
 | 为智能代理配置项目规则和接入能力 | [AGENTS.md](../AGENTS.md)、[SDK skill](../.agents/skills/sentry-miniapp-sdk/SKILL.md) |
 | 查阅对外文章和配图 | [文章存档](articles/README.md) |
+| 私下报告安全漏洞 | [安全政策](../SECURITY.md) |
 
 ## 当前设计的补充说明
 
@@ -44,6 +46,7 @@
 ## 维护约定
 
 - README 提供项目概览和最短接入；完整参数与操作步骤只在官网维护。
+- 正式发布能力与源码实验能力分别说明；运行命令先交代工作目录、依赖准备和实际输出。
 - 架构文档写当前职责和设计原因；版本修复经过与验证数字留在审查记录。
 - 破坏性变化、旧配置改法和历史行为放在迁移页，不散落在所有能力页中。
 - 示例 README 说明真实入口、构建命令、DSN 和产物路径；不要复制另一份配置参考。

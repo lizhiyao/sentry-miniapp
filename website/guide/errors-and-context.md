@@ -97,7 +97,7 @@ function recordCheckoutAction(event) {
 }
 ```
 
-网络面包屑默认包含 URL、方法、状态码和耗时，不记录请求体与响应体。字段与 core 11 的口径一致：`url` 只到路径，query 单列在 `url.query`，两者都按 `dataCollection.urlQueryParams` 过滤。确实需要 body 时再开启 `traceNetworkBody`，体先按敏感键脱敏、再按 `maxRequestBodySize` 截断，`request_body_size` / `response_body_size` 记录截断前的完整字节数。
+网络面包屑默认包含 URL、方法、状态码和耗时，不记录请求体与响应体。`url` 只到路径，query 单列在 `url.query` 并按 `dataCollection.urlQueryParams` 过滤。确实需要正文时再开启 `traceNetworkBody`，先按敏感键过滤、再按 `maxRequestBodySize` 截断；`request_body_size` / `response_body_size` 表示过滤、截断前的可观察字节数，不一定等于网络实际传输量。
 
 URL query、页面与启动入参，以及 JSON／form 正文使用相同的敏感键过滤策略，命中的值替换为 `[Filtered]`。通过 `sensitiveKeys` 追加业务键名片段；`dataCollection.urlQueryParams: false` 关闭 query，正文另由 `traceNetworkBody` 和 `httpBodies` 控制。格式限制与过滤范围见[配置参考](/guide/configuration#采集数据的脱敏口径)。
 
@@ -126,7 +126,7 @@ Sentry.logger.info('checkout completed', {
 
 ## 收集用户反馈
 
-小程序没有浏览器 DOM，不能使用 Sentry 默认 HTML 反馈弹窗。请用原生组件实现表单，再提交数据：
+小程序逻辑层无法直接操作渲染层 DOM，不能使用浏览器 HTML 反馈弹窗。请用原生组件实现表单，再提交数据：
 
 ```js
 const eventId = Sentry.lastEventId();

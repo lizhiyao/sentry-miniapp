@@ -23,7 +23,7 @@
 | 异常 / 未处理 Promise 捕获 | ✅ | ✅ | 按宿主可用的 `onError`／`onUnhandledRejection` 监听 |
 | `setTimeout` / `setInterval` / rAF 包裹 | ✅ | ✅ | TryCatch 集成 |
 | 网络请求面包屑（URL / 方法 / 状态码 / 耗时） | ✅ | ✅ | 包裹宿主 `request`／`httpRequest`，正文需手动开启 |
-| 分布式追踪（http.client span） | ✅ | ✅ | 需开启 `tracesSampleRate` |
+| 分布式追踪（http.client span） | ✅ | ✅ | 需开启性能采样；后端关联还须配置追踪头白名单与后端 SDK |
 | 宿主性能条目（导航 / 渲染 / 资源 / User Timing） | ✅ | ➖ | 需安装 `performanceIntegration()`，以宿主实际提供的 observer 和时间戳为准 |
 | 自定义业务 span | ✅ | ✅ | 通过 `startSpan` 等 API 测量，需开启性能采样 |
 | SDK 初始化到首次帧回调 | ➖ | ✅ | 默认观察；需要全局 rAF，不代表完整冷启动或画面完成呈现 |
@@ -32,10 +32,11 @@
 | 设备信息 / 上下文 | ✅ | ✅ | `getDeviceInfo` 等 |
 | 页面生命周期 / 点击面包屑 | ✅ | ➖ | 小游戏无页面，自动跳过 |
 | Source Map 路径归一化 | ✅ | ✅ | 各平台虚拟路径统一为 `app:///` |
-| 多平台堆栈解析 | ✅ | ✅ | 支持 V8 / Safari / JavaScriptCore 格式，配合 Source Map 精准定位 |
-| 弱网离线缓存重试 | ✅ | ✅ | 失败缓存到本地 Storage |
+| 多平台堆栈解析 | ✅ | ✅ | 解析常见 V8 / Safari / JavaScriptCore 格式；源码定位仍需同一构建的 JS／map 与后台匹配 |
+| 弱网离线缓存重试 | ✅ | ✅ | 符合策略的失败数据有界缓存并尝试补发；缺少 Storage 时降级内存 |
 | 隐私同意前停止网络发送 | ✅ | ✅ | 开启 `requireConsent` 后进入本地缓冲 |
 | Sentry Logs／Metrics | ✅ | ✅ | 显式调用 logger／metrics；目标 Sentry 须支持对应数据 |
+| 实验性微信页面回放 | 微信 WebView | ➖ | 仅源码候选包，当前 npm `2.0.2` 无此入口；[覆盖范围与接入](/guide/page-replay) |
 
 > ✅ 表示 SDK 提供对应接入能力，不代表每个平台、基础库或设备都有全部宿主 API。缺少所需 API 时跳过相应采集；➖ 表示该环境通常不提供对应能力。
 

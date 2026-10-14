@@ -16,7 +16,7 @@ description: 用 sentry-miniapp 将微信等小程序、小游戏、Taro 和 uni
   <div class="sm-section-heading">
     <p class="sm-eyebrow">围绕你的排查工作</p>
     <h2 id="sm-benefits-title">少一点猜测，多一些线索。</h2>
-    <p>先接通错误上报，再按项目需要补充源码定位、性能与可靠发送。</p>
+    <p>先接通错误上报，再按项目需要补充源码定位、性能与发送策略。</p>
   </div>
   <div class="sm-benefits">
     <div class="sm-benefit">

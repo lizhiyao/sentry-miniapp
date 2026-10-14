@@ -2,6 +2,8 @@
 
 `sentry-miniapp` 支持微信小游戏和抖音小游戏。小游戏没有小程序的 `App()`、`Page()` 和页面路由，但仍可使用平台异常监听、网络、Storage 和设备信息 API。
 
+首次接入先按[安装与域名配置](/guide/getting-started#_1-安装)准备 SDK、DSN 和实际上报域名；2.x 的后台要求见[版本选择](/guide/migration-2.0#version-choice)。游戏引擎负责打包时，确认 SDK 已进入最终游戏产物。
+
 ## 最小接入
 
 在游戏入口文件最前面初始化，早于业务模块加载和首帧逻辑：
@@ -13,13 +15,14 @@ Sentry.init({
   dsn: 'YOUR_DSN',
   release: 'my-game@1.0.0',
   environment: 'production',
-  tracesSampleRate: 0.2,
 });
 
 Sentry.captureException(new Error('minigame sentry test'));
 ```
 
 小游戏默认启用生命周期的一次首帧观察；FPS／jank 循环默认关闭，须显式配置 `enableMinigameFrameRate: true`。普通小程序不安装这些小游戏能力。
+
+以上最小配置不发送独立性能数据。错误上报确认后，再按下面的步骤开启性能采样和所需的帧率统计。
 
 ## 平台识别与游戏引擎
 

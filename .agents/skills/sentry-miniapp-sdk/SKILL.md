@@ -35,7 +35,7 @@ Determine:
 
 ## 2. Choose the SDK version and features
 
-An unqualified install selects the current stable release; `sentry-miniapp@2` selects the stable 2.x line. Use `@next` only when the user explicitly chooses a prerelease. Do not silently migrate an existing 1.x application. Use the [version and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice), including its fixed 1.x documentation archive.
+An unqualified install selects the current stable release; `sentry-miniapp@2` selects the stable 2.x line. For an explicitly requested prerelease, verify the available tag or exact version before installing; do not assume a `next` tag exists. Do not silently migrate an existing 1.x application. Use the [version and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice), including its fixed 1.x documentation archive.
 
 2.0 uses Core v11 and stream spans. Check the target Sentry deployment against the guide's support baseline; successful error ingestion alone does not prove support for spans, Logs, Metrics or Sessions.
 

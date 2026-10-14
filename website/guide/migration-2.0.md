@@ -21,7 +21,7 @@ Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://git
 
 选定 2.x 后，运行 `npm install --save-exact sentry-miniapp@2`，将完整版本号写入依赖，并提交锁文件。用 `npm ls sentry-miniapp` 确认实际安装版本。继续使用 1.x 时，保留已验收版本，或显式安装 `sentry-miniapp@1`，不要使用默认安装替代版本选择。
 
-已使用 beta 的项目也应通过上述命令切换到正式版；`@next` 是预发布渠道，不用于本次正式版升级。各版本修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
+已使用 beta 的项目也应通过上述命令切换到正式版，移除依赖中原有的 beta 版本或预发布标签。各版本修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
 
 ## 上线前需要确认 {#试用前需要确认}
 

@@ -17,12 +17,12 @@ description: 在 Taro 4 + React 微信小程序中接入 sentry-miniapp，完成
 
 ## 为什么不能直接用 `@sentry/browser`
 
-很多人第一反应是装官方的 `@sentry/browser` 或 `@sentry/react`，但**在小程序端跑不起来**：
+Taro 小程序产物运行在宿主逻辑层，不能直接沿用浏览器 SDK 的默认采集与发送方式：
 
 - 小程序可能提供 `window` 别名，但通常缺少 DOM、浏览器 `fetch` 和 `XMLHttpRequest`；仅有别名不能满足官方 Web SDK 的运行条件；
-- 小程序是双线程架构、网络只能走平台请求 API（如微信 `wx.request`、支付宝 `my.httpRequest`），需要专门的 transport 与平台适配。
+- 逻辑层无法直接访问渲染层的 DOM；请求须使用平台 API（如微信 `wx.request`、支付宝 `my.httpRequest`），需要 transport 与宿主适配。
 
-`sentry-miniapp` 正是补齐这一层：自定义 transport（走各端 request/httpRequest）、小程序全局异常捕获、Source Map 路径归一化、网络面包屑等。**Taro 小程序端用 `sentry-miniapp`，H5 端才用 `@sentry/browser`**（见下文「分端接入」）。
+`sentry-miniapp` 复用 Sentry Core，并适配这些宿主入口。**小程序端用本 SDK，H5 端选择官方 Web SDK**；分端配置见下文。
 
 ## 1. 安装
 
