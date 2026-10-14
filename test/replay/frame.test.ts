@@ -238,7 +238,7 @@ describe('布局投影与官方 rrweb 播放', () => {
       }
     }
   });
-  it('跨组件重复实例、slot 和滚动裁剪维持树与隐私继承，未选页面不采集', () => {
+  it.each(['view', 'scroll-view'])('%s 跨组件重复实例、slot 和裁剪维持树与隐私继承', (kind) => {
     const compiled = (
       source: string,
       node: string,
@@ -286,7 +286,8 @@ describe('布局投影与官方 rrweb 播放', () => {
         'card',
         'scroll',
         { cardRoot: 'true' },
-        { height: 40, overflow: 'hidden', borderTopWidth: '2px' },
+        { height: 40, overflow: kind === 'view' ? 'hidden' : 'visible', borderTopWidth: '2px' },
+        { sentryReplayType: kind },
       ),
       compiled(
         'card',
@@ -624,7 +625,8 @@ describe('布局投影与官方 rrweb 播放', () => {
     expect(projectFrame(results, 'page', 1)).toBeUndefined(),
   );
   it.each([
-    { height: 20, nowrap: true },
+    { height: 20, kind: 'view', nowrap: true },
+    { height: 20, kind: 'button', nowrap: true },
     { height: 21, fontSize: '11px', paddingTop: '3px', paddingBottom: '3px', nowrap: true },
     { height: 31, paddingTop: '3px', paddingBottom: '3px', borderWidth: '2px', nowrap: true },
     {
@@ -635,7 +637,7 @@ describe('布局投影与官方 rrweb 播放', () => {
       nowrap: false,
     },
     { height: 48, paddingTop: '3px', paddingBottom: '3px', nowrap: false },
-  ])('坏节点跳过，文字按内容高度保留换行：%j', ({ nowrap, ...metrics }) => {
+  ])('坏节点跳过，文字按内容高度保留换行：%j', ({ nowrap, kind = 'text', ...metrics }) => {
     const bad = {
       get dataset() {
         throw new Error('blocked');
@@ -653,7 +655,12 @@ describe('布局投影与官方 rrweb 播放', () => {
           box({ left: 1000 }),
           box({ dataset: {} }),
           box({ dataset: { sentryReplayType: 'video' } }),
-          box({ fontSize: '14px', lineHeight: 'normal', ...metrics }),
+          box({
+            fontSize: '14px',
+            lineHeight: 'normal',
+            dataset: { sentryReplayType: kind, sentryReplayText: '手机号 13800000000' },
+            ...metrics,
+          }),
         ],
       ],
       'page',

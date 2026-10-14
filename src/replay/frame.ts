@@ -298,7 +298,7 @@ export function projectFrame(
           style +=
             key.replace(/[A-Z]/g, (letter) => '-' + letter.toLowerCase()) + ':' + value + ';';
       }
-      // 内联 text 的测量宽度可能正好等于字形总宽；浏览器字体差异不能多造一行。
+      // 单行容器的宽度可能正好等于字形总宽；播放器字体差异不能多造一行。
       const fontSize = parseFloat(String(raw['fontSize']));
       const lineHeight = parseFloat(String(raw['lineHeight'])) || fontSize * 1.6;
       const inset = (key: string, fallback = 0): number => {
@@ -311,8 +311,10 @@ export function projectFrame(
         inset('paddingBottom') -
         inset('borderTopWidth', inset('borderWidth')) -
         inset('borderBottomWidth', inset('borderWidth'));
-      if (kind === 'text' && !text.includes('\n') && textHeight <= lineHeight)
-        style += 'white-space:pre;';
+      if (text && !text.includes('\n') && textHeight <= lineHeight) style += 'white-space:pre;';
+      // scroll-view 的裁剪在宿主内部实现，外层 computedStyle 可能仍是 visible。
+      const scrolling = kind === 'scroll-view';
+      if (scrolling) style += 'overflow:hidden;';
       const clip = ancestor?.box.clip ?? { left: 0, top: 0, right: width, bottom: height };
       const visible = {
         left: Math.max(left, clip.left),
@@ -339,10 +341,10 @@ export function projectFrame(
         borderY: Math.max(0, parseFloat(String(raw['borderTopWidth'])) || 0),
         visible,
         clip: {
-          left: clips(overflowX) ? visible.left : clip.left,
-          right: clips(overflowX) ? visible.right : clip.right,
-          top: clips(overflowY) ? visible.top : clip.top,
-          bottom: clips(overflowY) ? visible.bottom : clip.bottom,
+          left: scrolling || clips(overflowX) ? visible.left : clip.left,
+          right: scrolling || clips(overflowX) ? visible.right : clip.right,
+          top: scrolling || clips(overflowY) ? visible.top : clip.top,
+          bottom: scrolling || clips(overflowY) ? visible.bottom : clip.bottom,
         },
       };
       const index = projected.length;
