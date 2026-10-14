@@ -82,11 +82,23 @@ describe('微信回放真实 Core / 生命周期', () => {
     expect(envelopes).toEqual([]);
     await vi.advanceTimersByTimeAsync(1500);
     expect(replay.getDiagnostics().bufferedBytes).toBeGreaterThan(0);
+    const bufferStart = Date.now();
+    let dropAt: 'processor' | 'beforeSend' | undefined;
+    client.addEventProcessor((event) => (dropAt === 'processor' ? null : event));
+    client.getOptions().beforeSend = (event) => (dropAt === 'beforeSend' ? null : event);
+    for (const filter of ['processor', 'beforeSend'] as const) {
+      dropAt = filter;
+      client.captureException(new Error('filtered buffer trigger'));
+      await vi.advanceTimersByTimeAsync(5);
+      expect(await replay.flush()).toBe(false);
+      expect(envelopes).toEqual([]);
+    }
+    dropAt = undefined;
     client.captureException(new Error('trigger buffer'));
     await vi.advanceTimersByTimeAsync(5);
     expect(collectEnvelopePayloads<ReplayEvent>(envelopes, ['replay_event'])[0]).toMatchObject({
       replay_type: 'buffer',
-      replay_start_timestamp: Date.now() / 1000 - 0.005,
+      replay_start_timestamp: bufferStart / 1000,
     });
     expect(collectEnvelopePayloads<Event>(envelopes, ['event'])[0].tags?.replayId).toBe(
       replay.getReplayId(),
@@ -739,27 +751,72 @@ describe('微信回放真实 Core / 生命周期', () => {
     expect(envelopes).toEqual([]);
   });
 
-  it('异步 processor 跨过前后台切换时，错误仍关联捕获时的录制', async () => {
-    const { client, replay } = make();
-    await replay.capture();
-    const capturedId = replay.getReplayId();
-    let complete!: (event: Event) => void;
-    client.addEventProcessor(
-      (event) =>
-        new Promise<Event>((resolve) => {
+  it('异步错误过滤跨生命周期只关联可发送的捕获录制，不解锁新缓冲', async () => {
+    const cases = [
+      { stage: 'processor', transition: 'foreground', sessionSampleRate: 1 },
+      { stage: 'processor', transition: 'foreground', sessionSampleRate: 0 },
+      { stage: 'beforeSend', transition: 'foreground', sessionSampleRate: 0 },
+      { stage: 'beforeSend', transition: 'background', sessionSampleRate: 0 },
+      { stage: 'beforeSend', transition: 'consent', sessionSampleRate: 0 },
+      { stage: 'beforeSend', transition: 'restart', sessionSampleRate: 0 },
+    ] as const;
+    for (const { stage, transition, sessionSampleRate } of cases) {
+      envelopes = [];
+      const { client, replay } = make(
+        { sessionSampleRate },
+        { requireConsent: transition === 'consent' },
+      );
+      if (transition === 'consent') {
+        client.setConsent(true);
+        await vi.advanceTimersByTimeAsync(5);
+      }
+      await replay.capture();
+      const capturedId = replay.getReplayId();
+      let complete!: () => void;
+      const defer = <T extends Event>(event: T) =>
+        new Promise<T>((resolve) => {
           complete = () => resolve(event);
-        }),
-    );
-    client.captureException(new Error('captured before hide'));
-    hide();
-    show();
-    await replay.capture();
-    expect(replay.getReplayId()).not.toBe(capturedId);
-    complete({});
-    await vi.advanceTimersByTimeAsync(5);
-    expect(collectEnvelopePayloads<Event>(envelopes, ['event'])[0].tags?.replayId).toBe(capturedId);
-    expect(collectEnvelopePayloads<ReplayEvent>(envelopes, ['replay_event'])[0].error_ids).toEqual(
-      [],
-    );
+        });
+      if (stage === 'processor') client.addEventProcessor(defer);
+      else client.getOptions().beforeSend = defer;
+      client.captureException(new Error('captured before transition'));
+      if (transition === 'consent') {
+        client.setConsent(false);
+        client.setConsent(true);
+      } else {
+        hide();
+        if (transition === 'foreground') show();
+        if (transition === 'restart') expect(replay.start()).toBe(true);
+      }
+      if (transition !== 'background') {
+        await replay.capture();
+        expect(replay.getReplayId()).not.toBe(capturedId);
+      }
+      complete();
+      await vi.advanceTimersByTimeAsync(5);
+      const expectedId =
+        sessionSampleRate === 1 || transition === 'background' ? capturedId : undefined;
+      expect(collectEnvelopePayloads<Event>(envelopes, ['event'])[0].tags?.replayId).toBe(
+        expectedId,
+      );
+      const metadata = collectEnvelopePayloads<ReplayEvent>(envelopes, ['replay_event']);
+      if (expectedId) {
+        expect(
+          metadata,
+          JSON.stringify({
+            stage,
+            transition,
+            sessionSampleRate,
+            diagnostics: replay.getDiagnostics(),
+          }),
+        ).not.toHaveLength(0);
+        expect(metadata[0].replay_id).toBe(capturedId);
+        expect(metadata[0].error_ids).toEqual([]);
+      } else {
+        expect(metadata).toEqual([]);
+        expect(await replay.flush()).toBe(transition === 'restart');
+      }
+      client.dispose();
+    }
   });
 });

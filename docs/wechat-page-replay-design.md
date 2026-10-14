@@ -34,7 +34,9 @@
 
 每个异步查询固定开始时的页面与录制 generation，提交前再次核对活动 client 和页面。查询超时、后台、停止、同意撤回及 client 关闭会结清等待；留在宿主中的旧回调释放 Recorder 和 Promise resolver 引用。销毁控制器清空 client 引用；公开 start 不能复活已替换的实例。
 
-Replay 与错误使用官方的 `event.tags.replayId` 关联；已有标识不覆盖。`preprocessEvent` 将捕获时的录制标识绑定到 EventHint 的 WeakMap，`postprocessEvent` 在 scope 合并之后写入标签，避免异步 processor 把旧错误归到新录制。只有 afterSendEvent 返回 2xx 的错误 ID 才进入录制 metadata。Replay event 与 recording 组成一个 envelope；recording 为 segment header 换行加 rrweb 数组，header length 使用 UTF-8 字节数。
+Replay 与错误使用官方的 `event.tags.replayId` 关联；已有标识不覆盖。`preprocessEvent` 将捕获时的录制身份与错误采样结果绑定到 EventHint 的 WeakMap，`postprocessEvent` 在 scope 合并之后写入可用身份，避免异步 processor 把旧错误归到新录制。采样判断不直接赋予缓冲发送资格：通过 event processors 和 `beforeSend` 后，公开 `beforeSendEvent` 才允许同一活动录制排放。已退休或撤回同意的未授权缓冲不再关联，也不能由迟到错误解锁新录制；已获发送资格的旧录制仍保留捕获时关联。后台等待中的同一录制可在过滤完成后提交已有尾段，不重新启动查询。
+
+只有 afterSendEvent 返回 2xx 的错误 ID 才进入录制 metadata。与[官方错误关联处理](https://github.com/getsentry/sentry-javascript/blob/11.6.0/packages/replay-internal/src/coreHandlers/handleGlobalEvent.ts)及[接收后处理](https://github.com/getsentry/sentry-javascript/blob/11.6.0/packages/replay-internal/src/coreHandlers/handleAfterSendEvent.ts)一样，采样、事件关联和 HTTP 回执是不同阶段。本 SDK 在 Core 完成过滤后允许缓冲进入同一 transport，沿用离线与生命周期门禁；该许可不代表服务器接收成功。Replay event 与 recording 组成一个 envelope；recording 为 segment header 换行加 rrweb 数组，header length 使用 UTF-8 字节数。
 
 Envelope 头复用 Core 的 `createEventEnvelopeHeaders` 与 `getSdkMetadataForEnvelopeHeader`，遵循官方 Replay 的 SDK／tunnel 字段处理。Replay payload 携带当前 Client 的 SDK metadata，其中自动 IP 推断沿用 `dataCollection.userInfo` 对应的 `infer_ip`；模板文字的显式解除遮蔽仍由业务控制。
 
@@ -63,6 +65,8 @@ Envelope 头复用 Core 的 `createEventEnvelopeHeaders` 与 `getSdkMetadataForE
 
 Node 工具使用 htmlparser2 解析 WXML、Babel Parser 验证绑定边界、entities 编码静态 XML 属性，不 eval 业务表达式。只输出独立项目副本，保留业务 JS/map、原绑定和样式；解析依赖及其许可证归入独立 Node 构建产物，不进入小程序执行代码。静态组件图按 app/局部 usingComponents、import/include 解析；模板型框架入口明确拒绝，不能无证据扩大框架覆盖。
 
+私有节点的类型由实际 WXML 标签确定。已有 `data-sentry-replay-type` 只有与输入／媒体节点的真实类型相符时才保留，冲突或动态覆盖明确拒绝；不能借普通文字标记绕过运行时私有类型占位。业务 value、原绑定和其它属性不改写。
+
 条件 `block` 的文字按 if／elif／else 顺序合并到现有容器的标记，保留绑定作用域；渲染子节点的文字单独投影，避免把 mask 子节点复制到公开祖先。生成的文字属性用固定前缀强制宿主执行文字插值，录制端只在专属格式标记存在时移除前缀，保留 0、false 与 null 的宿主显示语义。每个来源文件按需生成 WXS 字符串常量；include 不保留被引用文件的 WXS 声明，因此引用者带齐其静态模板闭包。新增模块没有外部依赖与业务函数调用，但属于实际 WXML/WXS 包增量。
 
 WXML 绑定中的运算符不能按静态 XML 内容转义，原 class 追加保留原引号与绑定源码。复制的文字表达式将普通字符串移入来源专属常量，避免属性引号和实体编码改变语义；含转义字符串、函数调用或 text decode 的自动文字明确拒绝，要求提供显式显示值。结构循环内裸文字和结构标签上的隐私设置也明确拒绝，不能把不存在的布局节点当作可靠的隐私／重复实例边界。
@@ -79,7 +83,7 @@ WXML 绑定中的运算符不能按静态 XML 内容转义，原 class 追加保
 
 点击捕获复用共享函数 instrumentation 的 client 参数观察者。观察者不能执行或重试业务原函数，与主 handler 共用一个包装和最后退订恢复；中性 Page/Component 方法在调用时读取当前录制器，退休 client 不持有组件回调。已有业务 capture 绑定和保留方法不覆盖；冻结定义或无法包装的构造入口安全降级。
 
-自动 session/error 采样只决定本录制器发送资格，不替代 Core 的错误采样。默认 session=0、error=1，未触发的缓冲受 60 秒与 UTF-8 字节预算限制，截断时重建完整基线。错误捕获时抽样及固定身份，metadata 的 error_ids 仍只接受 2xx 回执，异步 processor 不转移录制归属。后台或时长结束不发送未抽中的缓冲；手动停止不能被前台事件复活。
+自动 session/error 采样只决定本录制器发送资格，不替代 Core 的错误采样。默认 session=0、error=1，未触发的缓冲受 60 秒与 UTF-8 字节预算限制，截断时重建完整基线。错误捕获时抽样及固定身份，Core 过滤通过后才允许错误缓冲排放；metadata 的 error_ids 仍只接受 2xx 回执，异步处理不转移录制归属。后台或时长结束不发送未获许可的缓冲；手动停止不能被前台事件复活。
 
 所有带文字的容器（包括 text、view 和 button）按测量的内容高度（扣除 padding 和 border）判断单行，单行保留不换行，多行保留自然换行与显式换行。宿主与播放器的字体度量不同，不能按标签类型或盒子总高度把单行标签误判为多行；此规则不复制字体资源。
 
