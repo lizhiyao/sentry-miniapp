@@ -82,13 +82,31 @@ it('实际导入和控件在分段精确边界还原新帧，错误文件保留�
     expect(element('errors').textContent).toBe(errorId);
     (element('segments').lastElementChild as HTMLButtonElement).click();
     expect(body()).toBe('已确认');
-    expect(element('time').textContent).toBe('1.0 / 1.0 秒');
-    // 官方播放器在末事件后延迟 50ms 完成，等待该状态转换后再重播。
-    await vi.advanceTimersByTimeAsync(60);
+    expect(element('time').textContent).toBe('00:01 / 00:01');
+    expect(element('seek').getAttribute('aria-valuetext')).toBe('00:01 / 00:01');
+    expect((element('segments').lastElementChild as HTMLElement).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(element<HTMLDetailsElement>('import-panel').open).toBe(false);
+    expect(element<HTMLSelectElement>('sessions').selectedOptions[0].textContent).toBe(
+      '录制 1 · 00:01',
+    );
+    // 末帧延迟结束，不能覆盖立即回到开头的暂停状态。
     element<HTMLButtonElement>('start').click();
+    await vi.advanceTimersByTimeAsync(60);
     expect(body()).toBe('待确认');
+    expect(element('time').textContent).toBe('00:00 / 00:01');
+    expect(element<HTMLInputElement>('seek').value).toBe('0');
+    expect(element('seek').getAttribute('aria-valuetext')).toBe('00:00 / 00:01');
+    expect(element('play').getAttribute('aria-pressed')).toBe('false');
+    expect(element('segments').firstElementChild?.getAttribute('aria-pressed')).toBe('true');
+    // 同一结束窗口内重播，既保护 UI，也验证实际播放器继续运行。
+    (element('segments').lastElementChild as HTMLButtonElement).click();
+    element<HTMLButtonElement>('start').click();
     element<HTMLButtonElement>('play').click();
+    await vi.advanceTimersByTimeAsync(60);
     expect(element('play').textContent).toBe('暂停');
+    expect(element('play').getAttribute('aria-pressed')).toBe('true');
     await vi.advanceTimersByTimeAsync(1100);
     expect(body()).toBe('已确认');
     expect(element('play').textContent).toBe('播放');
@@ -121,6 +139,32 @@ it('实际导入和控件在分段精确边界还原新帧，错误文件保留�
     await vi.advanceTimersByTimeAsync(2);
     expect(element('status').hasAttribute('data-error')).toBe(false);
     expect(body()).toBe('待确认');
+    const stage = element('stage');
+    stage.style.padding = '20px';
+    Object.defineProperties(stage, { clientWidth: { value: 500 }, clientHeight: { value: 480 } });
+    window.dispatchEvent(new Event('resize'));
+    expect(parseFloat(element('viewport').style.height)).toBeLessThan(480);
+    expect(parseFloat(element('viewport').style.width)).toBeGreaterThan(0);
+    element<HTMLSelectElement>('zoom').value = '1';
+    element('zoom').dispatchEvent(new Event('change'));
+    expect(element('viewport').style.width).toBe('375px');
+    expect(element('viewport').style.height).toBe('700px');
+    expect(stage.style.overflow).toBe('auto');
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(body()).toBe('已确认');
+    const input = element<HTMLTextAreaElement>('input');
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    expect(body()).toBe('已确认');
+    const file = new File([JSON.stringify(report)], '录制.json', { type: 'application/json' });
+    Object.defineProperty(file, 'text', { value: async () => JSON.stringify(report) });
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', { value: { types: ['Files'], files: [file] } });
+    document.body.dispatchEvent(drop);
+    expect(element<HTMLButtonElement>('import').disabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(60);
+    expect(element<HTMLButtonElement>('import').disabled).toBe(false);
+    expect(body()).toBe('待确认');
+    expect(element('time').textContent).toBe('00:00 / 00:01');
   } finally {
     window.dispatchEvent(new Event('pagehide'));
     if (sandbox) Object.defineProperty(HTMLIFrameElement.prototype, 'sandbox', sandbox);
