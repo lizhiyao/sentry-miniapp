@@ -94,6 +94,13 @@ function openReplay(index, nextReport = report) {
     : '未提供';
   element('viewport-size').textContent = `${dimensions.width} × ${dimensions.height} px`;
   player.on('finish', () => {
+    if (player !== nextPlayer || !playing) return;
+    const time = nextPlayer.getCurrentTime();
+    // 延迟的结束通知可能已停止新一轮播放；用公开 API 恢复当前播放位置。
+    if (time < duration) {
+      nextPlayer.play(time);
+      return;
+    }
     setPlaying(false);
     updateTime(duration);
   });

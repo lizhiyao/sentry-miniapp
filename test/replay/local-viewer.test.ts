@@ -91,12 +91,22 @@ it('实际导入和控件在分段精确边界还原新帧，错误文件保留�
     expect(element<HTMLSelectElement>('sessions').selectedOptions[0].textContent).toBe(
       '录制 1 · 00:01',
     );
-    // 官方播放器在末事件后延迟 50ms 完成，等待该状态转换后再重播。
-    await vi.advanceTimersByTimeAsync(60);
+    // 末帧延迟结束，不能覆盖立即回到开头的暂停状态。
     element<HTMLButtonElement>('start').click();
+    await vi.advanceTimersByTimeAsync(60);
     expect(body()).toBe('待确认');
+    expect(element('time').textContent).toBe('00:00 / 00:01');
+    expect(element<HTMLInputElement>('seek').value).toBe('0');
+    expect(element('seek').getAttribute('aria-valuetext')).toBe('00:00 / 00:01');
+    expect(element('play').getAttribute('aria-pressed')).toBe('false');
+    expect(element('segments').firstElementChild?.getAttribute('aria-pressed')).toBe('true');
+    // 同一结束窗口内重播，既保护 UI，也验证实际播放器继续运行。
+    (element('segments').lastElementChild as HTMLButtonElement).click();
+    element<HTMLButtonElement>('start').click();
     element<HTMLButtonElement>('play').click();
+    await vi.advanceTimersByTimeAsync(60);
     expect(element('play').textContent).toBe('暂停');
+    expect(element('play').getAttribute('aria-pressed')).toBe('true');
     await vi.advanceTimersByTimeAsync(1100);
     expect(body()).toBe('已确认');
     expect(element('play').textContent).toBe('播放');
@@ -151,9 +161,10 @@ it('实际导入和控件在分段精确边界还原新帧，错误文件保留�
     Object.defineProperty(drop, 'dataTransfer', { value: { types: ['Files'], files: [file] } });
     document.body.dispatchEvent(drop);
     expect(element<HTMLButtonElement>('import').disabled).toBe(true);
-    await vi.advanceTimersByTimeAsync(2);
+    await vi.advanceTimersByTimeAsync(60);
     expect(element<HTMLButtonElement>('import').disabled).toBe(false);
     expect(body()).toBe('待确认');
+    expect(element('time').textContent).toBe('00:00 / 00:01');
   } finally {
     window.dispatchEvent(new Event('pagehide'));
     if (sandbox) Object.defineProperty(HTMLIFrameElement.prototype, 'sandbox', sandbox);
