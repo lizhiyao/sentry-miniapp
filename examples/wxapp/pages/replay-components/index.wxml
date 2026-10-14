@@ -4,7 +4,7 @@
       <text class="replay-title">看看操作前后</text>
       <text class="experiment-label">实验性</text>
     </view>
-    <text class="replay-description">在这里录制操作，到 Sentry 查看页面回放与关联错误。</text>
+    <text class="replay-description">{{localMode ? '本地验证模式：录制保存在内存，导出后在本地播放器查看，不上传 Sentry。' : '在这里录制操作，到 Sentry 查看页面回放与关联错误。'}}</text>
   </view>
 
   <view class="controls">
@@ -28,10 +28,11 @@
   </view>
 
   <view class="verification" data-sentry-replay-block="true">
-    <view class="section-heading"><text class="section-name">把这次操作带到 Sentry</text><text class="recorder-state {{recording ? 'is-recording' : ''}}">{{recording ? '录制中' : '未录制'}}</text></view>
-    <text class="help-text">录制状态和发送回执只代表客户端结果，实际播放请到 Sentry 查看。</text>
+    <view class="section-heading"><text class="section-name">{{localMode ? '查看本地录制' : '把这次操作带到 Sentry'}}</text><text class="recorder-state {{recording ? 'is-recording' : ''}}">{{recording ? '录制中' : '未录制'}}</text></view>
+    <text class="help-text">{{localMode ? '最多保留 20 段、1 MiB；复制 JSON 后粘贴到本地播放器。退出小程序后内存记录会丢失。' : '录制状态和发送回执只代表客户端结果，实际播放请到 Sentry 查看。'}}</text>
     <view wx:if="{{notice}}" class="notice {{failed ? 'notice-error' : ''}}"><text>{{notice}}</text></view>
-    <button class="submit-button" hover-class="button-pressed" loading="{{busy}}" disabled="{{busy || !recording}}" bindtap="onCaptureError">关联错误并发送回放</button>
+    <button class="submit-button" hover-class="button-pressed" loading="{{busy}}" disabled="{{busy || !recording}}" bindtap="onCaptureError">{{localMode ? '关联测试错误并本地保存' : '关联错误并发送回放'}}</button>
+    <button wx:if="{{localMode}}" class="action-button secondary" hover-class="button-pressed" disabled="{{busy}}" bindtap="onExportLocal">复制录制 JSON</button>
     <view class="secondary-actions"><button class="text-button" hover-class="button-pressed" bindtap="onRestart">重新录制</button><button class="text-button" hover-class="button-pressed" disabled="{{!recording}}" bindtap="onStop">停止录制</button></view>
     <text wx:if="{{lastEventId}}" class="event-reference" selectable>错误 ID · {{lastEventId}}</text>
   </view>

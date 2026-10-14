@@ -32,7 +32,9 @@
     "prepublishOnly": "npm run build",
     "prepare": "husky",
     "release": "commit-and-tag-version",
-    "build:replay-example": "npm run build:miniapp && vite build --mode replay-tools && node scripts/internal/prepare-replay-example.mjs"
+    "build:replay-example": "npm run build:miniapp && vite build --mode replay-tools && node scripts/internal/prepare-replay-example.mjs",
+    "build:replay-local": "npm run build:replay-example -- --local",
+    "replay:local": "node scripts/internal/replay-local.mjs"
   },
   "author": "dancerlzy@gmail.com",
   "license": "MIT",

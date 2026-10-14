@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>本地回放验证 · sentry-miniapp</title>
+  <link rel="stylesheet" href="/rrweb.css"><link rel="stylesheet" href="/viewer.css">
+</head>
+<body>
+  <main>
+    <header><h1>本地回放验证</h1><p>查看小程序界面变化、点击与遮蔽。录制留在本机，不上传 Sentry。</p></header>
+    <section class="import-panel" aria-labelledby="import-title">
+      <h2 id="import-title">导入录制</h2>
+      <div class="import-actions"><label class="file-button">选择 JSON 文件<input id="file" type="file" accept=".json,application/json"></label><span>或粘贴小程序复制的 JSON</span></div>
+      <label for="input" class="sr-only">录制 JSON</label><textarea id="input" rows="4" placeholder="粘贴完整 JSON；支持本地验证导出与 rrweb events 文件"></textarea>
+      <button id="import">导入并查看</button><p id="status" role="status" aria-live="polite">等待录制。可运行 yarn build:replay-local，操作「页面回放」页后复制 JSON。</p>
+    </section>
+    <section id="workspace" hidden aria-labelledby="play-title">
+      <div class="workspace-heading"><h2 id="play-title">录制画面</h2><label>选择录制 <select id="sessions"></select></label></div>
+      <p id="details"></p>
+      <div class="workspace-grid">
+        <div class="playback"><div id="viewport"><div id="player"></div></div>
+          <div class="controls"><button id="start">回到开头</button><button id="play">播放</button><label>速度 <select id="speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label><output id="time">0.0 / 0.0 秒</output></div>
+          <label class="timeline" for="seek">播放位置<input id="seek" type="range" min="0" max="1" value="0" step="10"></label>
+        </div>
+        <aside><h3>已保留的分段</h3><div id="segments"></div><h3>关联错误 ID</h3><div id="errors"></div><p class="boundary">这些是本地录制中的关联标识，不代表 Sentry 已收到或建立后台链接。</p></aside>
+      </div>
+    </section>
+    <footer>本地播放不验证 Sentry 的接收、处理与播放器，也不替代真机弱网、存储或性能验收。</footer>
+  </main>
+  <script src="/rrweb.js"></script><script type="module" src="/viewer.mjs"></script>
+</body>
+</html>

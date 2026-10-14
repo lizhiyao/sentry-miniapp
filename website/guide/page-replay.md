@@ -23,6 +23,23 @@ yarn build:replay-example
 
 仅运行 `yarn build:miniapp` 并打开 `examples/wxapp` 时，示例仍能展示界面；没有生成标记的回放页会提示先运行上面的命令。示例使用固定演示数据，输入框不要填真实个人信息。
 
+### 先在本地验证，不上传 Sentry
+
+从源码仓库运行 `yarn build:replay-local`，在微信开发者工具打开输出项目。「页面回放」页会显示本地模式；SDK 使用内存 transport，所有 SDK 遥测都不会请求 Sentry，因此不消耗云服务额度。
+
+操作页面后点击「关联测试错误并本地保存」，再点击「复制录制 JSON」；也可直接导出而不触发错误。在另一个终端运行 `yarn replay:local`，用 Chrome 打开打印的本机地址，粘贴 JSON 或选择文件。支持播放、暂停、速度、时间轴、分段跳转和多次录制选择。
+
+```bash
+# 已经保存了导出文件时自动加载
+yarn replay:local --file /absolute/path/recording.json
+# 端口占用时
+yarn replay:local --port 8772
+```
+
+该开发工具复用仓库安装的官方 rrweb，绑定本机回环地址，不上传录制、不加载 CDN；不增加 SDK 运行包。小程序内存最多保留 20 段、段数据 UTF-8 总预算 1 MiB，超限移除旧段并在播放器提示；退出小程序会丢失记录。文件导入上限 8 MiB，错误信息只导出关联 ID；公开解除遮蔽的文字仍进入文件。
+
+本地模式不提供 HTTP 回执，禁用 SDK 持久离线缓存。它验证录制和本地播放，不能证明实际网络补发、手机持久存储或 Sentry 接收／播放器；这些结果仍须分别验收。普通 `yarn build:replay-example` 保持原有的 Sentry 发送方式。
+
 ## 接入关键页面
 
 先从下单、登录等需要排查的少量页面开始。接入分为初始化和构建两个步骤，无需为普通节点逐个编写文字标记。

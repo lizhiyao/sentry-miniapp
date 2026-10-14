@@ -4,12 +4,15 @@ const Replay = require('../../lib/sentry-miniapp-replay.js');
 Page({
   data: { probes: '', diagnostics: '', items: ['订单概览', '支付进度'], changed: false, modal: false, masked: false, privateInput: '', recording: false, busy: false, notice: '', failed: false, lastEventId: '' },
   onLoad() {
+    this._localRecorder = getApp().globalData.replayValidation;
+    this.setData({ localMode: !!this._localRecorder });
     this._recordings = [];
     this._metadata = [];
     this._receipts = [];
     const client = Sentry.getClient();
     this._releases = [
       client.on('beforeEnvelope', (envelope) => {
+        if (this._localRecorder) return;
         for (const [header, payload] of envelope[1]) {
           if (header.type === 'replay_recording') this._recordings.push(payload);
           if (header.type === 'replay_event') this._metadata.push(payload);
@@ -56,7 +59,12 @@ Page({
   onCloseModal() { this.setData({ modal: false }, () => this.captureFrame()); },
   onDialogTap() {},
   onConfirmModal() { this.setData({ changed: true, modal: false }, () => this.captureFrame()); },
-  onStop() { Replay.getWechatPageReplay()?.stop(); this.setData({ recording: false, notice: '录制已停止，未发送的内容已清空。', failed: false }); },
+  async onStop() {
+    const replay = Replay.getWechatPageReplay();
+    if (this._localRecorder) await replay?.flush();
+    replay?.stop();
+    this.setData({ recording: false, notice: this._localRecorder ? '录制已停止，已保存的本地段仍可复制。' : '录制已停止，未发送的内容已清空。', failed: false });
+  },
   async onRestart() {
     if (this.data.busy) return;
     this.setData({ busy: true, recording: false, notice: '', failed: false });
@@ -81,13 +89,26 @@ Page({
       const receipt = this._receipts.find((item) => item.eventId === eventId);
       const accepted = receipt && receipt.status >= 200 && receipt.status < 300;
       this.setData({
-        notice: accepted ? '错误请求返回成功。请到 Sentry 核对回放和错误关联。' : '尚未确认错误发送成功，请检查域名与网络后重试。',
-        failed: !accepted,
+        notice: this._localRecorder ? '错误与录制已保存在本地，未上传 Sentry。请复制 JSON 到本地播放器。' : accepted ? '错误请求返回成功。请到 Sentry 核对回放和错误关联。' : '尚未确认错误发送成功，请检查域名与网络后重试。',
+        failed: !this._localRecorder && !accepted,
         lastEventId: eventId,
         evidence: JSON.stringify({ recordings: this._recordings, metadata: this._metadata, receipts: this._receipts, flushed }),
       });
     } catch (error) {
       this.setData({ notice: error.message || '发送失败，请检查网络后重试。', failed: true });
     } finally { this.setData({ busy: false }); }
+  },
+  async onExportLocal() {
+    if (!this._localRecorder || this.data.busy) return;
+    this.setData({ busy: true, failed: false });
+    try {
+      await this.captureFrame();
+      await Replay.getWechatPageReplay()?.flush();
+      const report = this._localRecorder.exportRecording();
+      if (!JSON.parse(report).segments.length) throw new Error('尚无可导出的录制，请先完成页面采集。');
+      this.setData({ localRecording: report, notice: 'JSON 已保存到页面数据。复制后可在本地播放器粘贴导入，未上传 Sentry。' });
+      wx.setClipboardData({ data: report, fail: () => this.setData({ notice: '剪贴板复制失败；可从开发者工具页面 data 的 localRecording 字段保存 JSON。', failed: true }) });
+    } catch (error) { this.setData({ notice: error.message || '导出失败，请重新采集。', failed: true }); }
+    finally { this.setData({ busy: false }); }
   },
 });
