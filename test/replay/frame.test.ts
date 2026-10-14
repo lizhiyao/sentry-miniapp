@@ -101,6 +101,143 @@ describe('布局投影与官方 rrweb 播放', () => {
         expect(JSON.stringify(events)).not.toContain('确认');
     },
   );
+  it.each([
+    'public',
+    'mask',
+    'block',
+    'ancestor-block',
+    'named-public',
+    'named-mask',
+    'forwarded-mask',
+    'forwarded-block',
+    'missing',
+    'oversized',
+    'invalid-name',
+  ])('显式插槽节点采用渲染容器的隐私与位置：%s', (mode) => {
+    const forwarded = mode.startsWith('forwarded');
+    const named = mode.startsWith('named') || forwarded;
+    const key = named ? 'nlabel' : 'd';
+    let reads = 0;
+    const raw = [
+      box({
+        mark: { root: true },
+        dataset: {
+          sentryReplaySource: 'page',
+          sentryReplayNode: 'root',
+          sentryReplayRoot: true,
+          sentryReplayUnmask: true,
+        },
+      }),
+      box({
+        mark: { root: true, host: true },
+        dataset: {
+          sentryReplaySource: 'page',
+          sentryReplayNode: 'host',
+          sentryReplayParent: 'root',
+          sentryReplayType: 'component',
+          sentryReplayTarget: 'button',
+        },
+      }),
+      box({
+        mark: { button: true },
+        dataset: {
+          sentryReplaySource: 'button',
+          sentryReplayNode: 'button',
+          sentryReplayBlock: mode === 'ancestor-block',
+        },
+      }),
+      box({
+        left: 24,
+        top: 42,
+        mark: { button: true, slot: true },
+        dataset: {
+          sentryReplaySource: 'button',
+          sentryReplayNode: 'slot',
+          sentryReplayParent: 'button',
+          sentryReplaySlots:
+            mode === 'missing'
+              ? undefined
+              : mode === 'oversized'
+                ? 'x'.repeat(1025)
+                : forwarded
+                  ? 'ntitle'
+                  : key,
+          sentryReplayMask: mode === 'mask' || mode === 'named-mask' || mode === 'forwarded-mask',
+          sentryReplayBlock: mode === 'block' || mode === 'forwarded-block',
+        },
+      }),
+      box({
+        left: 28,
+        top: 45,
+        mark: { root: true, host: true, child: true },
+        dataset: {
+          sentryReplaySource: 'page',
+          sentryReplayNode: 'child',
+          sentryReplayParent: 'host',
+          sentryReplayUnmask: true,
+          sentryReplayAssigned: mode === 'invalid-name' ? {} : named ? key : undefined,
+          sentryReplayText: 'PRIVATE_SLOT_533',
+        },
+      }),
+      box({
+        left: 30,
+        top: 48,
+        mark: { root: true, host: true, child: true, leaf: true },
+        dataset: {
+          sentryReplaySource: 'page',
+          sentryReplayNode: 'leaf',
+          sentryReplayParent: 'child',
+          sentryReplayUnmask: true,
+          sentryReplayText: 'PRIVATE_SLOT_CHILD_533',
+        },
+      }),
+    ];
+    if (forwarded) {
+      (raw[1]!.dataset as Record<string, unknown>)['sentryReplayTarget'] = 'outer';
+      raw.splice(
+        2,
+        0,
+        box({
+          mark: { forward: true },
+          dataset: {
+            sentryReplaySource: 'outer',
+            sentryReplayNode: 'forward',
+            sentryReplayType: 'component',
+            sentryReplayTarget: 'button',
+            sentryReplaySlots: 'nlabel>ntitle',
+          },
+        }),
+      );
+    }
+    const child = forwarded ? 5 : 4;
+    for (const node of raw.slice(child)) {
+      const value = node.dataset.sentryReplayText;
+      Object.defineProperty(node.dataset, 'sentryReplayText', {
+        get() {
+          reads++;
+          return value;
+        },
+      });
+    }
+    const frame = projectFrame([viewport, raw], 'page', 20)!;
+    const events = JSON.stringify(frameEvents(frame, 1));
+    if (mode === 'public' || mode === 'named-public') {
+      expect(frame.nodes[4].parent).toBe(3);
+      expect(frame.nodes[4].style).toContain('left:4px');
+      expect(events).toContain('PRIVATE_SLOT_533');
+      expect(events).toContain('PRIVATE_SLOT_CHILD_533');
+    } else {
+      expect(events).not.toContain('PRIVATE_SLOT');
+      if (mode === 'mask' || mode === 'named-mask' || mode === 'forwarded-mask') {
+        expect(frame.nodes[child].parent).toBe(child - 1);
+        expect(frame.nodes[child].text).toBe('****************');
+      } else {
+        expect(reads).toBe(0);
+        expect(events).toContain('[blocked]');
+        expect(clickEvent(frame, 30, 50, 0)).toBeUndefined();
+      }
+    }
+  });
   it('跨组件重复实例、slot 和滚动裁剪维持树与隐私继承，未选页面不采集', () => {
     const compiled = (
       source: string,
@@ -138,7 +275,13 @@ describe('布局投影与官方 rrweb 播放', () => {
           sentryReplayMask: true,
         },
       ),
-      compiled('card', 'cardRoot', {}, {}, { sentryReplayText: '私密卡片' }),
+      compiled(
+        'card',
+        'cardRoot',
+        {},
+        {},
+        { sentryReplayText: '私密卡片', sentryReplaySlots: 'd' },
+      ),
       compiled(
         'card',
         'scroll',
@@ -183,7 +326,7 @@ describe('布局投影与官方 rrweb 播放', () => {
       compiled('card', 'cardRoot', {}, { top: 150 }, { sentryReplayText: '第二个实例' }),
     ];
     const frame = projectFrame([viewport, raw], 'page', 20)!;
-    expect(frame.nodes.map((node) => node.parent)).toEqual([-1, 0, 1, 2, 3, 4, 1, 0, 7]);
+    expect(frame.nodes.map((node) => node.parent)).toEqual([-1, 0, 1, 2, 3, 4, 2, 0, 7]);
     expect(frame.nodes.map((node) => node.text)).toEqual([
       '',
       '',
@@ -338,6 +481,7 @@ describe('布局投影与官方 rrweb 播放', () => {
             sentryReplaySource: 'popup',
             sentryReplayNode: 'panel',
             sentryReplayType: 'view',
+            sentryReplaySlots: 'd',
           },
         }),
         box({
@@ -362,7 +506,7 @@ describe('布局投影与官方 rrweb 播放', () => {
         mode === 'public' ? ['验收弹窗'] : mode === 'mask' ? ['****'] : ['[blocked]'],
       );
       if (mode !== 'block') {
-        expect(frame.nodes.map((node) => node.parent)).toEqual([-1, 0, 1, 1]);
+        expect(frame.nodes.map((node) => node.parent)).toEqual([-1, 0, 1, 2]);
         expect(frame.nodes[2].style).toContain('left:-147px');
         expect(frame.nodes[3].visible).toMatchObject({
           left: 133,

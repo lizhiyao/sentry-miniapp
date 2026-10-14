@@ -125,15 +125,32 @@ describe('WXML 构建工具的实际项目输出', () => {
     ).not.toContain('__sentryReplayTap');
     const slot = instrumentWxml('<view class="label"><slot /></view>', { sourceId: 'slot' });
     expect(slot).toContain('data-sentry-replay-slot="true"');
+    expect(slot).toContain('data-sentry-replay-slots="d"');
     expect(rendered(slot)[0].children.map((node: { name: string }) => node.name)).toEqual(['slot']);
     expect(
       instrumentWxml('<view><slot name="title" /></view>', { sourceId: 'named' }),
     ).not.toContain('data-sentry-replay-slot=');
+    expect(instrumentWxml('<view><slot name="title" /></view>', { sourceId: 'named' })).toContain(
+      'data-sentry-replay-slots="ntitle"',
+    );
+    const assigned = instrumentWxml(
+      '<widget><block slot="title"><text>标题</text></block></widget>',
+      {
+        sourceId: 'caller',
+        components: { widget: ['component'] },
+      },
+    );
+    expect(assigned).toContain('data-sentry-replay-assigned="ntitle"');
+    expect(assigned).toContain('<block slot="title">');
     for (const bad of [
       '<view><text></view>',
       '<view>{{unclosed</view>',
       '<view data-sentry-replay-node="owned"/>',
       '<view data-sentry-replay-slot="true"/>',
+      '<view data-sentry-replay-slots="d"/>',
+      '<view data-sentry-replay-assigned="d"/>',
+      '<view><slot name="{{name}}"/></view>',
+      '<view slot="{{name}}"/>',
       '<view wx:for="{{list}}" wx:for-index="a-b"/>',
       '<view><block data-sentry-replay-mask="true">私密</block></view>',
       '<view><block wx:for="{{list}}">{{item}}</block></view>',
@@ -141,6 +158,12 @@ describe('WXML 构建工具的实际项目输出', () => {
       '<text decode>内容 &amp;</text>',
     ])
       expect(() => instrumentWxml(bad, { sourceId: 'a' })).toThrow();
+    expect(
+      instrumentWxml('<widget><slot/></widget>', {
+        sourceId: 'forward',
+        components: { widget: ['child'] },
+      }),
+    ).toContain('data-sentry-replay-slots="d>d"');
     expect(
       literals(instrumentWxml('<text decode="{{false}}">0</text>', { sourceId: 'decode' })),
     ).toContain('0');
