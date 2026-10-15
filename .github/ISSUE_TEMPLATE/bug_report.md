@@ -46,3 +46,5 @@ Sentry.init({
 ## Additional Context
 
 Attach `Sentry.getDiagnostics()` output when available. For delivery or Source Map problems, include a new event ID, release and relevant stack filename. Remove auth tokens and personal data before sharing configuration or logs.
+
+For experimental WeChat page replay, also include the WebView/Skyline renderer, template annotation command and relevant component versions, replay sampling options, and `getWechatPageReplay()?.getDiagnostics()` output. Describe whether the problem occurs during collection, local playback, delivery or Sentry playback. Prefer a minimal project with synthetic data; do not attach recordings containing user or business secrets.

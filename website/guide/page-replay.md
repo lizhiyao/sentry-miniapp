@@ -8,7 +8,7 @@ description: 录制关键页面的布局变化、组件状态和操作，与 Sen
 用户反馈“点完按钮界面就不对了”，只有错误堆栈往往不足以说明出错前的操作。页面回放记录选定页面的**布局、文字变化和点击位置**，在 Sentry 中与错误一起查看，帮助判断问题发生在哪一步。
 
 ::: warning 可用范围
-这是源码中的实验性入口，当前 npm `2.0.2` 不包含回放。仅针对微信普通小程序的 WebView 渲染；其它小程序、小游戏和 Skyline 跳过。它通过公开节点查询录制选定页面的采样布局，不是完整屏幕录像。安装方式见下文，页面与组件结构要求见[项目类型与组件边界](#项目类型与组件边界)。
+这是需要显式启用的实验性能力，使用 `sentry-miniapp` 2.1.0 或更新版本。仅针对微信普通小程序的 WebView 渲染；其它小程序、小游戏和 Skyline 跳过。它通过公开节点查询录制选定页面的采样布局，不是完整屏幕录像。安装方式见下文，页面与组件结构要求见[项目类型与组件边界](#项目类型与组件边界)。
 :::
 
 ## 体验示例
@@ -63,22 +63,21 @@ yarn replay:local --port 8772
 
 ### 1. 安装录制器
 
-当前需从源码构建候选包。在 SDK 仓库运行：
+在**业务项目**安装 SDK：
 
 ```bash
-corepack enable
-yarn install
-yarn build
-yarn pack --out ../sentry-miniapp-replay-preview.tgz
+npm install sentry-miniapp@^2.1.0
 ```
 
-然后在**业务项目**安装这份包，将路径替换为实际生成位置：
+也可使用业务项目原有的包管理器：
 
 ```bash
-npm install /path/to/sentry-miniapp-replay-preview.tgz
+yarn add sentry-miniapp@^2.1.0
+# 或
+pnpm add sentry-miniapp@^2.1.0
 ```
 
-业务项目使用 Yarn／pnpm 时，通过对应包管理器安装同一份本地包。记录源码提交和包摘要；候选包的版本号可能与已发布版本相同，不能用 `npm install sentry-miniapp@2.0.2` 代替这一步。
+录制器和 Node 标记工具随同一个 npm 包提供；不需要额外安装另一份 SDK。保留锁文件，使用同一安装版本生成标记和运行录制器。
 
 在 `App()` 之前初始化，可选入口不进入未使用它的主 SDK，播放器也不进入小程序。
 
@@ -113,7 +112,7 @@ npx --no-install sentry-miniapp-replay-instrument \
   --page pages/checkout/index
 ```
 
-命令在已安装候选包的业务项目中运行，使用本地 CLI，不临时下载另一份版本；也可从业务项目的 npm script 调用 `sentry-miniapp-replay-instrument`。多个页面可重复提供 `--page`。打开、预览或上传**输出项目**。每次重新构建后重新生成，使用新的输出目录；不要把带标记的副本作为业务源码再次编译。
+命令在已安装 SDK 的业务项目中运行，使用本地 CLI，不临时下载另一份版本；也可从业务项目的 npm script 调用 `sentry-miniapp-replay-instrument`。多个页面可重复提供 `--page`。打开、预览或上传**输出项目**。每次重新构建后重新生成，使用新的输出目录；不要把带标记的副本作为业务源码再次编译。
 
 工具处理选定页面及其静态组件、import/include 依赖，自动加入布局、文字绑定、组件边界和点击捕获标记。业务 JS、Source Map、原有事件绑定和样式值不改。Node 编译依赖只在电脑构建时执行，不进入小程序 bundle。工具拒绝路径逃逸、符号链接、已有输出目录和保留方法 `__sentryReplayTap` 的冲突。
 
@@ -233,3 +232,7 @@ replay.start();         // 显式开始并允许上传，不受自动采样率�
 播放器的 `https://miniapp.invalid/` 加小程序路由是展示标识，不会发起请求，也不用配置合法域名。真实上报地址仍来自 DSN 或 tunnel，堆栈的 `app:///` 不受影响。
 
 发送复用现有 transport 的限流、并发、离线策略与同意门禁。使用云服务或自建 Sentry 时，目标项目须启用 Replay，并具备录制接收、处理和播放能力及可用配额；仅满足 SDK 的服务端版本要求还不够。按以上步骤确认本项目的错误关联与播放结果。
+
+## 反馈接入问题
+
+遇到标记生成失败、组件显示差异或回放异常时，请[提交缺陷反馈](https://github.com/lizhiyao/sentry-miniapp/issues/new?template=bug_report.md)。附 SDK、组件库及框架版本，设备／微信／基础库，标记命令、采样配置和 `getWechatPageReplay()?.getDiagnostics()` 输出，并说明问题发生在采集、本地播放、发送还是 Sentry 播放阶段。优先提供固定演示数据的最小项目，不上传含真实用户或业务秘密的录制。
