@@ -17,7 +17,13 @@ export default defineConfig<'webpack5'>(async (merge) => {
     },
     sourceRoot: 'src',
     outputRoot: 'dist',
-    defineConstants: {},
+    defineConstants: {
+      __SENTRY_REPLAY_LOCAL__: JSON.stringify(process.env.SENTRY_REPLAY_LOCAL === '1'),
+    },
+    plugins:
+      process.env.SENTRY_REPLAY_LOCAL === '1'
+        ? [require.resolve('sentry-miniapp/replay-tools/taro')]
+        : [],
     copy: {
       patterns: [],
       options: {},

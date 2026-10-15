@@ -78,11 +78,18 @@
         "types": "./scripts/replay-tools.d.mts",
         "default": "./dist/sentry-miniapp-replay-tools.mjs"
       }
+    },
+    "./replay-tools/taro": {
+      "types": "./scripts/replay-taro.d.cts",
+      "default": "./scripts/replay-taro.cjs"
     }
   },
   "files": [
     "dist",
     "scripts/*.mjs",
+    "scripts/replay-taro.cjs",
+    "scripts/replay-taro-runtime.cjs",
+    "scripts/replay-taro.d.cts",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",

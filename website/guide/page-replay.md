@@ -99,11 +99,55 @@ App({});
 
 错误须先通过 event processors 和 `beforeSend`，才允许错误前缓冲排放；被过滤的错误不会解锁缓冲。这不代表错误已被服务器接收。异步过滤完成前若未获发送资格的旧缓冲已被前后台切换或撤回同意清空，不再关联它，也不会解锁新的录制。
 
-### 2. 在上传前生成页面标记
+### 2. 让构建生成页面标记
+
+<span id="_2-在上传前生成页面标记"></span>
+
+选择自己的项目类型。框架插件配置一次后，继续使用原来的开发、构建与上传流程，不需要修改每个页面的模板。
+
+#### Taro 与 uni-app 自动构建接入（源码版）
+
+以下插件随当前仓库源码提供，尚未包含在 npm 的 2.1.0 中。先在 SDK 仓库运行 `yarn build`、`yarn pack --out sentry-miniapp-current.tgz`，再在业务项目安装该文件；正式发布后可直接安装包含这些入口的版本。录制器的初始化与采样配置仍使用上一步。
+
+**Taro 4 + webpack5**：在 `config/index.ts` 的 `plugins` 添加一项，保留原有插件：
+
+```ts
+plugins: [
+  [require.resolve('sentry-miniapp/replay-tools/taro'), {
+    pages: ['pages/checkout/index'],
+  }],
+],
+```
+
+继续运行 `taro build --type weapp`，或原有的 watch 命令。插件在微信编译阶段处理共享模板和组件边界，并启用 Taro 的渲染观测来同步文字变化；不依赖 renderjs，也不为页面增加包装节点。
+
+**uni-app Vue 3 + Vite**：在 `vite.config.js` 中追加插件；异步配置兼容常见的 CommonJS 工程：
+
+```js
+import { defineConfig } from 'vite';
+import uni from '@dcloudio/vite-plugin-uni';
+
+export default defineConfig(async () => {
+  const { wechatReplayVitePlugin } = await import('sentry-miniapp/replay-tools');
+  return {
+    plugins: [
+      uni(),
+      wechatReplayVitePlugin({ pages: ['pages/checkout/index'] }),
+    ],
+  };
+});
+```
+
+继续运行原有的 `uni build -p mp-weixin` 或开发命令。插件处理最终 WXML，包含组件、循环和静态插槽；增量构建会更新标记，不需要单独执行 CLI。两个插件的 `pages` 省略时选择全部页面；建议生产项目先选择少量关键页面，并保持默认文字遮蔽。其它编译目标跳过。
+
+可运行的源码示例见 [Taro 示例](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/taro#页面回放本地模式)和 [uni-app 示例](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp#页面回放本地模式)。两者用 `SENTRY_REPLAY_LOCAL=1` 构建后进入 `pages/replay/index`，本地模式不请求 Sentry。
+
+#### 原生微信项目：生成独立上传目录
+
 
 使用 npm 组件时，先安装组件并在微信开发者工具执行 **工具 → 构建 npm**。确认微信项目里已有 `miniprogram_npm`，再生成页面标记；不要直接标记 `node_modules` 中的组件源码。手动配置 npm 构建目录时，输入项目须包含实际生成的组件文件。
 
-对微信项目或框架构建出的微信目录运行 Node 工具，输出必须是不存在的独立目录：
+对原生微信项目运行 Node 工具，输出必须是不存在的独立目录：
 
 ```bash
 npx --no-install sentry-miniapp-replay-instrument \
@@ -134,11 +178,12 @@ npx --no-install sentry-miniapp-replay-instrument \
 | 页面或依赖 | 当前处理方式 |
 | --- | --- |
 | 原生普通 WXML、可读取的静态自定义／npm 组件 | 生成标记；使用 npm 组件时先完成微信 npm 构建 |
-| uni-app 编译出的普通 WXML | 按编译后的静态页面与组件结构生成标记；只有 template 调用的页面按下一行处理 |
-| 只有 template 调用的页面（如 Taro 递归模板入口） | 拒绝生成，需要专门的框架适配；不要仅添加一个外层 view 来消除报错 |
+| uni-app Vue 3 + Vite 微信项目 | 用 Vite 插件自动处理普通页面、循环和静态组件／插槽 |
+| Taro 4 + webpack5 微信项目 | 用 Taro 插件处理递归模板、重复实例与 CustomWrapper 边界，并同步文字更新 |
+| 未识别的纯模板入口或自定义模板编译器 | 明确报错；需要相应的编译适配，不要添加外层 view 来消除报错 |
 | 已使用的 `plugin:`／`dynamicLib:` 或动态依赖路径 | 拒绝生成，无法取得完整静态标记与隐私关系；改选不依赖它们的关键页面 |
 
-拒绝发生在输出项目之前，并带上文件与原因；工具不会静默跳过所选页面依赖。未使用的组件声明不影响生成。普通监控支持某个框架，也不意味着它的所有页面都能回放；不依赖 renderjs 或 WebView 私有接口。
+拒绝发生在输出项目之前，并带上文件与原因；工具不会静默跳过所选页面依赖。未使用的组件声明不影响生成。框架自动接入仍遵循微信 WebView 的节点查询范围；不依赖 renderjs 或 WebView 私有接口。原生绘制、外部插件和不可查询的内容仍以占位或明确错误处理。
 
 ## 隐私控制
 
@@ -159,6 +204,8 @@ npx --no-install sentry-miniapp-replay-instrument \
 <!-- 整块区域和后代仅显示占位，也不记录该区域的点击 -->
 <view data-sentry-replay-block="true">{{privateContent}}</view>
 ```
+
+Taro JSX 可以在 `View`／`Text` 上使用同名 `data-sentry-replay-*` 属性，也可用 `className="sentry-mask"`、`sentry-block`、`sentry-unmask`。构建插件会把这些设置传到实际渲染节点；React 函数组件需把相应属性传给它渲染的容器。
 
 不要在不清楚数据范围时解除整个页面的遮蔽。结构或祖先标记缺失时，编译节点保守跳过。遮蔽在录制缓冲和发送之前完成，不复制页面 data 或任意 dataset。
 

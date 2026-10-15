@@ -6,31 +6,37 @@ import uni from '@dcloudio/vite-plugin-uni';
 // Vue 插件仍读取根配置，因此也在 configResolved 中保留 hidden map。
 // 仅在 post 阶段恢复输出会丢失 .vue 业务映射，不伪造 HBuilderX console 能力。
 // --sourcemap 让 uni 插件将 map 移到 dist/build/.sourcemap/mp-weixin。
-export default defineConfig({
-  plugins: [
-    uni(),
-    {
-      name: 'sentry-example-sourcemap',
-      enforce: 'pre',
-      configEnvironment() {
-        return {
-          build: {
-            sourcemap: 'hidden',
-            rollupOptions: { output: { sourcemapExcludeSources: false } },
-          },
-        };
+export default defineConfig(async () => {
+  const { wechatReplayVitePlugin } = await import('sentry-miniapp/replay-tools');
+  return {
+    define: { __SENTRY_REPLAY_LOCAL__: JSON.stringify(process.env.SENTRY_REPLAY_LOCAL === '1') },
+    plugins: [
+      uni(),
+      {
+        name: 'sentry-example-sourcemap',
+        enforce: 'pre',
+        configEnvironment() {
+          return {
+            build: {
+              sourcemap: 'hidden',
+              rollupOptions: { output: { sourcemapExcludeSources: false } },
+            },
+          };
+        },
+        configResolved(config) {
+          config.build.sourcemap = 'hidden';
+          const output = config.build.rollupOptions.output;
+          for (const entry of Array.isArray(output) ? output : [output]) {
+            if (entry) entry.sourcemapExcludeSources = false;
+          }
+        },
       },
-      configResolved(config) {
-        config.build.sourcemap = 'hidden';
-        const output = config.build.rollupOptions.output;
-        for (const entry of Array.isArray(output) ? output : [output]) {
-          if (entry) entry.sourcemapExcludeSources = false;
-        }
-      },
+      ...(process.env.SENTRY_REPLAY_LOCAL === '1' ? [wechatReplayVitePlugin()] : []),
+    ],
+    build: {
+      commonjsOptions: { include: [/node_modules/, /wxapp\/utils\/replay-validation\.js$/] },
+      sourcemap: 'hidden',
+      rollupOptions: { output: { sourcemapExcludeSources: false } },
     },
-  ],
-  build: {
-    sourcemap: 'hidden',
-    rollupOptions: { output: { sourcemapExcludeSources: false } },
-  },
+  };
 });

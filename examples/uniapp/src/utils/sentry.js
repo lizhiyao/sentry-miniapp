@@ -12,6 +12,13 @@
  *   // #endif
  */
 import * as Sentry from 'sentry-miniapp';
+import { wechatPageReplayIntegration, getWechatPageReplay } from 'sentry-miniapp/replay';
+import { createLocalRecorder } from '../../../wxapp/utils/replay-validation';
+
+const local = __SENTRY_REPLAY_LOCAL__ ? createLocalRecorder({ byteLength: Sentry.utf8ByteLength }) : undefined;
+if (local) Object.assign(globalThis, {
+  __sentryReplayExample: { exportRecording: () => local.exportRecording(), getReplay: getWechatPageReplay },
+});
 
 // 与 examples/wxapp 共用同一个演示 Sentry 项目 DSN，开箱即可上报。
 // 换成你自己项目的 DSN 后，即可在你的后台观察数据。
@@ -21,6 +28,7 @@ Sentry.init({
   dsn: DSN,
   environment: 'production',
   debug: false,
+  ...(local ? { enableOfflineCache: false, transport: () => local.transport } : {}),
 
   enableSystemInfo: true,
   enableUserInteractionBreadcrumbs: true,
@@ -54,6 +62,7 @@ Sentry.init({
 
   // 显式启用可选 Performance factory，默认集成自动保留
   integrations: [
+    ...(local ? [wechatPageReplayIntegration({ sessionSampleRate: 1 })] : []),
     Sentry.performanceIntegration({
       enableNavigation: true,
       enableRender: true,

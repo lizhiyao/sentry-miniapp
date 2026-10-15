@@ -35,12 +35,16 @@ jobs:
             source: src/pages/test/test.tsx
             javascript: dist/pages/test/test.js
             map: dist/pages/test/test.js.map
+            replay: dist
+            framework: taro
           - name: uni-app
             directory: examples/uniapp
             script: build:mp-weixin
             source: src/pages/test/test.vue
             javascript: dist/build/mp-weixin/pages/test/test.js
             map: dist/build/.sourcemap/mp-weixin/pages/test/test.js.map
+            replay: dist/build/mp-weixin
+            framework: uniapp
 
     steps:
       - uses: actions/checkout@v4
@@ -68,9 +72,20 @@ jobs:
       - name: Verify installed example dependency overrides
         run: node scripts/internal/check-example-dependencies.mjs "${{ matrix.directory }}/package.json"
 
-      - name: Build example
+      - name: Build ordinary monitoring example
         working-directory: ${{ matrix.directory }}
         run: npm run ${{ matrix.script }}
+
+      - name: Build local replay example
+        working-directory: ${{ matrix.directory }}
+        env:
+          SENTRY_REPLAY_LOCAL: '1'
+        run: npm run ${{ matrix.script }}
+
+      - name: Verify automatic framework replay annotations
+        run: >-
+          node scripts/internal/check-framework-replay.mjs
+          "${{ matrix.framework }}" "${{ matrix.directory }}/${{ matrix.replay }}"
 
       - name: Verify business exception source mappings
         run: >-

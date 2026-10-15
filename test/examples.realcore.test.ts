@@ -269,7 +269,11 @@ describe('仓库示例的真实 init／生命周期契约', () => {
         module,
         exports: module.exports,
         console,
+        __SENTRY_REPLAY_LOCAL__: false,
         require: (name: string) => {
+          if (name === 'sentry-miniapp/replay') return Replay;
+          if (name === '../../../wxapp/utils/replay-validation')
+            return createRequire(import.meta.url)('../examples/wxapp/utils/replay-validation.js');
           expect(name).toBe('sentry-miniapp');
           return facade;
         },

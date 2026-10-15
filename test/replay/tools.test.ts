@@ -1,13 +1,20 @@
 import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decodeXML } from 'entities';
+import { JSDOM } from 'jsdom';
 import { runInNewContext } from 'node:vm';
 // @ts-expect-error Node 工具实现为 ESM JS，安装消费检查另外验证公开声明。
 import { instrumentWechatProject } from '../../scripts/internal/replay/project.mjs';
 // @ts-expect-error WXML 编译器为内部 Node 工具，不进入 SDK 声明。
 import { instrumentWxml, parseWxml } from '../../scripts/internal/replay/wxml.mjs';
+// @ts-expect-error 框架插件仅在 Node 构建时执行。
+import * as frameworkTools from '../../scripts/internal/replay/frameworks.mjs';
+// @ts-expect-error Taro 编译适配器是内部 Node 工具。
+import { instrumentTaroBase } from '../../scripts/internal/replay/taro.mjs';
+import { projectFrame } from '../../src/replay/frame';
+const { wechatReplayVitePlugin, instrumentWechatAssets } = frameworkTools;
 
 const folders: string[] = [];
 function rendered(source: string) {
@@ -23,7 +30,153 @@ function literals(source: string): string[] {
     });
 }
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(folders.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+
+describe('框架构建接缝', () => {
+  it('Vite 重复写入和 watch 增量保持干净输入，移除的依赖恢复原模板，其它平台不改产物', async () => {
+    const { input } = await fixture();
+    vi.stubEnv('UNI_PLATFORM', 'mp-weixin');
+    const plugin = wechatReplayVitePlugin({ pages: ['pages/a'] });
+    plugin.configResolved({ root: input, build: { outDir: '.' } });
+    const js = await readFile(join(input, 'pages/a.js'), 'utf8');
+    const component = await readFile(join(input, 'components/card.wxml'), 'utf8');
+    await plugin.writeBundle.handler();
+    const first = await readFile(join(input, 'pages/a.wxml'), 'utf8');
+    await plugin.writeBundle.handler();
+    expect(await readFile(join(input, 'pages/a.wxml'), 'utf8')).toBe(first);
+    await writeFile(join(input, 'pages/a.wxml'), '<view>增量更新</view>');
+    await plugin.writeBundle.handler();
+    expect(await readFile(join(input, 'pages/a.wxml'), 'utf8')).toContain('增量更新');
+    expect(await readFile(join(input, 'components/card.wxml'), 'utf8')).toBe(component);
+    expect(await readFile(join(input, 'pages/a.js'), 'utf8')).toBe(js);
+    vi.stubEnv('UNI_PLATFORM', 'mp-alipay');
+    const other = wechatReplayVitePlugin();
+    other.configResolved({ root: input, build: { outDir: 'does-not-exist' } });
+    await expect(other.writeBundle.handler()).resolves.toBeUndefined();
+  });
+
+  it('Taro 渲染观测同步增量文字与隐私开关，不读取输入值；缺失能力安全降级', async () => {
+    const code = await readFile(
+      new URL('../../scripts/replay-taro-runtime.cjs', import.meta.url),
+      'utf8',
+    );
+    const dom = new JSDOM('<main><span>更新前</span><input value="PRIVATE" /></main>');
+    const { document, MutationObserver } = dom.window;
+    const span = document.querySelector('span')!;
+    const input = document.querySelector('input')!;
+    Object.defineProperty(input, 'value', {
+      get() {
+        throw new Error('private input read');
+      },
+    });
+    runInNewContext(code, { require: () => ({ document, MutationObserver }) });
+    expect(span.getAttribute('srReplayText')).toBe('更新前');
+    span.firstChild!.nodeValue = '已更新';
+    span.setAttribute('data-sentry-replay-mask', 'true');
+    await new Promise<void>((resolve) => dom.window.setTimeout(resolve, 0));
+    expect(span.getAttribute('srReplayText')).toBe('已更新');
+    expect(span.getAttribute('srReplaymask')).toBe('true');
+    span.removeAttribute('data-sentry-replay-mask');
+    span.textContent = 'A'.repeat(300);
+    await new Promise<void>((resolve) => dom.window.setTimeout(resolve, 0));
+    expect(span.getAttribute('srReplayText')).toHaveLength(256);
+    expect(span.getAttribute('srReplaymask')).toBe('false');
+    expect(input.getAttribute('srReplayText')).toBe('');
+    dom.window.close();
+    expect(() => runInNewContext(code, { require: () => ({}) })).not.toThrow();
+  });
+
+  it('Taro 共享模板的不同实例以 sid 归属，公开兄弟不继承前一实例遮蔽，桥接组件保留遮蔽', async () => {
+    const source = `<template name="taro_tmpl"><template is="{{xs.a(0,item.nn,'')}}" data="{{i:item,c:1,l:xs.f('',item.nn)}}" wx:for="{{root.cn}}" /></template>
+<template name="tmpl_0_0"><view class="{{i.cl}}" data-sid="{{i.sid}}"><template is="{{xs.a(c,item.nn,l)}}" data="{{i:item,c:c+1}}" wx:for="{{i.cn}}"/></view></template>
+<template name="tmpl_1_0"><view class="{{i.cl}}" data-sid="{{i.sid}}"/></template>
+<template name="tmpl_15_container"><comp i="{{i}}"/></template>
+<template name="tmpl_0_9"><block>{{i.v}}</block></template>`;
+    const output = instrumentTaroBase(source, { sourceId: 'base', components: { comp: ['base'] } });
+    expect(output).not.toContain('&quot;');
+    expect(output).toContain('sr_replay_root:sr_replay_root');
+    const roots = parseWxml(output);
+    const helper = roots.find((node: any) => node.name === 'wxs');
+    const module = {
+      exports: {} as { c: (s: string, n: string) => boolean },
+    };
+    runInNewContext(helper.text.join(''), {
+      module,
+      getRegExp: (s: string, flags: string) => new RegExp(s, flags),
+    });
+    expect(module.exports.c('other\tsentry-mask\nlast', 'sentry-mask')).toBe(true);
+    expect(module.exports.c('sentry-masked', 'sentry-mask')).toBe(false);
+    const templates = roots.filter((node: any) => node.name === 'template');
+    const evaluate = (
+      name: string,
+      sid: string,
+      text: string,
+      cl: string,
+      marks = {},
+      root = false,
+    ) => {
+      const node = templates.find((node: any) =>
+        node.attrs.some((attr: any) => attr.name === 'name' && attr.value === name),
+      ).children[0];
+      const dataset: Record<string, unknown> = {},
+        mark: Record<string, unknown> = { ...marks };
+      for (const attr of node.attrs) {
+        if (!attr.name.startsWith('data-sentry-') && !attr.name.startsWith('mark:')) continue;
+        let value = decodeXML(attr.value);
+        if (value.includes('{{')) {
+          const expression = value.slice(value.indexOf('{{') + 2, value.lastIndexOf('}}'));
+          const result = runInNewContext(expression, {
+            i: { sid, cl, srReplayText: text },
+            sr_taro_base: module.exports,
+            sr_replay_root: root,
+          });
+          value = value.startsWith('\u200b') ? '\u200b' + result : result;
+        }
+        if (attr.name.startsWith('mark:')) mark[attr.name.slice(5)] = value;
+        else
+          dataset[
+            attr.name.slice(5).replace(/-([a-z])/g, (_: string, c: string) => c.toUpperCase())
+          ] = value;
+      }
+      return { left: 0, top: 0, width: 100, height: 30, dataset, mark };
+    };
+    const root = evaluate('tmpl_0_0', 'root', '公开', 'sentry-unmask', {}, true);
+    const masked = evaluate('tmpl_1_0', 'one', 'PRIVATE_MASKED', 'sentry-mask', root.mark);
+    const sibling = evaluate('tmpl_1_0', 'two', '公开兄弟', '', root.mark);
+    const bridge = evaluate('tmpl_15_container', 'bridge', '', 'sentry-mask', root.mark);
+    const child = evaluate('tmpl_0_0', 'inner', 'PRIVATE_COMPONENT', 'sentry-unmask');
+    const frame = projectFrame(
+      [{ width: 375, height: 700 }, [root, masked, sibling, bridge, child]],
+      'test',
+      20,
+    )!;
+    expect(frame.nodes.map((node) => node.text)).toEqual([
+      '公开',
+      '**************',
+      '公开兄弟',
+      '',
+      '*****************',
+    ]);
+    expect(frame.nodes[4].parent).toBe(3);
+    const assets = {
+      'app.json': { source: () => '{"pages":["index"],"usingComponents":{"comp":"/comp"}}' },
+      'index.wxml': {
+        source: () => '<import src="./base.wxml"/><template is="taro_tmpl" data="{{root:root}}"/>',
+      },
+      'base.wxml': { source: () => source },
+      'comp.json': { source: () => '{"component":true}' },
+      'comp.wxml': {
+        source: () => '<import src="./base.wxml"/><template is="{{kind}}" data="{{i:i}}"/>',
+      },
+      'index.js': { source: () => 'Page({});' },
+    };
+    const changed = await instrumentWechatAssets(assets);
+    expect(changed.get('index.wxml')).toContain('sr_replay_root:true');
+    expect(changed.get('base.wxml')).toContain('mark:sr_');
+    expect(changed.has('index.js')).toBe(false);
+  });
 });
 async function fixture() {
   const folder = await mkdtemp(join(tmpdir(), 'miniapp-replay-tool-'));

@@ -84,7 +84,10 @@ run().catch(error=>{console.error(error);sdk.getClient()?.dispose();process.exit
     file,
     `import assert from 'node:assert/strict';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
-import {instrumentWechatProject} from 'sentry-miniapp/replay-tools';
+import {instrumentWechatProject, wechatReplayVitePlugin} from 'sentry-miniapp/replay-tools';
+import {createRequire} from 'node:module';
+assert.equal(typeof createRequire(import.meta.url)('sentry-miniapp/replay-tools/taro'), 'function');
+assert.equal(wechatReplayVitePlugin().writeBundle.sequential, true);
 await mkdir('tool-source');
 await writeFile('tool-source/app.json',JSON.stringify({pages:['index'],usingComponents:{widget:'@ui/widget'}}));
 await mkdir('tool-source/miniprogram_npm/@ui/widget',{recursive:true});

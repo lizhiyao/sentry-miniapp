@@ -86,3 +86,25 @@ node ../../scripts/internal/check-framework-sourcemaps.mjs \
 ## 说明
 
 仓库的 `Framework Examples` workflow 会在 SDK 源码、依赖、构建脚本或相关示例发生变化、每周定时任务及手动触发时，用**当前仓库 tarball**执行 fresh install、消费者实际依赖版本检查、真实构建和业务异常位置映射检查。`node_modules/`、`dist/`、锁文件等已在 `.gitignore` 中忽略。
+
+## 页面回放（本地模式）
+
+先在仓库根构建 SDK 并在本示例安装当前包，再运行：
+
+```bash
+SENTRY_REPLAY_LOCAL=1 npm run build:weapp
+```
+
+用微信开发者工具打开产物，在编译模式中选择 `pages/replay/index`。更新按钮、重复卡片、嵌套循环、组件边界与输入占位用于观察页面变化。构建插件自动生成标记，无需手工处理模板；普通构建不安装回放集成。
+
+此模式使用内存 transport，禁用 SDK 持久缓存，所有 SDK 遥测均不发送 Sentry。需要导出时，在开发者工具逻辑层控制台执行：
+
+```js
+await globalThis.__sentryReplayExample.getReplay().capture();
+await globalThis.__sentryReplayExample.getReplay().flush();
+copy(globalThis.__sentryReplayExample.exportRecording());
+```
+
+回到仓库根运行 `yarn replay:local`，在 PC 浏览器导入录制。`flush()` 在本地返回 false 是因为内存 transport 没有 HTTP 2xx 回执，不代表没有保存；以导出文件中的分段为准。每次退出小程序会丢失内存录制，输入框不要填真实个人信息。
+
+生产接入保留一次构建插件配置与 `wechatPageReplayIntegration`，改用自己的 DSN、采样和隐私设置；不需要本地示例的 transport 或导出助手。完整配置见[页面回放指南](https://sentry-miniapp.pages.dev/guide/page-replay#_2-让构建生成页面标记)。
