@@ -131,6 +131,8 @@ After the first event is working, pick the guide based on what you are doing nex
 
 To inspect UI changes before an error, opt into [WeChat page replay](https://sentry-miniapp.pages.dev/guide/page-replay). It records sampled layouts, text changes and clicks on selected pages; the build tool annotates supported nodes and static components. Use `sentry-miniapp` 2.1.0 or later, install the replay integration and generate page annotations as described in the guide. This experimental feature targets ordinary WeChat mini programs using the WebView renderer.
 
+For Taro 4/webpack5 and uni-app Vue 3/Vite projects, use 2.2.0 or later and configure the build plugin once. Normal builds and watch mode then generate annotations automatically, without editing each page template.
+
 The source example also supports [local recording and playback](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry): export a recording and inspect it in a PC browser without using Sentry cloud quota.
 
 ---

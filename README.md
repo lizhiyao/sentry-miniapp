@@ -127,6 +127,8 @@ npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agent
 
 想查看出错前的界面变化，可按需启用[微信页面回放](https://sentry-miniapp.pages.dev/guide/page-replay)。它录制选定页面的采样布局、文字变化与点击；构建工具为支持的节点和静态组件生成标记。需要 `sentry-miniapp` 2.1.0 或更新版本，并按指南安装回放集成、生成页面标记；目前仅适用于微信普通 WebView 小程序。
 
+Taro 4／webpack5 和 uni-app Vue 3／Vite 项目使用 2.2.0 或更新版本，配置一次构建插件后，正常构建和开发时会自动生成标记，无需逐页修改模板。
+
 源码示例也提供[本地录制与播放](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry)：导出录制后在 PC 浏览器查看，不使用 Sentry 云服务额度。
 
 ---
