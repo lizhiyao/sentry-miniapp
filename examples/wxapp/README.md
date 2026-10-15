@@ -1,6 +1,6 @@
 # 微信小程序示例
 
-用这个示例先确认错误上报，再观察请求和业务耗时，或试用源码中的页面回放。它用于功能验收，启用了全量采样、console 面包屑与正文采集；生产项目从[最小配置](https://sentry-miniapp.pages.dev/guide/getting-started)开始。
+用这个示例先确认错误上报，再观察请求和业务耗时，或试用实验性页面回放。它用于功能验收，启用了全量采样、console 面包屑与正文采集；生产项目从[最小配置](https://sentry-miniapp.pages.dev/guide/getting-started)开始。
 
 ## 先选体验方式
 
@@ -10,7 +10,7 @@
 | 本地录制与播放，不占云端额度 | `yarn build:replay-local` | 命令输出的独立项目，再用 `yarn replay:local` 启动 PC 查看器 |
 | Sentry 回放与错误关联 | `yarn build:replay-example` | 命令输出的独立项目与自己的 Sentry 后台 |
 
-首次先按[运行方式](#运行方式)安装仓库依赖。普通示例与 Sentry 回放模式会发送到配置的 DSN；本地模式的 SDK 遥测不请求 Sentry。**回放是源码实验能力，当前 npm `2.0.2` 不含该入口**，完整范围见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)。
+首次先按[运行方式](#运行方式)安装仓库依赖。普通示例与 Sentry 回放模式会发送到配置的 DSN；本地模式的 SDK 遥测不请求 Sentry。回放是需要显式启用的实验性能力，业务项目可安装 `sentry-miniapp` 2.1.0 或更新版本，完整范围见[回放指南](https://sentry-miniapp.pages.dev/guide/page-replay)。
 
 ## 能力概览
 

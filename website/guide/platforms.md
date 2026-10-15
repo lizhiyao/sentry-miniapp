@@ -36,7 +36,7 @@
 | 弱网离线缓存重试 | ✅ | ✅ | 符合策略的失败数据有界缓存并尝试补发；缺少 Storage 时降级内存 |
 | 隐私同意前停止网络发送 | ✅ | ✅ | 开启 `requireConsent` 后进入本地缓冲 |
 | Sentry Logs／Metrics | ✅ | ✅ | 显式调用 logger／metrics；目标 Sentry 须支持对应数据 |
-| 实验性微信页面回放 | 微信 WebView | ➖ | 仅源码候选包，当前 npm `2.0.2` 无此入口；[覆盖范围与接入](/guide/page-replay) |
+| 实验性微信页面回放 | 微信 WebView | ➖ | 需 `sentry-miniapp` 2.1.0 或更新版本，显式安装集成并生成页面标记；[覆盖范围与接入](/guide/page-replay) |
 
 > ✅ 表示 SDK 提供对应接入能力，不代表每个平台、基础库或设备都有全部宿主 API。缺少所需 API 时跳过相应采集；➖ 表示该环境通常不提供对应能力。
 

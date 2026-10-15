@@ -2,7 +2,7 @@
 
 录制器通过微信公开 SelectorQuery 读取标记节点的可见布局，生成 rrweb 标准 Meta、FullSnapshot 与点击事件。它是采样布局投影，不持有或遍历 WebView 的私有 DOM，也不包装业务 setData。
 
-本文解释源码实现与取舍，不代表已经发布的 npm 包包含回放。接入见[用户指南](https://sentry-miniapp.pages.dev/guide/page-replay)，操作见[验收步骤](wechat-page-replay-acceptance.md)，最新证据与待验收项见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) / [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
+本文解释实验性回放的实现与取舍。接入见[用户指南](https://sentry-miniapp.pages.dev/guide/page-replay)，操作与发布安排见[验收步骤](wechat-page-replay-acceptance.md)，已有证据及真实项目反馈见 [#530](https://github.com/lizhiyao/sentry-miniapp/issues/530) / [#533](https://github.com/lizhiyao/sentry-miniapp/issues/533)。
 
 ## 职责
 

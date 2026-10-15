@@ -129,7 +129,7 @@ After the first event is working, pick the guide based on what you are doing nex
 
 ## Experimental WeChat Page Replay
 
-To inspect UI changes before an error, try [WeChat page replay](https://sentry-miniapp.pages.dev/guide/page-replay) from source. It records sampled layouts, text changes and clicks on selected pages; the build tool annotates supported nodes and static components. **npm `2.0.2` does not include replay**. Install a source candidate following the guide.
+To inspect UI changes before an error, opt into [WeChat page replay](https://sentry-miniapp.pages.dev/guide/page-replay). It records sampled layouts, text changes and clicks on selected pages; the build tool annotates supported nodes and static components. Use `sentry-miniapp` 2.1.0 or later, install the replay integration and generate page annotations as described in the guide. This experimental feature targets ordinary WeChat mini programs using the WebView renderer.
 
 The source example also supports [local recording and playback](https://sentry-miniapp.pages.dev/guide/page-replay#先在本地验证-不上传-sentry): export a recording and inspect it in a PC browser without using Sentry cloud quota.
 

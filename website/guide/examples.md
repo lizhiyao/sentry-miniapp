@@ -4,7 +4,7 @@
 
 | 示例 | 技术栈 | 重点演示 |
 |------|--------|----------|
-| [`examples/wxapp`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/wxapp) | 原生微信小程序 | 异常、请求与业务性能验证；另有源码回放示例 |
+| [`examples/wxapp`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/wxapp) | 原生微信小程序 | 异常、请求与业务性能验证；另有实验性回放示例 |
 | [`examples/uniapp`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/uniapp) | uni-app（Vue3 + Vite） | `app.config.errorHandler` 接 Vue 组件错误、网络面包屑 |
 | [`examples/taro`](https://github.com/lizhiyao/sentry-miniapp/tree/master/examples/taro) | Taro 4（React + TS） | React 错误边界上报组件错误、`Taro.request` 面包屑 |
 
@@ -45,9 +45,9 @@ npm run dev:weapp   # 产出到 dist/，用微信开发者工具导入
 
 先发送一个带独特消息的测试错误，在自己的 Sentry 项目中找到该事件；再分别验证项目需要的组件错误、请求 span 与源码位置。示例界面的“已初始化”“已采集”和事件 ID 不能代替后台接收结果。完整步骤见[快速接入](/guide/getting-started#_3-验证是否打通)与[Source Map 验证](/guide/sourcemap#第六步-验证-source-map-是否生效)。
 
-## 源码中的回放示例
+## 微信页面回放示例
 
-需要观察微信页面变化时，可按[实验性回放指南](/guide/page-replay#体验示例)生成独立项目；当前 npm `2.0.2` 没有回放入口。没有云端额度时使用 `yarn build:replay-local` 和 PC 录制查看器，本地录制与播放不请求 Sentry。
+需要观察微信页面变化时，可在 SDK 源码仓库按[实验性回放指南](/guide/page-replay#体验示例)生成独立示例项目；接入自己的业务项目时，直接安装 npm 包并生成标记。没有云端额度时使用 `yarn build:replay-local` 和 PC 录制查看器，本地录制与播放不请求 Sentry。
 
 ## 关键集成点
 
