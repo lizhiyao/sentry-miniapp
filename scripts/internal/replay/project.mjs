@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { cp, lstat, mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { instrumentTaroBase, instrumentTaroPage, isTaroBase } from './taro.mjs';
 import {
   defaultSlotLayout,
   dependencies,
@@ -81,7 +82,7 @@ async function json(path, optional = false) {
 }
 
 /** 输出独立项目副本，所选页面及其静态组件依赖获得自动节点标记。 */
-export async function instrumentWechatProject({ input, output, pages }) {
+export async function instrumentWechatProject({ input, output, pages, framework }) {
   const source = await realpath(resolve(input));
   let ancestor = resolve(output);
   const suffix = [];
@@ -204,6 +205,22 @@ export async function instrumentWechatProject({ input, output, pages }) {
     }
   };
   for (const page of selected) await collect(page);
+  const taro = new Set(
+    framework === 'taro'
+      ? [...sources].filter(([, content]) => isTaroBase(content)).map(([file]) => file)
+      : [],
+  );
+  const taroPages = new Set(
+    taro.size
+      ? [...selected].filter((file) =>
+          parseWxml(sources.get(file)).some(
+            (node) =>
+              node.name === 'template' &&
+              node.attrs.some((attr) => attr.name === 'is' && attr.value === 'taro_tmpl'),
+          ),
+        )
+      : [],
+  );
   for (const page of selected) {
     const hasRenderedRoot = (nodes) =>
       nodes.some((node) =>
@@ -211,12 +228,12 @@ export async function instrumentWechatProject({ input, output, pages }) {
           ? hasRenderedRoot(node.children)
           : !['wxs', 'import', 'include', 'template', 'slot'].includes(node.name),
       );
-    if (!hasRenderedRoot(parseWxml(sources.get(page))))
+    if (!hasRenderedRoot(parseWxml(sources.get(page))) && !taroPages.has(page))
       throw new Error(
         'Template-only page needs a framework adapter: ' +
           relative(root, page) +
-          '。纯模板页面（例如 Taro 递归模板）暂不支持自动标记；' +
-          '请改选普通 WXML 页面。标记工具不会跳过模板或修改业务渲染结构。',
+          '。纯模板页面需要对应的构建适配；Taro 项目请配置 sentry-miniapp/replay-tools/taro。' +
+          '其它入口请改选普通 WXML 页面；不会跳过模板或修改业务渲染结构。',
       );
   }
   const ids = new Map(
@@ -257,13 +274,17 @@ export async function instrumentWechatProject({ input, output, pages }) {
     try {
       changed.set(
         file,
-        instrumentWxml(content, {
-          sourceId: ids.get(file),
-          components,
-          slotLayouts,
-          page: selected.has(file),
-          modules,
-        }),
+        taro.has(file)
+          ? instrumentTaroBase(content, { sourceId: ids.get(file), components })
+          : taroPages.has(file)
+            ? instrumentTaroPage(content)
+            : instrumentWxml(content, {
+                sourceId: ids.get(file),
+                components,
+                slotLayouts,
+                page: selected.has(file),
+                modules,
+              }),
       );
     } catch (error) {
       throw new Error(relative(root, file) + ': ' + error.message, { cause: error });

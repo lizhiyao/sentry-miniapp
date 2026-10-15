@@ -47,7 +47,7 @@ npm run dev:weapp   # 产出到 dist/，用微信开发者工具导入
 
 ## 微信页面回放示例
 
-需要观察微信页面变化时，可在 SDK 源码仓库按[实验性回放指南](/guide/page-replay#体验示例)生成独立示例项目；接入自己的业务项目时，直接安装 npm 包并生成标记。没有云端额度时使用 `yarn build:replay-local` 和 PC 录制查看器，本地录制与播放不请求 Sentry。
+需要观察微信页面变化时，可在 SDK 源码仓库按[实验性回放指南](/guide/page-replay#体验示例)生成独立示例项目；接入自己的业务项目时，直接安装 npm 包并生成标记。Taro 与 uni-app 源码示例可用 `SENTRY_REPLAY_LOCAL=1` 执行原构建命令，并进入 `pages/replay/index`；其构建插件会自动标记。原生示例没有云端额度时使用 `yarn build:replay-local` 和 PC 录制查看器，本地录制与播放不请求 Sentry。
 
 ## 关键集成点
 

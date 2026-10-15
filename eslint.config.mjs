@@ -3,7 +3,7 @@ import tseslint from '@typescript-eslint/eslint-plugin';
 import globals from 'globals';
 import { defineConfig } from 'eslint/config';
 
-const lintFiles = ['src/**/*.{ts,js,mjs}', 'test/**/*.{ts,js,mjs}', 'scripts/**/*.{ts,js,mjs}'];
+const lintFiles = ['src/**/*.{ts,js,mjs}', 'test/**/*.{ts,js,mjs}', 'scripts/**/*.{ts,js,mjs,cjs,cts}'];
 
 export default defineConfig([
   {
@@ -12,6 +12,11 @@ export default defineConfig([
   },
   js.configs.recommended,
   ...tseslint.configs['flat/recommended'],
+  {
+    files: ['scripts/**/*.cjs'],
+    languageOptions: { sourceType: 'commonjs' },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
   {
     name: 'sentry-miniapp/rules',
     files: lintFiles,

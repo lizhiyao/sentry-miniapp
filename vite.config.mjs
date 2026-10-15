@@ -101,7 +101,7 @@ export default defineConfig(({ mode }) => {
         target: 'node20',
         minify: 'oxc',
         lib: {
-          entry: resolve(import.meta.dirname, 'scripts/internal/replay/project.mjs'),
+          entry: resolve(import.meta.dirname, 'scripts/internal/replay/tools.mjs'),
           formats: ['es'],
           fileName: () => 'sentry-miniapp-replay-tools.mjs',
         },

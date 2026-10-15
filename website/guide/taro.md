@@ -144,3 +144,7 @@ if (process.env.TARO_ENV === 'h5') {
 ## 下一步
 
 - [示例工程](/guide/examples) · [异常、日志与上下文](/guide/errors-and-context) · [常见问题](/guide/faq)
+
+## 页面回放
+
+需要定位出错前的界面变化时，Taro 4 + webpack5 微信 WebView 项目可按[页面回放指南](/guide/page-replay#_2-让构建生成页面标记)配置录制器和自动构建插件。配置一次后继续使用原来的构建／watch 命令，无需逐页修改模板。文字默认遮蔽，输入、媒体和原生绘制保留占位；源码示例还提供不消耗 Sentry 配额的本地录制模式。

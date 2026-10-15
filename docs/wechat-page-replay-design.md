@@ -69,7 +69,7 @@ Envelope 头复用 Core 的 `createEventEnvelopeHeaders` 与 `getSdkMetadataForE
 
 ## 构建适配与复杂组件
 
-Node 工具使用 htmlparser2 解析 WXML、Babel Parser 验证绑定边界、entities 编码静态 XML 属性，不 eval 业务表达式。只输出独立项目副本，保留业务 JS/map、原绑定和样式；解析依赖及其许可证归入独立 Node 构建产物，不进入小程序执行代码。静态组件图按 app/局部 usingComponents、import/include 解析；模板型框架入口明确拒绝，不能无证据扩大框架覆盖。
+Node 工具使用 htmlparser2 解析 WXML、Babel Parser 验证绑定边界、entities 编码静态 XML 属性，不 eval 业务表达式。原生项目输出独立副本，框架插件处理编译器本轮 WXML 资产；保留业务 JS/map、原绑定和样式。解析依赖及其许可证归入独立 Node 构建产物，不进入小程序执行代码。静态组件图按 app/局部 usingComponents、import/include 解析；已识别的 Taro 模板由专门适配器处理，未知模板入口明确拒绝。框架接缝与本地实录记录见[框架自动接入复核](replay-framework-adapters-review.md)。
 
 私有节点的类型由实际 WXML 标签确定。已有 `data-sentry-replay-type` 只有与输入／媒体节点的真实类型相符时才保留，冲突或动态覆盖明确拒绝；不能借普通文字标记绕过运行时私有类型占位。业务 value、原绑定和其它属性不改写。
 

@@ -6,6 +6,14 @@
  * 用 `process.env.TARO_ENV === 'h5'` 判断分端引入 `@sentry/browser`。
  */
 import * as Sentry from 'sentry-miniapp';
+import { wechatPageReplayIntegration, getWechatPageReplay } from 'sentry-miniapp/replay';
+import { createLocalRecorder } from '../../../wxapp/utils/replay-validation';
+
+declare const __SENTRY_REPLAY_LOCAL__: boolean;
+const local = __SENTRY_REPLAY_LOCAL__ ? createLocalRecorder({ byteLength: Sentry.utf8ByteLength }) : undefined;
+if (local) Object.assign(globalThis, {
+  __sentryReplayExample: { exportRecording: () => local.exportRecording(), getReplay: getWechatPageReplay },
+});
 
 // 与 examples/wxapp、examples/uniapp 共用同一个演示 Sentry 项目 DSN，开箱即可上报。
 // 换成你自己项目的 DSN 后，即可在你的后台观察数据。
@@ -15,6 +23,11 @@ Sentry.init({
   dsn: DSN,
   environment: 'production',
   debug: false,
+  ...(local ? {
+    enableOfflineCache: false,
+    transport: () => local.transport,
+    integrations: [wechatPageReplayIntegration({ sessionSampleRate: 1 })],
+  } : {}),
 
   enableSystemInfo: true,
   enableUserInteractionBreadcrumbs: true,
