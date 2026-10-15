@@ -66,15 +66,15 @@ yarn replay:local --port 8772
 在**业务项目**安装 SDK：
 
 ```bash
-npm install sentry-miniapp@^2.1.0
+npm install sentry-miniapp@^2.2.0
 ```
 
 也可使用业务项目原有的包管理器：
 
 ```bash
-yarn add sentry-miniapp@^2.1.0
+yarn add sentry-miniapp@^2.2.0
 # 或
-pnpm add sentry-miniapp@^2.1.0
+pnpm add sentry-miniapp@^2.2.0
 ```
 
 录制器和 Node 标记工具随同一个 npm 包提供；不需要额外安装另一份 SDK。保留锁文件，使用同一安装版本生成标记和运行录制器。
@@ -105,9 +105,9 @@ App({});
 
 选择自己的项目类型。框架插件配置一次后，继续使用原来的开发、构建与上传流程，不需要修改每个页面的模板。
 
-#### Taro 与 uni-app 自动构建接入（源码版）
+#### Taro 与 uni-app 自动构建接入
 
-以下插件随当前仓库源码提供，尚未包含在 npm 的 2.1.0 中。先在 SDK 仓库运行 `yarn build`、`yarn pack --out sentry-miniapp-current.tgz`，再在业务项目安装该文件；正式发布后可直接安装包含这些入口的版本。录制器的初始化与采样配置仍使用上一步。
+以下插件需要 `sentry-miniapp` 2.2.0 或更新版本，与录制器包含在同一个 npm 包中。按上一步安装后，配置一次构建插件即可；录制器的初始化与采样配置仍使用上一步。
 
 **Taro 4 + webpack5**：在 `config/index.ts` 的 `plugins` 添加一项，保留原有插件：
 

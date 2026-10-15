@@ -1,6 +1,6 @@
 # 文档索引
 
-接入和日常使用以[文档站](https://sentry-miniapp.pages.dev/)为主；仓库文档补充开发、设计取舍和审查记录。常规接入面向 2.x 正式版，1.x 入口见[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。标为实验性的回放文档描述源码候选；是否可用须核对实际安装包，不能由 master 的功能反推 npm 已发布。
+接入和日常使用以[文档站](https://sentry-miniapp.pages.dev/)为主；仓库文档补充开发、设计取舍和审查记录。常规接入面向 2.x 正式版，1.x 入口见[版本选择](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。实验性微信页面回放从 2.1.0 提供，Taro／uni-app 自动构建插件从 2.2.0 提供；接入时核对实际安装版本。
 
 ## 按任务阅读
 
