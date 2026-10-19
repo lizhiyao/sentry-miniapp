@@ -120,7 +120,7 @@
     "htmlparser2": "12.0.0",
     "husky": "^9.1.7",
     "js-yaml": "5.5.0",
-    "jsdom": "27.2.0",
+    "jsdom": "27.4.0",
     "lint-staged": "^16.4.0",
     "lodash": "4.18.1",
     "prettier": "^3.9.6",
