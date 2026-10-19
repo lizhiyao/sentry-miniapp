@@ -54,6 +54,12 @@ updates:
       - dependency-name: '@vitest/*'
         update-types:
           - version-update:semver-major
+      - dependency-name: jsdom
+        update-types:
+          - version-update:semver-major
+      - dependency-name: '@types/jsdom'
+        update-types:
+          - version-update:semver-major
       # Keep type definitions aligned with the supported Node 20 baseline.
       - dependency-name: '@types/node'
         update-types:
