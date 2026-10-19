@@ -10,6 +10,7 @@
 
 - **Node.js**：本仓库开发使用 20.x ≥ 20.19、22.x ≥ 22.13 或 ≥ 24。这是当前 Vite、Vitest、ESLint 与 Core 的共同要求；CI 使用 20.x、22.x、24.x。发布包的 `engines.node` 只声明 SDK 与 Core 的运行依赖范围，不能代替开发工具要求。
 - **DOM 测试依赖**：jsdom 27 与配套类型定义保持同一 Node 基线。Dependabot 暂不自动升级它们的主版本；调整开发环境要求时，再统一评估 DOM 模拟器、类型定义与 CI 矩阵。
+- **TypeScript**：编译器主版本需满足 ESLint 和声明生成工具的 peer 范围；Dependabot 自动更新限于兼容的次版本与补丁，主版本迁移单独评估整套工具链。
 - **Yarn 4**：项目通过 `package.json` 的 `packageManager` 字段固定 Yarn 版本，推荐用 [Corepack](https://nodejs.org/api/corepack.html) 自动对齐，无需全局手动安装：
 
   ```bash
@@ -58,7 +59,7 @@ Vite 的 ES2015 target 负责语法降级，其中 async 的降级会生成 gene
 
 ### 构建体积与共享依赖
 
-标准构建和小程序构建都会执行 JS 体积预算检查：主 SDK 的 ESM 上限 260 KiB，CommonJS／UMD／小程序独立 bundle 上限 255 KiB；可选录制器单独限制在 26.5 KiB。预算包含内联依赖和许可证注释，不包含 Source Map 或类型声明，实际门槛以[检查脚本](scripts/internal/check-bundle-size.mjs)为准。超限时先核对依赖重复、可选能力与构建输出；有必要的新增能力再在同一 PR 说明成本并调整预算。测量基线见[包体积审查](docs/bundle-size-review.md)。
+标准构建和小程序构建都会执行 JS 体积预算检查：主 SDK 的 ESM 上限 260 KiB，CommonJS／UMD／小程序独立 bundle 上限 256 KiB；可选录制器单独限制在 26.5 KiB。预算包含内联依赖和许可证注释，不包含 Source Map 或类型声明，实际门槛以[检查脚本](scripts/internal/check-bundle-size.mjs)为准。超限时先核对依赖重复、可选能力与构建输出；有必要的新增能力再在同一 PR 说明成本并调整预算。测量基线见[包体积审查](docs/bundle-size-review.md)，Core 11.8 的增量与取舍见[升级复核](docs/core-11.8-review.md)。
 
 两种 core-js 模式共享基础模块的构建插件锁定在已审查版本。升级依赖时同时审查源码、间接依赖和可变模块状态，复核实际包在缺失／原生／只读宿主能力下的行为，再更新插件版本守卫；不能仅更新版本字符串通过检查。
 

@@ -32,6 +32,7 @@
 | 记录 | 范围 |
 | --- | --- |
 | [回放框架自动接入复核](replay-framework-adapters-review.md) | Taro / uni-app 真实编译、增量文字、组件归属、隐私与本地播放 |
+| [Core 11.8 升级复核](core-11.8-review.md) | 事件与批次丢弃计数、stream span、链式错误、体积增量与兼容性 |
 | [Core 11.6 升级复核](core-11.6-review.md) | 上游差异、重新初始化适配、实际包时间与关闭绑定回归、体积变化 |
 | [2.0.0 发布后整体审查](postrelease-2.0.0-review.md) | 实际 npm 包、生命周期与隐私边界、宿主调用修复及接入文档复核 |
 | [SDK 包体积审查](bundle-size-review.md) | 发布包归因、基础模块共享、ESM 压缩、消费端构建及体积预算 |

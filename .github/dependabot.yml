@@ -64,6 +64,10 @@ updates:
       - dependency-name: '@types/node'
         update-types:
           - version-update:semver-major
+      # The compiler major must satisfy the ESLint and declaration toolchain peers.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: npm
     directory: /examples/uniapp
