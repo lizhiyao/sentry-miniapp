@@ -453,15 +453,33 @@ describe('Transport', () => {
       (global as any).wx = { request: mockRequest };
       resetPlatformCache();
 
-      const dropped: Array<{ reason: string; category: string }> = [];
+      const dropped: Array<{ reason: string; category: string; quantity: number }> = [];
       const transport = createMiniappTransport({
         url: 'https://sentry.io/api/123/envelope/',
-        recordDroppedEvent: (reason: any, category: any) => dropped.push({ reason, category }),
+        recordDroppedEvent: (reason, category, quantity = 1) =>
+          dropped.push({ reason, category, quantity }),
       });
 
       const makeEnvelope = (id: string): Envelope => [
         { event_id: id, sent_at: '2022-01-01T00:00:00.000Z' },
         [[{ type: 'event' }, { message: 'rl', event_id: id }]],
+      ];
+      const logEnvelope: Envelope = [
+        {},
+        [
+          [
+            { type: 'log', item_count: 3, content_type: 'application/vnd.sentry.items.log+json' },
+            {
+              items: [0, 1, 2].map((index) => ({
+                timestamp: 1640995200,
+                level: 'info',
+                body: `batch log ${index}`,
+                severity_number: 9,
+                attributes: {},
+              })),
+            },
+          ],
+        ],
       ];
 
       // 第一次：发起请求，拿到 429 + 限流头 → core 记录限流
@@ -469,10 +487,14 @@ describe('Transport', () => {
       expect(r1.statusCode).toBe(429);
       expect(mockRequest).toHaveBeenCalledTimes(1);
 
-      // 第二次：同类（error）仍在限流窗口内 → core 直接丢弃，不再发起底层请求
+      // 限流时按批次真实条目数记录，普通错误条目按 1 计数。
       await transport.send(makeEnvelope('b') as any);
+      await transport.send(logEnvelope);
       expect(mockRequest).toHaveBeenCalledTimes(1); // 关键：没有第二次真实请求
-      expect(dropped.some((d) => d.category === 'error')).toBe(true);
+      expect(dropped).toEqual([
+        { reason: 'ratelimit_backoff', category: 'error', quantity: 1 },
+        { reason: 'ratelimit_backoff', category: 'log_item', quantity: 3 },
+      ]);
     });
 
     it('should handle non-200 status codes', async () => {
