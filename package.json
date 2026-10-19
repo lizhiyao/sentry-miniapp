@@ -119,7 +119,7 @@
     "globals": "^17.12.0",
     "htmlparser2": "12.0.0",
     "husky": "^9.1.7",
-    "js-yaml": "5.4.3",
+    "js-yaml": "5.5.0",
     "jsdom": "27.2.0",
     "lint-staged": "^16.4.0",
     "lodash": "4.18.1",
@@ -135,7 +135,7 @@
     "@sentry/core": "11.6.0"
   },
   "resolutions": {
-    "js-yaml": "5.4.3",
+    "js-yaml": "5.5.0",
     "vite@npm:^5.4.14": "npm:6.4.3"
   },
   "lint-staged": {

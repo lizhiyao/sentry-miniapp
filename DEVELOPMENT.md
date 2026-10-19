@@ -9,6 +9,7 @@
 ### 0. 环境要求
 
 - **Node.js**：本仓库开发使用 20.x ≥ 20.19、22.x ≥ 22.13 或 ≥ 24。这是当前 Vite、Vitest、ESLint 与 Core 的共同要求；CI 使用 20.x、22.x、24.x。发布包的 `engines.node` 只声明 SDK 与 Core 的运行依赖范围，不能代替开发工具要求。
+- **DOM 测试依赖**：jsdom 27 与配套类型定义保持同一 Node 基线。Dependabot 暂不自动升级它们的主版本；调整开发环境要求时，再统一评估 DOM 模拟器、类型定义与 CI 矩阵。
 - **Yarn 4**：项目通过 `package.json` 的 `packageManager` 字段固定 Yarn 版本，推荐用 [Corepack](https://nodejs.org/api/corepack.html) 自动对齐，无需全局手动安装：
 
   ```bash
