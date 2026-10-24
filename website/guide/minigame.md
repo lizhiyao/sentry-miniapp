@@ -1,6 +1,6 @@
 # 小游戏接入与性能监控
 
-`sentry-miniapp` 支持微信小游戏和抖音小游戏。小游戏没有小程序的 `App()`、`Page()` 和页面路由，但仍可使用平台异常监听、网络、Storage 和设备信息 API。
+`sentry-miniapp` 支持微信、抖音和快手小游戏，帮助排查游戏异常、慢请求和帧率问题。小游戏没有小程序的 `App()`、`Page()` 和页面路由；采集能力取决于宿主提供的异常监听、网络、Storage 和帧回调 API。
 
 首次接入先按[安装与域名配置](/guide/getting-started#_1-安装)准备 SDK、DSN 和实际上报域名；2.x 的后台要求见[版本选择](/guide/migration-2.0#version-choice)。游戏引擎负责打包时，确认 SDK 已进入最终游戏产物。
 
@@ -30,16 +30,26 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 
 ## 能捕获什么
 
-| 能力 | 微信小游戏 | 抖音小游戏 | 说明 |
-|------|:----------:|:----------:|------|
-| 全局异常与 Promise rejection | 支持 | 支持 | 以宿主实际提供的监听 API 为准 |
-| 网络请求面包屑与 `http.client` span | 支持 | 支持 | 走 `wx.request` / `tt.request`，不依赖 PerformanceObserver |
-| 设备信息与离线缓存 | 支持 | 支持 | 依赖宿主系统信息与 Storage API |
-| 前台会话统计 | 支持 | 支持 | 默认开启，依赖可注册的 `onShow`／`onHide` |
-| SDK 初始化到首帧 | 支持 | 支持 | 上报 `minigame.init_to_first_frame` |
-| FPS 与卡顿 | 支持 | 支持 | 依赖全局 `requestAnimationFrame` |
-| 小程序导航 / 渲染 / 资源 PerformanceObserver | 不适用 | 不适用 | 小游戏通常只有 `performance.now()`，通用 Performance 默认不安装，显式安装时按实际能力跳过 |
-| 页面路由、点击面包屑 | 不适用 | 不适用 | 没有 Page 模型，自动跳过 |
+| 能力 | 微信小游戏 | 抖音小游戏 | 快手小游戏 | 说明 |
+|------|:----------:|:----------:|:----------:|------|
+| 全局异常与 Promise rejection | 按宿主 API | 按宿主 API | 按宿主 API | 需要可用的 `onError`／`onUnhandledRejection`；缺少时使用手动捕获或引擎错误处理 |
+| 网络请求面包屑与 `http.client` span | 支持 | 支持 | 支持 | 使用对应宿主的 `request`，不依赖 PerformanceObserver |
+| 设备信息与离线缓存 | 支持 | 支持 | 支持 | 依赖宿主系统信息与 Storage API |
+| 前台会话统计 | 支持 | 支持 | 支持 | 默认开启，依赖可注册的 `onShow`／`onHide` |
+| SDK 初始化到首帧 | 支持 | 支持 | 支持 | 上报 `minigame.init_to_first_frame` |
+| FPS 与卡顿 | 支持 | 支持 | 支持 | 依赖全局 `requestAnimationFrame`，需手动开启 |
+| 小程序导航 / 渲染 / 资源 PerformanceObserver | 不适用 | 不适用 | 不适用 | 通用 Performance 默认不安装，显式安装时按实际能力跳过 |
+| 页面路由、点击面包屑 | 不适用 | 不适用 | 不适用 | 没有 Page 模型，自动跳过 |
+
+### 快手小游戏
+
+初始化方式与上面相同。SDK 自动识别 `ks` 和旧 `kwaigame`，快手入口共存时优先使用 `ks`，上报的平台标记统一为 `kuaishou`；无需在业务中创建全局别名。冷启动 `getLaunchOptionsSync()` 的 `from` 记入 `contexts.minigame.scene`，回前台 `onShow` 的 `from` 记入对应生命周期面包屑的 `scene` 字段，查询参数继续按采集策略过滤。
+
+快手[小游戏 API 目录](https://open.kuaishou.com/miniGameDocs/gameDev/api/api)未列出全局 `onError`／`onUnhandledRejection`，不能据快手小程序的同名接口推断小游戏一定具有这些监听。宿主提供时 SDK 自动订阅；缺少时仍可调用 `captureException`／`captureMessage`，或从游戏引擎的错误回调转交异常。只有可用监听覆盖的异常才会自动采集。
+
+快手网络请求使用 `request({ url, data, header, ... })`，同步缓存使用 `setStorageSync(key, data)`／`getStorageSync(key)`，与现有接入配置一致。把 DSN 的实际接收域名加入小游戏通讯域名白名单。若游戏设置了较低的目标帧率，请相应调整 `fpsWarningThreshold`，避免将预期帧率识别为低帧率。
+
+平台原始约定见[新旧命名空间](https://open.kuaishou.com/miniGameDocs/gameDev/start/start.html)、[启动参数](https://open.kuaishou.com/miniGameDocs/gameDev/api/base/lifecycle/ks.getLaunchOptionsSync.html)和[帧率设置](https://open.kuaishou.com/miniGameDocs/gameDev/api/render/ks.setPreferredFramesPerSecond.html)。
 
 自动会话从 SDK 安装时的前台运行开始，退后台时结束，再次进入前台时创建新会话；若安装时已经观察到后台，则等待下次进入前台。缺少或无法注册任一 show／hide 监听时，跳过自动会话统计，可使用 [Session API](/guide/api#session-api) 手动管理。SDK 与业务原生监听的执行顺序由宿主决定，退后台处理器里产生的错误可能晚于会话结束；事件仍会按配置发送，但不会补计到已结束的会话。
 

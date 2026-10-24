@@ -12,10 +12,10 @@ import type { MiniappOptions } from '../types';
 /**
  * Minigame Integration
  *
- * 面向「小游戏」运行时（微信小游戏 / 抖音小游戏等，无 App()/Page() 与页面路由）的
+ * 面向「小游戏」运行时（微信 / 抖音 / 快手小游戏等，无 App()/Page() 与页面路由）的
  * 生命周期与 SDK 安装至首帧观测，补充没有页面与路由的小游戏观测能力。能力：
  * - 读取 getLaunchOptionsSync() 记录启动场景（scene / path / query）上下文与面包屑；
- * - 测量「SDK 初始化 → 首帧」耗时（首个 requestAnimationFrame 回调，近似首帧渲染）；
+ * - 测量 SDK 安装至首次 requestAnimationFrame 回调的等待时间；
  * - 监听 onShow / onHide 记录前后台切换面包屑（携带场景值）。
  */
 export class MinigameIntegration implements Integration {
@@ -81,7 +81,7 @@ export class MinigameIntegration implements Integration {
     try {
       if (typeof miniappSdk.getLaunchOptionsSync === 'function') {
         const launch = miniappSdk.getLaunchOptionsSync() || {};
-        this._minigameContext.scene = launch.scene;
+        this._minigameContext.scene = launch.scene ?? launch.from;
         this._minigameContext.path =
           typeof launch.path === 'string' ? collectUrlName(launch.path) : undefined;
         this._minigameContext.query = collectKeyValueData(
@@ -94,7 +94,7 @@ export class MinigameIntegration implements Integration {
           category: 'minigame.launch',
           message: '小游戏启动参数',
           level: 'info',
-          data: { scene: launch.scene, path: this._minigameContext.path },
+          data: { scene: this._minigameContext.scene, path: this._minigameContext.path },
         });
       }
     } catch (_error) {
@@ -117,7 +117,11 @@ export class MinigameIntegration implements Integration {
             category: 'minigame.lifecycle',
             message: '小游戏 onShow（进入前台）',
             level: 'info',
-            data: { scene: (res as { scene?: unknown } | undefined)?.scene },
+            data: {
+              scene:
+                (res as { scene?: unknown } | undefined)?.scene ??
+                (res as { from?: unknown } | undefined)?.from,
+            },
           });
         }),
       onHide: () =>
@@ -141,7 +145,7 @@ export class MinigameIntegration implements Integration {
   }
 
   /**
-   * 用首个 requestAnimationFrame 回调近似「首帧渲染完成」，计算 SDK 初始化 → 首帧的耗时。
+   * 测量 SDK 安装至首次 requestAnimationFrame 回调的等待时间，不代表画面已完成呈现。
    */
   private _measureColdStart(): void {
     const owner = this._owner;

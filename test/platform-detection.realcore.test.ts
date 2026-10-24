@@ -75,7 +75,7 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
     expect(event.exception?.values?.[0]?.value).toContain('platform capability fallback');
   }
 
-  it.each(['wx', 'my', 'dd', 'qq', 'swan', 'ks'])(
+  it.each(['wx', 'my', 'dd', 'qq', 'swan', 'ks', 'kwaigame'])(
     '%s 全局候选 getter 不可读时仍使用可用的抖音宿主发送最终事件',
     async (globalName) => {
       Object.defineProperty(g, globalName, {
@@ -96,6 +96,8 @@ describe('平台识别与显式覆盖（真 @sentry/core 集成）', () => {
     ['getEnvInfoSync', 'common', 'USER_DATA_PATH', 'system'],
     ['getSystemInfoSync', 'appName', undefined, 'hostName'],
     ['getSystemInfoSync', 'hostName', undefined, 'account'],
+    ['getSystemInfoSync', 'host', undefined, 'account'],
+    ['getSystemInfoSync', 'host', 'env', 'account'],
     ['getAccountInfoSync', 'miniProgram', undefined, 'launch'],
     ['getAccountInfoSync', 'miniProgram', 'appId', 'launch'],
     ['getLaunchOptionsSync', 'extra', undefined, 'otherHost'],

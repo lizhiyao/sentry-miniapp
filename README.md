@@ -13,7 +13,7 @@
 
 为**小程序与小游戏**接入 Sentry，结合设备、操作和请求记录排查线上异常；按需开启性能采样，分析请求与业务操作的耗时。
 
-支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手小程序，以及微信和抖音小游戏，适用于原生、**Taro** 和 **uni-app** 项目。
+支持微信、支付宝、字节跳动、百度、QQ、钉钉、快手小程序，以及微信、抖音和快手小游戏，适用于原生、**Taro** 和 **uni-app** 项目。
 
 **[快速开始](https://sentry-miniapp.pages.dev/guide/getting-started)** · [完整文档](https://sentry-miniapp.pages.dev/) · [示例工程](https://sentry-miniapp.pages.dev/guide/examples)
 
@@ -29,7 +29,7 @@
 | 业务失败没有抛异常，缺少可查询的排查记录 | 主动记录独立业务日志和指标，查询关键步骤、统计失败次数或耗时分布 |
 | 用户在弱网环境出错，监控请求也发送失败 | 将符合策略的数据暂存到有容量上限的本地队列，网络恢复后尝试补发 |
 | 必须等用户同意隐私协议后才能发送监控数据 | 配置同意门禁，在同意前暂停 Sentry 网络发送，同意后尝试补发缓冲数据 |
-| 微信 / 抖音小游戏也需要监控异常和卡顿 | 将小游戏异常与会话接入同一套 Sentry 监控，按需开启帧率与卡顿统计 |
+| 微信 / 抖音 / 快手小游戏也需要监控异常和卡顿 | 将小游戏异常与会话接入同一套 Sentry 监控，按需开启帧率与卡顿统计 |
 
 自动采集范围取决于平台能力；React / Vue 组件错误需要接入框架错误处理，小游戏帧率监控需要主动开启。按项目类型查看 [Taro](https://sentry-miniapp.pages.dev/guide/taro)、[uni-app](https://sentry-miniapp.pages.dev/guide/uniapp)、[小游戏指南](https://sentry-miniapp.pages.dev/guide/minigame)或[平台支持范围](https://sentry-miniapp.pages.dev/guide/platforms)。
 
@@ -108,7 +108,7 @@ npx --yes degit lizhiyao/sentry-miniapp/.agents/skills/sentry-miniapp-sdk .agent
 |----------|--------|
 | 按原生小程序完整接一遍 | [快速接入](https://sentry-miniapp.pages.dev/guide/getting-started) |
 | 在 Taro / uni-app 项目中接入，并处理组件错误 | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
-| 接入微信 / 抖音小游戏和性能监控 | [小游戏接入与性能](https://sentry-miniapp.pages.dev/guide/minigame) |
+| 接入微信 / 抖音 / 快手小游戏和性能监控 | [小游戏接入与性能](https://sentry-miniapp.pages.dev/guide/minigame) |
 | 为错误补充用户、操作和业务日志 | [异常、日志与上下文](https://sentry-miniapp.pages.dev/guide/errors-and-context) |
 | 排查慢请求或关联后端链路 | [性能与链路追踪](https://sentry-miniapp.pages.dev/guide/performance-and-tracing) |
 | 配置弱网补发或用户同意后发送 | [可靠上报与隐私同意](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy) |

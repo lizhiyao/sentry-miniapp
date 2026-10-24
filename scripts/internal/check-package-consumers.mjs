@@ -35,6 +35,12 @@ const platformContracts = [
   { globalName: 'qq', platform: 'qq', requestMethod: 'request', statusKey: 'statusCode' },
   { globalName: 'swan', platform: 'swan', requestMethod: 'request', statusKey: 'statusCode' },
   { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', statusKey: 'statusCode' },
+  {
+    globalName: 'kwaigame',
+    platform: 'kuaishou',
+    requestMethod: 'request',
+    statusKey: 'statusCode',
+  },
 ];
 const hostRuntimeModes = [
   'native-builtins',
@@ -248,7 +254,7 @@ if (!coreQueryOnly) {
 
 
 const platformName = process.argv[2] || 'wechat';
-const contract = ${platforms}.find(candidate => candidate.platform === platformName);
+const contract = ${platforms}.find(candidate => candidate.globalName === platformName || candidate.platform === platformName);
 assert.ok(contract, \`Unknown platform contract: \${platformName}\`);
 assert.ok(
   runtimeMode === 'standard' || ${JSON.stringify(hostRuntimeModes)}.includes(runtimeMode),
@@ -389,7 +395,8 @@ process.stdout.write(JSON.stringify({
   keys: Object.keys(sdk).sort(),
   version: sdk.SDK_VERSION,
   envelopes: envelopes.length,
-  platform: platformName,
+  platform: contract.platform,
+  globalName: contract.globalName,
   requests: requestedUrls.length,
   runtimeMode,
 }));
@@ -617,15 +624,26 @@ try {
     );
   }
   const cjsExecution = cjsExecutions[0];
+  // 快手小游戏禁用动态代码生成；两个入口分别加载真实 CJS，不能只覆盖同名平台的首个对象。
+  for (const contract of platformContracts.filter(({ platform }) => platform === 'kuaishou')) {
+    cjsExecutions.push(
+      await runNode(cjsConsumer, tempRoot, {
+        scriptArgs: [contract.globalName, 'native-builtins'],
+        nodeArgs: ['--disallow-code-generation-from-strings'],
+      }),
+    );
+  }
   const esmScenarios = platformContracts.flatMap((contract) =>
     hostRuntimeModes.map((runtimeMode) => ({ contract, runtimeMode })),
   );
   const esmExecutions = [];
   for (const { contract, runtimeMode } of esmScenarios) {
-    console.log(`Checking ESM ${contract.platform} ${runtimeMode}`);
+    console.log(`Checking ESM ${contract.globalName} ${runtimeMode}`);
     esmExecutions.push(
       await runNode(esmConsumer, tempRoot, {
-        scriptArgs: [contract.platform, runtimeMode],
+        scriptArgs: [contract.globalName, runtimeMode],
+        nodeArgs:
+          contract.platform === 'kuaishou' ? ['--disallow-code-generation-from-strings'] : [],
       }),
     );
   }
@@ -673,7 +691,7 @@ try {
   for (const { contract, runtimeMode } of esmScenarios) {
     const result = esmResults.find(
       (candidate) =>
-        candidate.platform === contract.platform && candidate.runtimeMode === runtimeMode,
+        candidate.globalName === contract.globalName && candidate.runtimeMode === runtimeMode,
     );
     assert.ok(result, `Missing ESM runtime result for ${contract.platform} ${runtimeMode}`);
     assert.equal(
@@ -734,7 +752,7 @@ try {
   });
 
   console.log(
-    `Package consumer checks passed for CJS, ESM (${platformContracts.length} platforms × ${hostRuntimeModes.length} host runtime modes), UMD, TypeScript (${cjsResult.keys.length} exports), and ${expectedBehaviorScenarios} behavior scenarios for each CJS/ESM entry.`,
+    `Package consumer checks passed for CJS, ESM (${new Set(platformContracts.map(({ platform }) => platform)).size} platforms / ${platformContracts.length} host globals × ${hostRuntimeModes.length} host runtime modes), UMD, TypeScript (${cjsResult.keys.length} exports), and ${expectedBehaviorScenarios} behavior scenarios for each CJS/ESM entry.`,
   );
 } finally {
   if (suppliedTarball && process.env.DIAGNOSTICS_DIR) {

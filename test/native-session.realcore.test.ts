@@ -73,11 +73,11 @@ describe('原生 show/hide 与真实 core Session', () => {
     vi.unstubAllGlobals();
   });
 
-  it.each(['wx', 'tt'] as const)(
+  it.each(['wx', 'tt', 'ks', 'kwaigame'] as const)(
     '%s 无 App 时首次错误已有会话，重复 show 不换 SID',
     async (host) => {
-      if (host === 'tt') {
-        vi.stubGlobal('tt', (globalThis as typeof globalThis & { wx: unknown }).wx);
+      if (host !== 'wx') {
+        vi.stubGlobal(host, (globalThis as typeof globalThis & { wx: unknown }).wx);
         vi.stubGlobal('wx', undefined);
       }
       const client = start();

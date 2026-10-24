@@ -13,7 +13,7 @@ import { resetPlatformCache, sdk, getStorageApi } from '../src/crossPlatform';
 import { spanAttribute } from './support/envelopes';
 import { init } from '../src/index';
 
-type PlatformGlobal = 'wx' | 'my' | 'tt' | 'dd' | 'qq' | 'swan' | 'ks';
+type PlatformGlobal = 'wx' | 'my' | 'tt' | 'dd' | 'qq' | 'swan' | 'ks' | 'kwaigame';
 type RequestMethod = 'request' | 'httpRequest';
 type MiniappPlatform =
   | 'wechat'
@@ -31,7 +31,7 @@ interface PlatformContract {
   objectStorage: boolean;
 }
 
-const PLATFORM_GLOBALS: PlatformGlobal[] = ['wx', 'my', 'tt', 'dd', 'qq', 'swan', 'ks'];
+const PLATFORM_GLOBALS: PlatformGlobal[] = ['wx', 'my', 'tt', 'dd', 'qq', 'swan', 'ks', 'kwaigame'];
 const PLATFORM_CONTRACTS: PlatformContract[] = [
   { globalName: 'wx', platform: 'wechat', requestMethod: 'request', objectStorage: false },
   { globalName: 'my', platform: 'alipay', requestMethod: 'httpRequest', objectStorage: true },
@@ -40,6 +40,7 @@ const PLATFORM_CONTRACTS: PlatformContract[] = [
   { globalName: 'qq', platform: 'qq', requestMethod: 'request', objectStorage: false },
   { globalName: 'swan', platform: 'swan', requestMethod: 'request', objectStorage: false },
   { globalName: 'ks', platform: 'kuaishou', requestMethod: 'request', objectStorage: false },
+  { globalName: 'kwaigame', platform: 'kuaishou', requestMethod: 'request', objectStorage: false },
 ];
 
 function collectEnvelopePayloads<T>(
