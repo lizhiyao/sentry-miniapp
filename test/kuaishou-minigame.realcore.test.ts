@@ -35,6 +35,7 @@ describe.each([
   const errors = new Set<(error: unknown) => void>();
   const rejections = new Set<(payload: { reason: unknown }) => void>();
   let host: Record<string, unknown>;
+  let compatibilityHost: Record<string, unknown>;
   let nextFrame: number;
   const launch = { from: 'sidebar', query: { source: 'menu', token: 'private-query' } };
 
@@ -95,12 +96,16 @@ describe.each([
       },
     };
     for (const key of globals) vi.stubGlobal(key, host);
-    if (shim)
-      vi.stubGlobal('wx', {
-        request: () => {
-          throw new Error('wrong wx shim');
-        },
-      });
+    compatibilityHost = {
+      ...host,
+      request: vi.fn(function (this: unknown, options: RequestOptions) {
+        expect(this).toBe(compatibilityHost);
+        const request = host.request;
+        if (typeof request !== 'function') throw new Error('Expected native request');
+        return Function.prototype.apply.call(request, host, [options]);
+      }),
+    };
+    if (shim) vi.stubGlobal('wx', compatibilityHost);
   });
 
   afterEach(() => {
@@ -116,6 +121,55 @@ describe.each([
     const pending = [...frames];
     frames.clear();
     for (const [, callback] of pending) callback(Date.now());
+  }
+
+  if (shim) {
+    it.each(['missing-host', 'unknown-host', 'wxfile-conflict', 'wx-appid-conflict'])(
+      '%s 保留候选顺序回退；显式平台标签不切换宿主请求',
+      async (mode) => {
+        if (mode === 'missing-host' || mode === 'unknown-host') {
+          const systemInfo = () => ({
+            brand: 'Kuaishou device',
+            ...(mode === 'unknown-host' ? { host: { env: 'unrecognized-host' } } : {}),
+          });
+          host.getSystemInfoSync = compatibilityHost.getSystemInfoSync = systemInfo;
+        } else if (mode === 'wxfile-conflict') {
+          compatibilityHost.getEnvInfoSync = () => ({
+            common: { USER_DATA_PATH: 'wxfile://compatibility' },
+          });
+        } else {
+          compatibilityHost.getSystemInfoSync = () => ({ brand: 'Kuaishou device' });
+          compatibilityHost.getAccountInfoSync = () => ({
+            miniProgram: { appId: 'wx-compatibility' },
+          });
+        }
+        const nativeRequest = host.request;
+        for (const miniappPlatform of [undefined, 'kuaishou'] as const) {
+          const client = init({
+            dsn: 'https://test@example.com/1',
+            ...(miniappPlatform ? { miniappPlatform } : {}),
+            enableOfflineCache: false,
+            enableAutoSessionTracking: false,
+          })!;
+          expect(sdk()).toBe(compatibilityHost);
+          expect(getDiagnostics().platform).toMatchObject({ name: 'wechat', isMinigame: true });
+          const id = client.captureException(new Error(`${mode}: ${miniappPlatform ?? 'auto'}`));
+          const flushing = client.flush(2000);
+          await vi.advanceTimersByTimeAsync(10);
+          expect(await flushing).toBe(true);
+          const event = collectEnvelopePayloads<Event>(envelopes, ['event']).find(
+            ({ event_id }) => event_id === id,
+          );
+          expect(event?.contexts?.miniapp?.platform).toBe(miniappPlatform ?? 'wechat');
+          expect(event?.contexts?.device?.brand).toBe('Kuaishou device');
+          expect(host.request).toBe(nativeRequest);
+          const closing = client.close(2000);
+          await vi.advanceTimersByTimeAsync(10);
+          expect(await closing).toBe(true);
+        }
+        expect(compatibilityHost.request).toHaveBeenCalledTimes(2);
+      },
+    );
   }
 
   it('默认识别、同意缓冲、错误、from、请求追踪和前后台会话按官方接口工作', async () => {
