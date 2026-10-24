@@ -45,7 +45,9 @@ SDK 默认通过 `wx`、`tt` 等平台对象识别平台。多个对象共存时
 
 初始化方式与上面相同。SDK 通过 `ks` 和旧 `kwaigame` 识别快手，两者共存时优先使用 `ks`；识别为快手宿主后，上报的平台标记为 `kuaishou`，无需在业务中创建全局别名。冷启动 `getLaunchOptionsSync()` 的 `from` 记入 `contexts.minigame.scene`，回前台 `onShow` 的 `from` 记入对应生命周期面包屑的 `scene` 字段，查询参数继续按采集策略过滤。
 
-引擎同时注入 `wx` 兼容对象时，SDK 还会读取宿主信息。信息缺失、无法识别或与微信特征冲突时，会按[平台候选顺序](/guide/platform-compatibility#sdk-如何处理平台差异)回退，此时可能使用 `wx` 兼容层。可通过 `Sentry.getDiagnostics().platform.name` 核对实际识别结果；`miniappPlatform: 'kuaishou'` 只修正事件标签，不会切换请求或存储 API。
+快手开发者工具开启“自动适配微信小游戏”后，会生成 `kwaiadapter.js`，用快手 API 提供 `wx` 兼容对象，让微信格式的游戏包在快手运行，详见[官方导出指南](https://docs.qingque.cn/d/home/eZQCnNVAKcY5kmYvimRU0L7Pt?identityId=CWQPeDTxmf)。因此，存在 `wx` 不代表运行在微信。多个平台入口共存时，SDK 还会读取宿主信息。
+
+信息缺失、无法识别或与微信特征冲突时，会按[平台候选顺序](/guide/platform-compatibility#sdk-如何处理平台差异)回退，此时可能使用 `wx` 兼容层。可通过 `Sentry.getDiagnostics().platform.name` 核对实际识别结果；`miniappPlatform: 'kuaishou'` 只修正事件标签，不会切换请求或存储 API。
 
 快手[小游戏 API 目录](https://open.kuaishou.com/miniGameDocs/gameDev/api/api)未列出全局 `onError`／`onUnhandledRejection`，不能据快手小程序的同名接口推断小游戏一定具有这些监听。宿主提供时 SDK 自动订阅；缺少时仍可调用 `captureException`／`captureMessage`，或从游戏引擎的错误回调转交异常。只有可用监听覆盖的异常才会自动采集。
 
