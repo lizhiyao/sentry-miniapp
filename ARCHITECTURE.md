@@ -257,6 +257,8 @@ on／off 使用标准函数原型调用并保留真实宿主 receiver，不读�
 
 ### 平台识别与降级
 
+快手小程序／小游戏使用 `ks`，小游戏同时兼容 `kwaigame`；两者共存时优先 `ks`。系统信息中的快手宿主标记用于消除引擎 `wx` 兼容对象的歧义，不写入或拼接宿主对象。小游戏的 `from` 启动来源归入统一 `scene` 上下文，已有 `scene` 优先。
+
 平台 API 始终取自实际探测的宿主对象。`miniappPlatform`（及兼容的旧 `platform` 选项）只覆盖 `contexts.miniapp.platform` 标签，不切换 request／Storage。事件顶层 `platform` 保持 `javascript`，让 Sentry 使用 JavaScript 堆栈与符号化语义。
 
 系统信息按 API、字段独立读取，兼容分体 API 与旧接口；不修改宿主返回的冻结对象。某个 getter、可选 API 或字段失败，只省略／回退相关维度。网络 transport 安全探测 `request`，不可用时尝试 `httpRequest`；不同宿主的状态码、header、Storage 参数和二进制请求能力由适配层处理。

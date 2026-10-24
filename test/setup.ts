@@ -4,7 +4,7 @@ import { afterEach, beforeEach, vi } from 'vitest';
 import { resetPlatformCache } from '../src/crossPlatform';
 
 // 所有平台全局：每个用例前后统一清理，杜绝跨用例残留导致 detectPlatform 串味。
-const PLATFORM_GLOBALS = ['wx', 'my', 'tt', 'dd', 'qq', 'swan', 'ks'];
+const PLATFORM_GLOBALS = ['wx', 'my', 'tt', 'dd', 'qq', 'swan', 'ks', 'kwaigame'];
 
 // 默认 wx（微信）平台 mock。多平台对象共存但没有平台专属宿主信息时，detectPlatform
 // 会按 PLATFORMS 顺序回退到 wx。要隔离验证非 wx 路径，测试仍应清掉默认 wx。

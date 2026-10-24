@@ -137,7 +137,15 @@ describe('MinigameIntegration', () => {
     expect(mockStartInactiveSpan).not.toHaveBeenCalled();
   });
 
-  it('冷启动上报不覆盖启动场景上下文（setContext 合并）', () => {
+  it.each([
+    { launch: { scene: 1001 }, scene: 1001 },
+    { launch: { from: 'sidebar' }, scene: 'sidebar' },
+    { launch: { scene: 0, from: 'sidebar' }, scene: 0 },
+  ])('首帧后保留启动场景 $scene，scene 优先于 from', ({ launch, scene }) => {
+    vi.mocked(crossPlatform.sdk).mockReturnValue({
+      ...crossPlatform.sdk(),
+      getLaunchOptionsSync: () => ({ ...launch, path: 'game.js' }),
+    });
     const integration = new MinigameIntegration();
     integration.setup(mockGetClient() as any);
     clock = 1150;
@@ -145,7 +153,7 @@ describe('MinigameIntegration', () => {
 
     // 首帧后的 minigame 上下文应同时保留 scene 与 initToFirstFrameMs
     expect(getClientEnvironment(mockGetClient() as any).contexts['minigame']).toEqual(
-      expect.objectContaining({ scene: 1001, path: 'game.js', initToFirstFrameMs: 150 }),
+      expect.objectContaining({ scene, path: 'game.js', initToFirstFrameMs: 150 }),
     );
   });
 

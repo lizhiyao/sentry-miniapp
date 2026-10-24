@@ -59,7 +59,7 @@ description: 用 sentry-miniapp 将微信等小程序、小游戏、Taro 和 uni
       <p>接通 Vue 组件错误处理，与 H5 分端配置。</p><span class="sm-link">uni-app 接入指南 <span aria-hidden="true">↗</span></span>
     </a>
     <a class="sm-card" href="/guide/minigame">
-      <span class="sm-kicker">04 / GAME</span><h3>微信 / 抖音小游戏</h3>
+      <span class="sm-kicker">04 / GAME</span><h3>微信 / 抖音 / 快手小游戏</h3>
       <p>排查小游戏异常，按需观察帧率与卡顿。</p><span class="sm-link">小游戏接入指南 <span aria-hidden="true">↗</span></span>
     </a>
   </div>

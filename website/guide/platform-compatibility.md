@@ -16,13 +16,14 @@ SDK 初始化时按当前运行时的全局对象识别平台，业务代码不�
 | 钉钉小程序 | `dd` | `dingtalk` | `dd.httpRequest` |
 | QQ 小程序 | `qq` | `qq` | `qq.request` |
 | 百度智能小程序 | `swan` | `swan` | `swan.request` |
-| 快手小程序 | `ks` | `kuaishou` | `ks.request` |
+| 快手小程序 / 小游戏 | `ks`，小游戏兼容 `kwaigame` | `kuaishou` | `ks.request` / `kwaigame.request` |
 
 识别完成后，SDK 的异常捕获、面包屑、transport、离线缓存等上层能力只面对统一接口。通常无需手动设置 `miniappPlatform`。
 
 只有一个平台对象时，SDK 直接使用它。运行时同时存在多个平台对象时，SDK 会进一步读取同步宿主信息，以平台专属信号消除歧义：
 
 - 抖音 `getSystemInfoSync()` 返回的 `appName` / `hostName`；
+- 快手系统信息中的 `host`／`host.env` 宿主标记，用于区分引擎提供的 `wx` 兼容对象；
 - `getEnvInfoSync()` 返回的 `ttfile://` 数据路径和 `tt...` AppID；
 - `getAccountInfoSync()` 或 `getLaunchOptionsSync()` 返回的平台 AppID。
 
@@ -97,7 +98,7 @@ SDK 优先读取平台较新的分体 API，例如 `getAppBaseInfo`、`getWindow
 
 ## 小程序与小游戏不是同一种页面模型
 
-小游戏虽然继续使用 `wx`、`tt` 等平台对象，但没有 `App()`、`Page()` 和页面路由。SDK 会结合 `GameGlobal` 及页面构造函数是否存在来识别小游戏：
+小游戏虽然继续使用 `wx`、`tt`、`ks`／`kwaigame` 等平台对象，但没有 `App()`、`Page()` 和页面路由。SDK 会结合 `GameGlobal` 及页面构造函数是否存在来识别小游戏：
 
 | 能力 | 小程序 | 小游戏 |
 |------|:------:|:------:|

@@ -13,7 +13,7 @@
 
 Monitor **mini programs and mini games** with Sentry. Investigate production errors using device, interaction and request details; enable performance sampling as needed to measure the duration of requests and business operations.
 
-Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, plus WeChat and Douyin mini games. Works with native, **Taro** and **uni-app** projects.
+Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, and Kuaishou mini programs, plus WeChat, Douyin, and Kuaishou mini games. Works with native, **Taro** and **uni-app** projects.
 
 **[Quick Start](https://sentry-miniapp.pages.dev/guide/getting-started)** · [Full Documentation](https://sentry-miniapp.pages.dev/) · [Examples](https://sentry-miniapp.pages.dev/guide/examples)
 
@@ -31,7 +31,7 @@ The docs site is in Chinese.
 | A business operation fails without throwing an exception | Record searchable business logs and metrics to inspect key steps and track failure counts or duration distributions |
 | A weak connection prevents monitoring requests from being delivered | Buffer eligible data in a local queue with a size limit and retry when connectivity returns |
 | Monitoring data must wait for the user's privacy consent | Configure the consent gate to pause Sentry network delivery until consent, then attempt to send buffered data |
-| WeChat / Douyin mini games need error and frame-rate monitoring | Monitor game errors and sessions in Sentry, with optional FPS and jank collection |
+| WeChat / Douyin / Kuaishou mini games need error and frame-rate monitoring | Monitor game errors and sessions in Sentry, with optional FPS and jank collection |
 
 Automatic collection depends on host capabilities. React / Vue component errors require framework error handling, and mini game FPS collection requires explicit opt-in. See the [Taro](https://sentry-miniapp.pages.dev/guide/taro), [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp), [mini game](https://sentry-miniapp.pages.dev/guide/minigame) and [platform support](https://sentry-miniapp.pages.dev/guide/platforms) guides (Chinese).
 
@@ -112,7 +112,7 @@ After the first event is working, pick the guide based on what you are doing nex
 |--------------|-----------|
 | Follow the full native mini program setup | [Getting Started](https://sentry-miniapp.pages.dev/guide/getting-started) |
 | Set up Taro / uni-app projects and handle component errors | [Taro](https://sentry-miniapp.pages.dev/guide/taro) / [uni-app](https://sentry-miniapp.pages.dev/guide/uniapp) |
-| Set up WeChat / Douyin mini games and performance monitoring | [Mini Game Guide](https://sentry-miniapp.pages.dev/guide/minigame) |
+| Set up WeChat / Douyin / Kuaishou mini games and performance monitoring | [Mini Game Guide](https://sentry-miniapp.pages.dev/guide/minigame) |
 | Add user, interaction and business log details | [Errors, Logs and Context](https://sentry-miniapp.pages.dev/guide/errors-and-context) |
 | Investigate slow requests or connect backend traces | [Performance and Tracing](https://sentry-miniapp.pages.dev/guide/performance-and-tracing) |
 | Configure weak-network retries or consent-gated delivery | [Reliability and Privacy Consent](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy) |

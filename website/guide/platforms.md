@@ -12,7 +12,7 @@
 | 钉钉小程序 | `dingtalk` | `dd.httpRequest` | |
 | QQ 小程序 | `qq` | `qq.request` | |
 | 百度小程序 | `swan` | `swan.request` | 标识与运行时全局对象保持一致，无单独 `baidu` 值 |
-| 快手小程序 | `kuaishou` | `ks.request` | |
+| 快手小程序 / 小游戏 | `kuaishou` | `ks.request` / `kwaigame.request` | 小游戏兼容旧 `kwaigame` 入口；异常监听以宿主实际 API 为准 |
 
 跨端框架：**Taro**（React / Vue）与 **uni-app**（Vue）均可在小程序端直接使用；H5 端请改用官方 [`@sentry/browser`](https://docs.sentry.io/platforms/javascript/)，按端条件编译引入。
 

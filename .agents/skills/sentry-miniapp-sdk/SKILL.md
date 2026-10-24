@@ -1,6 +1,6 @@
 ---
 name: sentry-miniapp-sdk
-description: Set up or troubleshoot Sentry error monitoring, tracing, offline cache and source maps in native mini programs, Taro or uni-app. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou and WeChat/ByteDance minigames.
+description: Set up or troubleshoot Sentry error monitoring, tracing, offline cache and source maps in native mini programs, Taro or uni-app. Supports WeChat, Alipay, ByteDance, Baidu, QQ, DingTalk, Kuaishou and WeChat/ByteDance/Kuaishou minigames.
 license: MIT
 metadata:
   category: sdk-setup
@@ -92,7 +92,9 @@ H5 needs the official browser/framework SDK through target-specific imports. `se
 
 Runtime APIs come from the detected host. Set `miniappPlatform` only to correct an ambiguous event label; it does not switch the host API. Values are `wechat`, `alipay`, `bytedance`, `qq`, `swan`, `dingtalk` and `kuaishou`. The event's top-level `platform` stays `javascript`.
 
-WeChat/ByteDance minigames have no App/Page model. Automatic Session tracking requires both native show/hide listeners to register successfully; missing capabilities produce diagnostics. First frame measures SDK installation to the first rAF, not full cold start. FPS/jank defaults off; opt in with `enableMinigameFrameRate: true` only when needed. See the [minigame guide](https://sentry-miniapp.pages.dev/guide/minigame).
+WeChat/ByteDance/Kuaishou minigames have no App/Page model. Automatic Session tracking requires both native show/hide listeners to register successfully; missing capabilities produce diagnostics. First frame measures SDK installation to the first rAF, not full cold start. FPS/jank defaults off; opt in with `enableMinigameFrameRate: true` only when needed. See the [minigame guide](https://sentry-miniapp.pages.dev/guide/minigame).
+
+Kuaishou games support both `ks` and legacy `kwaigame`; prefer `ks` when both exist. Launch `from` maps to the shared `scene` context. Global error/rejection listeners are feature-detected: the Kuaishou game API catalog does not guarantee those APIs, so connect the engine error handler or use explicit capture when absent.
 
 ### Configuration decisions
 

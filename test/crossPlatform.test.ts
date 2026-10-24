@@ -517,10 +517,11 @@ describe('CrossPlatform', () => {
         const host = (global as any).wx;
         const manager = { now: () => 1 };
         const read = vi.fn(
-          () => function (this: unknown) {
-            expect(this).toBe(host);
-            return manager;
-          },
+          () =>
+            function (this: unknown) {
+              expect(this).toBe(host);
+              return manager;
+            },
         );
         Object.defineProperty(host, 'getPerformance', { configurable: true, get: read });
         expect(getPerformanceManager()).toBe(manager);
@@ -687,11 +688,45 @@ describe('CrossPlatform', () => {
       expect(appName()).toBe('swan');
     });
 
-    it('should return "kuaishou" for ks', async () => {
-      (global as any).ks = { request: vi.fn() };
+    it.each(['ks', 'kwaigame'])('should return "kuaishou" for %s', async (globalName) => {
+      (global as any)[globalName] = { request: vi.fn() };
       const { appName } = await import('../src/crossPlatform');
       expect(appName()).toBe('kuaishou');
     });
+
+    it('ks 与 kwaigame 共存时优先 ks，ks getter 不可读时使用旧入口且不修改宿主', async () => {
+      const current = Object.freeze({ request: vi.fn() });
+      const legacy = Object.freeze({ request: vi.fn() });
+      (global as any).ks = current;
+      (global as any).kwaigame = legacy;
+      const { sdk, resetPlatformCache } = await import('../src/crossPlatform');
+      expect(sdk()).toBe(current);
+      Object.defineProperty(global, 'ks', {
+        configurable: true,
+        get() {
+          throw new Error('unavailable ks');
+        },
+      });
+      try {
+        resetPlatformCache();
+        expect(sdk()).toBe(legacy);
+        expect(Object.keys(legacy)).toEqual(['request']);
+      } finally {
+        delete (global as { ks?: unknown }).ks;
+      }
+    });
+
+    it.each(['KUAISHOU', 'NEBULA', { env: '快手' }, { env: '快手极速版' }, { env: '快看点' }])(
+      '快手 host=%j 能在 wx 兼容对象共存时选择真实快手宿主',
+      async (host) => {
+        (global as any).wx = { request: vi.fn() };
+        const kuaishou = { request: vi.fn(), getSystemInfoSync: () => ({ host }) };
+        (global as any).ks = kuaishou;
+        const { sdk, appName } = await import('../src/crossPlatform');
+        expect(sdk()).toBe(kuaishou);
+        expect(appName()).toBe('kuaishou');
+      },
+    );
 
     it('should return "unknown" when no SDK available', async () => {
       const { appName } = await import('../src/crossPlatform');

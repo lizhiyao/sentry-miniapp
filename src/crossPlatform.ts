@@ -1,5 +1,5 @@
-// 各平台全局对象（wx/my/tt/dd/qq/swan/ks）通过下方 PLATFORMS 表 + globalThis 动态检测，
-// 不再使用 ambient declare，平台清单集中在 PLATFORMS 单一来源。
+// 各平台全局对象通过下方 PLATFORMS 表 + globalThis 动态检测，
+// 平台清单集中在 PLATFORMS 单一来源。
 
 /**
  * 小程序平台 SDK 接口
@@ -153,6 +153,7 @@ const PLATFORMS: ReadonlyArray<{ global: string; name: MiniappPlatform }> = [
   { global: 'qq', name: 'qq' },
   { global: 'swan', name: 'swan' },
   { global: 'ks', name: 'kuaishou' },
+  { global: 'kwaigame', name: 'kuaishou' },
 ];
 
 type DetectedPlatform = { sdk: SDK; name: AppName };
@@ -246,6 +247,16 @@ const inferPlatformFromRuntime = (platformSdk: SDK): AppName | null => {
     readPlatformField(systemInfo, 'appName') ?? readPlatformField(systemInfo, 'hostName');
   if (typeof hostName === 'string' && BYTEDANCE_HOST_NAMES.has(hostName.toLowerCase())) {
     return 'bytedance';
+  }
+
+  // 快手宿主与引擎的 wx 兼容对象共存时，以系统信息中的宿主标记选择真实 API。
+  const host = readPlatformField(systemInfo, 'host');
+  const hostEnv = typeof host === 'string' ? host : readPlatformField(host, 'env');
+  if (
+    typeof hostEnv === 'string' &&
+    ['KUAISHOU', 'NEBULA', '快手', '快手极速版', '快看点'].includes(hostEnv)
+  ) {
+    return 'kuaishou';
   }
 
   const accountInfo = callPlatformInfo(platformSdk, 'getAccountInfoSync');
@@ -530,7 +541,7 @@ export const resolveMiniappPlatform = (options: {
 let _isMinigame: boolean | null = null;
 
 /**
- * 判断当前是否运行在「小游戏」环境（微信小游戏 / 抖音小游戏 / QQ 小游戏等）。
+ * 判断当前是否运行在「小游戏」环境（微信 / 抖音 / 快手小游戏等）。
  *
  * 小游戏与小程序的运行时差异：小游戏没有 App()/Page()/getCurrentPages() 等
  * 页面与路由构造函数，但同样存在平台 sdk（wx/tt/qq…）。因此判定规则为：
