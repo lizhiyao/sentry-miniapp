@@ -21,6 +21,7 @@
 - 现有检测、平台契约、原生 Session 与启动上下文用例扩展到快手入口；scene／from 优先关系在现有用例参数化。
 - 快手小游戏使用真实 Core、默认 init 和宿主 API 契约 fixture，验证 ks、kwaigame、双入口、以及两种入口与 wx 兼容对象共存。最终请求解析回 Core envelope，检查错误、拒绝、设备与启动上下文、网络 span、首帧／FPS、Session、同意缓存、脱敏和清理。
 - 缺少异常监听、rAF 或 off 时，手动事件仍发送；重新初始化不累计原生监听，dispose 后的回调不产生遥测。
+- wx 兼容对象提供完整转发 API，覆盖 host 缺失／未知、wxfile 数据路径和微信 AppID 与快手信号冲突：保留已有候选顺序回退，核对默认事件标签、实际请求 receiver 和显式标签覆盖。该 fixture 验证算法边界，不代表真实引擎一定产生这些信号。
 - 包消费按 globalName 选择和核对结果，使 kwaigame 不会因同名 kuaishou 平台而被 ks 场景替代；七个平台共八个宿主对象入口。
 
 主包 CJS 实测 261962 B，相对已发布 2.2.1 增加 284 B（gzip +121 B）；沿用 256 KiB 预算，ESM、Replay 和消费端预算不变。未增加运行时依赖或公开配置。
