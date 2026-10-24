@@ -249,7 +249,7 @@ const inferPlatformFromRuntime = (platformSdk: SDK): AppName | null => {
     return 'bytedance';
   }
 
-  // 快手宿主与引擎的 wx 兼容对象共存时，以系统信息中的宿主标记选择真实 API。
+  // 快手宿主与 wx 兼容对象共存时，以系统信息中的宿主标记选择真实 API。
   const host = readPlatformField(systemInfo, 'host');
   const hostEnv = typeof host === 'string' ? host : readPlatformField(host, 'env');
   if (

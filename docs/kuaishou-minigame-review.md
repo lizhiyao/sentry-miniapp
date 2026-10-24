@@ -7,7 +7,8 @@
 | 契约 | 适配与降级 |
 | --- | --- |
 | [新接口使用 ks，旧 kwaigame 继续有效](https://open.kuaishou.com/miniGameDocs/gameDev/start/start.html) | 两者映射到同一 kuaishou 平台标识；共存时优先 ks，不写宿主别名或复制方法。不可读入口按现有字段级守卫跳过 |
-| [系统信息](https://open.kuaishou.com/miniGameDocs/gameDev/api/base/system/ks.getSystemInfo.html)中的 host.env；小程序 host 的 KUAISHOU／NEBULA 标记 | 与引擎 wx 兼容对象共存时使用明确宿主信号，保持真实 API receiver。信息不足或冲突仍按既有候选顺序回退 |
+| [系统信息](https://open.kuaishou.com/miniGameDocs/gameDev/api/base/system/ks.getSystemInfo.html)中的 host.env；小程序 host 的 KUAISHOU／NEBULA 标记 | 与 wx 兼容对象共存时使用明确宿主信号，保持真实 API receiver。信息不足或冲突仍按既有候选顺序回退 |
+| [官方导出指南](https://docs.qingque.cn/d/home/eZQCnNVAKcY5kmYvimRU0L7Pt?identityId=CWQPeDTxmf)说明开发者工具可生成 kwaiadapter.js，用快手 API 提供 wx 兼容对象 | 多个全局入口不等于多个真实宿主；不能仅凭 wx 存在判定微信。共存机制有官方依据，具体冲突信号仍须分别验证 |
 | [request](https://open.kuaishou.com/miniGameDocs/gameDev/api/network/request/ks.request.html) 接收 data／header，响应为 statusCode／header；RequestTask.abort | 复用默认 transport、请求面包屑和追踪；域名白名单仍由应用配置 |
 | [同步缓存](https://open.kuaishou.com/miniGameDocs/gameDev/api/storage/ks.setStorageSync.html)为 key-value，数据可 JSON 序列化 | 复用 typed offline store；同意前缓冲和授权后重放经真实 Core 验证，不原地修改原生 Storage |
 | [启动参数](https://open.kuaishou.com/miniGameDocs/gameDev/api/base/lifecycle/ks.getLaunchOptionsSync.html)和 [onShow](https://open.kuaishou.com/miniGameDocs/gameDev/api/base/lifecycle/ks.onShow.html)使用 from／query | 冷启动 from 归入 minigame.scene，热启动 from 归入生命周期面包屑 scene；保留 scene 优先，包括数值 0，query 继续脱敏 |
