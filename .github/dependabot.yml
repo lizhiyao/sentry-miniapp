@@ -76,10 +76,13 @@ updates:
       time: '09:15'
       timezone: Asia/Shanghai
     open-pull-requests-limit: 1
-    # Examples are compatibility fixtures; follow the framework, then update its
-    # pinned build tool manually according to the new peer dependency contract.
+    # Keep framework updates grouped. Vite patch updates are reviewed separately;
+    # broader toolchain migrations must follow the framework's peer contract.
     allow:
       - dependency-name: '@dcloudio/*'
+      - dependency-name: vite
+        update-types:
+          - version-update:semver-patch
     groups:
       uni-app-framework:
         patterns:
