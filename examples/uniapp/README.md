@@ -34,7 +34,7 @@ npm run build:mp-weixin
 
 然后用**微信开发者工具**导入产物目录（`dist/dev/mp-weixin` 或 `dist/build/mp-weixin`），即可预览。
 
-示例固定使用 Vite `6.4.3`，并针对当前 DCloud 版本组中的具体消费者修补 PostCSS、ws 和 source-map-js；保留 npm `overrides` 并使用 npm 安装。安装后运行上面的检查，确认消费者实际解析到预期版本。当前构建验证覆盖微信生产构建、watch 首轮编译和业务映射；其他目标需另行验证。剩余框架安全公告与修补范围见[示例依赖审查](../../docs/example-dependency-security.md)。
+示例固定使用 Vite `6.4.5`，并针对当前 DCloud 版本组中的具体消费者修补 PostCSS、ws 和 source-map-js；保留 npm `overrides` 并使用 npm 安装。Dependabot 可单独提出 Vite 补丁更新，合并前仍需通过实际依赖、微信构建和业务映射检查；普通版本更新不自动跨越 minor／major。安装后运行上面的检查，确认消费者实际解析到预期版本。当前构建验证覆盖微信生产构建、watch 首轮编译和业务映射；其他目标需另行验证。剩余框架安全公告与修补范围见[示例依赖审查](../../docs/example-dependency-security.md)。
 
 若检查提示实际版本仍旧，已有安装锁可能保留了旧依赖；安装成功或 `npm install --package-lock-only` 成功不代表 override 已生效。只在本示例目录重新生成被忽略的 `node_modules/` 和 `package-lock.json`，再执行 `npm install` 与版本检查。不要用 `--force` 或 `--legacy-peer-deps` 跳过兼容性检查。
 

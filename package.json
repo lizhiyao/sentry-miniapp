@@ -136,7 +136,7 @@
   },
   "resolutions": {
     "js-yaml": "5.5.0",
-    "vite@npm:^5.4.14": "npm:6.4.3"
+    "vite@npm:^5.4.14": "npm:~6.4.5"
   },
   "lint-staged": {
     "{src,scripts}/**/*.{ts,js,mjs}": [

@@ -11,6 +11,7 @@
 - **Node.js**：本仓库开发使用 20.x ≥ 20.19、22.x ≥ 22.13 或 ≥ 24。这是当前 Vite、Vitest、ESLint 与 Core 的共同要求；CI 使用 20.x、22.x、24.x。发布包的 `engines.node` 只声明 SDK 与 Core 的运行依赖范围，不能代替开发工具要求。
 - **DOM 测试依赖**：jsdom 27 与配套类型定义保持同一 Node 基线。Dependabot 暂不自动升级它们的主版本；调整开发环境要求时，再统一评估 DOM 模拟器、类型定义与 CI 矩阵。
 - **TypeScript**：编译器主版本需满足 ESLint 和声明生成工具的 peer 范围；Dependabot 自动更新限于兼容的次版本与补丁，主版本迁移单独评估整套工具链。
+- **Vite**：SDK 构建使用根目录声明的版本；VitePress 的兼容 resolution 限于 `~6.4.5`，允许同一 minor 的修补版，实际版本由 `yarn.lock` 固定。uni-app 示例单独固定 Vite 补丁版本，并允许 Dependabot 提出补丁更新；版本变更须通过文档站与框架示例检查，不能用 SDK 构建成功代替。
 - **Yarn 4**：项目通过 `package.json` 的 `packageManager` 字段固定 Yarn 版本，推荐用 [Corepack](https://nodejs.org/api/corepack.html) 自动对齐，无需全局手动安装：
 
   ```bash
