@@ -35,6 +35,18 @@ updates:
           - minor
           - patch
     ignore:
+      # These fixed versions share reviewed helpers and a versioned Yarn patch.
+      # Maintain the pair together; version-update filters preserve security updates.
+      - dependency-name: core-js
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: core-js-pure
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
       # These major versions require Node 22, while the project still supports Node 20.
       - dependency-name: '@babel/*'
         update-types:
