@@ -112,7 +112,7 @@
     "@typescript-eslint/parser": "^8.70.0",
     "@vitest/coverage-v8": "^4.1.11",
     "commit-and-tag-version": "^12.7.3",
-    "core-js": "3.50.0",
+    "core-js": "3.51.0",
     "core-js-pure": "patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch",
     "entities": "8.1.0",
     "eslint": "^10.10.0",
