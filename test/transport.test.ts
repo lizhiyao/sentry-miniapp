@@ -441,61 +441,90 @@ describe('Transport', () => {
       }
     });
 
-    it('429 + X-Sentry-Rate-Limits 后，后续同类 envelope 被丢弃（不再发起底层请求）', async () => {
-      // setup.ts 已冻结 Date.now（恒定值），限流窗口在两次发送间不会过期。
-      const mockRequest = vi.fn().mockImplementation((options) => {
-        (options as any).success({
-          statusCode: 429,
-          data: 'Rate limited',
-          header: { 'X-Sentry-Rate-Limits': '60::organization' },
+    it.each(['', 'trace_metric'])(
+      '429 + X-Sentry-Rate-Limits 类别 %s 只丢弃匹配的 envelope，保留批次数量',
+      async (category) => {
+        // setup.ts 已冻结 Date.now（恒定值），限流窗口在两次发送间不会过期。
+        const mockRequest = vi.fn().mockImplementation((options) => {
+          (options as any).success({
+            statusCode: 429,
+            data: 'Rate limited',
+            header: { 'X-Sentry-Rate-Limits': `60:${category}:organization` },
+          });
         });
-      });
-      (global as any).wx = { request: mockRequest };
-      resetPlatformCache();
+        (global as any).wx = { request: mockRequest };
+        resetPlatformCache();
 
-      const dropped: Array<{ reason: string; category: string; quantity: number }> = [];
-      const transport = createMiniappTransport({
-        url: 'https://sentry.io/api/123/envelope/',
-        recordDroppedEvent: (reason, category, quantity = 1) =>
-          dropped.push({ reason, category, quantity }),
-      });
+        const dropped: Array<{ reason: string; category: string; quantity: number }> = [];
+        const transport = createMiniappTransport({
+          url: 'https://sentry.io/api/123/envelope/',
+          recordDroppedEvent: (reason, category, quantity = 1) =>
+            dropped.push({ reason, category, quantity }),
+        });
 
-      const makeEnvelope = (id: string): Envelope => [
-        { event_id: id, sent_at: '2022-01-01T00:00:00.000Z' },
-        [[{ type: 'event' }, { message: 'rl', event_id: id }]],
-      ];
-      const logEnvelope: Envelope = [
-        {},
-        [
+        const makeEnvelope = (id: string): Envelope => [
+          { event_id: id, sent_at: '2022-01-01T00:00:00.000Z' },
+          [[{ type: 'event' }, { message: 'rl', event_id: id }]],
+        ];
+        const logEnvelope: Envelope = [
+          {},
           [
-            { type: 'log', item_count: 3, content_type: 'application/vnd.sentry.items.log+json' },
-            {
-              items: [0, 1, 2].map((index) => ({
-                timestamp: 1640995200,
-                level: 'info',
-                body: `batch log ${index}`,
-                severity_number: 9,
-                attributes: {},
-              })),
-            },
+            [
+              { type: 'log', item_count: 3, content_type: 'application/vnd.sentry.items.log+json' },
+              {
+                items: [0, 1, 2].map((index) => ({
+                  timestamp: 1640995200,
+                  level: 'info',
+                  body: `batch log ${index}`,
+                  severity_number: 9,
+                  attributes: {},
+                })),
+              },
+            ],
           ],
-        ],
-      ];
+        ];
 
-      // 第一次：发起请求，拿到 429 + 限流头 → core 记录限流
-      const r1 = await transport.send(makeEnvelope('a') as any);
-      expect(r1.statusCode).toBe(429);
-      expect(mockRequest).toHaveBeenCalledTimes(1);
+        // 第一次：发起请求，拿到 429 + 限流头 → core 记录限流
+        const r1 = await transport.send(makeEnvelope('a') as any);
+        expect(r1.statusCode).toBe(429);
+        expect(mockRequest).toHaveBeenCalledTimes(1);
 
-      // 限流时按批次真实条目数记录，普通错误条目按 1 计数。
-      await transport.send(makeEnvelope('b') as any);
-      await transport.send(logEnvelope);
-      expect(mockRequest).toHaveBeenCalledTimes(1); // 关键：没有第二次真实请求
-      expect(dropped).toEqual([
-        { reason: 'ratelimit_backoff', category: 'error', quantity: 1 },
-        { reason: 'ratelimit_backoff', category: 'log_item', quantity: 3 },
-      ]);
-    });
+        // 限流时按批次真实条目数记录，普通错误条目按 1 计数。
+        await transport.send(makeEnvelope('b') as any);
+        await transport.send(logEnvelope);
+        await transport.send([
+          {},
+          [
+            [
+              {
+                type: 'trace_metric',
+                item_count: 2,
+                content_type: 'application/vnd.sentry.items.trace-metric+json',
+              },
+              {
+                items: [0, 1].map((index) => ({
+                  timestamp: 1640995200,
+                  trace_id: 'a'.repeat(32),
+                  name: `batch.metric.${index}`,
+                  type: 'counter' as const,
+                  value: 1,
+                })),
+              },
+            ],
+          ],
+        ]);
+        expect(mockRequest).toHaveBeenCalledTimes(category ? 3 : 1);
+        expect(dropped).toEqual([
+          ...(category
+            ? []
+            : [
+                { reason: 'ratelimit_backoff', category: 'error', quantity: 1 },
+                { reason: 'ratelimit_backoff', category: 'log_item', quantity: 3 },
+              ]),
+          { reason: 'ratelimit_backoff', category: 'trace_metric', quantity: 2 },
+        ]);
+      },
+    );
 
     it('should handle non-200 status codes', async () => {
       const mockRequest = vi.fn().mockImplementation((options) => {

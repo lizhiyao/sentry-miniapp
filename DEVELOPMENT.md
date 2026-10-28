@@ -60,7 +60,7 @@ Vite 的 ES2015 target 负责语法降级，其中 async 的降级会生成 gene
 
 ### 构建体积与共享依赖
 
-标准构建和小程序构建都会执行 JS 体积预算检查：主 SDK 的 ESM 上限 260 KiB，CommonJS／UMD／小程序独立 bundle 上限 256 KiB；可选录制器单独限制在 26.5 KiB。预算包含内联依赖和许可证注释，不包含 Source Map 或类型声明，实际门槛以[检查脚本](scripts/internal/check-bundle-size.mjs)为准。超限时先核对依赖重复、可选能力与构建输出；有必要的新增能力再在同一 PR 说明成本并调整预算。测量基线见[包体积审查](docs/bundle-size-review.md)，Core 11.8 的增量与取舍见[升级复核](docs/core-11.8-review.md)。
+标准构建和小程序构建都会执行 JS 体积预算检查：主 SDK 的 ESM 上限 260 KiB，CommonJS／UMD／小程序独立 bundle 上限 256.5 KiB；可选录制器单独限制在 26.5 KiB。预算包含内联依赖和许可证注释，不包含 Source Map 或类型声明，实际门槛以[检查脚本](scripts/internal/check-bundle-size.mjs)为准。超限时先核对依赖重复、可选能力与构建输出；有必要的新增能力再在同一 PR 说明成本并调整预算。测量基线见[包体积审查](docs/bundle-size-review.md)，Core 11.9 的增量与取舍见[升级复核](docs/core-11.9-review.md)。
 
 两种 core-js 模式共享基础模块的构建插件锁定在已审查版本。升级依赖时同时审查源码、间接依赖和可变模块状态，复核实际包在缺失／原生／只读宿主能力下的行为，再更新插件版本守卫；不能仅更新版本字符串通过检查。
 

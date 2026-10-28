@@ -8,6 +8,7 @@ import {
   metrics,
   type Envelope,
   type ErrorEvent,
+  type Metric,
 } from '@sentry/core';
 import { init } from '../src/sdk';
 import { MiniappClient } from '../src/client';
@@ -81,6 +82,36 @@ describe('client reports 的真实 core flush 与隐私契约', () => {
     await drain(client);
     expect(client.getOptions().sendClientReports).toBe(false);
     expect(envelopes).toEqual([]);
+  });
+
+  it('Metrics 回调过滤和异常按 trace_metric 计数，保留正常指标的发送', async () => {
+    for (const mode of ['filter', 'throw'] as const) {
+      envelopes.length = 0;
+      const client = start({
+        beforeSendMetric(metric: Metric) {
+          if (metric.name === 'kept.metric') return metric;
+          if (mode === 'throw') throw new Error('metric callback failure');
+          return null;
+        },
+      });
+      metrics.count('dropped.metric', 1);
+      metrics.gauge('dropped.metric', 2);
+      metrics.count('kept.metric', 3);
+      await drain(client);
+      expect(reports()[0]!.discarded_events).toEqual([
+        {
+          reason: mode === 'filter' ? 'before_send' : 'callback_error',
+          category: 'trace_metric',
+          quantity: 2,
+        },
+      ]);
+      const containers = collectEnvelopePayloads<{ items: Array<{ name: string; value: number }> }>(
+        envelopes,
+        ['trace_metric'],
+      );
+      expect(containers).toHaveLength(1);
+      expect(containers[0]!.items).toMatchObject([{ name: 'kept.metric', value: 3 }]);
+    }
   });
 
   it('未同意不清 outcomes，grant 后一次发出，撤回后的新 outcomes 留到再次同意', async () => {

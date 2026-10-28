@@ -11,9 +11,9 @@ const budgets = {
   'sentry-miniapp-replay.cjs.js': 26.5 * 1024,
   'sentry-miniapp-replay.js': 26.5 * 1024,
   'sentry-miniapp.mjs': 260 * 1024,
-  'sentry-miniapp.cjs.js': 256 * 1024,
-  'sentry-miniapp.umd.js': 256 * 1024,
-  'sentry-miniapp.js': 256 * 1024,
+  'sentry-miniapp.cjs.js': 256.5 * 1024,
+  'sentry-miniapp.umd.js': 256.5 * 1024,
+  'sentry-miniapp.js': 256.5 * 1024,
 };
 const files = process.argv.slice(2);
 if (files.length === 0) throw new Error('Usage: check-bundle-size.mjs <bundle.js> [...]');
