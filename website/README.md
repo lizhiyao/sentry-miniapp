@@ -54,6 +54,8 @@ yarn run docs:preview    # 预览构建产物
 
 正式站点地址为 `https://sentry-miniapp.pages.dev/`。VitePress 在构建时生成 `sitemap.xml`，各页面的 canonical 指向正式站点，`public/robots.txt` 提供 sitemap 地址。更换域名时，同时更新 `.vitepress/config.mts` 的 `SITE_URL` 与 `public/robots.txt`；PR 预览继续指向正式站点，避免产生另一组规范网址。
 
+页面的「最后更新」和 sitemap 的 `lastmod` 都取自对应 Markdown 文件的最近 Git 提交，不能用部署时间代替。`yarn docs:build` 会先检查仓库是否为浅克隆，仅在需要时补齐历史；补齐失败会停止构建，避免发布不准确的时间。GitHub 文档检查直接检出完整历史，Cloudflare Pages 沿用同一构建命令，无需修改后台配置。源码压缩包不含 Git 历史时，VitePress 不生成这些时间。实现依据见 [VitePress 更新时间说明](https://vitepress.dev/reference/default-theme-last-updated)。
+
 页面标题和独立描述由 Markdown frontmatter 的 `title` / `description` 维护。标题说明用户要解决的问题，开头直接回答接入或排障要点，正文链接到下一步需要的指南；内容必须与实际支持范围一致。
 
 站点所有权通过 `.vitepress/config.mts` 的 `head` 中的 `google-site-verification` meta 标签验证。该标签来自 Google Search Console，需要原样保留并持续部署；删除或替换会影响所有者的验证状态。Cloudflare Pages 会将 `.html` 地址重定向到无扩展路径，Google 的文件验证不跟踪重定向，因此本站使用首页 HTML 标签验证。更换验证账号时，先为新账号完成独立验证，再处理旧账号的验证标签。
