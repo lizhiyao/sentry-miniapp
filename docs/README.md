@@ -33,6 +33,7 @@
 | --- | --- |
 | [快手小游戏适配复核](kuaishou-minigame-review.md) | ks／kwaigame、宿主识别、启动来源、原生生命周期、降级与实际包契约 |
 | [回放框架自动接入复核](replay-framework-adapters-review.md) | Taro / uni-app 真实编译、增量文字、组件归属、隐私与本地播放 |
+| [Core 11.9 升级复核](core-11.9-review.md) | Metrics 限流与丢弃分类、Core 接缝、包体积和框架构建 |
 | [Core 11.8 升级复核](core-11.8-review.md) | 事件与批次丢弃计数、stream span、链式错误、体积增量与兼容性 |
 | [Core 11.6 升级复核](core-11.6-review.md) | 上游差异、重新初始化适配、实际包时间与关闭绑定回归、体积变化 |
 | [2.0.0 发布后整体审查](postrelease-2.0.0-review.md) | 实际 npm 包、生命周期与隐私边界、宿主调用修复及接入文档复核 |
