@@ -49,8 +49,11 @@ export interface MinigameFrameRateOptions {
  */
 export interface MiniappOptions extends Omit<
   CoreOptions<MiniappTransportOptions>,
-  'traceLifecycle' | 'beforeSendTransaction' | 'ignoreTransactions'
+  'traceLifecycle' | 'beforeSendTransaction' | 'ignoreTransactions' | 'tunnel'
 > {
+  /** 小程序使用显式 tunnel URL；不支持浏览器的自动 managed tunnel 配置。 */
+  tunnel?: string;
+
   /** 只支持 Core 原生 span streaming。JS 传入 static 时显式报错。 */
   traceLifecycle?: 'stream';
 
