@@ -122,7 +122,7 @@ Session 的错误状态沿用 Core 的首次 errored／unhandled 语义，`error
 
 自动 Session 的创建也有同步操作归属：先占用一次创建身份，再委托 Core 合并用户数据并调用 `makeSession`，提交到 isolation scope 前复查活动 client 和该身份。提交会触发 scope 监听器，因此初次捕获前还需确认仍拥有该会话，避免再次发送监听器已收尾的终态。重复 show 不重入创建；hide、finalizer 和 cleanup 取消未提交的操作，hide 后的新 show 可以开始另一份有效会话。用户字段 getter 与 Core hook 均可能执行应用代码，故创建处使用现有同步遥测临界区拒绝 `init()` 重入；dispose 仍立即生效。读取失败通过 finally 释放创建身份，后续 show 可恢复，不复制 Core 的 Session 状态算法。
 
-Client 对同一个 Session 对象的同步捕获重入保留短暂操作上下文。`beforeSendSession` 返回后 Core 才序列化，回调内的结束状态直接合入当前发送；`beforeEnvelope`／transport 的同步回调发生在 payload 已生成之后，这时的重入先登记待捕获，等 Core 完成本次 `captureSession` 并更新 `init` 后，再委托 Core 捕获后续状态。这样同一会话的起始、终态保持顺序，终态不会因嵌套发送重复上报；另一份 Session 仍可独立捕获。该上下文不持有异步锁，在 finally 中释放，关闭或预算耗尽后不追加发送。Core 仍负责状态更新、序列化和 envelope，不读取私有 buffer，也不复制协议或 Session 算法。
+Client 对同一个 Session 对象的同步捕获重入保留短暂操作上下文。`beforeSendSession` 返回后 Core 才序列化，回调内的结束状态直接合入当前发送；`beforeEnvelope`／transport 的同步回调发生在 payload 已生成之后，这时的重入先登记待捕获，等 Core 完成本次 `captureSession` 并更新 `init` 后，再委托 Core 捕获后续状态。每次顶层调用最多追加一次捕获，追加期间的同对象重入不再排队；之后独立调用仍可捕获新状态。这样同一会话的起始、终态保持顺序，终态不会因嵌套发送重复上报；另一份 Session 仍可独立捕获。该上下文不持有异步锁，在 finally 中释放，关闭或预算耗尽后不追加发送。Core 仍负责状态更新、序列化和 envelope，不读取私有 buffer，也不复制协议或 Session 算法。
 
 ### 延迟操作与长期 producer
 
@@ -227,11 +227,11 @@ client 的 `open / closing / closed` 与宿主的前台／后台可见性是两�
 | `dispose()`             | 同步关闭采集／发送／存储门禁，停止重放，结算 SDK 等待并清理资源；不作业务 summary 收尾                        |
 | `init()` 替换旧 runtime | 旧 client 使用有限预算退休；新 client 独立取得自动采集和存储权限                                              |
 
-close 的 `0`／未指定预算保留无期限 drain；非法预算会诊断并保守回落。closing 阶段拒收 exception／message／event／feedback、breadcrumbs 和 logs／metrics 的新采集，同步 finalizer 除外。`captureSession` 仅在 closed 时拒收，closing 仍接受该公共路径，以保留在途 Core 事件的会话更新；它不能区分这类更新与新的手动调用。业务须先停止创建新的手动 Session 和 trace：Core 公共 tracing 在 drain 期间仍可能触发 hooks／batch，发送最终受预算与关闭门禁限制。
+runtime 替换从首次退休起最多等待 2000ms，到期执行 dispose；即使用户已启动无期限 close 也生效，重复退休不延长截止时间，提前完成或 dispose 会清理退休 timer。普通 close 的 `0`／未指定预算保留无期限 drain；非法预算会诊断并保守回落。closing 阶段拒收 exception／message／event／feedback、breadcrumbs 和 logs／metrics 的新采集，同步 finalizer 除外。`captureSession` 仅在 closed 时拒收，closing 仍接受该公共路径，以保留在途 Core 事件的会话更新；它不能区分这类更新与新的手动调用。业务须先停止创建新的手动 Session 和 trace：Core 公共 tracing 在 drain 期间仍可能触发 hooks／batch，发送最终受预算与关闭门禁限制。
 
 dispose 结算 SDK 与 Core-facing transport 的发送／flush 等待，不再调用已关闭 transport 的 flush；等待闭包只持有结算句柄和 lifetime，避免悬挂的用户任务通过 SDK 等待留住整个 client。自定义 transport 的内部任务仍不能被强制取消，关闭后的迟到结果不触发 `afterEnvelope`。Core hook 中 dispose 先关闭门禁，最外层 hook 返回后再完成清理，避免 hook 后续逻辑重新建立已退休资源。`flush()`／`close()` 返回 true 不证明 Sentry 后台已接收或完成符号化。
 
-同步采集临界区包含 `beforeSendLog`／`beforeSendMetric`，与 sampler、span 和 breadcrumb 回调一致；这些回调中的 `init()` 返回 undefined 并诊断，避免当前采集交付到一半时替换 runtime。用户回调的错误、过滤及序列化仍委托 Core。
+同步采集临界区包含 `beforeSend`／`beforeSendLog`／`beforeSendMetric`，与 sampler、span 和 breadcrumb 回调一致；这些回调中的 `init()` 返回 undefined 并诊断，避免当前采集交付到一半时替换 runtime。临界区只覆盖回调的同步执行，不跨返回 Promise 的异步阶段持锁。用户回调的错误、过滤及序列化仍委托 Core。
 
 Logs／Metrics 的属性转换发生在 `beforeSendLog`／`beforeSendMetric` 之后，getter 或 `toJSON` 也可能关闭 client。Core 在转换后才写入 buffer、触发 `afterCaptureLog`／`afterCaptureMetric` 并调度批处理。因此终态检查还覆盖这两个公开通知；晚到条目用公开 `flush` 排弃，期间只阻止 `log`／`trace_metric` envelope 交付，closing 的已有错误和 span 仍可排空。该门禁须位于离线入口之前，不复制 Core 序列化或直接访问其 buffer，也不重复发出 `close` 通知。同步 finalizer 的正常日志、指标保留。
 

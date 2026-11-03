@@ -405,6 +405,52 @@ describe('Session owner 与前台 episode', () => {
       }
     }
   });
+  it.each(['envelope', 'transport'] as const)(
+    '%s 持续同步重入同一 Session 时有界，并允许之后的独立捕获',
+    (phase) => {
+      const session = makeSession({ release: 'manual@2.0' });
+      let attempts = 0;
+      let armed = true;
+      const reenter = () => {
+        if (!armed) return;
+        // 原实现会继续循环；保险丝让回归失败而不挂住测试进程。
+        if (++attempts > 8) return;
+        session.status = 'exited';
+        owner.captureSession(session);
+      };
+      const factory = createCapturingTransport(envelopes);
+      const owner = init({
+        dsn: 'https://test@example.com/0',
+        defaultIntegrations: false,
+        transport: () => {
+          const transport = factory();
+          return {
+            ...transport,
+            send(envelope) {
+              const result = transport.send(envelope);
+              if (phase === 'transport') reenter();
+              return result;
+            },
+          };
+        },
+      })!;
+      clients.push(owner);
+      owner.on('beforeEnvelope', () => {
+        if (phase === 'envelope') reenter();
+      });
+      expect(() => owner.captureSession(session)).not.toThrow();
+      expect(attempts).toBe(2);
+      expect(sessions().map(({ status, init }) => ({ status, init }))).toEqual([
+        { status: 'ok', init: true },
+        { status: 'exited', init: false },
+      ]);
+      armed = false;
+      owner.captureSession(session);
+      expect(sessions()).toHaveLength(3);
+      expect(sessions()[2]?.init).toBe(false);
+    },
+  );
+
   it('同 client 重复 setup 幂等；退休同步释放 App；低层绑定也不安装 session', () => {
     const integration = new SessionIntegration();
     const original = (globalThis as any).App;

@@ -195,6 +195,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   declare private _clientReportOutcomes: Map<string, Outcome> | undefined;
   private readonly _pendingOperationStops: Set<() => void>;
   private _closePromise: Promise<boolean> | undefined;
+  private _retirementTimer: ReturnType<typeof setTimeout> | undefined;
   private _stopClose: (() => void) | undefined;
   private _hookDepth = 0;
   private _finishPending = false;
@@ -335,7 +336,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
       // 2.0 按 core 调用即采集；关闭前后都守住用户回调边界。
       sendClientReports: options.sendClientReports ?? true,
       beforeSend: (event, hint) => {
-        const result = beforeSend ? beforeSend(event, hint) : event;
+        const result = beforeSend ? withTelemetryCritical(() => beforeSend(event, hint)) : event;
         // 每次 callback 结果独立绑定，业务复用同一对象也不能串 Session；非法结果仍由 core 验证。
         const bind = (processed: typeof event | null): typeof event | null =>
           sessionCapture.bind(isPlainObject(processed) ? { ...processed } : processed, hint);
@@ -609,10 +610,12 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     const operation = { inBeforeSend: false, pendingCapture: false };
     this._sessionSendOperations.set(session, operation);
     try {
-      do {
+      super.captureSession(session);
+      // envelope 已生成后的重入最多合并为一次后续捕获，避免 hook 持续重入卡住主线程。
+      if (operation.pendingCapture && this._lifetime.canSend()) {
         operation.pendingCapture = false;
         super.captureSession(session);
-      } while (operation.pendingCapture && this._lifetime.canSend());
+      }
     } finally {
       this._sessionSendOperations.delete(session);
     }
@@ -717,6 +720,10 @@ export class MiniappClient extends Client<MiniappClientOptions> {
 
   public retireRuntime(): Promise<boolean> {
     this._lifetime.closingReason = 'client_replaced';
+    // 已开始的 close 继续共用原 Promise；退休期限独立施加，重复退休不延长预算。
+    if (this._lifetime.state !== 'closed' && this._retirementTimer === undefined) {
+      this._retirementTimer = setTimeout(() => this.dispose(), 2000);
+    }
     return this.close(2000);
   }
 
@@ -790,6 +797,10 @@ export class MiniappClient extends Client<MiniappClientOptions> {
   public override dispose(): void {
     if (this._lifetime.state === 'closed') return;
     this._lifetime.finish();
+    if (this._retirementTimer !== undefined) {
+      clearTimeout(this._retirementTimer);
+      this._retirementTimer = undefined;
+    }
     this._clientReportOutcomes?.clear();
     for (const stop of this._pendingOperationStops) stop();
     this._pendingOperationStops.clear();
