@@ -21,6 +21,13 @@ sentry-miniapp 是基于 `@sentry/core` 的跨端小程序 Sentry SDK，覆盖�
 - commit 格式必须使用 Conventional Commits，并用中文 subject，例如 `feat: 新增网络请求体抓取功能`。推荐 scope 使用稳定模块名，如 `sdk` / `cross-platform` / `integrations` / `transports` / `docs` / `agents-md` / `release`。
 - 遵循现有 ESLint 规范，优先使用 TypeScript。
 
+## Sentry Core 升级收尾
+
+- 处理 `@sentry/core` 升级 PR 时，同时查找本仓库跟踪该目标版本的 open Issue，包括更新检查 Action 自动创建的 Issue。
+- 关联 Issue 的收尾属于升级任务的一部分，无需再次询问。确认 PR 已合并至默认分支、该分支已使用目标版本且必需 CI 通过后，将对应 Issue 关闭为 completed。
+- 合并前优先在 PR 描述中加入 `Closes #<issue>`；PR 已合并时直接关闭对应 Issue。仅关闭而未合并的 PR、失败或未完成的升级，不视为 Issue 已解决；不关闭无关或目标版本尚未安装的 Issue。
+- 最终同时报告 PR 与关联 Issue 的状态，两者均核对完成后才能宣布升级任务完成。
+
 ## 用户视角的文档
 
 - README、官网和对外介绍中的核心能力与适用场景，必须先说明用户遇到的问题、适合的项目或场景，以及接入后能获得的结果。
