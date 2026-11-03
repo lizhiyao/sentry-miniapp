@@ -24,16 +24,16 @@
   },
   "overrides": {
     "vite": "$vite",
-    "@dcloudio/uni-nvue-styler@3.0.0-5020620260917001": {
+    "@dcloudio/uni-nvue-styler@3.0.0-5030420261028001": {
       "postcss": "8.5.29"
     },
-    "@dcloudio/uni-mp-weixin@3.0.0-5020620260917001": {
+    "@dcloudio/uni-mp-weixin@3.0.0-5030420261028001": {
       "ws": "8.22.0"
     },
-    "@dcloudio/uni-cli-shared@3.0.0-5020620260917001": {
+    "@dcloudio/uni-cli-shared@3.0.0-5030420261028001": {
       "source-map-js": "1.2.2"
     },
-    "@dcloudio/vite-plugin-uni@3.0.0-5020620260917001": {
+    "@dcloudio/vite-plugin-uni@3.0.0-5030420261028001": {
       "source-map-js": "1.2.2"
     }
   }
