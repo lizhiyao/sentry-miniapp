@@ -1587,34 +1587,27 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rrweb/replay@npm:2.1.7":
-  version: 2.1.7
-  resolution: "@rrweb/replay@npm:2.1.7"
+"@rrweb/replay@npm:2.2.0":
+  version: 2.2.0
+  resolution: "@rrweb/replay@npm:2.2.0"
   dependencies:
-    "@rrweb/types": "npm:^2.1.7"
-    rrweb: "npm:^2.1.7"
-  checksum: 10c0/3ae76a431f9f4a77fb4d1a72479cf996aae02404ad25876e0fc2e02ab05a2c7970bfa2dc028ac31512778c9088f6325e0e87bffa4acae7a97d6e0ff9f062fbd3
+    "@rrweb/types": "npm:^2.2.0"
+    rrweb: "npm:^2.2.0"
+  checksum: 10c0/b796bb47ae678c158fd3bd4a4e523e07e5484787d2ddb8642c949ca8f29d7bac23b429078bada8da1c5f32f11ae9b92a12f697b81e1e2eb9885bee85384a44ff
   languageName: node
   linkType: hard
 
-"@rrweb/types@npm:2.2.0":
+"@rrweb/types@npm:2.2.0, @rrweb/types@npm:^2.2.0":
   version: 2.2.0
   resolution: "@rrweb/types@npm:2.2.0"
   checksum: 10c0/ff1f59601ca8f854218190d683bbbc527166bba0f15be6d9cffd924dedb2505083f175e3b64b5193b677baddad1a446f817dac9e7a98727d977fb69f53492edd
   languageName: node
   linkType: hard
 
-"@rrweb/types@npm:^2.1.7":
-  version: 2.1.7
-  resolution: "@rrweb/types@npm:2.1.7"
-  checksum: 10c0/668918f393191a92aaa0a3b1d63831ea0a57602c97a7aaee4dd00e289c191421cabbd579af35ed6e9204576b58092a5cebd05a1d9a53d66c78a42ae3ef1fafa6
-  languageName: node
-  linkType: hard
-
-"@rrweb/utils@npm:^2.1.7":
-  version: 2.1.7
-  resolution: "@rrweb/utils@npm:2.1.7"
-  checksum: 10c0/9c7c09edc207d1e4b888c176c3a1a4b757f39b7125b25634f7823ec819c18ba3d4ed9565b7dda449a8f9145d052fa644c1b6b62fdb32a5fa4f36ccdd237db801
+"@rrweb/utils@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "@rrweb/utils@npm:2.2.0"
+  checksum: 10c0/e54cd099c160a965965a83aee0fffb864c3a2f22b68e3af7b93212d59c82376b35a1ab4135eaf372e4093cd4ecb70da99b4472036893143369de85f38528cba7
   languageName: node
   linkType: hard
 
@@ -6027,37 +6020,37 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rrdom@npm:^2.1.7":
-  version: 2.1.7
-  resolution: "rrdom@npm:2.1.7"
+"rrdom@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "rrdom@npm:2.2.0"
   dependencies:
-    rrweb-snapshot: "npm:^2.1.7"
-  checksum: 10c0/a605c25f2ebcf6429a04a9651d960cc730b6e3ace8b931d29ea347d34e66345b9e3eafa6bdcb673ed97492fa938f6dd5e38996fcba79bea386337338f49e3dd1
+    rrweb-snapshot: "npm:^2.2.0"
+  checksum: 10c0/8b8ba98f06c2c82d16a25da31cc15a51c7111f64e8eb27a664ae85f3f46581549321a3ffc0d4cfb66c381414869b30db23963a2e6d228ed107c53e64791be240
   languageName: node
   linkType: hard
 
-"rrweb-snapshot@npm:^2.1.7":
-  version: 2.1.7
-  resolution: "rrweb-snapshot@npm:2.1.7"
+"rrweb-snapshot@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "rrweb-snapshot@npm:2.2.0"
   dependencies:
     postcss: "npm:^8.4.38"
-  checksum: 10c0/67dc6e4e8440837f50097214b7aecf1b5acc7558570e1efbc9c6af9d93d980947222db98284d81ab53c7ea4930f7ee4079a059db1651cbc1b8fe89d4eccad895
+  checksum: 10c0/ee8b8d8184a53ac6b17e56c89536817665bdc9a10e950bec905b9a4143e81880f1fc65ee03e72b025923afe5fcac587a9c202243907f8526bd9b4d39d673f558
   languageName: node
   linkType: hard
 
-"rrweb@npm:^2.1.7":
-  version: 2.1.7
-  resolution: "rrweb@npm:2.1.7"
+"rrweb@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "rrweb@npm:2.2.0"
   dependencies:
-    "@rrweb/types": "npm:^2.1.7"
-    "@rrweb/utils": "npm:^2.1.7"
+    "@rrweb/types": "npm:^2.2.0"
+    "@rrweb/utils": "npm:^2.2.0"
     "@types/css-font-loading-module": "npm:0.0.7"
     "@xstate/fsm": "npm:^1.4.0"
     base64-arraybuffer: "npm:^1.0.1"
     mitt: "npm:^3.0.0"
-    rrdom: "npm:^2.1.7"
-    rrweb-snapshot: "npm:^2.1.7"
-  checksum: 10c0/e613964bccf813eed771c572b414f881662c41ddba0b5abd66e845bfae95189989149c1b1ef83b49d395e49a937c4f5cc5a034fe7eda07e2c459fd0cdb630f2e
+    rrdom: "npm:^2.2.0"
+    rrweb-snapshot: "npm:^2.2.0"
+  checksum: 10c0/d6517d5085390b3eb2a4557fc4353e8417ef438f35a71a5f4065f5f1a8f418bcd090d342586e6f55aa606f86c9f51ad0ee3d648018dabcc445f3622d90e6d10b
   languageName: node
   linkType: hard
 
@@ -6141,7 +6134,7 @@ __metadata:
     "@eslint/js": "npm:^10.0.1"
     "@jridgewell/trace-mapping": "npm:0.3.31"
     "@publint/pack": "npm:^0.1.7"
-    "@rrweb/replay": "npm:2.1.7"
+    "@rrweb/replay": "npm:2.2.0"
     "@rrweb/types": "npm:2.2.0"
     "@sentry/core": "npm:11.9.0"
     "@types/jsdom": "npm:^27"
