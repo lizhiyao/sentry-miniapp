@@ -159,32 +159,36 @@ describe('span 运行环境维度（真 @sentry/core 集成）', () => {
     delete g.getCurrentPages;
   });
 
-  it('自动 HTTP 创建时的 route/network 进入 sampler，跨页面完成仍保留开始值', async () => {
-    const pages = [{ route: 'pages/a' }];
-    g.getCurrentPages = vi.fn(() => pages);
-    let pending: any;
-    g.wx.request = vi.fn((options) => {
-      pending = options;
-      return { abort: vi.fn() };
-    });
-    const sampler = vi.fn(() => 1);
-    initWith({ tracesSampler: sampler });
-    g.wx.request({ url: 'https://api.example.com/started-on-a' });
-    expect(sampler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attributes: expect.objectContaining({ route: 'pages/a', 'network.type': 'wifi' }),
-      }),
-    );
-    pages.push({ route: 'pages/b' });
-    pending.success?.({ statusCode: 200, data: {}, header: {} });
-    pending.complete?.({ statusCode: 200 });
-    await flush(2000);
-    const [span] = collectSpans(captured);
-    assertDefined(span);
-    expect(spanAttribute(span, 'route')).toBe('pages/a');
-    expect(spanAttribute(span, 'network.type')).toBe('wifi');
-    delete g.getCurrentPages;
-  });
+  it.each(['route', '__route__'])(
+    '自动 HTTP 从 %s 读取的页面在采样前去除 query/fragment，跨页面完成保留开始值',
+    async (field) => {
+      const pages = [{ [field]: 'pages/a?token=route-canary#fragment-canary' }];
+      g.getCurrentPages = vi.fn(() => pages);
+      let pending: any;
+      g.wx.request = vi.fn((options) => {
+        pending = options;
+        return { abort: vi.fn() };
+      });
+      const sampler = vi.fn(() => 1);
+      initWith({ tracesSampler: sampler });
+      g.wx.request({ url: 'https://api.example.com/started-on-a' });
+      expect(sampler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attributes: expect.objectContaining({ route: 'pages/a', 'network.type': 'wifi' }),
+        }),
+      );
+      pages.push({ [field]: 'pages/b?token=other-canary' });
+      pending.success?.({ statusCode: 200, data: {}, header: {} });
+      pending.complete?.({ statusCode: 200 });
+      await flush(2000);
+      const [span] = collectSpans(captured);
+      assertDefined(span);
+      expect(spanAttribute(span, 'route')).toBe('pages/a');
+      expect(spanAttribute(span, 'network.type')).toBe('wifi');
+      expect(JSON.stringify(captured)).not.toContain('canary');
+      delete g.getCurrentPages;
+    },
+  );
 
   it('最终 streamed span 保留 scope 单位，显式 span 值优先且不补动态维度', async () => {
     initWith();

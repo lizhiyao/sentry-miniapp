@@ -65,11 +65,13 @@ tracesSampler: ({ attributes, inheritOrSampleWith }) => {
 | 配置 | 行为 |
 | --- | --- |
 | `dataCollection.userInfo` | 默认 `true`；设为 `false` 关闭错误事件的后台 IP 自动补充，仍保留显式 `setUser()` 数据 |
-| `dataCollection.urlQueryParams` | 默认 `true`；控制 HTTP URL query、页面 `onLoad` 入参、页面不存在报告和小游戏启动 query；`false` 时整块省略 |
+| `dataCollection.urlQueryParams` | 默认 `true`；控制 HTTP URL query、导航目标 query、页面 `onLoad` 入参、页面不存在报告和小游戏启动 query；`false` 时整块省略 |
 | `dataCollection.httpBodies` | 默认允许宿主支持的方向；用数组选择 `outgoingRequest`／`outgoingResponse`，`[]` 禁止正文；还须开启 `traceNetworkBody` 才采集 |
 | `dataCollection.httpHeaders`／`cookies` | SDK 不自动采集请求头、响应头或 cookie，因此没有作用对象 |
 
 URL query 与正文使用独立策略。HTTP、导航与资源的名称去掉 query、fragment 和明文账号密码；HTTP `url.full` 可保留经过过滤的 query。User Timing 的名称由业务提供，不按 URL 处理。
+
+页面生命周期与交互面包屑中的页面标识、启动上下文的首个页面，以及自动 HTTP span 的 `route` 只保留不含 query／fragment 的路径，不受 query 采集开关影响。例如 `pages/detail?id=42#section` 记录为 `pages/detail`；页面 `onLoad` 入参和导航目标中的 query 仍按 `dataCollection.urlQueryParams` 过滤。业务显式传入的 span 属性仍由业务负责过滤。
 
 键值过滤保留键名，把命中的值替换为 `[Filtered]`。匹配采用大小写不敏感的片段匹配：Core 的 `auth`／`token`／`secret`／`key`／`session`／`cookie` 等名单，加上 SDK 的支付和证件片段。`accessToken` 或 `xApiKey` 也会被命中；`sensitiveKeys` 只追加业务片段，不替换默认名单。
 

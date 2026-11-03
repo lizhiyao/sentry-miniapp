@@ -64,7 +64,7 @@ function recordPageLifecycle(
 ): void {
   if (!subscriber.options.enableLifecycle) return;
 
-  const route = page?.route || page?.__route__ || 'unknown';
+  const route = collectUrlName(page?.route || page?.__route__ || '') || 'unknown';
   if (getActivePageEntry()?.subscriber !== subscriber) return;
   if ((method === 'onLoad' || method === 'onShow') && route !== 'unknown')
     getClientEnvironment(client).route = route;
@@ -103,7 +103,7 @@ function recordUserInteraction(
 ): void {
   if (!subscriber.options.enableUserInteraction) return;
 
-  const route = page?.route || page?.__route__ || 'unknown';
+  const route = collectUrlName(page?.route || page?.__route__ || '') || 'unknown';
   const handler = key.slice(0, 128);
   const breadcrumbData: Record<string, any> = { handler, page: route };
   if (event && typeof event === 'object') {
