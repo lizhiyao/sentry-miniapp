@@ -10,7 +10,6 @@ const budgets = {
   'sentry-miniapp-replay.mjs': 26.5 * 1024,
   'sentry-miniapp-replay.cjs.js': 26.5 * 1024,
   'sentry-miniapp-replay.js': 26.5 * 1024,
-  // Core 11.10 增加 managed tunnel 支持；按 0.5 KiB 档位调整实测主包预算。
   'sentry-miniapp.mjs': 260.5 * 1024,
   'sentry-miniapp.cjs.js': 257 * 1024,
   'sentry-miniapp.umd.js': 257 * 1024,
