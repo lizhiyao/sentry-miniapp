@@ -329,6 +329,66 @@ describe('真实 core client 关闭与发送边界', () => {
     expect(await closing).toBe(true);
   });
 
+  it.each(['processor', 'transport'] as const)(
+    '已有无期限 close 时替换 runtime 仍在 2000ms 内释放资源（%s）',
+    async (pending) => {
+      const first = init({
+        dsn: 'https://test@example.com/0',
+        defaultIntegrations: false,
+        transport: () => ({
+          send: () => Promise.resolve({}),
+          flush: () =>
+            pending === 'transport' ? new Promise<boolean>(() => {}) : Promise.resolve(true),
+        }),
+      })!;
+      clients.push(first);
+      if (pending === 'processor') {
+        first.addEventProcessor(() => new Promise(() => {}));
+        first.captureMessage('never completes');
+      }
+      const cleanup = vi.fn();
+      first.registerCleanup(cleanup);
+      const closing = first.close();
+      const second = init({
+        dsn: 'https://test@example.com/1',
+        defaultIntegrations: false,
+        transport: createCapturingTransport(envelopes),
+      })!;
+      clients.push(second);
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(cleanup).not.toHaveBeenCalled();
+      // 重复退休不能延长截止时间，也不能创建第二次 close operation。
+      expect(first.retireRuntime()).toBe(closing);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(getClientLifetime(first)?.state).toBe('closed');
+      expect(await closing).toBe(false);
+      expect(cleanup).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+      expect(getClient()).toBe(second);
+      second.captureMessage('new runtime remains usable');
+      const flushed = second.flush();
+      await vi.advanceTimersByTimeAsync(5);
+      await flushed;
+      expect(collectEnvelopePayloads<ErrorEvent>(envelopes, ['event'])[0]?.message).toBe(
+        'new runtime remains usable',
+      );
+    },
+  );
+
+  it.each([50, 5000])('已有 close(%s) 与退休按更早期限结束', async (timeout) => {
+    const client = make();
+    client.addEventProcessor(() => new Promise(() => {}));
+    client.captureMessage('pending');
+    const cleanup = vi.fn();
+    client.registerCleanup(cleanup);
+    const closing = client.close(timeout);
+    expect(client.retireRuntime()).toBe(closing);
+    await vi.advanceTimersByTimeAsync(Math.min(timeout, 2000));
+    expect(await closing).toBe(false);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('正预算耗尽会关闭，即使 processor 永远未完成', async () => {
     const client = make();
     client.addEventProcessor(() => new Promise(() => {}));
@@ -649,7 +709,7 @@ describe('真实 core client 关闭与发送边界', () => {
     first.dispose();
   });
 
-  it('同步 sampler/span/DSC/breadcrumb/log/metric 内 init 拒绝重入且保留原绑定', async () => {
+  it('同步 sampler/span/DSC/breadcrumb/log/metric/beforeSend 内 init 拒绝重入且保留原绑定', async () => {
     const attempts: Array<MiniappClient | undefined> = [];
     const attempt = () => {
       const client = init({ dsn: 'https://test@example.com/1', defaultIntegrations: false });
@@ -673,6 +733,10 @@ describe('真实 core client 关闭与发送边界', () => {
       beforeBreadcrumb: (breadcrumb) => {
         attempt();
         return breadcrumb;
+      },
+      beforeSend: (event) => {
+        attempt();
+        return event;
       },
       beforeSendLog: (log) => {
         attempt();

@@ -365,7 +365,7 @@ Sentry.init({
 
 ## client 关闭与切换 {#_2-0-的-client-关闭与切换契约}
 
-通常在应用入口初始化一次。需要关闭或替换配置时，先停止创建新的业务 trace，再在独立控制流中执行。不要在 `withScope()`、尚未结束的异步 `startSpan()` 或同步采集回调中重新 `init()`；这些初始化返回 `undefined`，并提示 `init_scope_unsupported` 或 `reentrant_init_unsupported`。
+通常在应用入口初始化一次。需要关闭或替换配置时，先停止创建新的业务 trace，再在独立控制流中执行。不要在 `withScope()`、尚未结束的异步 `startSpan()` 或同步采集回调（包括 `beforeSend` 的同步执行阶段）中重新 `init()`；这些初始化返回 `undefined`，并提示 `init_scope_unsupported` 或 `reentrant_init_unsupported`。
 
 | 操作 | 使用方式与结果 |
 | --- | --- |
@@ -374,7 +374,7 @@ Sentry.init({
 | `client.dispose()` | 立即废弃 client，停止发送并解除资源，不生成最后汇总 |
 | 再次 `init()` | 退休旧 client，再绑定新实例；旧 SDK 操作的迟到回调不会转交新实例 |
 
-`close()` 的正有限 timeout 是整个收尾的毫秒预算；0 或省略表示等待排空，非法值回落 2000ms。替换旧 client 的内部收尾预算为 2000ms。关闭不会取消业务请求或定时器，也不会清空已有面包屑；需要清空时使用 `getIsolationScope().clearBreadcrumbs()`。
+`close()` 的正有限 timeout 是整个收尾的毫秒预算；0 或省略表示等待排空，非法值回落 2000ms。替换旧 client 时，从首次退休起最多等待 2000ms；即使旧实例已经开始无期限 `close()`，到期也会释放 SDK 资源，未完成的关闭返回 `false`。已有的更短关闭预算仍然生效。关闭不会取消业务请求或定时器，也不会清空已有面包屑；需要清空时使用 `getIsolationScope().clearBreadcrumbs()`。
 
 顶层 `Sentry.close()` 完成后会解除它所关闭的当前绑定，`Sentry.getClient()` 返回 `undefined`；若等待关闭期间已经初始化了新 client，新绑定会保留。直接调用实例的 `client.close()` 或 `client.dispose()` 只关闭该实例，不修改当前 Scope 的绑定；不要仅凭 `getClient()` 非空判断实例仍可采集。
 
