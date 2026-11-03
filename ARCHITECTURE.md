@@ -302,6 +302,10 @@ Core 11.6 没有公开的 offline timer 取消接口。永久 shutdown 先关闭
 
 Core 默认 transport 将发送 Promise 拒绝记为 `network_error` client report；撤回同意导致在途／排队请求取消时也沿用这一语义。符合缓存策略的原 envelope 可同时入库，重新同意后仍可能送达。因此该计数不能解释成最终永久丢失条数，也不能仅凭它判断 consent 失效。SDK 不拦截或重写 Core outcome 管道；回归检查取消后的缓存、重放事件和最终 client report 三者，而不是消除这个计数。
 
+隐私身份采用 `miniapp-privacy-v3`：白名单记录 Core 已解析的 userInfo、有效 infer_ip、query CollectBehavior，以及 SDK 的有效 outgoing 正文方向、正文上限、敏感片段、requireConsent 和业务 `cachePrivacyVersion`。片段小写／排序／去重，空 deny 与 true 等价；关闭正文时忽略未生效的正文上限。容量／TTL 不进入身份，任何非等价策略（包括放宽）均让旧根以 policy_changed 整批失效，不重新处理或挂接旧 envelope；旧 v2 身份首次读取也失效。外部 hooks、自定义集成（含正文排除正则）、Replay 隐私规则由业务修订号覆盖，不序列化函数或尝试证明正则等价。
+
+初始化先复制相关配置和数组供默认集成使用，Client 再保存自身快照；Core 构造 transport 时只装配 store 代理，super 完成并得到 Core 的已解析采集策略与 SDK IP 设置后，同步创建真实 store，再开放 init runtime。这样默认值仍由 Core 维护，不复制解析算法；不支持原地修改选项作为动态配置 API。现有 store 先校验身份并提交删除再交付重放；不兼容根删除失败则不交付、记录 storage_error 并退到受限内存，不报告未提交的丢弃，也不声称磁盘已擦除。恢复旧策略时残留可能再次匹配。回归见 [cache-privacy](test/cache-privacy.realcore.test.ts)。
+
 typed records 保存目标／策略身份、最初 `createdAt` 和编码后的 envelope；重试保持记录身份与最初时间，按当前配置的 TTL 裁剪，不续期。Storage 不可用时可降级内存，不能承诺跨进程保留；读取重放记录必须先提交删除，再交付 transport。提交删除后中断仍可能丢失，重试也可能重复，故整体为 best-effort，不保证 durable ACK 或恰好一次。client reports 与明确不支持的 binary 请求不进入离线缓存。
 
 store.shift 的 Promise 交付后再检查 owner，并用 WeakSet 标识重放 envelope，在 Core shouldSend 的实际发送边界再次确认存储权：退休记录不能在 closing 的正常发送窗口内启动旧重放，也不能回填新 client 的存储。这个身份不写入线上 payload，不阻止 closing 的新鲜 drain。仅同意状态改变而 owner 仍活动时，保留 envelope 交给 Core shouldSend／unshift，沿用原身份与过期时间。

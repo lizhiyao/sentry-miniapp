@@ -51,6 +51,7 @@ tracesSampler: ({ attributes, inheritOrSampleWith }) => {
 | `traceNetworkBody` | `boolean` | `false` | 网络面包屑中记录请求 / 响应体；体先按敏感键脱敏再按 `maxRequestBodySize` 截断，且仍受 `dataCollection.httpBodies` 约束 |
 | `maxRequestBodySize` | `'small' \| 'medium' \| number` | `1 MB` | 单个请求／响应体的字节上限；`small` = 1 KB、`medium` = 10 KB。超出部分截断，体积字段仍表示过滤、截断前的可观察大小 |
 | `dataCollection` | `object` | 见下 | SDK 自动采集策略：用户 IP 自动补充、URL query 与请求／响应体方向 |
+| `cachePrivacyVersion` | `string` | `''` | 业务隐私修订号；自定义 hook／集成／回放隐私规则变化时更新，使 SDK 旧缓存整批失效，见[历史缓存失效契约](/guide/reliability-and-privacy#配置变化后-哪些历史缓存会失效) |
 | `sensitiveKeys` | `string[]` | `[]` | 在默认敏感键名单上追加要过滤的键名片段 |
 | `maxBreadcrumbs` | `number` | `100` | 面包屑最大条数 |
 

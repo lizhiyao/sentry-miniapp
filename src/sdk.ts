@@ -12,6 +12,7 @@ import {
   uuid4,
 } from '@sentry/core';
 import type { Client, Integration } from '@sentry/core';
+import { snapshotPrivacyOptions } from './cachePrivacy';
 import { miniappStackParser } from './stacktrace';
 import { resolveScopeSession, setOwnedScopeSession } from './sessionCapture';
 import { miniappLifecycleIntegration } from './integrations/lifecycle';
@@ -180,6 +181,8 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
     return undefined;
   }
 
+  const suppliedOptions = options;
+  options = snapshotPrivacyOptions(options);
   let configuredDefaultIntegrations: false | Integration[];
   if (options.defaultIntegrations == null) {
     configuredDefaultIntegrations = getDefaultIntegrations(options);
@@ -205,6 +208,7 @@ function initialize(options: MiniappOptions): MiniappClient | undefined {
     transport: options.transport,
   };
   // 配置回调或 getter 可能改变原选项；以实际构造快照复查，再退休旧 runtime。
+  assertSupportedOptions(suppliedOptions);
   assertSupportedOptions(opts);
   // 配置 callback/getter 也可能启动未完成的 Core scope；此时不应用 initialScope 或退休旧 runtime。
   if (getCurrentScope() !== bindingScope) {
