@@ -102,6 +102,12 @@ export interface MiniappOptions extends Omit<
    */
   sensitiveKeys?: string[];
 
+  /**
+   * 业务隐私策略修订号（默认空字符串）。自定义 hook、integration 或 Replay 隐私规则变化时
+   * 更改此值，使 SDK 管理的旧缓存整批失效；不要使用每次启动都变化的随机值。
+   */
+  cachePrivacyVersion?: string;
+
   /** Controls built-in transport offline caching when requireConsent is false; custom transport manages its own retry. */
   enableOfflineCache?: boolean;
 

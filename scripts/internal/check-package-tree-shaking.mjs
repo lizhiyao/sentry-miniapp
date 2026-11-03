@@ -67,7 +67,7 @@ main().catch(error => { console.error(error); process.exitCode = 1; });
     assert.equal(chunk.code.includes('PerformanceAPI'), withPerformance);
     assert.equal(chunk.code.includes('HttpContext'), false);
     const bytes = Buffer.byteLength(chunk.code);
-    const budget = (withPerformance ? 240 : 235) * 1024;
+    const budget = (withPerformance ? 241 : 236) * 1024;
     assert.ok(bytes <= budget, `${label} consumer exceeds ${budget} bytes: ${bytes}`);
     const destination = join(tempRoot, `tree-shaking-${label}-built.mjs`);
     await writeFile(destination, chunk.code);

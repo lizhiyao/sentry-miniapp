@@ -18,6 +18,7 @@ import {
 } from '@sentry/core';
 import type {
   BaseTransportOptions,
+  OfflineStore,
   ClientOptions,
   DataCategory,
   EventDropReason,
@@ -50,6 +51,8 @@ import {
 } from './transports/consent';
 import type { MiniappOfflineStore, OfflineStoreDiagnostics } from './transports/offlineStore';
 import { offlineTargetId } from './transports/offlineRecords';
+import { cachePrivacyPolicy, snapshotPrivacyOptions } from './cachePrivacy';
+import type { MiniappOfflineStoreOptions } from './transports/offlineStore';
 import { SDK_NAME, SDK_VERSION } from './version';
 import { syncDebugIdsToCoreGlobal } from './debugIds';
 import { miniappStackParser } from './stacktrace';
@@ -256,7 +259,7 @@ export class MiniappClient extends Client<MiniappClientOptions> {
         'Direct MiniappClient construction requires an explicit transport; use init for the managed runtime',
       );
     }
-    options = { ...snapshot, transport: transportFactory };
+    options = snapshotPrivacyOptions({ ...snapshot, transport: transportFactory });
     assertSupportedOptions(options);
     ensureEnvelopeEncoding();
     const environment = new EnvironmentState(options);
@@ -264,14 +267,35 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     const pendingOperationStops = new Set<() => void>();
     const sessionCapture = new SessionCapture();
     const dsn = options.dsn ? makeDsn(options.dsn) : undefined;
-    const storeIdentity = {
-      targetId: dsn ? offlineTargetId(dsn, options.tunnel) : 'no-dsn',
-      policyId: JSON.stringify(['miniapp-privacy-v2', options.requireConsent === true]),
-    };
     let shutdownTransport = (): void => {};
     let revokeTransport = (): void => {};
     let transportRuntime: TransportRuntimeHandle | undefined;
     let offlineStore: MiniappOfflineStore | undefined;
+    let initializeStore: (() => void) | undefined;
+    // Core 构造 transport 时 this 尚不可用；只装配代理，super 完成后使用 Core 的已解析策略。
+    const runtimeStore = (
+      config: Omit<MiniappOfflineStoreOptions, 'targetId' | 'policyId'>,
+    ): OfflineStore => {
+      initializeStore = () => {
+        offlineStore = createMiniappOfflineStore(
+          {
+            ...config,
+            targetId: dsn ? offlineTargetId(dsn, options.tunnel) : 'no-dsn',
+            policyId: cachePrivacyPolicy(
+              options,
+              this.getDataCollectionOptions(),
+              this.getSdkMetadata()?.sdk?.settings?.infer_ip,
+            ),
+          },
+          () => lifetime.canUseStore(),
+        );
+      };
+      return {
+        push: (envelope) => offlineStore!.push(envelope),
+        unshift: (envelope) => offlineStore!.unshift(envelope),
+        shift: () => offlineStore!.shift(),
+      };
+    };
     const tracesSampler = options.tracesSampler;
     const beforeSendSpan = options.beforeSendSpan;
     const beforeSend = options.beforeSend;
@@ -419,23 +443,18 @@ export class MiniappClient extends Client<MiniappClientOptions> {
         // 同意门与弱网重试共用一层 core offline；required=true 保留强制缓存含义。
         // 自定义 transport 也经过 consent 入口，不旁路 core 私有队列。
         if (options.requireConsent === true) {
-          const store = createMiniappOfflineStore(
-            {
-              ...storeIdentity,
-              // 授权前后共用 consent 配置和保留最旧的淘汰策略，不切换到 offlineCache 默认值。
-              offlineCacheLimit: consent.config.cacheLimit ?? 100,
-              ...(consent.config.cacheMaxAge !== undefined && {
-                offlineCacheMaxAge: consent.config.cacheMaxAge,
-              }),
-              ...(consent.config.cacheMaxBytes !== undefined && {
-                maxBytes: consent.config.cacheMaxBytes,
-              }),
-              evictionMode: 'preserve-oldest',
-              onDrop: consent.notifyDrop,
-            },
-            () => lifetime.canUseStore(),
-          );
-          offlineStore = store;
+          const store = runtimeStore({
+            // 授权前后共用 consent 配置和保留最旧的淘汰策略，不切换到 offlineCache 默认值。
+            offlineCacheLimit: consent.config.cacheLimit ?? 100,
+            ...(consent.config.cacheMaxAge !== undefined && {
+              offlineCacheMaxAge: consent.config.cacheMaxAge,
+            }),
+            ...(consent.config.cacheMaxBytes !== undefined && {
+              maxBytes: consent.config.cacheMaxBytes,
+            }),
+            evictionMode: 'preserve-oldest',
+            onDrop: consent.notifyDrop,
+          });
           return managedOffline(
             createConsentAwareOfflineTransport(
               baseTransport,
@@ -448,19 +467,14 @@ export class MiniappClient extends Client<MiniappClientOptions> {
         }
 
         if (!transportFactory && options.enableOfflineCache !== false) {
-          const store = createMiniappOfflineStore(
-            {
-              ...storeIdentity,
-              ...(options.offlineCacheLimit !== undefined && {
-                offlineCacheLimit: options.offlineCacheLimit,
-              }),
-              ...(options.offlineCacheMaxAge !== undefined && {
-                offlineCacheMaxAge: options.offlineCacheMaxAge,
-              }),
-            },
-            () => lifetime.canUseStore(),
-          );
-          offlineStore = store;
+          const store = runtimeStore({
+            ...(options.offlineCacheLimit !== undefined && {
+              offlineCacheLimit: options.offlineCacheLimit,
+            }),
+            ...(options.offlineCacheMaxAge !== undefined && {
+              offlineCacheMaxAge: options.offlineCacheMaxAge,
+            }),
+          });
           return managedOffline(
             createConsentAwareOfflineTransport(
               baseTransport,
@@ -486,7 +500,6 @@ export class MiniappClient extends Client<MiniappClientOptions> {
     this._shutdownTransport = shutdownTransport;
     this._revokeTransport = revokeTransport;
     this._transportRuntime = transportRuntime;
-    this._offlineStore = offlineStore;
     this._sessionCapture = sessionCapture;
     this._discardLateLogMetrics = () => {
       if (discardingLogMetrics) return;
@@ -509,6 +522,8 @@ export class MiniappClient extends Client<MiniappClientOptions> {
         ...sdkMetadata.settings,
       };
     }
+    initializeStore?.();
+    this._offlineStore = offlineStore;
     lifetime.registerStop(() => transportRuntime?.stopReplay());
     registerClientLifetime(this, lifetime);
     registerClientEnvironment(this, environment);

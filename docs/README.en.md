@@ -127,6 +127,12 @@ After the first event is working, pick the guide based on what you are doing nex
 
 ---
 
+## Privacy changes and cached telemetry
+
+SDK-managed offline and consent caches are replayed only under an equivalent effective privacy policy. Reinitializing with changed query/body collection, sensitive keys, or user/IP policy discards incompatible records, including when a policy is relaxed. For custom hooks, integrations or Replay privacy changes, update a stable `cachePrivacyVersion` string. Old v2 cache identities are conservatively discarded on first read. Failed deletion blocks incompatible replay for the current policy but cannot guarantee disk erasure. See the [cache contract](https://sentry-miniapp.pages.dev/guide/reliability-and-privacy#配置变化后-哪些历史缓存会失效).
+
+---
+
 ## Experimental WeChat Page Replay
 
 To inspect UI changes before an error, opt into [WeChat page replay](https://sentry-miniapp.pages.dev/guide/page-replay). It records sampled layouts, text changes and clicks on selected pages; the build tool annotates supported nodes and static components. Use `sentry-miniapp` 2.1.0 or later, install the replay integration and generate page annotations as described in the guide. This experimental feature targets ordinary WeChat mini programs using the WebView renderer.
