@@ -1,6 +1,7 @@
 import { getCombinedScopeData, getCurrentScope, getIsolationScope } from '@sentry/core';
 import type { Client, SpanAttributes, SpanAttributeValue } from '@sentry/core';
 import { getClientEnvironment } from './clientState';
+import { collectUrlName } from './dataCollection';
 
 /** 仅登记稳定能力字段；route/network 由自动 producer 在创建时捕获。 */
 export function setClientSpanDimension(
@@ -18,7 +19,7 @@ function currentPageRoute(): string | undefined {
     ).getCurrentPages;
     const pages = getter?.();
     const page = pages?.[pages.length - 1];
-    return page?.route || page?.__route__ || undefined;
+    return collectUrlName(page?.route || page?.__route__ || '') || undefined;
   } catch (_error) {
     return undefined;
   }

@@ -14,6 +14,8 @@ import {
   assertDefined,
   collectEnvelopePayloads,
   createCapturingTransport,
+  collectSpans,
+  spanAttribute,
 } from './support/envelopes';
 
 /**
@@ -50,6 +52,7 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
     delete g.tt;
     g.Page = originalPage;
     resetPlatformCache();
+    vi.unstubAllGlobals();
   });
 
   /** 注册一个页面并触发 onLoad，返回该页 onLoad 面包屑里的 data。 */
@@ -144,6 +147,71 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
       expect(getCurrentScope().getScopeData().breadcrumbs).toHaveLength(before);
     },
   );
+
+  it.each([
+    ['route', true],
+    ['__route__', false],
+    ['route', { allow: ['id'] as string[] }],
+    ['__route__', { deny: ['id'] as string[] }],
+  ] as const)('页面 %s 的 query/fragment 不进入页面标识，策略=%j', async (field, policy) => {
+    let app!: { onLaunch: () => void };
+    vi.stubGlobal('App', (options: typeof app) => {
+      app = options;
+    });
+    const rawRoute = 'pages/detail/detail?token=route-canary&id=route-id#fragment-canary';
+    const receiver = { [field]: rawRoute };
+    let pages: (typeof receiver)[] = [receiver];
+    vi.stubGlobal('getCurrentPages', () => pages);
+    g.tt.request = vi.fn((options) => {
+      options.success?.({ statusCode: 200, data: {}, header: {} });
+      options.complete?.({ statusCode: 200 });
+      return { abort: vi.fn() };
+    });
+    const sampler = vi.fn(() => 1);
+    const client = init({
+      dsn: 'https://test@example.com/0',
+      enableAutoSessionTracking: false,
+      transport: createCapturingTransport(captured),
+      tracesSampler: sampler,
+      dataCollection: { urlQueryParams: policy },
+    })!;
+    g.App({});
+    app.onLaunch();
+    const business = vi.fn(() => 'business result');
+    const page = g.Page({ onTap: business });
+    page.onLoad.call(receiver, { token: 'query-canary', id: '42' });
+    page.onReady.call(receiver);
+    expect(page.onTap.call(receiver, { type: 'tap' })).toBe('business result');
+    g.tt.request({ url: 'https://api.example.com/current-page' });
+    // 无当前页面时退回 onLoad 捕获的 client route，不能再次带回原始 query。
+    pages = [];
+    g.tt.request({ url: 'https://api.example.com/cached-page' });
+    client.captureMessage('route privacy probe');
+    await client.flush();
+    const event = collectEnvelopePayloads<Event>(captured, ['event'])[0]!;
+    const crumbs = event.breadcrumbs!.filter((crumb) =>
+      ['page.lifecycle', 'user.interaction'].includes(crumb.category!),
+    );
+    expect(crumbs).toHaveLength(3);
+    for (const crumb of crumbs) {
+      expect(crumb.data?.page).toBe('pages/detail/detail');
+      expect(crumb.message).toContain('pages/detail/detail');
+    }
+    expect(event.contexts?.startup?.firstPage).toBe('pages/detail/detail');
+    const spans = collectSpans(captured);
+    expect(spans).toHaveLength(2);
+    for (const span of spans) expect(spanAttribute(span, 'route')).toBe('pages/detail/detail');
+    expect(sampler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: expect.objectContaining({ route: 'pages/detail/detail' }),
+      }),
+    );
+    const serialized = JSON.stringify(captured);
+    for (const canary of ['route-canary', 'route-id', 'fragment-canary', 'query-canary'])
+      expect(serialized).not.toContain(canary);
+    expect(receiver[field]).toBe(rawRoute);
+    expect(business.mock.contexts[0]).toBe(receiver);
+  });
 
   it('敏感键按片段匹配，accessToken / xApiKey / sid 都跑不掉', async () => {
     const data = await loadPage({
