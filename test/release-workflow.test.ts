@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
 
 const exec = promisify(execFile);
 const supervisor = resolve('scripts/internal/run-diagnosed.mjs');
@@ -204,6 +206,309 @@ describe('verified tarball publishing', () => {
             code: 'ENOENT',
           });
         }
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+});
+
+const sourceModule = '../scripts/internal/release-source.mjs';
+const checksModule = '../scripts/internal/release-checks.mjs';
+const { validateReleaseSource } = await import(sourceModule);
+const { runReleaseChecks } = await import(checksModule);
+const { findReleaseEvidence } = await import(evidenceModule);
+
+describe('release source identity', () => {
+  it.each([
+    'lightweight',
+    'annotated',
+    'candidate',
+    'unmerged',
+    'moved-tag',
+    'wrong-version',
+    'dirty',
+    'different-sha',
+  ])('validates %s using real Git history', async (scenario) => {
+    const directory = await mkdtemp(join(tmpdir(), 'release-source-'));
+    const git = async (...args: string[]) =>
+      (await exec('git', args, { cwd: directory })).stdout.trim();
+    try {
+      await git('init');
+      await git('config', 'user.email', 'test@example.invalid');
+      await git('config', 'user.name', 'release-test');
+      await exec(process.execPath, ['-e', 'require("fs").mkdirSync("src")'], { cwd: directory });
+      await writeFile(
+        join(directory, 'package.json'),
+        JSON.stringify({ name: 'sentry-miniapp', version: '1.2.3' }),
+      );
+      await writeFile(join(directory, 'src/version.ts'), "export const SDK_VERSION = '1.2.3';");
+      await git('add', '.');
+      await git('commit', '-m', 'candidate');
+      const candidate = await git('rev-parse', 'HEAD');
+      await git('update-ref', 'refs/remotes/origin/master', candidate);
+      if (scenario === 'annotated') await git('tag', '-a', 'v1.2.3', '-m', 'release');
+      else await git('tag', 'v1.2.3');
+      if (scenario === 'candidate') {
+        await git('commit', '--allow-empty', '-m', 'later master');
+        await git('update-ref', 'refs/remotes/origin/master', await git('rev-parse', 'HEAD'));
+        await git('checkout', candidate);
+      }
+      if (scenario === 'unmerged' || scenario === 'moved-tag') {
+        await git('commit', '--allow-empty', '-m', 'unmerged');
+        if (scenario === 'unmerged') await git('tag', '-f', 'v1.2.3');
+      }
+      if (scenario === 'wrong-version')
+        await writeFile(join(directory, 'src/version.ts'), "export const SDK_VERSION = '9.9.9';");
+      if (scenario === 'dirty')
+        await writeFile(
+          join(directory, 'package.json'),
+          JSON.stringify({ name: 'sentry-miniapp', version: '1.2.3', description: 'modified' }),
+        );
+      const actualCandidate = scenario === 'unmerged' ? await git('rev-parse', 'HEAD') : candidate;
+      const check = () =>
+        validateReleaseSource(
+          directory,
+          'v1.2.3',
+          scenario === 'different-sha' ? 'other' : actualCandidate,
+        );
+      if (['lightweight', 'annotated', 'candidate'].includes(scenario))
+        expect(check()).toMatchObject({ sha: candidate, tag: 'v1.2.3' });
+      else expect(check).toThrow();
+      expect(() => validateReleaseSource(directory, 'v9.9.9')).toThrow();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('independent release evidence groups', () => {
+  function groupedApi(frameworks: 'success' | 'missing' | 'error' | 'partial' = 'success') {
+    const runsMethod = Symbol('runs'),
+      jobsMethod = Symbol('jobs');
+    return {
+      rest: {
+        actions: { listWorkflowRuns: runsMethod, listJobsForWorkflowRunAttempt: jobsMethod },
+      },
+      paginate: async (method: symbol, args: Record<string, unknown>) => {
+        if (method === runsMethod) {
+          expect(args.head_sha).toBe(sha);
+          if (args.workflow_id === 'ci.yml') return [run];
+          if (frameworks === 'error') throw new Error('API denied');
+          if (frameworks === 'missing') return [];
+          return [{ ...run, id: 43, path: '.github/workflows/framework-examples.yml' }];
+        }
+        expect(args.attempt_number).toBe(2);
+        if (args.run_id === 42) return jobs;
+        return [
+          'Build Taro example',
+          ...(frameworks === 'partial' ? [] : ['Build uni-app example']),
+        ].map((name) => ({ name, head_sha: sha, status: 'completed', conclusion: 'success' }));
+      },
+    };
+  }
+  it.each(['success', 'missing', 'error', 'partial'] as const)(
+    'framework evidence %s cannot skip its fallback',
+    async (state) => {
+      const groups = await findReleaseEvidence(groupedApi(state), repo, sha);
+      expect(groups.ci.reused).toBe(true);
+      expect(groups.frameworks.reused).toBe(state === 'success');
+      if (state === 'error') expect(groups.frameworks.reason).toContain('API denied');
+    },
+  );
+  it('does not accept an absent attempt or combine jobs from another attempt', async () => {
+    expect(await findCiEvidence(api([{ ...run, run_attempt: 0 }]), repo, sha)).toBeNull();
+    const missing = api([run], jobs.slice(1));
+    expect(await findCiEvidence(missing, repo, sha)).toBeNull();
+  });
+});
+
+describe('shared release checks', () => {
+  it.each(['quality', 'quality-fallback', 'node'])(
+    'runs %s and stops at the first failed command',
+    (mode) => {
+      const completed: string[][] = [];
+      runReleaseChecks(mode, (_command: string, args: string[]) => {
+        completed.push(args);
+      });
+      const scriptNames = completed.filter((args) => args[0] === supervisor).map((args) => args[5]);
+      expect(scriptNames).toContain(mode === 'node' ? 'test:shuffle' : 'test:coverage');
+      if (mode === 'quality-fallback') expect(scriptNames).not.toContain('build');
+      else expect(scriptNames).toContain('build');
+      if (mode !== 'node')
+        expect(scriptNames).toEqual(
+          expect.arrayContaining(['lint', 'typecheck', 'docs:build', 'build:miniapp']),
+        );
+      for (let failAt = 0; failAt < completed.length; failAt++) {
+        let calls = 0;
+        expect(() =>
+          runReleaseChecks(mode, () => {
+            if (calls++ === failAt) throw new Error('failed check');
+          }),
+        ).toThrow('failed check');
+        expect(calls).toBe(failAt + 1);
+      }
+    },
+  );
+  it('rejects unknown check modes before launching anything', () => {
+    const execute = vi.fn();
+    expect(() => runReleaseChecks('unknown', execute)).toThrow('Unknown release checks');
+    expect(execute).not.toHaveBeenCalled();
+  });
+});
+
+// Parse the actual workflow: these assertions protect the release dependency graph.
+const { load: loadYaml } = createRequire(import.meta.url)('js-yaml');
+const publishWorkflow = loadYaml(await readFile('.github/workflows/publish.yml', 'utf8'));
+const ciWorkflow = loadYaml(await readFile('.github/workflows/ci.yml', 'utf8'));
+const frameworksWorkflow = loadYaml(
+  await readFile('.github/workflows/framework-examples.yml', 'utf8'),
+);
+
+describe('publish workflow gates', () => {
+  it.each([
+    [true, true],
+    [true, false],
+    [false, true],
+    [false, false],
+  ])(
+    'requires exactly the necessary fallback groups (core=%s, frameworks=%s)',
+    (ci, frameworks) => {
+      const expression = publishWorkflow.jobs.publish.if
+        .replace(/^\$\{\{/, '')
+        .replace(/\}\}$/, '')
+        .replace(/needs\.([a-z-]+)/g, (_: string, key: string) => `needs['${key}']`);
+      const check = (
+        nodeResult: string,
+        frameworkResult: string,
+        planResult = 'success',
+        cancelled = false,
+      ) =>
+        runInNewContext(expression, {
+          always: () => true,
+          cancelled: () => cancelled,
+          needs: {
+            plan: {
+              result: planResult,
+              outputs: { ci: String(ci), frameworks: String(frameworks) },
+            },
+            'fallback-nodes': { result: nodeResult },
+            'fallback-frameworks': { result: frameworkResult },
+          },
+        });
+      const nodeOK = ci ? 'skipped' : 'success';
+      const frameworkOK = frameworks ? 'skipped' : 'success';
+      expect(check(nodeOK, frameworkOK)).toBe(true);
+      expect(check(nodeOK, frameworkOK, 'failure')).toBe(false);
+      expect(check(nodeOK, frameworkOK, 'success', true)).toBe(false);
+      for (const failed of ['failure', 'cancelled', 'skipped']) {
+        if (!ci) expect(check(failed, frameworkOK)).toBe(false);
+        if (!frameworks) expect(check(nodeOK, failed)).toBe(false);
+      }
+    },
+  );
+  it('pins fallback and publishing to the validated SHA, retaining shared recipes and tarball verification', () => {
+    const {
+      plan,
+      publish,
+      'fallback-nodes': nodes,
+      'fallback-frameworks': frameworks,
+    } = publishWorkflow.jobs;
+    expect(publish.needs).toEqual(
+      expect.arrayContaining(['plan', 'fallback-nodes', 'fallback-frameworks']),
+    );
+    expect(nodes.strategy.matrix['node-version']).toEqual(['20.x', '22.x']);
+    expect(nodes.if).toContain("ci != 'true'");
+    expect(frameworks.if).toContain("frameworks != 'true'");
+    expect(frameworks.uses).toBe('./.github/workflows/framework-examples.yml');
+    for (const job of [nodes, publish]) {
+      expect(
+        job.steps.find((step: { uses?: string }) => step.uses?.startsWith('actions/checkout@')).with
+          .ref,
+      ).toBe('${{ needs.plan.outputs.sha }}');
+    }
+    expect(frameworks.with.ref).toBe('${{ needs.plan.outputs.sha }}');
+    expect(frameworksWorkflow.on.push).toEqual({ branches: ['master'] });
+    expect(frameworksWorkflow.on.workflow_call.inputs.ref.required).toBe(true);
+    expect(frameworksWorkflow.jobs.build.steps[0].with.ref).toContain('inputs.ref');
+    expect(
+      ciWorkflow.jobs.quality.steps.some(
+        (s: { run?: string }) => s.run === 'node scripts/internal/release-checks.mjs quality',
+      ),
+    ).toBe(true);
+    expect(
+      ciWorkflow.jobs['build-and-test'].steps.some(
+        (s: { run?: string }) => s.run === 'node scripts/internal/release-checks.mjs node',
+      ),
+    ).toBe(true);
+    expect(
+      nodes.steps.some(
+        (s: { run?: string }) => s.run === 'node scripts/internal/release-checks.mjs node',
+      ),
+    ).toBe(true);
+    const steps = publish.steps;
+    const quality = steps.find(
+      (s: { name?: string }) => s.name === 'Run shared fallback quality checks',
+    );
+    expect(quality.run).toBe('node scripts/internal/release-checks.mjs quality-fallback');
+    expect(quality.if).toContain("ci != 'true'");
+    for (const name of [
+      'Build release once',
+      'Pack release',
+      'Install and validate exact release tarball',
+      'Recheck release identity',
+      'Publish exact verified tarball',
+    ]) {
+      const step = steps.find((s: { name?: string }) => s.name === name);
+      expect(step).toBeDefined();
+      expect(step.if).toBeUndefined();
+      expect(step['continue-on-error']).toBeUndefined();
+    }
+    expect(
+      steps.find((s: { name?: string }) => s.name === 'Install and validate exact release tarball')
+        .run,
+    ).toContain('check-package-consumers.mjs "release-package/$TARBALL"');
+    expect(
+      steps.find((s: { name?: string }) => s.name === 'Publish exact verified tarball').run,
+    ).toContain('sha256sum --check');
+    const source = plan.steps.find((s: { id?: string }) => s.id === 'source');
+    expect(source['continue-on-error']).toBeUndefined();
+    expect(source.run).toContain('validateReleaseSource');
+  });
+  it.each(['valid', 'failure', 'invalid-json', 'invalid-shape'])(
+    'query %s produces conservative independent fallback decisions',
+    async (scenario) => {
+      const directory = await mkdtemp(join(tmpdir(), 'release-decision-'));
+      try {
+        await exec(process.execPath, ['-e', 'require("fs").mkdirSync("release-package")'], {
+          cwd: directory,
+        });
+        await writeFile(
+          join(directory, 'release-package/ci-evidence.json'),
+          scenario === 'invalid-json'
+            ? '{'
+            : JSON.stringify(
+                scenario === 'invalid-shape'
+                  ? {}
+                  : { ci: { reused: true }, frameworks: { reused: false } },
+              ),
+        );
+        const step = publishWorkflow.jobs.plan.steps.find(
+          (s: { id?: string }) => s.id === 'decision',
+        );
+        const code = step.run.split("<<'NODE'\n")[1].split('\nNODE')[0];
+        const output = join(directory, 'output');
+        await exec(process.execPath, ['--input-type=module', '-e', code], {
+          cwd: directory,
+          env: {
+            ...process.env,
+            GITHUB_OUTPUT: output,
+            QUERY_OUTCOME: scenario === 'failure' ? 'failure' : 'success',
+          },
+        });
+        expect(await readFile(output, 'utf8')).toBe(
+          `ci=${scenario === 'valid'}\nframeworks=false\n`,
+        );
       } finally {
         await rm(directory, { recursive: true, force: true });
       }

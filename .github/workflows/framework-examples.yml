@@ -1,10 +1,19 @@
 name: Framework Examples
 
 on:
+  push:
+    branches: [master]
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
   workflow_dispatch:
   pull_request:
     paths:
       - '.github/workflows/framework-examples.yml'
+      - '.github/workflows/publish.yml'
+      - '.github/workflows/ci.yml'
       - 'examples/taro/**'
       - 'examples/uniapp/**'
       - 'src/**'
@@ -48,6 +57,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Use Node.js 24.x
         uses: actions/setup-node@v4
