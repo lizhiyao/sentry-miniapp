@@ -628,6 +628,60 @@ describe('CrossPlatform', () => {
       expect(result1).toBe(mockWx);
       expect(result2).toBe(result1);
     });
+
+    it.each([
+      'getSDK',
+      'sdk',
+      'appName',
+      'isMiniappEnvironment',
+      'isMinigame',
+      'getSystemInfo',
+      'getAccountInfo',
+    ] as const)('无宿主时先调用 %s，宿主出现后无需 reset 即可恢复', async (probe) => {
+      const mod = await import('../src/crossPlatform');
+      mod[probe]();
+      const host = {
+        request: vi.fn(),
+        getSystemInfoSync: () => ({ brand: 'recovered', SDKVersion: '1' }),
+        getAccountInfoSync: () => ({ miniProgram: { appId: 'wx-recovered', version: '1' } }),
+      };
+      (global as any).wx = host;
+      expect(mod.sdk()).toBe(host);
+      expect(mod.getSDK()).toBe(host);
+      expect(mod.appName()).toBe('wechat');
+      expect(mod.isMiniappEnvironment()).toBe(true);
+      expect(mod.getSystemInfo()?.brand).toBe('recovered');
+      expect(mod.getAccountInfo()).toEqual({ appId: 'wx-recovered', version: '1' });
+    });
+
+    it('宿主 getter 暂时不可读时安全降级，恢复后重新探测且成功缓存不切换宿主', async () => {
+      const mod = await import('../src/crossPlatform');
+      const host = { request: vi.fn() };
+      let available = false;
+      vi.stubGlobal('wx', undefined);
+      Object.defineProperty(global, 'wx', {
+        configurable: true,
+        get() {
+          if (!available) throw new Error('host not ready');
+          return host;
+        },
+      });
+      try {
+        expect(mod.sdk().request).toBeTypeOf('function');
+        expect(mod.appName()).toBe('unknown');
+        expect(mod.isMiniappEnvironment()).toBe(false);
+        available = true;
+        expect(mod.sdk()).toBe(host);
+        expect(mod.appName()).toBe('wechat');
+        vi.stubGlobal('wx', { request: vi.fn() });
+        vi.stubGlobal('tt', { request: vi.fn() });
+        expect(mod.sdk()).toBe(host);
+        expect(mod.getSDK()).toBe(host);
+        expect(mod.appName()).toBe('wechat');
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
   });
 
   describe('now（时长时钟用 Date.now，避开 Performance.now 单位歧义，见 issue #167）', () => {

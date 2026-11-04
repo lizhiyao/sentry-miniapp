@@ -92,6 +92,8 @@ flowchart TD
 
 旧 runtime 退休后，新构造失败或构造阶段的 scope 拒绝不会复活旧 runtime。Core 绑定完成后，集成 `setup` 可以启动自身的异步 span；它完成后返回的根仍绑定新 client。根初始化可正常替换 client，但业务入口应尽早、通常在 `App()` 注册前初始化；晚初始化不能补回已发生的宿主注册和启动异常。
 
+平台探测只缓存成功的宿主对象和名称；未命中、全局 getter 暂时不可读、unknown 或降级 SDK 都不固定失败结果。无宿主时 `init()` 返回 undefined，后续显式调用或重新 `init()` 可在宿主就绪后重试，不启动轮询，也不自动创建 runtime。系统信息不缓存降级 SDK 的空对象；无宿主或小游戏入口不可读时返回的非小游戏结果也不缓存，成功判定为普通小程序的 false 仍缓存。成功的宿主与派生结果不因重复 init 或全局对象替换而全量重置，避免改变已有请求、存储与订阅的归属；这不扩展为进程内动态切换宿主。Core 不负责小程序全局对象发现，该行为由 crossPlatform 适配，回归见 [crossPlatform](test/crossPlatform.test.ts)、[platform-contracts](test/platform-contracts.realcore.test.ts)、[minigame-detect](test/minigame-detect.test.ts) 和 [kuaishou-minigame](test/kuaishou-minigame.realcore.test.ts)。
+
 ### 集成实例与默认组合
 
 集成的公共形式是 factory，返回类型只承诺 Core `Integration`，内部清理方法不作为公共 API。集成名称直接保存在实例上，不通过 class 静态赋值初始化，避免模块求值副作用让消费端保留未使用的可选集成。每次默认装配产生独立实例；Core 的 `setupOnce()` 只负责进程级安装，`setup(client)` 与 `client.registerCleanup()` 管理实例订阅。当前 Page、Console、Network 的 `setupOnce` 有实际包装消费者，不能按方法名称判断为空代码。

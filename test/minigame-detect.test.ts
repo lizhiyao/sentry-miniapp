@@ -49,11 +49,27 @@ describe.each(['wx', 'tt', 'ks', 'kwaigame'])('isMinigame (%s)', (globalName) =>
     expect(isMinigame()).toBe(true);
   });
 
-  it('未检测到任何平台 → 非小游戏', async () => {
+  it('未检测到平台时不固定 false，宿主出现后可识别小游戏', async () => {
     delete g.wx;
     delete g[globalName];
     const { isMinigame } = await import('../src/crossPlatform');
     expect(isMinigame()).toBe(false);
+    g[globalName] = { request: vi.fn() };
+    expect(isMinigame()).toBe(true);
+  });
+
+  it('小游戏入口 getter 暂时抛错时返回 false，恢复后可重试', async () => {
+    g[globalName] = { request: vi.fn() };
+    Object.defineProperty(g, 'GameGlobal', {
+      configurable: true,
+      get() {
+        throw new Error('not ready');
+      },
+    });
+    const { isMinigame } = await import('../src/crossPlatform');
+    expect(isMinigame()).toBe(false);
+    delete g.GameGlobal;
+    expect(isMinigame()).toBe(true);
   });
 
   it('resetPlatformCache 统一清除 _sdk / _appName / _isMinigame 缓存', async () => {

@@ -9,8 +9,16 @@ import {
 } from '@sentry/core';
 
 import { _resetAppLifecycle } from '../src/appLifecycle';
-import { resetPlatformCache, sdk, getStorageApi } from '../src/crossPlatform';
-import { spanAttribute } from './support/envelopes';
+import {
+  resetPlatformCache,
+  sdk,
+  getStorageApi,
+  appName,
+  isMiniappEnvironment,
+  isMinigame,
+  getSystemInfo,
+} from '../src/crossPlatform';
+import { spanAttribute, assertDefined } from './support/envelopes';
 import { init } from '../src/index';
 
 type PlatformGlobal = 'wx' | 'my' | 'tt' | 'dd' | 'qq' | 'swan' | 'ks' | 'kwaigame';
@@ -246,6 +254,36 @@ describe.each(PLATFORM_CONTRACTS)(
       for (const name of PLATFORM_GLOBALS) delete g[name];
       g.App = originalApp;
       g.Page = originalPage;
+    });
+
+    it('早期探测与 init 失败后，宿主就绪即可重试并实际发送', async () => {
+      delete g[globalName];
+      expect(isMiniappEnvironment()).toBe(false);
+      expect(appName()).toBe('unknown');
+      expect(sdk().request).toBeTypeOf('function');
+      getSystemInfo();
+      expect(isMinigame()).toBe(false);
+      expect(initClient()).toBeUndefined();
+      expect(initClient()).toBeUndefined();
+      expect(originalRequest).not.toHaveBeenCalled();
+
+      g[globalName] = host;
+      const client = initClient();
+      assertDefined(client);
+      expect(isMiniappEnvironment()).toBe(true);
+      expect(appName()).toBe(platform);
+      expect(sdk()).toBe(host);
+      expect(isMinigame()).toBe(false);
+      captureException(new Error('platform retry recovered'));
+      expect(await client.flush(2000)).toBe(true);
+      const event = collectEvents(capturedRequests).find(
+        (item) => item.exception?.values?.[0]?.value === 'platform retry recovered',
+      );
+      expect(event?.contexts?.miniapp?.platform).toBe(platform);
+      expect(event?.contexts?.device?.brand).toBe(`${platform}-brand`);
+      expect(originalRequest.mock.contexts.every((receiver) => receiver === host)).toBe(true);
+      expect(errorHandlers.size).toBe(1);
+      expect(networkHandlers.size).toBe(1);
     });
 
     it('初始化、错误、请求、Storage、生命周期和重初始化遵守统一契约', async () => {

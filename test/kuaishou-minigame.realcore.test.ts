@@ -172,7 +172,13 @@ describe.each([
     );
   }
 
-  it('默认识别、同意缓冲、错误、from、请求追踪和前后台会话按官方接口工作', async () => {
+  it('早期探测失败后重试，默认识别、同意缓冲、请求追踪和前后台会话正常', async () => {
+    for (const key of [...globals, 'wx']) vi.stubGlobal(key, undefined);
+    expect(isMinigame()).toBe(false);
+    expect(init({ dsn: 'https://test@example.com/1' })).toBeUndefined();
+    expect(shows.size + hides.size + frames.size).toBe(0);
+    for (const key of globals) vi.stubGlobal(key, host);
+    if (shim) vi.stubGlobal('wx', compatibilityHost);
     const client = init({
       dsn: 'https://test@example.com/1',
       release: 'kuaishou-game@contract',

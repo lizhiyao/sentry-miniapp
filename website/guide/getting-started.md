@@ -44,6 +44,8 @@ Sentry.init({
 
 默认初始化路径已包含自动异常捕获、Source Map 路径归一化、网络面包屑、Session 与网络状态；通用 Performance／FPS 需显式启用。通常无需手动传 `integrations`。
 
+如果调用时宿主 API 尚未就绪，`Sentry.init()` 会返回 `undefined`。宿主可用后，在应用持久入口重新调用即可重试；SDK 不自动轮询或补建实例。仅提前导入模块不会固定失败结果，也无需重载模块。仍应尽量在业务执行及 `App()` 注册前成功初始化；H5 项目应使用官方浏览器 SDK，详见 [初始化失败排查](/guide/faq#init-retry)。
+
 先用最小配置跑通事件，再按需要开启性能采样、Logs、隐私同意或其它能力。全部选项见[配置项参考](/guide/configuration)。
 
 ## 3. 验证是否打通
