@@ -188,9 +188,20 @@ CI 与 CD 作业上限为 25 分钟，测试进程上限为 8 分钟、最多 2 
 产物包含 `output.log`、`resources.log`、`result.json` 和正常生成的 JUnit 报告。卡死时 JUnit 可能不完整，以持续日志和退出记录为准。
 CD 在测试之后立即上传一次诊断，结束时再次保存发布证据；CI 诊断保留 14 天，CD 保留 30 天。runner 丢失或平台强制取消仍可能中断上传，不能将 `always()` 当作上传成功保证。
 
-CD 只复用本仓库 `.github/workflows/ci.yml` 在 **master push、精确发布 SHA** 上的成功运行，并核验同一 run attempt 的 `Quality (Node 24.x)`、`build-and-test (20.x)` 和 `build-and-test (22.x)` 全部成功。
-不使用 PR 合并 SHA、祖先提交或最近一次成功运行代替；查询失败、运行未完成、作业缺失或 SHA 不同都会回退到 CD 的 lint、类型检查和完整单测。
-现有发版流程中 tag 可能指向 merge commit 的父提交，此时正常走回退验证；不要为了复用 CI 移动已经发布的 tag。
+发布先解析 tag 对应的完整提交 SHA，并核对包名、tag、package.json、SDK_VERSION 与干净的已跟踪工作区；自动验证该提交已进入本仓库 master 历史。尚未合并的分支提交直接失败，不进入 fallback。允许 tag 指向已合并 release PR 的候选父提交，不要求它恰好是 master tip。
+
+证据按两个组独立查询，均只接受本仓库、指定 workflow、**master push、精确发布 SHA**、completed/success，以及同一 run attempt 中完整成功的必需 job：
+
+| 组 | 必需检查 | 缺少合格证据时 |
+| --- | --- | --- |
+| 核心 CI | Node 24 的 lint、源码／测试类型、构建、文档、小程序 bundle、工作区与覆盖率；Node 20／22 的构建和随机顺序单测 | 两个独立 job 补 Node 20／22；发布 job 补 Node 24 的质量检查，无条件发布构建与 tarball 消费验收承担其 build 部分 |
+| 框架 | Taro 与 uni-app 的真实监控／local replay 构建、依赖解析核对、自动标记和业务 Source Map 检查 | 调用同一个 Framework Examples 工作流，并固定 checkout 为发布 SHA，构建并安装该提交的 SDK 包 |
+
+`scripts/internal/release-checks.mjs` 是核心 CI 与 fallback 共用的执行配方；`quality-fallback` 仅省去后续必定执行的发布构建。覆盖率单测已承担完整测试，不重复执行同配置普通单测。框架工作流在 master push 上运行完整矩阵；PR 可保留路径过滤，手动／定时运行不作为发布复用证据。
+
+不使用 PR head／临时合并 SHA、不同祖先／后续提交或最近一次绿灯代替。证据查询失败、超时、运行未完成、必需作业缺失或不成功，都让对应组走完整 fallback；核心 CI 可复用也不能跳过缺失的框架组。两个 fallback 必须按需成功，失败／取消／意外跳过会阻断发布。`release-plan-<attempt>` 和发布 artifact 保存逐组 reused、run ID／attempt／URL 或回退原因，兼容性 fallback 另存诊断。
+
+所有后续 job 固定 checkout 同一发布 SHA。候选父提交通常没有对应的 master push CI，此时正常完整回退；不要为了复用 CI 移动已发布 tag。发布前再次校验提交／tag／版本及工作区。
 
 发布阶段执行 `yarn build:release` 一次，然后 `npm pack --ignore-scripts` 生成 tarball。
 验收脚本接收该 tarball，在系统临时目录用 npm 安装真实生产依赖（禁用安装脚本），检查 CJS、ESM、UMD、类型入口、七平台降级和上述公开行为场景。`check-package-behavior.mjs` 只加载安装包声明的公共入口，不导入源码或 Core 私有文件；CD 保存两种入口的逐场景 JSON 证据。PR CI 也通过 `yarn build` 执行当前 tarball 的消费检查。
@@ -200,4 +211,4 @@ CD 核对 tag、package.json、SDK_VERSION、tarball 元数据，保存提交 SH
 
 ### 消费端按需打包检查
 
-实际安装包检查还会把基础接入与显式启用 Performance API 的 ESM 项目重新打包：基础项目不能保留未引用的 Performance API／HTTP 上下文集成，性能项目必须仍能安装和清理 observer。两者都运行异常发送与 flush 检查，并分别限制在 235／240 KiB 的原始 JS 内。探针含测试驱动代码，其数字不能直接当作任意框架项目的 SDK 增量；发布文件预算与消费端预算保护不同的打包边界。
+实际安装包检查还会把基础接入与显式启用 Performance API 的 ESM 项目重新打包：基础项目不能保留未引用的 Performance API／HTTP 上下文集成，性能项目必须仍能安装和清理 observer。两者都运行异常发送与 flush 检查，并按[消费探针脚本](scripts/internal/check-package-tree-shaking.mjs)中的原始 JS 门槛约束。探针含测试驱动代码，其数字不能直接当作任意框架项目的 SDK 增量；发布文件预算与消费端预算保护不同的打包边界。

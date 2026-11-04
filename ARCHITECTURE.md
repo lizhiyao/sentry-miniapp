@@ -347,7 +347,7 @@ Source Map 链路跨越三个责任方：
 2. **业务构建与部署**：保留实际发布的 JS 与同次构建的 map 和 Debug ID／release，处理微信外层合并映射并上传到目标 Sentry 项目。map 用于上传验收，不要求随业务 JS 向用户公开发布。SDK 的 [doctor](scripts/doctor-sourcemap.mjs)只做本地检查，[merge](scripts/merge-sourcemap.mjs)只做离线映射合成；部分匹配成功不能代表所有 frame 可还原。
 3. **Sentry 后台**：接收事件、匹配上传文件并完成符号化。HTTP 成功、本地映射成功与后台还原成功是不同证据。
 
-npm 发版由 `v*` tag 触发 [publish.yml](.github/workflows/publish.yml)：校验来源和版本 → 接受精确 CI 证据或完整回退检查 → 构建一次 → 生成 tarball → 安装并验证同一 tarball → OIDC 发布同一份字节 → 保存 Release 与来源摘要。官网部署和 npm 发布分别进行；master 更新不等于 npm 新版本已发布。操作细节只在[开发指南](DEVELOPMENT.md)的发布章节维护。
+npm 发版由 `v*` tag 触发 [publish.yml](.github/workflows/publish.yml)：校验 tag 版本与 master 可达性 → 分别接受精确发布 SHA 的核心／框架证据或运行对应 fallback → 构建一次 → 生成 tarball → 安装并验证同一 tarball → OIDC 发布同一份字节 → 保存 Release 与来源摘要。核心 CI 与 fallback 共用检查配方，Node 20／22 兼容性和两个框架均不能因证据缺失而跳过；所需 fallback 失败会阻断发布。官网部署和 npm 发布分别进行；master 更新不等于 npm 新版本已发布。操作细节只在[开发指南](DEVELOPMENT.md)的发布章节维护。
 
 ## 9. 验证不变量与未来改动
 

@@ -33,26 +33,8 @@ jobs:
     - name: Install dependencies
       run: yarn install --immutable
 
-    - name: Run Lint
-      run: yarn run lint
-
-    - name: Type Check
-      run: yarn run typecheck
-
-    - name: Build Project
-      run: yarn run build
-
-    - name: Build Documentation
-      run: yarn run docs:build
-
-    - name: Build and Check Mini Program Example Bundle
-      run: yarn run build:miniapp
-
-    - name: Check Working Tree
-      run: git diff --exit-code
-
-    - name: Run Tests with Coverage
-      run: node scripts/internal/run-diagnosed.mjs tests 480 yarn run test:coverage --maxWorkers=2 --reporter=verbose --reporter=junit --outputFile.junit=diagnostics/tests/junit.xml
+    - name: Run shared quality checks
+      run: node scripts/internal/release-checks.mjs quality
 
     - name: Save diagnostics
       if: always()
@@ -91,11 +73,8 @@ jobs:
     - name: Install dependencies
       run: yarn install --immutable
 
-    - name: Build and Validate Published Package
-      run: yarn run build
-
-    - name: Run Tests in Random Order
-      run: node scripts/internal/run-diagnosed.mjs tests 480 yarn run test:shuffle --maxWorkers=2 --reporter=verbose --reporter=junit --outputFile.junit=diagnostics/tests/junit.xml
+    - name: Run shared compatibility checks
+      run: node scripts/internal/release-checks.mjs node
 
     - name: Save diagnostics
       if: always()

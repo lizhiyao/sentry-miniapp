@@ -13,49 +13,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  plan:
     runs-on: ubuntu-latest
-    # The test deadline is 8 minutes; leave room for build, install and evidence upload.
-    timeout-minutes: 25
+    timeout-minutes: 5
     permissions:
+      contents: read
       actions: read
-      contents: write
-      id-token: write
-
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      ci: ${{ steps.decision.outputs.ci }}
+      frameworks: ${{ steps.decision.outputs.frameworks }}
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-node@v6
       with:
         node-version: '24.x'
-        registry-url: 'https://registry.npmjs.org'
         package-manager-cache: false
-
+    - name: Fetch release source history
+      run: git fetch origin master
     - name: Validate release source and version
       id: source
       env:
         TAG_NAME: ${{ github.ref_name }}
       run: |
-        mkdir -p diagnostics release-package
         node --input-type=module <<'NODE'
-        import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
-        import { execFileSync } from 'node:child_process';
-        import assert from 'node:assert/strict';
-        const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-        assert.equal(process.env.TAG_NAME, `v${pkg.version}`);
-        assert.equal(pkg.name, 'sentry-miniapp');
-        const versionSource = readFileSync('src/version.ts', 'utf8');
-        assert.equal(versionSource.match(/SDK_VERSION\s*=\s*'([^']+)'/)?.[1], pkg.version);
-        const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-        const source = { sha, tag: process.env.TAG_NAME, name: pkg.name, version: pkg.version, run: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT };
-        writeFileSync('release-package/source.json', JSON.stringify(source, null, 2));
-        writeFileSync('release-package/ci-evidence.json', JSON.stringify({ reused: false, reason: 'No accepted CI evidence; CD fallback required' }, null, 2));
-        appendFileSync(process.env.GITHUB_OUTPUT, `sha=${sha}\n`);
+        import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+        import { validateReleaseSource } from './scripts/internal/release-source.mjs';
+        const source = validateReleaseSource(process.cwd(), process.env.TAG_NAME);
+        mkdirSync('release-package', { recursive: true });
+        writeFileSync('release-package/source.json', JSON.stringify({ ...source, run: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT }, null, 2));
+        appendFileSync(process.env.GITHUB_OUTPUT, `sha=${source.sha}\n`);
         NODE
-
-    - name: Find exact successful CI evidence
+    - name: Find exact successful evidence for each group
       id: evidence
       continue-on-error: true
       timeout-minutes: 2
@@ -65,18 +56,105 @@ jobs:
       with:
         script: |
           const fs = require('node:fs');
-          const { findCiEvidence } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/internal/ci-evidence.mjs`);
-          let evidence = null;
-          let reason = 'No complete successful master push CI for release SHA';
-          try {
-            evidence = await findCiEvidence(github, context.repo, process.env.RELEASE_SHA);
-          } catch (error) {
-            reason = `CI evidence unavailable: ${error.message}`;
-            core.warning(reason);
-          }
-          fs.writeFileSync('release-package/ci-evidence.json', JSON.stringify({ reused: Boolean(evidence), evidence, reason: evidence ? undefined : reason }, null, 2));
-          core.setOutput('reuse', evidence ? 'true' : 'false');
-          await core.summary.addRaw(evidence ? `Reusing CI: ${evidence.url} (SHA ${evidence.sha})` : `${reason}; running CD fallback checks.`).write();
+          const { findReleaseEvidence } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/internal/ci-evidence.mjs`);
+          const groups = await findReleaseEvidence(github, context.repo, process.env.RELEASE_SHA);
+          fs.writeFileSync('release-package/ci-evidence.json', JSON.stringify(groups, null, 2));
+    - name: Finalize fallback decisions
+      id: decision
+      env:
+        QUERY_OUTCOME: ${{ steps.evidence.outcome }}
+      run: |
+        node --input-type=module <<'NODE'
+        import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+        let groups;
+        try {
+          if (process.env.QUERY_OUTCOME !== 'success') throw new Error('Evidence query did not complete');
+          groups = JSON.parse(readFileSync('release-package/ci-evidence.json', 'utf8'));
+          if (!groups || ['ci', 'frameworks'].some(group => typeof groups[group]?.reused !== 'boolean')) throw new Error('Invalid evidence report');
+        } catch (error) {
+          groups = Object.fromEntries(['ci', 'frameworks'].map(group => [group, { reused: false, reason: error.message }]));
+        }
+        writeFileSync('release-package/ci-evidence.json', JSON.stringify(groups, null, 2));
+        for (const group of ['ci', 'frameworks']) appendFileSync(process.env.GITHUB_OUTPUT, `${group}=${groups[group].reused === true}\n`);
+        NODE
+    - name: Save release plan
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-plan-${{ github.run_attempt }}
+        path: release-package/
+        if-no-files-found: error
+        retention-days: 30
+
+  fallback-nodes:
+    needs: plan
+    if: needs.plan.outputs.ci != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: ${{ needs.plan.outputs.sha }}
+    - uses: actions/setup-node@v6
+      with:
+        node-version: ${{ matrix.node-version }}
+        package-manager-cache: false
+    - run: corepack enable
+    - run: yarn install --immutable
+    - name: Run shared compatibility checks
+      run: node scripts/internal/release-checks.mjs node
+    - name: Save fallback diagnostics
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-node-${{ matrix.node-version }}-${{ github.run_attempt }}
+        path: diagnostics/
+        if-no-files-found: ignore
+        retention-days: 30
+
+  fallback-frameworks:
+    needs: plan
+    if: needs.plan.outputs.frameworks != 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/framework-examples.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
+
+  publish:
+    needs: [plan, fallback-nodes, fallback-frameworks]
+    # An expected fallback must succeed; a failed/cancelled/skipped validation cannot publish.
+    if: >-
+      ${{ always() && !cancelled() && needs.plan.result == 'success' &&
+      (needs.plan.outputs.ci == 'true' || needs.fallback-nodes.result == 'success') &&
+      (needs.plan.outputs.frameworks == 'true' || needs.fallback-frameworks.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+    - name: Checkout exact release commit
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ needs.plan.outputs.sha }}
+        fetch-depth: 0
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24.x'
+        registry-url: 'https://registry.npmjs.org'
+        package-manager-cache: false
+    - name: Download source and evidence plan
+      uses: actions/download-artifact@v4
+      with:
+        name: release-plan-${{ github.run_attempt }}
+        path: release-package/
 
     # Pin npm for Trusted Publishing. Explicit tarball publish never rebuilds the package.
     - name: Setup npm for Trusted Publishing
@@ -90,17 +168,9 @@ jobs:
       timeout-minutes: 4
       run: yarn install --immutable
 
-    - name: Run fallback Lint
-      if: steps.evidence.outcome != 'success' || steps.evidence.outputs.reuse != 'true'
-      run: node scripts/internal/run-diagnosed.mjs lint 120 yarn run lint
-
-    - name: Run fallback Type Check
-      if: steps.evidence.outcome != 'success' || steps.evidence.outputs.reuse != 'true'
-      run: node scripts/internal/run-diagnosed.mjs typecheck 120 yarn run typecheck
-
-    - name: Run fallback Tests
-      if: steps.evidence.outcome != 'success' || steps.evidence.outputs.reuse != 'true'
-      run: node scripts/internal/run-diagnosed.mjs tests 480 yarn run test --maxWorkers=2 --reporter=verbose --reporter=junit --outputFile.junit=diagnostics/tests/junit.xml
+    - name: Run shared fallback quality checks
+      if: needs.plan.outputs.ci != 'true'
+      run: node scripts/internal/release-checks.mjs quality-fallback
 
     - name: Save validation diagnostics before build
       if: always()
@@ -116,6 +186,8 @@ jobs:
       run: node scripts/internal/run-diagnosed.mjs build 180 yarn run build:release
 
     - name: Pack release
+      env:
+        RELEASE_SHA: ${{ needs.plan.outputs.sha }}
       run: |
         npm pack --ignore-scripts --json --pack-destination release-package > release-package/pack.json
         node --input-type=module <<'NODE'
@@ -124,6 +196,7 @@ jobs:
         import assert from 'node:assert/strict';
         const [pack] = JSON.parse(readFileSync('release-package/pack.json', 'utf8'));
         const source = JSON.parse(readFileSync('release-package/source.json', 'utf8'));
+        assert.equal(source.sha, process.env.RELEASE_SHA);
         assert.equal(pack.name, source.name);
         assert.equal(pack.version, source.version);
         assert.equal(pack.filename, `${source.name}-${source.version}.tgz`);
@@ -139,6 +212,16 @@ jobs:
         TARBALL="$(node -p "require('./release-package/manifest.json').filename")"
         node scripts/internal/run-diagnosed.mjs package 240 node scripts/internal/check-package-consumers.mjs "release-package/$TARBALL"
         sha256sum --check release-package/SHA256SUMS
+
+    - name: Recheck release identity
+      env:
+        TAG_NAME: ${{ github.ref_name }}
+        RELEASE_SHA: ${{ needs.plan.outputs.sha }}
+      run: |
+        node --input-type=module <<'NODE'
+        import { validateReleaseSource } from './scripts/internal/release-source.mjs';
+        validateReleaseSource(process.cwd(), process.env.TAG_NAME, process.env.RELEASE_SHA);
+        NODE
 
     - name: Publish exact verified tarball
       timeout-minutes: 3
