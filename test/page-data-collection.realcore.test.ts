@@ -5,6 +5,8 @@ import {
   getClient,
   getCurrentScope,
   getIsolationScope,
+  _INTERNAL_filterKeyValueData,
+  type CollectBehavior,
   type Envelope,
   type Event,
 } from '@sentry/core';
@@ -240,22 +242,24 @@ describe('页面入参采集与 dataCollection（真 @sentry/core 集成）', ()
     expect('query' in data).toBe(false);
   });
 
-  it('deny 命中的键被抹掉，其余保留', async () => {
-    const data = await loadPage(
-      { phone: '138', id: '42' },
-      { dataCollection: { urlQueryParams: { deny: ['phone'] } } },
-    );
-
-    expect(data.query).toEqual({ phone: '[Filtered]', id: '42' });
-  });
-
-  it('allow 只放行列出的键，未列出的按敏感处理', async () => {
-    const data = await loadPage(
-      { nickname: 'xiao', id: '42' },
-      { dataCollection: { urlQueryParams: { allow: ['id'] } } },
-    );
-
-    expect(data.query).toEqual({ nickname: '[Filtered]', id: '42' });
+  it.each<[CollectBehavior, Record<string, string>]>([
+    [{ deny: ['phone'] }, { phone: '[Filtered]', id: '42', token: '[Filtered]' }],
+    [{ allow: ['id'] }, { phone: '[Filtered]', id: '42', token: '[Filtered]' }],
+    [
+      { allow: ['phone', 'token'], deny: ['PHONE'] },
+      { phone: '[Filtered]', id: '42', token: '[Filtered]' },
+    ],
+    [
+      { allow: [], deny: [] },
+      { phone: '138', id: '42', token: '[Filtered]' },
+    ],
+  ])('最终页面 query 与 Core 过滤结果一致，策略=%j', async (policy, expected) => {
+    const query = { phone: '138', id: '42', token: 'secret-token' };
+    const coreResult = _INTERNAL_filterKeyValueData(query, policy);
+    expect(coreResult).toEqual(expected);
+    const data = await loadPage(query, { dataCollection: { urlQueryParams: policy } });
+    expect(data.query).toEqual(coreResult);
+    expect(query).toEqual({ phone: '138', id: '42', token: 'secret-token' });
   });
 
   it('嵌套对象里的敏感键同样被抹掉', async () => {

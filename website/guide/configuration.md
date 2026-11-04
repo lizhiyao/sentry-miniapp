@@ -78,6 +78,8 @@ URL query 与正文使用独立策略。HTTP、导航与资源的名称去掉 qu
 
 `urlQueryParams` 还接受 `{ allow: ['page', 'source'] }` 或 `{ deny: ['memberNo'] }` 来限制键。`true` 仍执行内置敏感键过滤，不表示发送原始数据。
 
+配置时选择 allow 或 deny 其中一种。若输入同时包含两者，遵循 Core 的 deny 优先规则，allow 被忽略；`{ deny: [] }` 与 `true` 等价，仍过滤内置敏感键。`{ allow: [] }` 则把所有值替换为 `[Filtered]`。
+
 ```js
 Sentry.init({
   dsn: 'YOUR_DSN',

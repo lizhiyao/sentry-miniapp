@@ -177,6 +177,8 @@ Sentry.init({ dsn: 'YOUR_DSN', dataCollection: { userInfo: false } });
 
 ## 单目标缓存与同意
 
+若旧构建已使用 `miniapp-privacy-v3` 缓存，但 query 配置同时包含 allow／deny，旧快照可能错误地只使用 allow。修复后同一配置按 Core 的 deny 优先生效，旧 allow 身份的缓存会在重放前以 `policy_changed` 整批丢弃，不重新过滤或迁移到新身份。原本使用纯 deny、纯 allow 或其它等价有效策略的 v3 缓存继续按现有契约校验；无需为此手动更改 `cachePrivacyVersion`。删除失败仍适用[缓存契约](/guide/reliability-and-privacy#配置变化后-哪些历史缓存会失效)中的内存降级与磁盘残留限制。
+
 2.0 的同意等待与弱网重试共用一个缓存，只向当前 Sentry 目标补发。更换 DSN／tunnel、读取旧格式或使用不兼容的隐私／存储策略时，会丢弃旧数据并记录诊断。只调整条数、字节上限或过期时间时，会裁剪仍兼容的记录。重新初始化的 client 不继承旧授权。
 
 SDK 按实际运行平台限制整个缓存容器，记录与元数据都计入：支付宝／钉钉最多 180 KiB，其余平台最多 900 KiB。`consentCacheMaxBytes` 默认仍为 900 KiB，较小的配置可进一步收窄，详见[跨平台 Storage 差异](/guide/platform-compatibility#storage-与离线缓存)。重试不会延长原过期时间；重放前保存删除失败的记录不会发送，移除成功后中断仍可能丢失数据。缓存只能尽力补发，不能保证不丢失、不重复或后台接收成功。

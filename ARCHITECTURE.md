@@ -110,6 +110,8 @@ flowchart TD
 
 公共捕获 API 仍通过 Core 路由到 client。`MiniappClient` 先检查采集终态，并准备采集时的 scope／Session 引用，随后调用 `super.capture*`。
 
+Core 11.10.0 的 `_processEvent` 已在等待 processors／`beforeSend` 前选定 current／isolation Session，普通异步完成不会重新选择 Session。SDK 额外保护的是更早的操作捕获边界：业务包装之后才创建的 Session 不能接收此前操作的错误，明确捕获到空 Session 时也不能回落到后来会话。
+
 在当前固定 Core 实现中，主要路径为：事件准备（含 `preprocessEvent`）→ 合并 scope、processors 与 normalization → `postprocessEvent` → 用户 `beforeSend` 与结果校验 → Session 错误更新 → 错误 `sampleRate` → `sendEvent`／envelope。Core 升级时须复核顺序；SDK 不复制这段 pipeline。
 
 宿主 Debug ID 同步挂在公开 `preprocessEvent` 上。默认环境 processor 只填缺失维度，保留用户字段和显式 `null`。自动环境信息属于 client，不写共享 isolation scope，以免初始化、路由或关闭串改其它业务上下文。
@@ -303,6 +305,8 @@ Core 11.6 没有公开的 offline timer 取消接口。永久 shutdown 先关闭
 Core 默认 transport 将发送 Promise 拒绝记为 `network_error` client report；撤回同意导致在途／排队请求取消时也沿用这一语义。符合缓存策略的原 envelope 可同时入库，重新同意后仍可能送达。因此该计数不能解释成最终永久丢失条数，也不能仅凭它判断 consent 失效。SDK 不拦截或重写 Core outcome 管道；回归检查取消后的缓存、重放事件和最终 client report 三者，而不是消除这个计数。
 
 隐私身份采用 `miniapp-privacy-v3`：白名单记录 Core 已解析的 userInfo、有效 infer_ip、query CollectBehavior，以及 SDK 的有效 outgoing 正文方向、正文上限、敏感片段、requireConsent 和业务 `cachePrivacyVersion`。片段小写／排序／去重，空 deny 与 true 等价；关闭正文时忽略未生效的正文上限。容量／TTL 不进入身份，任何非等价策略（包括放宽）均让旧根以 policy_changed 整批失效，不重新处理或挂接旧 envelope；旧 v2 身份首次读取也失效。外部 hooks、自定义集成（含正文排除正则）、Replay 隐私规则由业务修订号覆盖，不序列化函数或尝试证明正则等价。
+
+query 的初始化快照与身份规范化遵循 Core 的 deny 优先规则：同时存在 allow／deny 时只复制和读取 deny，忽略 allow；空 deny 与 true 等价。身份版本仍为 v3，因为其各策略表示的含义没有变化：此前混合输入被错误快照为 allow，旧缓存记录的也是 allow 身份，修复后同一输入转为 deny／true，自然触发 policy_changed；原本正确的等价 deny 缓存继续可重放。不得把旧 allow 根改挂到新 deny 身份。
 
 初始化先复制相关配置和数组供默认集成使用，Client 再保存自身快照；Core 构造 transport 时只装配 store 代理，super 完成并得到 Core 的已解析采集策略与 SDK IP 设置后，同步创建真实 store，再开放 init runtime。这样默认值仍由 Core 维护，不复制解析算法；不支持原地修改选项作为动态配置 API。现有 store 先校验身份并提交删除再交付重放；不兼容根删除失败则不交付、记录 storage_error 并退到受限内存，不报告未提交的丢弃，也不声称磁盘已擦除。恢复旧策略时残留可能再次匹配。回归见 [cache-privacy](test/cache-privacy.realcore.test.ts)。
 
