@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getClient, getCurrentScope, getIsolationScope } from '@sentry/core';
 import { init } from '../src/sdk';
-import type { MiniappClient } from '../src/client';
+import { MiniappClient } from '../src/client';
 import type { MiniappOptions } from '../src/types';
 import { sdk, resetPlatformCache } from '../src/crossPlatform';
 import { OFFLINE_STORE_KEY } from '../src/transports/offlineRecords';
+import { collectKeyValueData, collectUrl } from '../src/dataCollection';
 
 describe('缓存隐私策略（真实 Core 与宿主请求）', () => {
   const clients: MiniappClient[] = [];
@@ -83,6 +84,31 @@ describe('缓存隐私策略（真实 Core 与宿主请求）', () => {
     resetPlatformCache();
   });
 
+  it('低层构造器的混合策略快照也遵循 deny 优先，复制数组且不读取忽略的 allow', () => {
+    const deny = ['order'];
+    const policy = {
+      deny,
+      get allow(): string[] {
+        throw new Error('Core 不读取有 deny 的 allow');
+      },
+    };
+    const client = new MiniappClient({
+      dsn: 'https://key@example.com/1',
+      defaultIntegrations: false,
+      dataCollection: { urlQueryParams: policy },
+      transport: () => ({ send: () => Promise.resolve({}), flush: () => Promise.resolve(true) }),
+    });
+    clients.push(client);
+    deny.length = 0;
+    expect(collectKeyValueData({ order: 'secret', page: '1' }, client)).toEqual({
+      order: '[Filtered]',
+      page: '1',
+    });
+    expect(collectUrl('https://api.example.com/?order=secret&page=1', client)).toBe(
+      'https://api.example.com/?order=[Filtered]&page=1',
+    );
+  });
+
   it.each<MiniappOptions>([
     { dataCollection: { urlQueryParams: false } },
     { dataCollection: { urlQueryParams: { allow: ['page'] } } },
@@ -142,6 +168,19 @@ describe('缓存隐私策略（真实 Core 与宿主请求）', () => {
         dataCollection: { cookies: false, httpHeaders: false },
       },
     ],
+    [
+      { dataCollection: { urlQueryParams: { allow: ['order'], deny: ['ORDER'] } } },
+      { dataCollection: { urlQueryParams: { deny: ['order', 'ORDER'] } } },
+    ],
+    [
+      { dataCollection: { urlQueryParams: { deny: ['order'] } } },
+      { dataCollection: { urlQueryParams: { allow: [], deny: ['ORDER'] } } },
+    ],
+    [
+      { dataCollection: { urlQueryParams: { allow: ['page'], deny: ['order'] } } },
+      { dataCollection: { urlQueryParams: { allow: ['order'], deny: ['ORDER'] } } },
+    ],
+    [{ dataCollection: { urlQueryParams: { allow: [], deny: [] } } }, {}],
   ])('等价策略保留缓存（%j → %j）', async (previous, next) => {
     await cache(start(previous));
     const second = start(next);
@@ -227,6 +266,35 @@ describe('缓存隐私策略（真实 Core 与宿主请求）', () => {
     expect(second.getOfflineStoreDiagnostics()?.codes).toContain('policy_changed');
   });
 
+  it.each([
+    { allow: ['order'], deny: ['order'] },
+    { allow: [], deny: [] },
+  ])('旧 v3 错误采用 allow 的缓存不能匹配修复后的混合策略 %j', async (policy) => {
+    // #590 会把混合输入快照为纯 allow；用相同生效策略产生真实旧格式记录。
+    await cache(start({ dataCollection: { urlQueryParams: { allow: policy.allow } } }));
+    const root = JSON.parse(disk.get(OFFLINE_STORE_KEY)!);
+    expect(JSON.parse(root.policyId)[0]).toBe('miniapp-privacy-v3');
+    expect(JSON.parse(root.policyId)[4]).toEqual({ allow: policy.allow });
+    expect(disk.get(OFFLINE_STORE_KEY)?.includes('query-canary')).toBe(policy.allow.length > 0);
+    const drop = vi.fn();
+    const second = start({
+      dataCollection: { urlQueryParams: policy },
+      onConsentCacheDrop: drop,
+    });
+    await grant(second);
+    expect(sent.join('')).not.toContain('cached-marker');
+    expect(sent.join('')).not.toContain('query-canary');
+    expect(second.getOfflineStoreDiagnostics()?.codes).toContain('policy_changed');
+    expect(drop).toHaveBeenCalledWith({ reason: 'policy_changed', dropped: 1 });
+    expect(disk.get(OFFLINE_STORE_KEY)).toBe('');
+    // 删除旧记录后，新采集与同意缓存仍正常工作。
+    second.setConsent(false);
+    await cache(second);
+    await grant(second);
+    expect(sent.join('')).toContain('cached-marker');
+    expect(sent.join('').includes('query-canary')).toBe(policy.deny.length === 0);
+  });
+
   it('原配置数组修改不改变本 client 的采集和身份快照', async () => {
     const deny = ['order'];
     const sensitive = ['member'];
@@ -235,7 +303,7 @@ describe('缓存隐私策略（真实 Core 与宿主请求）', () => {
     ];
     const first = start({
       sensitiveKeys: sensitive,
-      dataCollection: { urlQueryParams: { deny }, httpBodies: bodies },
+      dataCollection: { urlQueryParams: { allow: ['order'], deny }, httpBodies: bodies },
     });
     deny.length = 0;
     sensitive.push('order');

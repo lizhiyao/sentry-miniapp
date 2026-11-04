@@ -8,9 +8,11 @@ function terms(values: string[]): string[] {
 
 function behavior(value: CollectBehavior): boolean | { allow: string[] } | { deny: string[] } {
   if (typeof value === 'boolean') return value;
-  if ('allow' in value) return { allow: terms(value.allow) };
-  const deny = terms(value.deny);
-  return deny.length ? { deny } : true;
+  if ('deny' in value) {
+    const deny = terms(value.deny);
+    return deny.length ? { deny } : true;
+  }
+  return { allow: terms(value.allow) };
 }
 
 /** 与采集共用初始化快照，不保留调用方可变数组；非支持的配置在退休旧 runtime 前报错。 */
@@ -25,7 +27,8 @@ export function snapshotPrivacyOptions<T extends MiniappOptions>(options: T): T 
     copy.dataCollection = { ...dc };
     if (query && typeof query === 'object') {
       copy.dataCollection.urlQueryParams =
-        'allow' in query ? { allow: [...query.allow] } : { deny: [...query.deny] };
+        // Core 对混合输入使用 deny，忽略的 allow 也不应被读取。
+        'deny' in query ? { deny: [...query.deny] } : { allow: [...query.allow] };
     }
     if (dc.httpBodies) copy.dataCollection.httpBodies = [...dc.httpBodies];
   }
