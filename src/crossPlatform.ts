@@ -313,7 +313,8 @@ export const detectPlatform = (): DetectedPlatform | null => {
 let _detectedPlatform: DetectedPlatform | null | undefined;
 
 const resolvePlatform = (): DetectedPlatform | null => {
-  if (_detectedPlatform === undefined) {
+  // 只固定成功宿主；未就绪或 getter 暂时不可读时，下次显式调用继续探测。
+  if (!_detectedPlatform) {
     _detectedPlatform = detectPlatform();
   }
   return _detectedPlatform;
@@ -392,7 +393,8 @@ const getAppName = (): AppName => {
  */
 const computeSystemInfo = (): SystemInfo | null => {
   try {
-    const currentSdk = getSDK();
+    const currentSdk = resolvePlatform()?.sdk;
+    if (!currentSdk) return null;
     const result: any = {};
     let hasNewApi = false;
 
@@ -498,14 +500,19 @@ let _appName: AppName | null = null;
 
 export const sdk = (): SDK => {
   if (_sdk === null) {
-    _sdk = getSDK();
+    const current = getSDK();
+    // 降级对象不能成为永久 SDK；仅保留已确认的真实宿主。
+    if (current === _detectedPlatform?.sdk) _sdk = current;
+    return current;
   }
   return _sdk;
 };
 
 export const appName = (): AppName => {
   if (_appName === null) {
-    _appName = getAppName();
+    const name = getAppName();
+    if (name !== 'unknown') _appName = name;
+    return name;
   }
   return _appName;
 };
@@ -549,6 +556,7 @@ let _isMinigame: boolean | null = null;
  */
 export const isMinigame = (): boolean => {
   if (_isMinigame === null) {
+    if (!isMiniappEnvironment()) return false;
     const g = globalThis as any;
     try {
       const hasGameGlobal = typeof g.GameGlobal !== 'undefined';
@@ -556,10 +564,10 @@ export const isMinigame = (): boolean => {
         typeof g.App !== 'function' &&
         typeof g.Page !== 'function' &&
         typeof g.getCurrentPages !== 'function';
-      _isMinigame = isMiniappEnvironment() && (hasGameGlobal || lacksMiniprogramHost);
+      _isMinigame = hasGameGlobal || lacksMiniprogramHost;
     } catch (_error) {
       // 不可读入口不是小游戏证据；保守选择小程序能力，交给 producer 特性检测。
-      _isMinigame = false;
+      return false;
     }
   }
   return _isMinigame;
