@@ -124,7 +124,7 @@ Sentry.init({
 
 条数按 envelope（一次上报批次）计算，一条记录可能包含多条日志、指标或 span。撤回授权或关闭 client 不会自动清空已保存的记录；它们仍受缓存容量与过期时间限制，重新初始化的 client 也不会继承旧授权。
 
-使用自定义 `transport` 时，未开启 `requireConsent` 的缓存与重试由该实现负责；开启后，SDK 会统一处理同意等待和离线缓存，即使 `enableOfflineCache: false`。自定义通道应避免重复添加离线重试，并自行控制内部队列的实际发送与取消。常规接入使用 `Sentry.init()`；直接构造 `MiniappClient` 不会接管持久缓存重放。实现职责见仓库[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。
+使用自定义 `transport` 时，未开启 `requireConsent` 的缓存与重试由该实现负责；开启后，SDK 会统一处理同意等待和离线缓存，即使 `enableOfflineCache: false`。自定义通道应避免重复添加离线重试，并自行控制内部队列的实际发送与取消。常规接入使用 `Sentry.init()`；直接构造 `MiniappClient` 不会接管持久缓存重放。相关用法见[集成与高级扩展](/guide/api#集成与高级扩展)。
 
 ## 上线前怎样验证
 

@@ -218,5 +218,3 @@ Session 按每次前台运行管理，JS 未处理异常从 crashed 改为 unhan
 ## 上线前验证
 
 上线前，按项目启用的功能，在目标小程序／小游戏和自己的 Sentry 项目中分别确认错误、性能、Logs、Metrics、会话统计与上报丢弃统计。开发者工具或本地测试通过，不能代替真机前后台恢复和后台实际接收结果。上传同一次构建的 JS 与 map，确认新错误能还原到业务源码；使用 Debug ID 时，还需核对事件与上传文件的 ID 一致。参考 [Source Map 进阶](/guide/sourcemap-advanced)。
-
-参与 SDK 开发或升级 core 依赖时，请阅读仓库的[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md#core-扩展边界与升级审查)。

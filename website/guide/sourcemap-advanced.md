@@ -243,5 +243,3 @@ Sentry.init({
 - 先上传 artifact，再发布对应构建，避免事件先于 map 到达 Sentry。
 
 仍无法定位时，提交 Issue 时附 SDK 版本、平台、框架、事件 filename、release、Doctor JSON 输出和脱敏后的 `Sentry.getDiagnostics()`。
-
-SDK 维护者的构建检查见[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)，映射职责见[架构说明](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。
