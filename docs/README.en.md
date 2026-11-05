@@ -41,6 +41,8 @@ Automatic collection depends on host capabilities. React / Vue component errors 
 
 > This README and the current docs site cover the **stable 2.x release**. Before upgrading an existing 1.x project, or if your self-hosted deployment cannot be upgraded, read the [version selection and migration guide](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice) (Chinese).
 
+Privacy-policy cache invalidation, `cachePrivacyVersion`, and initialization retries after the host becomes available require **2.3.1 or later**. Existing 2.3.x projects should review the [cache migration and upgrade steps](https://sentry-miniapp.pages.dev/guide/migration-2.0#upgrade-2-3-1) (Chinese).
+
 Use Sentry SaaS or **self-hosted Sentry 26.4.2 or higher**. Older self-hosted deployments are outside the supported range for 2.x; receiving errors alone does not establish support for other monitoring features.
 
 Mini programs are apps hosted inside platforms such as WeChat, Alipay and Douyin. Their JavaScript runtimes use platform-specific networking and lifecycle APIs rather than the browser DOM and request APIs. For H5/web builds, use the official [`@sentry/browser`](https://github.com/getsentry/sentry-javascript/tree/develop/packages/browser); use this SDK for mini program and mini game builds.

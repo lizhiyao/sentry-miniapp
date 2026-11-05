@@ -2,7 +2,7 @@
 
 本文面向维护者，记录对官方 Browser、Node、Deno、Cloudflare SDK 的源码对照。上游基线固定为 `11.4.0`，提交 [`7f13c61336918fd727f473faa341b9a24f23718e`](https://github.com/getsentry/sentry-javascript/commit/7f13c61336918fd727f473faa341b9a24f23718e)，不以最新官网说明推断该版本行为。
 
-本文描述当前源码的选择及其理由；依赖版本以 [package.json](../package.json) 为准。Session 选择时序和 CollectBehavior 优先级另按固定 Core `11.10.0` 的实现复核，见下文对应取舍，不将旧基线推断为当前行为。职责边界见 [ARCHITECTURE](../ARCHITECTURE.md)，版本复现、验证结果和发布状态见 [发布后审查](core-v11-postrelease-review.md)。
+本文描述当前源码的选择及其理由；依赖版本以 [package.json](../package.json) 为准。Session 选择时序和 CollectBehavior 优先级另按固定 Core `11.10.0` 的实现复核，见下文对应取舍，不将旧基线推断为当前行为。职责边界见 [ARCHITECTURE](../ARCHITECTURE.md)，历史专项复现与验证见 [发布后审查](core-v11-postrelease-review.md)，2.3.1 的正式发布来源与产物验收见 [2.3.1 发布复核](release-2.3.1-review.md)。
 
 ## 已采用的共同做法
 
