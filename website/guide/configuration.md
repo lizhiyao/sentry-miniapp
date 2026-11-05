@@ -251,7 +251,7 @@ await Sentry.startSpan({
 
 ## 运行环境与自建 Sentry
 
-npm 包的 `engines.node` 声明 SDK 与 Core 的 Node.js 依赖范围；业务构建器还有自己的 Node.js 要求，应同时满足。开发本仓库时使用[开发指南](https://github.com/lizhiyao/sentry-miniapp/blob/master/DEVELOPMENT.md)列出的工具链版本。Node.js 版本不能当作手机宿主版本要求；实际运行时能力见[跨平台差异与降级](/guide/platform-compatibility)。
+npm 包的 `engines.node` 声明 SDK 与 Core 的 Node.js 依赖范围；业务构建器还有自己的 Node.js 要求，应同时满足。Node.js 版本不能当作手机宿主版本要求；实际运行时能力见[跨平台差异与降级](/guide/platform-compatibility)。
 
 自建 Sentry 版本基线、1.x 文档归档和升级步骤集中在[版本选择与迁移](/guide/migration-2.0#version-choice)。
 
@@ -387,4 +387,4 @@ Sentry.init({
 
 SDK 能包装 `App()` 时，会在业务同步 `onHide` 返回后收尾并 flush，不等待返回的 Promise。晚初始化或小游戏使用可用的原生 show／hide 监听；缺少任一监听时自动会话降级，需要业务管理边界。业务在异步 hide 回调中产生数据，或依赖原生监听执行顺序时，应在自己的处理器末尾显式调用 `flush()`。
 
-事件 ID、`flush()`／`close()` 返回 `true` 均不代表后台接收确认，也不保证离线缓存全部排空。实际交付须在目标 Sentry 项目核对。资源归属、共享监听和取消的实现原因见[架构文档](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md#5-生命周期与共享宿主观测)。
+事件 ID、`flush()`／`close()` 返回 `true` 均不代表后台接收确认，也不保证离线缓存全部排空。实际交付须在目标 Sentry 项目核对。

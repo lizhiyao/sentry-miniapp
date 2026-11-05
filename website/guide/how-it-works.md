@@ -94,4 +94,3 @@ SDK 解析宿主堆栈并把虚拟路径归一为 `app:///`，兼容运行时可
 
 - 接入与排障：[快速接入](/guide/getting-started) · [常见问题](/guide/faq)
 - 查询调用与能力：[常用 API](/guide/api) · [支持范围](/guide/platforms)
-- 参与 SDK 开发：[维护者架构文档](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)

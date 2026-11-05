@@ -195,7 +195,7 @@ Sentry.init({
 
 `new MiniappClient(options)` 是低层入口，须显式提供 `transport`，捕获事件／反馈时提供明确的 scope 归属。它不安装 `init()` 的自动生命周期或持久缓存重放；`requireConsent: true` 未授权时直接阻止发送，并提示 `low_level_consent_blocking`，不声称已缓存。常规应用接入使用 `init()`。
 
-直接调用 `Transports.createMiniappOfflineStore(options)` 时，须提供区分实际 DSN／tunnel 的 `targetId`，以及表达采集／存储策略的 `policyId`。通常让 `init()` 管理这些身份与资源；高级扩展的职责见[架构文档](https://github.com/lizhiyao/sentry-miniapp/blob/master/ARCHITECTURE.md)。
+直接调用 `Transports.createMiniappOfflineStore(options)` 时，须提供区分实际 DSN／tunnel 的 `targetId`，以及表达采集／存储策略的 `policyId`。通常让 `init()` 管理这些身份与资源；缓存与同意的使用边界见[可靠上报与隐私同意](/guide/reliability-and-privacy)。
 
 ## Session API
 
