@@ -23,6 +23,22 @@ Core v11 将自建 Sentry 26.4.2 及以上列为[官方支持范围](https://git
 
 已使用 beta 的项目也应通过上述命令切换到正式版，移除依赖中原有的 beta 版本或预发布标签。各版本修复记录见 [GitHub Releases](https://github.com/lizhiyao/sentry-miniapp/releases)。
 
+## 从 2.3.x 升级到 2.3.1 {#upgrade-2-3-1}
+
+2.3.1 修复关闭／重新初始化、路由脱敏、缓存隐私策略和平台探测重试问题。已有 2.3.x 项目保留现有监控 API 与后台配置，更新依赖并提交锁文件：
+
+```bash
+npm install --save-exact sentry-miniapp@2.3.1
+npm ls sentry-miniapp
+```
+
+原生微信项目重新执行「构建 npm」；Taro／uni-app 重新构建对应目标。完整改动见 [2.3.1 Release](https://github.com/lizhiyao/sentry-miniapp/releases/tag/v2.3.1)。升级时注意：
+
+- **旧缓存会保守失效。** 2.3.0 等旧版本的 `miniapp-privacy-v2` 身份不包含完整隐私策略；2.3.1 首次读取时以 `policy_changed` 整批丢弃，不保证升级后补发。删除失败时，新策略不重放不兼容数据并降级到内存，但不代表磁盘已擦除，详见[缓存契约](/guide/reliability-and-privacy#配置变化后-哪些历史缓存会失效)。
+- 新增的 `cachePrivacyVersion` 默认为空字符串；自定义 hook、processor、integration 或 Replay 隐私规则变化时，更新稳定的业务修订号。内置升级失效不需要靠随机值或手动修改该选项触发。
+- 宿主就绪后的显式初始化重试从 2.3.1 生效；它不补采初始化之前的数据，也不放宽临时 scope／同步采集回调内初始化的限制。
+- Core 从已发布 2.3.0 的 11.8.0 更新为 11.10.0。若直接调用低层 `recordDroppedEvent()`，指标类别使用 `trace_metric`；常规 `metrics` API 用法不变。
+
 ## 上线前需要确认 {#试用前需要确认}
 
 升级后先在测试项目跑通，再按实际启用的功能检查：
@@ -177,7 +193,7 @@ Sentry.init({ dsn: 'YOUR_DSN', dataCollection: { userInfo: false } });
 
 ## 单目标缓存与同意
 
-若旧构建已使用 `miniapp-privacy-v3` 缓存，但 query 配置同时包含 allow／deny，旧快照可能错误地只使用 allow。修复后同一配置按 Core 的 deny 优先生效，旧 allow 身份的缓存会在重放前以 `policy_changed` 整批丢弃，不重新过滤或迁移到新身份。原本使用纯 deny、纯 allow 或其它等价有效策略的 v3 缓存继续按现有契约校验；无需为此手动更改 `cachePrivacyVersion`。删除失败仍适用[缓存契约](/guide/reliability-and-privacy#配置变化后-哪些历史缓存会失效)中的内存降级与磁盘残留限制。
+2.3.1 的有效隐私策略失效与旧缓存处理见[同版本线升级说明](#upgrade-2-3-1)。未发布源码候选中曾出现的 v3 混合 allow／deny 快照偏差，记录在[2.3.1 发布复核](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/release-2.3.1-review.md)；它不表示已发布的 2.3.0 使用过 v3 身份。
 
 2.0 的同意等待与弱网重试共用一个缓存，只向当前 Sentry 目标补发。更换 DSN／tunnel、读取旧格式或使用不兼容的隐私／存储策略时，会丢弃旧数据并记录诊断。只调整条数、字节上限或过期时间时，会裁剪仍兼容的记录。重新初始化的 client 不继承旧授权。
 

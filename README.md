@@ -39,6 +39,8 @@
 
 > 本文与当前官网面向 **2.x 正式版**。已有 1.x 项目升级，或自建后台暂时无法升级时，先看[版本选择与迁移说明](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
 
+缓存隐私策略失效、`cachePrivacyVersion` 和宿主就绪后的初始化重试从 **2.3.1** 提供；已有 2.3.x 项目升级时，先确认[旧缓存处理与升级步骤](https://sentry-miniapp.pages.dev/guide/migration-2.0#upgrade-2-3-1)。
+
 使用 Sentry 官方云服务，或 **26.4.2 及以上的自建 Sentry**。更旧的自建后台不在 2.x 支持范围内；只收到错误事件不能证明其它监控能力兼容。
 
 ## 🚀 5 分钟跑通
