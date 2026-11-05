@@ -193,7 +193,7 @@ Sentry.init({ dsn: 'YOUR_DSN', dataCollection: { userInfo: false } });
 
 ## 单目标缓存与同意
 
-2.3.1 的有效隐私策略失效与旧缓存处理见[同版本线升级说明](#upgrade-2-3-1)。未发布源码候选中曾出现的 v3 混合 allow／deny 快照偏差，记录在[2.3.1 发布复核](https://github.com/lizhiyao/sentry-miniapp/blob/master/docs/release-2.3.1-review.md)；它不表示已发布的 2.3.0 使用过 v3 身份。
+2.3.1 的有效隐私策略失效与旧缓存处理见[同版本线升级说明](#upgrade-2-3-1)。
 
 2.0 的同意等待与弱网重试共用一个缓存，只向当前 Sentry 目标补发。更换 DSN／tunnel、读取旧格式或使用不兼容的隐私／存储策略时，会丢弃旧数据并记录诊断。只调整条数、字节上限或过期时间时，会裁剪仍兼容的记录。重新初始化的 client 不继承旧授权。
 
