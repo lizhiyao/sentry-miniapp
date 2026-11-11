@@ -83,26 +83,17 @@ export function getDefaultIntegrations(options: MiniappOptions = {}): Integratio
     integrations.push(rewriteFramesIntegration());
   }
 
-  const networkOptions: Record<string, any> = { traceNetworkBody: options.traceNetworkBody };
-  if (options.enableTracePropagation !== undefined) {
-    networkOptions['enableTracePropagation'] = options.enableTracePropagation;
-  }
-  if (options.tracePropagationTargets !== undefined) {
-    networkOptions['tracePropagationTargets'] = options.tracePropagationTargets;
-  }
-  if (options.propagateTraceparent !== undefined) {
-    networkOptions['propagateTraceparent'] = options.propagateTraceparent;
-  }
-  if (options.enableStandaloneHttpSpans !== undefined) {
-    networkOptions['enableStandaloneHttpSpans'] = options.enableStandaloneHttpSpans;
-  }
-  if (options.maxRequestBodySize !== undefined) {
-    networkOptions['maxRequestBodySize'] = options.maxRequestBodySize;
-  }
-  if (options.sensitiveKeys !== undefined) {
-    networkOptions['sensitiveKeys'] = options.sensitiveKeys;
-  }
-  integrations.push(networkBreadcrumbsIntegration(networkOptions));
+  integrations.push(
+    networkBreadcrumbsIntegration({
+      traceNetworkBody: options.traceNetworkBody,
+      enableTracePropagation: options.enableTracePropagation,
+      tracePropagationTargets: options.tracePropagationTargets,
+      propagateTraceparent: options.propagateTraceparent,
+      enableStandaloneHttpSpans: options.enableStandaloneHttpSpans,
+      maxRequestBodySize: options.maxRequestBodySize,
+      sensitiveKeys: options.sensitiveKeys,
+    }),
+  );
 
   if (options.enableAutoSessionTracking !== false) {
     integrations.push(sessionIntegration());

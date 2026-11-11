@@ -69,3 +69,17 @@ yarn run check:bundle-size
 | UMD | 262739 | 264037 | 1298 | 86366 |
 
 本轮主 SDK 各格式增加约 1.27 KiB；可选回放产物保持原预算。主包 ESM 预算由 260.5 调整为 262 KiB，CJS／UMD／独立小程序由 257 调整为 258.5 KiB；基础／Performance 消费端探针分别由 235／240 调整为 236／241 KiB。变更范围限于新增隐私边界和必要快照，实际字节仍由构建输出核对。上文是历史阶段的数值，当前精确门槛以两个脚本为准；开发指南不再维护第二套门槛常量。
+
+## 2026-11-11：Core 11.11.0 升级
+
+以 `162e13a` 为基线，在同一工作树使用 Node 24.15.0 和同一锁定工具链构建。只升级 Core 时，主 SDK 三种格式均增加 341 B。ESM 的 Source Map 近似归因中，约 297 B 来自 [Core 改用 conventions 属性常量](https://github.com/getsentry/sentry-javascript/pull/25899)后引入的 `@sentry/conventions/attributes` 定义。Core 同时增加了默认消息堆栈标记，并让手动 `startSession()` 对宿主 User-Agent 应用请求头采集策略。自动 Session 仍由 SDK 生命周期集成通过 `makeSession()` 创建。
+
+| 主 SDK | Core 11.10.0 | 仅升级 Core | 精简装配后 | 原始字节预算 |
+| --- | ---: | ---: | ---: | ---: |
+| ESM | 268137 | 268478 | 268247 | 268288 |
+| CJS | 264396 | 264737 | 264506 | 264704 |
+| UMD | 264189 | 264530 | 264299 | 264704 |
+
+默认网络集成将七项显式配置直接交给构造器，由构造器按原有规则处理省略项和 `undefined`。删除重复的赋值分支后，每种格式减少 231 B，保留正文脱敏、追踪头和独立 HTTP span 的配置。构建继续执行原有体积预算。
+
+候选 Core 的 Session 选择时序、processing poll、键值过滤、offline transport 和编码接缝保持原契约。版本与实现差异见 [Core 11.11.0 发布说明](https://github.com/getsentry/sentry-javascript/releases/tag/11.11.0)，依赖更新与验证见 [#600](https://github.com/lizhiyao/sentry-miniapp/pull/600)。

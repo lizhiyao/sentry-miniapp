@@ -112,7 +112,7 @@ flowchart TD
 
 公共捕获 API 仍通过 Core 路由到 client。`MiniappClient` 先检查采集终态，并准备采集时的 scope／Session 引用，随后调用 `super.capture*`。
 
-Core 11.10.0 的 `_processEvent` 已在等待 processors／`beforeSend` 前选定 current／isolation Session，普通异步完成不会重新选择 Session。SDK 额外保护的是更早的操作捕获边界：业务包装之后才创建的 Session 不能接收此前操作的错误，明确捕获到空 Session 时也不能回落到后来会话。
+Core 11.11.0 的 `_processEvent` 已在等待 processors／`beforeSend` 前选定 current／isolation Session，普通异步完成不会重新选择 Session。SDK 额外保护的是更早的操作捕获边界：业务包装之后才创建的 Session 不能接收此前操作的错误，明确捕获到空 Session 时也不能回落到后来会话。
 
 在当前固定 Core 实现中，主要路径为：事件准备（含 `preprocessEvent`）→ 合并 scope、processors 与 normalization → `postprocessEvent` → 用户 `beforeSend` 与结果校验 → Session 错误更新 → 错误 `sampleRate` → `sendEvent`／envelope。Core 升级时须复核顺序；SDK 不复制这段 pipeline。
 
