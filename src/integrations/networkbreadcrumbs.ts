@@ -59,19 +59,19 @@ export class NetworkBreadcrumbs implements Integration {
     options: {
       traceNetworkBody?: boolean | undefined;
       /** 在 core 内置敏感片段与本 SDK 补齐的支付／证件片段**之上追加**的键名片段（大小写不敏感、按片段匹配） */
-      sensitiveKeys?: string[];
+      sensitiveKeys?: string[] | undefined;
       /** 请求 / 响应体上报的字节上限，与 core 的 `maxRequestBodySize` 同语义（small=1 KB、medium=10 KB、默认 1 MB） */
-      maxRequestBodySize?: MaxBodySizeOption;
+      maxRequestBodySize?: MaxBodySizeOption | undefined;
       /** 不记录请求／响应正文的 URL 正则模式；匹配不使用业务正则的 lastIndex。 */
       denyBodyUrls?: Array<string | RegExp>;
       /** 是否启用分布式追踪头注入（默认 true） */
-      enableTracePropagation?: boolean;
+      enableTracePropagation?: boolean | undefined;
       /** 追踪头 URL 匹配规则；字符串匹配完整 URL 子串，匹配的请求才注入追踪头。 */
-      tracePropagationTargets?: Array<string | RegExp>;
+      tracePropagationTargets?: Array<string | RegExp> | undefined;
       /** 是否额外注入 W3C traceparent 头（默认 false） */
-      propagateTraceparent?: boolean;
+      propagateTraceparent?: boolean | undefined;
       /** 无 active span 时是否把请求作为独立 segment span 上报（默认 true） */
-      enableStandaloneHttpSpans?: boolean;
+      enableStandaloneHttpSpans?: boolean | undefined;
     } = {},
   ) {
     this._traceNetworkBody = !!options.traceNetworkBody;
