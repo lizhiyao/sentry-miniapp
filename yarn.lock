@@ -402,14 +402,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@babel/parser@npm:7.29.12":
-  version: 7.29.12
-  resolution: "@babel/parser@npm:7.29.12"
+"@babel/parser@npm:7.29.13":
+  version: 7.29.13
+  resolution: "@babel/parser@npm:7.29.13"
   dependencies:
     "@babel/types": "npm:^7.29.11"
   bin:
     parser: ./bin/babel-parser.js
-  checksum: 10c0/5be1bda59715d21a060ed5a49c2f6396058f3e5ec14c218df4090eef053e4bf9af2e3bebbf1e862bdc4c2d83b028fcf315dbaffb1a72da432241f57dcfdaa4f4
+  checksum: 10c0/b48742b4501a38552ef1317726345a9c42eaab2c1fb7d884004453e9ef1519ea8a36167d295d966b870c80821eb53fb258baa9b0e43b9f23915edfd6330664bd
   languageName: node
   linkType: hard
 
@@ -6127,7 +6127,7 @@ __metadata:
   resolution: "sentry-miniapp@workspace:."
   dependencies:
     "@babel/core": "npm:^7.29.7"
-    "@babel/parser": "npm:7.29.12"
+    "@babel/parser": "npm:7.29.13"
     "@babel/plugin-transform-regenerator": "npm:^7.29.8"
     "@commitlint/cli": "npm:^20.5.3"
     "@commitlint/config-conventional": "npm:^20.5.3"
