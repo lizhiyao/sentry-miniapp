@@ -1676,7 +1676,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rrweb/types@npm:2.2.0, @rrweb/types@npm:^2.2.0":
+"@rrweb/types@npm:2.2.2":
+  version: 2.2.2
+  resolution: "@rrweb/types@npm:2.2.2"
+  checksum: 10c0/f08827ed4949e0cd6e6c53f1f863c26f2b63d16885c709462ce2240b4fc2500b3afc85104c4dd68da1e05f38635b9f015c715ece3222dbd481a7655882832bcb
+  languageName: node
+  linkType: hard
+
+"@rrweb/types@npm:^2.2.0":
   version: 2.2.0
   resolution: "@rrweb/types@npm:2.2.0"
   checksum: 10c0/ff1f59601ca8f854218190d683bbbc527166bba0f15be6d9cffd924dedb2505083f175e3b64b5193b677baddad1a446f817dac9e7a98727d977fb69f53492edd
@@ -6242,7 +6249,7 @@ __metadata:
     "@jridgewell/trace-mapping": "npm:0.3.31"
     "@publint/pack": "npm:^0.1.7"
     "@rrweb/replay": "npm:2.2.0"
-    "@rrweb/types": "npm:2.2.0"
+    "@rrweb/types": "npm:2.2.2"
     "@sentry/core": "npm:11.13.0"
     "@types/jsdom": "npm:^27"
     "@types/node": "npm:^20.19.11"
