@@ -341,21 +341,35 @@ describe('client reports 的真实 core flush 与隐私契约', () => {
     client.dispose();
     expect(reports()).toHaveLength(1);
   });
-  it('无 transport 的 flush 仍同步排 core logs/metrics buffers，并取消 idle timers', async () => {
+  it('无 transport 时首次与后续日志指标仍自动或显式排空，且不重复发送或遗留 timer', async () => {
     const client = start({ dsn: undefined });
     const flushedLogs = vi.fn();
     const flushedMetrics = vi.fn();
     client.on('flushLogs', flushedLogs);
     client.on('flushMetrics', flushedMetrics);
+    await drain(client);
+    expect(flushedLogs).not.toHaveBeenCalled();
+    expect(flushedMetrics).not.toHaveBeenCalled();
     logger.info('no dsn log');
     metrics.count('no.dsn.metric', 1);
+    expect(vi.getTimerCount()).toBe(2);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(flushedLogs).toHaveBeenCalledOnce();
+    expect(flushedMetrics).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
     await drain(client);
     expect(flushedLogs).toHaveBeenCalledOnce();
     expect(flushedMetrics).toHaveBeenCalledOnce();
+    logger.info('second no dsn log');
+    metrics.count('second.no.dsn.metric', 1);
+    expect(vi.getTimerCount()).toBe(2);
+    await drain(client);
+    expect(flushedLogs).toHaveBeenCalledTimes(2);
+    expect(flushedMetrics).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(10_000);
     await drain(client);
-    expect(flushedLogs).toHaveBeenCalledOnce();
-    expect(flushedMetrics).toHaveBeenCalledOnce();
+    expect(flushedLogs).toHaveBeenCalledTimes(2);
+    expect(flushedMetrics).toHaveBeenCalledTimes(2);
     expect(vi.getTimerCount()).toBe(0);
     expect(envelopes).toEqual([]);
   });

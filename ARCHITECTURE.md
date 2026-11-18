@@ -112,7 +112,7 @@ flowchart TD
 
 公共捕获 API 仍通过 Core 路由到 client。`MiniappClient` 先检查采集终态，并准备采集时的 scope／Session 引用，随后调用 `super.capture*`。
 
-Core 11.11.0 的 `_processEvent` 已在等待 processors／`beforeSend` 前选定 current／isolation Session，普通异步完成不会重新选择 Session。SDK 额外保护的是更早的操作捕获边界：业务包装之后才创建的 Session 不能接收此前操作的错误，明确捕获到空 Session 时也不能回落到后来会话。
+Core 的 `_processEvent` 在等待 processors／`beforeSend` 前选定 current／isolation Session，普通异步完成不会重新选择 Session。SDK 额外保护的是更早的操作捕获边界：业务包装之后才创建的 Session 不能接收此前操作的错误，明确捕获到空 Session 时也不能回落到后来会话。
 
 在当前固定 Core 实现中，主要路径为：事件准备（含 `preprocessEvent`）→ 合并 scope、processors 与 normalization → `postprocessEvent` → 用户 `beforeSend` 与结果校验 → Session 错误更新 → 错误 `sampleRate` → `sendEvent`／envelope。Core 升级时须复核顺序；SDK 不复制这段 pipeline。
 
@@ -191,7 +191,7 @@ Taro 插件通过 Webpack EntryPlugin 注入复用业务项目 Taro runtime 的�
 
 宿主重新赋值后可迁移包装状态；旧 wrapper 留在第三方链内部时透明转发，防止重复分发。API 不可读或不可写时跳过该观测点。请求观测准备失败透传原 options，宿主原调用的异常保留且不重试。
 
-共享函数和全局 App 入口使用同一个 Proxy apply helper，保留宿主函数的扩展成员、动态读写、name／length 与完整调用参数。原函数标记通过虚拟读取供 Core FunctionToString 使用，不写入宿主函数或其 prototype；已有不可配置标记遵守 Proxy 不变量。
+共享函数和全局 App 入口使用同一个 Proxy apply helper，保留宿主函数的扩展成员、动态读写、name／length 与完整调用参数。Core FunctionToString 需要的原函数标记通过虚拟自有属性和读取提供，不写入宿主函数或其 prototype，也不增加枚举键；已有不可配置标记遵守 Proxy 不变量。不可扩展且没有自有标记的函数跳过该观测点。安装后原函数变为不可扩展时，只返回真实描述符，函数调用继续透传，原函数源码展示保守降级。
 
 透明代理要求 Proxy 和 Reflect.get 均可用；缺少任一能力时普通函数回退为调用包装，带扩展成员或不可检查的函数跳过自动观测，避免属性快照破坏框架的动态更新。原函数通过 Function.prototype.apply.call 调用，保留被自有 apply 属性遮蔽的函数契约，也无需 Reflect.apply。请求字段枚举在缺少 Reflect.ownKeys 时回退 Object 的自有字符串／Symbol API。不能建立代理时只跳过该入口，基础 transport 仍直接使用可用宿主 API；不安装全局 Reflect／Proxy polyfill。
 

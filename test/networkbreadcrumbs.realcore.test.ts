@@ -1696,10 +1696,10 @@ describe('NetworkBreadcrumbs（真 @sentry/core 集成）', () => {
     expect(span.status).toBe('error');
   });
   it.each([
-    ['https://api.example.com:8443/path?token=secret#fragment', 'https:', '8443', '/path'],
-    ['http://api.example.com:80/path', 'http:', undefined, '/path'],
+    ['https://api.example.com:8443/path?token=secret#fragment', 'https', 8443, '/path'],
+    ['http://api.example.com:80/path', 'http', undefined, '/path'],
     ['/relative/path?token=secret', undefined, undefined, '/relative/path'],
-  ])('URL 属性遵守 core v11 的实际类型：%s', async (url, scheme, port, path) => {
+  ])('URL 属性遵守 Sentry conventions 的 scheme 和端口类型：%s', async (url, scheme, port, path) => {
     init({
       dsn: 'https://test@example.com/1',
       tracesSampleRate: 1,
