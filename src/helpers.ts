@@ -379,8 +379,22 @@ export function createFunctionWrapper(
     try {
       const reflectGet = typeof Reflect !== 'undefined' ? Reflect.get : undefined;
       if (typeof reflectGet === 'function') {
+        if (
+          !Object.getOwnPropertyDescriptor(original, '__sentry_original__') &&
+          !Object.isExtensible(original)
+        ) {
+          return undefined;
+        }
         return new Proxy(original, {
           apply: invoke,
+          getOwnPropertyDescriptor(target, key) {
+            const descriptor = Object.getOwnPropertyDescriptor(target, key);
+            if (key === '__sentry_original__' && !descriptor && Object.isExtensible(target)) {
+              // Core 通过自有属性识别包装；不写入宿主，也不增加其枚举键。
+              return { value: target, configurable: true, enumerable: false, writable: false };
+            }
+            return descriptor;
+          },
           get(target, key, receiver) {
             if (key === '__sentry_original__') {
               // Core FunctionToString 用这个公开标记识别原函数。虚拟读取避免写入

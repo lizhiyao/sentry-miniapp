@@ -153,7 +153,7 @@ describe('共享函数 instrumentation', () => {
     expect(guardedHost.run).toBe(original);
   });
 
-  it('冻结函数仍可调用并遵守已有原函数标记的 Proxy 不变量', () => {
+  it('不可扩展函数按标记能力降级，并遵守已有原函数标记的 Proxy 不变量', () => {
     for (const descriptor of [
       undefined,
       { value: 'locked' },
@@ -177,8 +177,10 @@ describe('共享函数 instrumentation', () => {
       );
       mockGetClient.mockReturnValue(client);
       expect(source.run()).toBe('result');
-      const expected =
-        descriptor && !descriptor.configurable && !descriptor.writable && !descriptor.get
+      if (!descriptor) expect(source.run).toBe(original);
+      const expected = !descriptor
+        ? undefined
+        : !descriptor.configurable && !descriptor.writable && !descriptor.get
           ? descriptor.value
           : original;
       expect((source.run as any).__sentry_original__).toBe(expected);
@@ -187,6 +189,18 @@ describe('共享函数 instrumentation', () => {
       unsubscribe();
       expect(source.run).toBe(original);
     }
+    const original = () => 'late freeze';
+    const source = { run: original };
+    expect(ensureFunctionInstrumentation(source, 'run')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(source.run, '__sentry_original__')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(original, '__sentry_original__')).toBe(false);
+    expect(Reflect.ownKeys(source.run)).toEqual(Reflect.ownKeys(original));
+    Object.preventExtensions(original);
+    expect(Object.prototype.hasOwnProperty.call(source.run, '__sentry_original__')).toBe(false);
+    expect(source.run()).toBe('late freeze');
+    expect(Object.getOwnPropertyDescriptors(source.run)).toEqual(
+      Object.getOwnPropertyDescriptors(original),
+    );
   });
 
   it('中性包装幂等且无 client 时透明调用原函数', () => {
