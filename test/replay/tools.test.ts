@@ -89,14 +89,16 @@ describe('框架构建接缝', () => {
   });
 
   it('Taro 共享模板的不同实例以 sid 归属，公开兄弟不继承前一实例遮蔽，桥接组件保留遮蔽', async () => {
-    const source = `<template name="taro_tmpl"><template is="{{xs.a(0,item.nn,'')}}" data="{{i:item,c:1,l:xs.f('',item.nn)}}" wx:for="{{root.cn}}" /></template>
+    const source = `<template name="taro_tmpl"><template is="{{xs.a(0,item.nn,'')}}" data="{{i:item,c:item.n > 0 ? 1 : 0,l:item.n < 2 ? xs.f('',item.nn) : ''}}" wx:for="{{root.cn}}" /></template>
 <template name="tmpl_0_0"><view class="{{i.cl}}" data-sid="{{i.sid}}"><template is="{{xs.a(c,item.nn,l)}}" data="{{i:item,c:c+1}}" wx:for="{{i.cn}}"/></view></template>
 <template name="tmpl_1_0"><view class="{{i.cl}}" data-sid="{{i.sid}}"/></template>
 <template name="tmpl_15_container"><comp i="{{i}}"/></template>
 <template name="tmpl_0_9"><block>{{i.v}}</block></template>`;
     const output = instrumentTaroBase(source, { sourceId: 'base', components: { comp: ['base'] } });
     expect(output).not.toContain('&quot;');
-    expect(output).toContain('sr_replay_root:sr_replay_root');
+    expect(output).toContain(
+      `data="{{i:item,c:item.n > 0 ? 1 : 0,l:item.n < 2 ? xs.f('',item.nn) : '',sr_replay_root:sr_replay_root}}"`,
+    );
     const roots = parseWxml(output);
     const helper = roots.find((node: any) => node.name === 'wxs');
     const module = {
@@ -324,11 +326,11 @@ describe('WXML 构建工具的实际项目输出', () => {
     ])
       expect(() => instrumentWxml(bad, { sourceId: 'a' })).toThrow();
     expect(
-      instrumentWxml('<widget><slot/></widget>', {
+      instrumentWxml('<widget><slot/><slot name="left&gt;right" slot="title"/></widget>', {
         sourceId: 'forward',
         components: { widget: ['child'] },
       }),
-    ).toContain('data-sentry-replay-slots="d>d"');
+    ).toContain('data-sentry-replay-slots="d>d,nleft%3Eright>ntitle"');
     expect(
       literals(instrumentWxml('<text decode="{{false}}">0</text>', { sourceId: 'decode' })),
     ).toContain('0');

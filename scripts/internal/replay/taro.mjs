@@ -1,5 +1,4 @@
-import { escapeAttribute } from 'entities';
-import { parseWxml } from './wxml.mjs';
+import { escapeWxmlAttribute, parseWxml } from './wxml.mjs';
 
 const structural = new Set(['template', 'block', 'import', 'include', 'wxs', 'slot']);
 const privateKinds = new Set([
@@ -42,7 +41,12 @@ export function instrumentTaroBase(source, { sourceId, components }) {
     const attr = node.attrs.find((item) => item.name === name);
     const quote = attr?.quote || '"';
     const content =
-      name + '=' + quote + (attr && append ? attr.value + ' ' : '') + escapeAttribute(text) + quote;
+      name +
+      '=' +
+      quote +
+      (attr && append ? attr.value + ' ' : '') +
+      escapeWxmlAttribute(text) +
+      quote;
     if (attr) edits.push({ start: attr.start, end: attr.end, text: content });
     else {
       const end = source[node.end - 2] === '/' ? node.end - 2 : node.end - 1;

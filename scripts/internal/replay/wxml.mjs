@@ -98,16 +98,21 @@ export function textModules(modules) {
     )
     .join('');
 }
+export function escapeWxmlAttribute(value) {
+  // WXML 绑定使用比较运算符，插槽转发元数据使用字面量 > 作为分隔符。
+  return escapeAttribute(value).replaceAll('&lt;', '<').replaceAll('&gt;', '>');
+}
+
 function wxmlAttribute(value) {
   let result = '',
     cursor = 0;
   for (let start = value.indexOf('{{'); start >= 0; start = value.indexOf('{{', cursor)) {
-    result += escapeAttribute(value.slice(cursor, start));
+    result += escapeWxmlAttribute(value.slice(cursor, start));
     const current = binding(value, start);
     result += value.slice(start, current.end);
     cursor = current.end;
   }
-  return result + escapeAttribute(value.slice(cursor));
+  return result + escapeWxmlAttribute(value.slice(cursor));
 }
 
 // XML 解析保持原始位置；绑定中的比较运算与 WXS 源码不参与标签解析。
@@ -371,10 +376,10 @@ export function instrumentWxml(
       '=' +
       quote +
       (append && attr
-        ? attr.value + ' ' + escapeAttribute(value)
+        ? attr.value + ' ' + escapeWxmlAttribute(value)
         : decoded
           ? wxmlAttribute(value)
-          : escapeAttribute(decodeXML(value))) +
+          : escapeWxmlAttribute(decodeXML(value))) +
       quote;
     if (attr) edits.push({ start: attr.start, end: attr.end, text });
     else {
