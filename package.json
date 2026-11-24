@@ -114,7 +114,7 @@
     "commit-and-tag-version": "^12.7.3",
     "core-js": "3.50.0",
     "core-js-pure": "patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch",
-    "entities": "8.1.0",
+    "entities": "9.0.0",
     "eslint": "^10.10.0",
     "globals": "^17.12.0",
     "htmlparser2": "12.0.0",
