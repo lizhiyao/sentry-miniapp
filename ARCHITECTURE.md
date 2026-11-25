@@ -21,6 +21,8 @@
 
 SDK 只支持 Core 的 span streaming 管道，使采样、生命周期排空和缓存重放围绕同一遥测模型工作，避免维护两套性能协议及其转换规则。Core 自身仍有 static transaction 入口；选择单一管道是本 SDK 的职责范围。
 
+[Core 在 segment 结束或首次排空时固定动态采样上下文](https://github.com/getsentry/sentry-javascript/pull/26653)，以先发生的时点为准。后续 span 批次沿用首次发出的 envelope `trace`；根 span 自身仍可在结束前更新名称。该契约由[实际 envelope 回归](test/performance.realcore.test.ts)验证。
+
 Core v11 的[官方自建后台支持基线](https://github.com/getsentry/sentry-javascript/blob/11.4.0/MIGRATION.md#upgrading-from-10x-to-11x)为 Sentry 26.4.2 及以上。部署兼容性须分别验证错误、span、Logs、Metrics 和 Session 的实际接收与展示；单次异常接收成功或关闭 tracing 不能证明完整兼容。用户的版本选择与归档入口集中在[迁移指南](https://sentry-miniapp.pages.dev/guide/migration-2.0#version-choice)。
 
 增加另一种协议模式，须有明确的后台版本、所需能力和可复现需求，并评估生命周期排空、缓存跨模式重放与维护成本。优先复用 Core 现有能力，保持序列化和遥测管道只有一个实现来源。
