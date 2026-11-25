@@ -3575,10 +3575,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"entities@npm:8.1.0, entities@npm:^8.0.0":
-  version: 8.1.0
-  resolution: "entities@npm:8.1.0"
-  checksum: 10c0/da0bf22912c19d2a4707783e1b905d3f6a977e93e0655a8d2c526455eb3996f668f9f2e4c2a07af8d6927d232c41b6e929a7044df0236c7bf6e9c38e070e3719
+"entities@npm:9.0.0":
+  version: 9.0.0
+  resolution: "entities@npm:9.0.0"
+  checksum: 10c0/ef713ce6256d2d878390376f0c42e6ccfeee9032c57c48bd224b9a48f8eb44d4403ad4321d1aeebe973fb08eac8ab324abeebc04a92748c0bac9261968e6d395
   languageName: node
   linkType: hard
 
@@ -3593,6 +3593,13 @@ __metadata:
   version: 7.0.1
   resolution: "entities@npm:7.0.1"
   checksum: 10c0/b4fb9937bb47ecb00aaaceb9db9cdd1cc0b0fb649c0e843d05cf5dbbd2e9d2df8f98721d8b1b286445689c72af7b54a7242fc2d63ef7c9739037a8c73363e7ca
+  languageName: node
+  linkType: hard
+
+"entities@npm:^8.0.0":
+  version: 8.1.0
+  resolution: "entities@npm:8.1.0"
+  checksum: 10c0/da0bf22912c19d2a4707783e1b905d3f6a977e93e0655a8d2c526455eb3996f668f9f2e4c2a07af8d6927d232c41b6e929a7044df0236c7bf6e9c38e070e3719
   languageName: node
   linkType: hard
 
@@ -6282,7 +6289,7 @@ __metadata:
     commit-and-tag-version: "npm:^12.7.3"
     core-js: "npm:3.50.0"
     core-js-pure: "patch:core-js-pure@npm%3A3.50.0#~/.yarn/patches/core-js-pure-npm-3.50.0-ef4916a342.patch"
-    entities: "npm:8.1.0"
+    entities: "npm:9.0.0"
     eslint: "npm:^10.10.0"
     globals: "npm:^17.12.0"
     htmlparser2: "npm:12.0.0"
