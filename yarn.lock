@@ -1725,19 +1725,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@sentry/conventions@npm:^0.33.0":
-  version: 0.33.0
-  resolution: "@sentry/conventions@npm:0.33.0"
-  checksum: 10c0/605137d08e82dbc811119506593c805328c4ddcb0a3687617eab364881515b947958ff138e16e1601bd1423e8c207c5a4af97cc9351e07a0ad9ccccb56312587
+"@sentry/conventions@npm:^0.34.0":
+  version: 0.34.0
+  resolution: "@sentry/conventions@npm:0.34.0"
+  checksum: 10c0/6502016846cc756ba1d3afb70030867e1bd1610a5802c3fe10e5fa838fb9f3daebcab8f7aaa72a5b6e925240dcddb7b5cec776b45e0050d9b2be9fc74849760c
   languageName: node
   linkType: hard
 
-"@sentry/core@npm:11.15.0":
-  version: 11.15.0
-  resolution: "@sentry/core@npm:11.15.0"
+"@sentry/core@npm:11.16.0":
+  version: 11.16.0
+  resolution: "@sentry/core@npm:11.16.0"
   dependencies:
-    "@sentry/conventions": "npm:^0.33.0"
-  checksum: 10c0/85f9abd34f22c52fb434498383dd596af251ace8c623297f105a2676a415f1f9206322e48e9346e0bb5ebf8e5c219a94db11b92834658410695c0aad7dbdd77c
+    "@sentry/conventions": "npm:^0.34.0"
+  checksum: 10c0/7f1e4b847173717ca8d829e065e06e0b80dc87029b882f8cb95c90541ba9e38dd72fe58636bbe43c01e98c4b3f54247bbbd9323cb74119eb373a79c98065dedb
   languageName: node
   linkType: hard
 
@@ -6280,7 +6280,7 @@ __metadata:
     "@publint/pack": "npm:^0.1.7"
     "@rrweb/replay": "npm:2.2.2"
     "@rrweb/types": "npm:2.2.2"
-    "@sentry/core": "npm:11.15.0"
+    "@sentry/core": "npm:11.16.0"
     "@types/jsdom": "npm:^27"
     "@types/node": "npm:^20.19.11"
     "@typescript-eslint/eslint-plugin": "npm:^8.70.0"

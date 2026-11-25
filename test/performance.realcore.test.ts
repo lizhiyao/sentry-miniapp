@@ -328,7 +328,7 @@ describe('Performance 的真实 core operation 与时间契约', () => {
     expect(beforeSendSpan).toHaveBeenCalledOnce();
   });
 
-  it('保留 core 批处理和最终 segment 名称：children 由 5 秒 timer 同批发出，flush 后不重复', async () => {
+  it('子 span 按时批量排空，后续根 span 改名时沿用首次发送的动态采样上下文', async () => {
     const client = start();
     const root = startInactiveSpan({ name: 'live.root', parentSpan: null });
     withActiveSpan(root, () => {
@@ -344,14 +344,23 @@ describe('Performance 的真实 core operation 与时间契约', () => {
       expect(spanAttribute(span, 'sentry.segment.name')).toBe('renamed.root');
       expect(span).not.toHaveProperty('_segmentNameAtCapture');
     }
+    const firstTrace = envelopes[0]?.[0].trace;
+    expect(firstTrace).toMatchObject({
+      trace_id: root.spanContext().traceId,
+      transaction: 'renamed.root',
+      sample_rate: '1',
+    });
+    root.updateName('final.root');
     root.end();
     await drain(client);
     await vi.advanceTimersByTimeAsync(5000);
     expect(collectSpans(envelopes).map((span) => span.name)).toEqual([
       'child.1',
       'child.2',
-      'renamed.root',
+      'final.root',
     ]);
+    expect(envelopes).toHaveLength(2);
+    expect(envelopes[1]?.[0].trace).toEqual(firstTrace);
   });
   it.each([null, {}, { now: () => 1 }])('缺 observer 的宿主安全跳过：%j', (hostManager) => {
     manager = hostManager;
